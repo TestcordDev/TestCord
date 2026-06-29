@@ -1,0 +1,27 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+@keyframes vc-smoothmessages-slide-in {
+    from {
+        transform: translateX(-10px);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+[--messageListItem] {
+    animation: vc-smoothmessages-slide-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [--messageListItem] {
+        animation: none;
+        will-change: auto;
+    }
+}
