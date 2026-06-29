@@ -23,7 +23,7 @@ import { Devs } from "@utils/constants";
 import { isTruthy } from "@utils/guards";
 import definePlugin, { IconProps, OptionType } from "@utils/types";
 import { waitFor } from "@webpack";
-import { React } from "@webpack/common";
+import { React, Toasts, useState } from "@webpack/common";
 import type { ComponentType, PropsWithChildren, ReactNode } from "react";
 
 const enum LayoutType {
@@ -92,9 +92,425 @@ interface EntryOptions {
     Icon: ComponentType<IconProps>;
 }
 
+interface TestcordTabDescriptor {
+    key: string;
+    title: string;
+    Icon?: ComponentType<IconProps>;
+    locked?: boolean;
+}
+
 interface SettingsLayoutBuilder {
     key?: string;
     buildLayout(): SettingsLayoutNode[];
+}
+
+const TESTCORD_MAIN_ENTRY_KEY = "equicord_main";
+
+function readVisibleTestcordTabs(validKeys: string[]) {
+    const stored = settings.store.visibleSettingsTabs;
+    if (!Array.isArray(stored) || stored.length === 0) return validKeys;
+
+    const validKeySet = new Set(validKeys);
+    const visible = stored.filter((key): key is string => typeof key === "string" && validKeySet.has(key));
+
+    return visible.includes(TESTCORD_MAIN_ENTRY_KEY)
+        ? visible
+        : [TESTCORD_MAIN_ENTRY_KEY, ...visible];
+}
+
+function writeVisibleTestcordTabs(keys: string[]) {
+    settings.store.visibleSettingsTabs = keys;
+}
+
+function readTestcordTabOrder(validKeys: string[]) {
+    const stored = settings.store.settingsTabOrder;
+    const validKeySet = new Set(validKeys);
+    const ordered = Array.isArray(stored)
+        ? stored.filter((key): key is string => typeof key === "string" && validKeySet.has(key))
+        : [];
+
+    return [...ordered, ...validKeys.filter(key => !ordered.includes(key))];
+}
+
+function writeTestcordTabOrder(keys: string[]) {
+    settings.store.settingsTabOrder = keys;
+}
+
+function readPinnedTestcordTabs(validKeys: string[]) {
+    const validKeySet = new Set(validKeys.filter(key => key !== TESTCORD_MAIN_ENTRY_KEY));
+    const stored = settings.store.pinnedSettingsTabs;
+
+    return Array.isArray(stored)
+        ? stored.filter((key): key is string => typeof key === "string" && validKeySet.has(key))
+        : [];
+}
+
+function writePinnedTestcordTabs(keys: string[]) {
+    settings.store.pinnedSettingsTabs = keys;
+}
+
+function orderTestcordTabs<T extends { key?: string; }>(tabs: T[], orderedKeys: string[], pinnedKeys: string[]) {
+    const orderIndex = new Map(orderedKeys.map((key, index) => [key, index]));
+    const pinnedKeySet = new Set(pinnedKeys);
+
+    return [...tabs].sort((a, b) => {
+        if (a.key === TESTCORD_MAIN_ENTRY_KEY) return -1;
+        if (b.key === TESTCORD_MAIN_ENTRY_KEY) return 1;
+
+        const pinnedDiff = Number(pinnedKeySet.has(b.key!)) - Number(pinnedKeySet.has(a.key!));
+        if (pinnedDiff !== 0) return pinnedDiff;
+
+        return (orderIndex.get(a.key!) ?? Number.MAX_SAFE_INTEGER) - (orderIndex.get(b.key!) ?? Number.MAX_SAFE_INTEGER);
+    });
+}
+
+function showTestcordUndoToast(message: string, undo: () => void) {
+    Toasts.show({
+        message,
+        id: Toasts.genId(),
+        type: Toasts.Type.MESSAGE,
+        options: {
+            duration: 5000,
+            position: Toasts.Position.BOTTOM,
+            component: (
+                <div className="vc-testcord-tab-editor-toast">
+                    <span>{message}</span>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            undo();
+                            Toasts.pop();
+                        }}
+                    >
+                        Undo
+                    </button>
+                </div>
+            )
+        }
+    });
+}
+
+function getTestcordTabDescriptors(entries: SettingsLayoutNode[]): TestcordTabDescriptor[] {
+    return entries.map(entry => ({
+        key: entry.key!,
+        title: entry.useTitle!(),
+        Icon: entry.icon ? (() => entry.icon!()) as ComponentType<IconProps> : undefined,
+        locked: entry.key === TESTCORD_MAIN_ENTRY_KEY
+    }));
+}
+
+function syncVisibleTestcordSidebarTabs(tabs: TestcordTabDescriptor[], visibleKeys: string[], orderedKeys = readTestcordTabOrder(tabs.map(tab => tab.key)), pinnedKeys = readPinnedTestcordTabs(tabs.map(tab => tab.key))) {
+    const tabByTitle = new Map(tabs.map(tab => [tab.title, tab]));
+    const visibleKeySet = new Set(visibleKeys);
+    const orderIndex = new Map(orderTestcordTabs(tabs, orderedKeys, pinnedKeys).map((tab, index) => [tab.key, index]));
+    let attempts = 0;
+
+    function sync() {
+        const candidates = Array.from(document.querySelectorAll<HTMLElement>('[role="button"], [role="tab"], [class*="item"]'));
+        let matched = 0;
+
+        for (const candidate of candidates) {
+            if (candidate.closest(".vc-testcord-tab-editor")) continue;
+
+            const title = candidate.textContent?.replace(/\s+/g, " ").trim();
+            if (!title) continue;
+
+            const tab = tabByTitle.get(title);
+            if (!tab) continue;
+
+            matched++;
+            candidate.classList.add("vc-testcord-managed-settings-tab");
+            candidate.classList.toggle("vc-testcord-hidden-settings-tab", !visibleKeySet.has(tab.key));
+            candidate.style.order = String(orderIndex.get(tab.key) ?? 0);
+        }
+
+        if (matched < tabs.length && attempts++ < 10) requestAnimationFrame(sync);
+    }
+
+    requestAnimationFrame(sync);
+}
+
+function TestcordTabsEditor({ tabs }: { tabs: TestcordTabDescriptor[]; }) {
+    const validKeys = tabs.map(tab => tab.key);
+    const [isEditing, setIsEditing] = useState(false);
+    const [visibleKeys, setVisibleKeys] = useState(() => readVisibleTestcordTabs(validKeys));
+    const [orderedKeys, setOrderedKeys] = useState(() => readTestcordTabOrder(validKeys));
+    const [pinnedKeys, setPinnedKeys] = useState(() => readPinnedTestcordTabs(validKeys));
+    const [draggingKey, setDraggingKey] = useState<string | null>(null);
+    const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+    const [suppressNextClick, setSuppressNextClick] = useState(false);
+
+    const visibleKeySet = new Set(visibleKeys);
+    const pinnedKeySet = new Set(pinnedKeys);
+    const editableKeys = tabs.filter(tab => !tab.locked).map(tab => tab.key);
+    const areAllEditableTabsVisible = editableKeys.every(key => visibleKeySet.has(key));
+    const hiddenCount = tabs.length - visibleKeySet.size;
+    const orderedTabs = orderTestcordTabs(tabs, orderedKeys, pinnedKeys);
+    const previewTabs = orderedTabs.filter(tab => visibleKeySet.has(tab.key));
+
+    function sync(nextVisibleKeys = visibleKeys, nextOrderedKeys = orderedKeys, nextPinnedKeys = pinnedKeys) {
+        syncVisibleTestcordSidebarTabs(tabs, nextVisibleKeys, nextOrderedKeys, nextPinnedKeys);
+    }
+
+    function saveVisibleTabs(nextKeys: string[], undoMessage?: string) {
+        const previousKeys = visibleKeys;
+        const nextVisibleKeys = nextKeys.includes(TESTCORD_MAIN_ENTRY_KEY)
+            ? nextKeys
+            : [TESTCORD_MAIN_ENTRY_KEY, ...nextKeys];
+
+        setVisibleKeys(nextVisibleKeys);
+        writeVisibleTestcordTabs(nextVisibleKeys);
+        sync(nextVisibleKeys);
+
+        if (undoMessage) {
+            showTestcordUndoToast(undoMessage, () => {
+                setVisibleKeys(previousKeys);
+                writeVisibleTestcordTabs(previousKeys);
+                sync(previousKeys);
+            });
+        }
+    }
+
+    function saveOrder(nextOrderedKeys: string[]) {
+        setOrderedKeys(nextOrderedKeys);
+        writeTestcordTabOrder(nextOrderedKeys);
+        sync(visibleKeys, nextOrderedKeys);
+    }
+
+    function savePinnedTabs(nextPinnedKeys: string[]) {
+        setPinnedKeys(nextPinnedKeys);
+        writePinnedTestcordTabs(nextPinnedKeys);
+        sync(visibleKeys, orderedKeys, nextPinnedKeys);
+    }
+
+    function toggleEditorMode() {
+        if (!isEditing) {
+            setVisibleKeys(readVisibleTestcordTabs(validKeys));
+            setOrderedKeys(readTestcordTabOrder(validKeys));
+            setPinnedKeys(readPinnedTestcordTabs(validKeys));
+        }
+
+        setIsEditing(!isEditing);
+    }
+
+    function toggleTab(key: string, title: string) {
+        const nextKeys = visibleKeySet.has(key)
+            ? visibleKeys.filter(visibleKey => visibleKey !== key)
+            : [...visibleKeys, key];
+
+        saveVisibleTabs(nextKeys, visibleKeySet.has(key) ? `${title} hidden` : undefined);
+    }
+
+    function toggleAllTabs() {
+        saveVisibleTabs(
+            areAllEditableTabsVisible ? [TESTCORD_MAIN_ENTRY_KEY] : validKeys,
+            areAllEditableTabsVisible ? "All editable tabs hidden" : undefined
+        );
+    }
+
+    function togglePinnedTab(key: string) {
+        savePinnedTabs(pinnedKeySet.has(key)
+            ? pinnedKeys.filter(pinnedKey => pinnedKey !== key)
+            : [...pinnedKeys, key]
+        );
+    }
+
+    function reorderTab(targetKey: string) {
+        if (!draggingKey || draggingKey === targetKey) return;
+
+        const nextOrderedKeys = orderedKeys.filter(key => key !== draggingKey);
+        const targetIndex = nextOrderedKeys.indexOf(targetKey);
+        nextOrderedKeys.splice(targetIndex === -1 ? nextOrderedKeys.length : targetIndex, 0, draggingKey);
+        saveOrder(nextOrderedKeys);
+    }
+
+    function markDropTarget(event: React.DragEvent<HTMLElement>, key: string, locked?: boolean) {
+        if (locked || !draggingKey) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        setDragOverKey(key);
+    }
+
+    function dropOnTab(event: React.DragEvent<HTMLElement>, key: string) {
+        event.preventDefault();
+        event.stopPropagation();
+        reorderTab(key);
+        setDraggingKey(null);
+        setDragOverKey(null);
+    }
+
+    function restoreOriginalLayout() {
+        setVisibleKeys(validKeys);
+        setOrderedKeys(validKeys);
+        setPinnedKeys([]);
+        writeVisibleTestcordTabs(validKeys);
+        writeTestcordTabOrder(validKeys);
+        writePinnedTestcordTabs([]);
+        sync(validKeys, validKeys, []);
+    }
+
+    function setDragImage(event: React.DragEvent<HTMLElement>) {
+        const chip = event.currentTarget.closest(".vc-testcord-tab-editor-chip") as HTMLElement | null;
+        if (!chip) return;
+
+        const chipStyles = getComputedStyle(chip);
+        const clone = chip.cloneNode(true) as HTMLElement;
+        clone.classList.add("vc-testcord-tab-editor-drag-image");
+        clone.style.color = "#fff";
+        clone.style.background = chipStyles.backgroundColor;
+        clone.querySelectorAll<HTMLElement>("*").forEach(element => {
+            element.style.color = "#fff";
+        });
+        clone.querySelectorAll<HTMLElement>(".vc-testcord-tab-editor-chip-state, .vc-testcord-tab-editor-pin").forEach(element => {
+            element.style.color = "#fff";
+            element.style.background = getComputedStyle(element).backgroundColor;
+        });
+        clone.querySelectorAll<SVGElement>("svg").forEach(svg => {
+            svg.style.color = "#fff";
+            svg.style.fill = "currentcolor";
+        });
+        document.body.append(clone);
+        clone.getBoundingClientRect();
+        event.dataTransfer.setDragImage(clone, clone.offsetWidth / 2, clone.offsetHeight / 2);
+        setTimeout(() => clone.remove(), 100);
+    }
+
+    return (
+        <div className={`vc-testcord-tab-editor ${isEditing ? "vc-testcord-tab-editor-open" : ""} ${draggingKey ? "vc-testcord-tab-editor-is-dragging" : ""}`}>
+            <div className="vc-testcord-tab-editor-title-row">
+                <div>
+                    <div className="vc-testcord-tab-editor-kicker">Settings tabs</div>
+                    <h2 className="vc-testcord-tab-editor-title">Testcord</h2>
+                </div>
+                <button
+                    type="button"
+                    className={`vc-testcord-tab-editor-toggle ${isEditing ? "vc-testcord-tab-editor-toggle-on" : ""}`}
+                    onClick={toggleEditorMode}
+                >
+                    <span className="vc-testcord-tab-editor-toggle-dot" />
+                    {isEditing ? "Done" : "Editor Mode"}
+                </button>
+            </div>
+            <div className="vc-testcord-tab-editor-panel" aria-hidden={!isEditing}>
+                <div className="vc-testcord-tab-editor-panel-inner">
+                    <div className="vc-testcord-tab-editor-copy">
+                        Choose which tabs stay under Testcord. Hidden tabs are saved and can be added back here anytime.
+                        Changes apply instantly.
+                        {hiddenCount > 0 && ` ${hiddenCount} hidden.`}
+                    </div>
+                    <div className="vc-testcord-tab-editor-preview">
+                        <div className="vc-testcord-tab-editor-preview-title">Sidebar Preview</div>
+                        <div className="vc-testcord-tab-editor-preview-list">
+                            {previewTabs.map(({ key, title, Icon }) => (
+                                <span key={key} className="vc-testcord-tab-editor-preview-item">
+                                    {Icon && <Icon width={14} height={14} />}
+                                    {pinnedKeySet.has(key) && <span className="vc-testcord-tab-editor-preview-pin">Pinned</span>}
+                                    {title}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="vc-testcord-tab-editor-grid">
+                        {orderedTabs.map(({ key, title, Icon, locked }) => {
+                            const enabled = visibleKeySet.has(key);
+                            const pinned = pinnedKeySet.has(key);
+
+                            return (
+                                <div
+                                    key={key}
+                                    role="button"
+                                    tabIndex={locked ? -1 : 0}
+                                    draggable={!locked}
+                                    className={`vc-testcord-tab-editor-chip ${enabled ? "vc-testcord-tab-editor-chip-on" : ""} ${draggingKey === key ? "vc-testcord-tab-editor-chip-dragging" : ""} ${dragOverKey === key && draggingKey !== key ? "vc-testcord-tab-editor-chip-drop-target" : ""}`}
+                                    aria-disabled={locked}
+                                    onClick={() => {
+                                        if (suppressNextClick) {
+                                            setSuppressNextClick(false);
+                                            return;
+                                        }
+
+                                        if (!locked) toggleTab(key, title);
+                                    }}
+                                    onDragStart={event => {
+                                        if (locked) return;
+
+                                        setSuppressNextClick(true);
+                                        setDraggingKey(key);
+                                        setDragImage(event);
+                                        event.dataTransfer.effectAllowed = "move";
+                                        event.dataTransfer.setData("text/plain", key);
+                                    }}
+                                    onDragOver={event => {
+                                        markDropTarget(event, key, locked);
+                                    }}
+                                    onDragEnter={event => {
+                                        markDropTarget(event, key, locked);
+                                    }}
+                                    onDragLeave={() => dragOverKey === key && setDragOverKey(null)}
+                                    onDrop={event => dropOnTab(event, key)}
+                                    onDragEnd={() => {
+                                        setDraggingKey(null);
+                                        setDragOverKey(null);
+                                    }}
+                                >
+                                    <span
+                                        className="vc-testcord-tab-editor-drag-handle"
+                                        aria-hidden
+                                        onClick={event => event.stopPropagation()}
+                                        onDragOver={event => markDropTarget(event, key, locked)}
+                                        onDragEnter={event => markDropTarget(event, key, locked)}
+                                        onDrop={event => dropOnTab(event, key)}
+                                    >
+                                        ::
+                                    </span>
+                                    {Icon && <Icon width={18} height={18} />}
+                                    <span className="vc-testcord-tab-editor-chip-title">{title}</span>
+                                    {!locked && (
+                                        <button
+                                            type="button"
+                                            className={`vc-testcord-tab-editor-pin ${pinned ? "vc-testcord-tab-editor-pin-on" : ""}`}
+                                            onClick={event => {
+                                                event.stopPropagation();
+                                                togglePinnedTab(key);
+                                            }}
+                                            onDragOver={event => markDropTarget(event, key, locked)}
+                                            onDragEnter={event => markDropTarget(event, key, locked)}
+                                            onDrop={event => dropOnTab(event, key)}
+                                        >
+                                            {pinned ? "Pinned" : "Pin"}
+                                        </button>
+                                    )}
+                                    <span
+                                        className="vc-testcord-tab-editor-chip-state"
+                                        onDragOver={event => markDropTarget(event, key, locked)}
+                                        onDragEnter={event => markDropTarget(event, key, locked)}
+                                        onDrop={event => dropOnTab(event, key)}
+                                    >
+                                        {locked ? "Locked" : enabled ? "On" : "Off"}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <button
+                        type="button"
+                        className="vc-testcord-tab-editor-show-all"
+                        onClick={toggleAllTabs}
+                    >
+                        {areAllEditableTabsVisible ? "Toggle all off" : "Add all tabs back"}
+                    </button>
+                    <button
+                        type="button"
+                        className="vc-testcord-tab-editor-restore"
+                        onClick={restoreOriginalLayout}
+                    >
+                        Restore original layout
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
 }
 
 const settings = definePluginSettings({
@@ -114,6 +530,24 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Also copy Vencord info (Vencord, Electron, Chromium) when clicking the version info in the bottom left area of the Settings page",
         default: true
+    },
+    visibleSettingsTabs: {
+        type: OptionType.CUSTOM,
+        description: "Visible Testcord settings tabs",
+        hidden: true,
+        default: [] as string[]
+    },
+    settingsTabOrder: {
+        type: OptionType.CUSTOM,
+        description: "Testcord settings tab order",
+        hidden: true,
+        default: [] as string[]
+    },
+    pinnedSettingsTabs: {
+        type: OptionType.CUSTOM,
+        description: "Pinned Testcord settings tabs",
+        hidden: true,
+        default: [] as string[]
     }
 });
 
@@ -193,10 +627,15 @@ export default definePlugin({
 
         const equicordEntries: SettingsLayoutNode[] = [
             buildEntry({
-                key: "equicord_main",
+                key: TESTCORD_MAIN_ENTRY_KEY,
                 title: "Testcord",
                 panelTitle: "Testcord Settings",
-                Component: VencordTab,
+                Component: () => <>
+                    <TestcordTabsEditor
+                        tabs={getTestcordTabDescriptors(equicordEntries)}
+                    />
+                    <VencordTab />
+                </>,
                 Icon: MainSettingsIcon
             }),
             buildEntry({
@@ -260,11 +699,22 @@ export default definePlugin({
             ...this.customEntries.map(buildEntry)
         ].filter(isTruthy);
 
+        const orderedEquicordEntries = orderTestcordTabs(
+            equicordEntries,
+            readTestcordTabOrder(equicordEntries.map(entry => entry.key!)),
+            readPinnedTestcordTabs(equicordEntries.map(entry => entry.key!))
+        );
+
+        syncVisibleTestcordSidebarTabs(
+            getTestcordTabDescriptors(equicordEntries),
+            readVisibleTestcordTabs(equicordEntries.map(entry => entry.key!))
+        );
+
         const equicordSection: SettingsLayoutNode = {
             key: "equicord_section",
             type: LayoutTypes.SECTION,
             useTitle: () => "TestCord Settings",
-            buildLayout: () => equicordEntries
+            buildLayout: () => orderedEquicordEntries
         };
 
         const { settingsLocation } = settings.store;
