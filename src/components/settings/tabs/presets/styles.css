@@ -241,13 +241,14 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
 }
 
 .vc-presets-row-dragging {
-    opacity: .55;
-    transform: scale(.99);
+    opacity: 0;
+    transform: scale(.985);
 }
 
 .vc-presets-row-drop-target {
     border-color: var(--brand, var(--brand-experiment, #5865f2));
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 35%, transparent), var(--elevation-medium);
+    transform: translateY(-2px) scale(1.01);
 }
 
 .vc-presets-row-drop-target::before {
@@ -279,6 +280,49 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     background:
         linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 18%, transparent), transparent 48%),
         var(--background-base-lower-alt);
+}
+
+.vc-presets-row-drop-merge::after {
+    content: "Drop to merge";
+    position: absolute;
+    right: 14px;
+    bottom: 12px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    color: #fff;
+    background: var(--brand, var(--brand-experiment, #5865f2));
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
+}
+
+.vc-presets-drag-preview {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 10000;
+    width: min(360px, calc(100vw - 32px));
+    color: var(--text-default);
+    box-shadow: 0 22px 60px rgb(0 0 0 / 42%), 0 1px 0 rgb(255 255 255 / 8%) inset;
+    opacity: .96;
+    pointer-events: none;
+    animation: vc-presets-drag-preview-lift .14s ease-out;
+}
+
+.vc-presets-drag-preview button {
+    pointer-events: none;
+}
+
+@keyframes vc-presets-drag-preview-lift {
+    from {
+        opacity: 0;
+        scale: .96;
+    }
+
+    to {
+        opacity: .96;
+        scale: 1;
+    }
 }
 
 .vc-presets-row-info {
