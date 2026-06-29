@@ -15,17 +15,25 @@ import { SettingsTab, wrapTab } from "@components/settings/tabs/BaseTab";
 import { Switch } from "@components/Switch";
 import { Margins } from "@utils/margins";
 import { saveFile } from "@utils/web";
-import { Alerts, React, showToast, Toasts } from "@webpack/common";
+import { Alerts, React, showToast, Toasts, useDrag, useDrop } from "@webpack/common";
 
 import { openImportModal } from "./ImportModal";
 import { openInfoModal } from "./InfoModal";
+import { openMergeModal } from "./MergeModal";
 import { openNameModal } from "./NameModal";
 import {
     ANIM_KEYS, ANIM_LABELS, applyPreset, deletePreset, duplicatePreset, exportAllPresets,
     getAnim, getAnimMaster, getHideDuplicate, getRestoreDefault, hasPreset, listPresets, loadPresets,
-    Preset, renamePreset, savePreset, setAnim, setAnimMaster, setHideDuplicate, setRestoreDefault
+    Preset, renamePreset, reorderPresets, savePreset, setAnim, setAnimMaster, setHideDuplicate, setRestoreDefault
 } from "./presets";
 import { openSaveModal } from "./SaveModal";
+
+type DropIntent = "before" | "merge" | "after";
+const PRESET_DND_TYPE = "VC_PRESET";
+
+interface PresetDragItem {
+    name: string;
+}
 
 // Sync animation prefs to <body> classes so both the tab and the modal portals
 // (which render outside this subtree) can key off them. master off => all off.
@@ -55,7 +63,8 @@ function formatDate(ts: number) {
     return new Intl.DateTimeFormat(navigator.language, { dateStyle: "medium", timeStyle: "short" }).format(ts);
 }
 
-function PresetRow({ preset, globalDefault, hideDuplicate, onChange }: { preset: Preset; globalDefault: boolean; hideDuplicate: boolean; onChange: () => void; }) {
+function PresetRow({ preset, globalDefault, hideDuplicate, draggingName, dragOverName, dropIntent, setDraggingName, setDragOverName, setDropIntent, onChange }: { preset: Preset; globalDefault: boolean; hideDuplicate: boolean; draggingName: string | null; dragOverName: string | null; dropIntent: DropIntent | null; setDraggingName: (name: string | null) => void; setDragOverName: (name: string | null) => void; setDropIntent: (intent: DropIntent | null) => void; onChange: () => void; }) {
+    const rowRef = React.useRef<HTMLDivElement>(null);
     const effectiveRestore = preset.restoreSettings ?? globalDefault;
 
     const apply = () => {
@@ -100,11 +109,80 @@ function PresetRow({ preset, globalDefault, hideDuplicate, onChange }: { preset:
     };
 
     const onInfo = () => openInfoModal(preset.name, onChange);
+    const clearDragTarget = () => {
+        setDragOverName(null);
+        setDropIntent(null);
+    };
+    const getDropIntent = (clientY: number): DropIntent | null => {
+        if (!rowRef.current) return null;
+        const rect = rowRef.current.getBoundingClientRect();
+        const y = clientY - rect.top;
+        if (y < rect.height * 0.28) return "before";
+        if (y > rect.height * 0.72) return "after";
+        return "merge";
+    };
+
+    const [{ isDragging }, drag] = useDrag({
+        type: PRESET_DND_TYPE,
+        item: () => {
+            setDraggingName(preset.name);
+            return { name: preset.name };
+        },
+        end: () => {
+            setDraggingName(null);
+            clearDragTarget();
+        },
+        collect: monitor => ({ isDragging: monitor.isDragging() }),
+    });
+
+    const [{ isOver }, drop] = useDrop({
+        accept: PRESET_DND_TYPE,
+        collect: monitor => ({ isOver: monitor.isOver({ shallow: true }) }),
+        hover: (item: PresetDragItem, monitor) => {
+            if (!rowRef.current || item.name === preset.name) return;
+            const clientOffset = monitor.getClientOffset();
+            if (!clientOffset) return;
+
+            const intent = getDropIntent(clientOffset.y);
+            if (!intent) return;
+
+            if (intent !== "merge" && reorderPresets(item.name, preset.name, intent)) {
+                clearDragTarget();
+                onChange();
+                return;
+            }
+
+            if (intent !== "merge") {
+                clearDragTarget();
+                return;
+            }
+
+            setDragOverName(preset.name);
+            setDropIntent(intent);
+        },
+        drop: (item: PresetDragItem, monitor) => {
+            if (monitor.didDrop() || item.name === preset.name) return;
+            const clientOffset = monitor.getClientOffset();
+            const intent = clientOffset ? getDropIntent(clientOffset.y) : dropIntent;
+            clearDragTarget();
+
+            if (intent === "merge") openMergeModal(item.name, preset.name, onChange);
+        },
+    });
+
+    React.useEffect(() => {
+        if (!isOver && dragOverName === preset.name) clearDragTarget();
+    }, [isOver, dragOverName, preset.name]);
+
+    drag(drop(rowRef));
 
     const count = Object.values(preset.plugins).filter(p => p.enabled).length;
 
     return (
-        <Card className="vc-presets-row">
+        <Card
+            ref={rowRef}
+            className={`vc-presets-row${(draggingName === preset.name || isDragging) ? " vc-presets-row-dragging" : ""}${dragOverName === preset.name ? ` vc-presets-row-drop-target vc-presets-row-drop-${dropIntent}` : ""}`}
+        >
             <button className="vc-presets-row-gear" onClick={onInfo} aria-label="Preset settings">
                 <MainSettingsIcon />
             </button>
@@ -133,6 +211,9 @@ function PresetsTab() {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const [ready, setReady] = React.useState(false);
     const [animOpen, setAnimOpen] = React.useState(false);
+    const [draggingName, setDraggingName] = React.useState<string | null>(null);
+    const [dragOverName, setDragOverName] = React.useState<string | null>(null);
+    const [dropIntent, setDropIntent] = React.useState<DropIntent | null>(null);
 
     // Hydrate the cache from the shared native file once on mount, then render.
     React.useEffect(() => { loadPresets().then(() => setReady(true)); }, []);
@@ -241,7 +322,7 @@ function PresetsTab() {
                     ? <Paragraph className={Margins.top16} style={{ opacity: 0.6 }}>No presets yet. Save your current loadout to create one.</Paragraph>
                     : (
                         <div className={`vc-presets-list ${Margins.top16}`}>
-                            {presets.map(p => <PresetRow key={p.name} preset={p} globalDefault={globalDefault} hideDuplicate={hideDuplicate} onChange={forceUpdate} />)}
+                            {presets.map(p => <PresetRow key={p.name} preset={p} globalDefault={globalDefault} hideDuplicate={hideDuplicate} draggingName={draggingName} dragOverName={dragOverName} dropIntent={dropIntent} setDraggingName={setDraggingName} setDragOverName={setDragOverName} setDropIntent={setDropIntent} onChange={forceUpdate} />)}
                         </div>
                     )}
         </SettingsTab>

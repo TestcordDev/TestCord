@@ -240,6 +240,47 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     transform: scaleY(1);
 }
 
+.vc-presets-row-dragging {
+    opacity: .55;
+    transform: scale(.99);
+}
+
+.vc-presets-row-drop-target {
+    border-color: var(--brand, var(--brand-experiment, #5865f2));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 35%, transparent), var(--elevation-medium);
+}
+
+.vc-presets-row-drop-target::before {
+    opacity: 1;
+    transform: scaleY(1);
+}
+
+.vc-presets-row-drop-before::after,
+.vc-presets-row-drop-after::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--brand, var(--brand-experiment, #5865f2));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, transparent);
+}
+
+.vc-presets-row-drop-before::after {
+    top: -2px;
+}
+
+.vc-presets-row-drop-after::after {
+    bottom: -2px;
+}
+
+.vc-presets-row-drop-merge {
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 18%, transparent), transparent 48%),
+        var(--background-base-lower-alt);
+}
+
 .vc-presets-row-info {
     display: flex;
     flex-direction: column;
@@ -423,6 +464,266 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
 
 .vc-presets-modal-row {
     align-self: flex-start;
+}
+
+/* ── Merge modal ───────────────────────────────────────────────────── */
+
+.vc-presets-merge-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--background-base-lower-alt);
+    transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease;
+}
+
+.vc-presets-merge-section:hover {
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, var(--border-subtle));
+    box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset;
+    transform: translateY(-1px);
+}
+
+.vc-presets-merge-additions {
+    border-color: color-mix(in srgb, var(--status-positive, #23a55a) 28%, var(--border-subtle));
+}
+
+.vc-presets-merge-warning {
+    border-color: color-mix(in srgb, var(--status-warning, #f0b232) 42%, var(--border-subtle));
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--status-warning, #f0b232) 12%, transparent), transparent 52%),
+        var(--background-base-lower-alt);
+}
+
+.vc-presets-merge-output,
+.vc-presets-merge-options {
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 8%, transparent), transparent 48%),
+        var(--background-base-lower-alt);
+}
+
+.vc-presets-merge-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-height: 120px;
+    overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-subtle, #888) 55%, transparent) transparent;
+}
+
+.vc-presets-merge-list::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.vc-presets-merge-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.vc-presets-merge-list::-webkit-scrollbar-thumb {
+    min-height: 28px;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text-subtle, #888) 42%, transparent);
+    background-clip: padding-box;
+}
+
+.vc-presets-merge-list:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-subtle, #888) 75%, transparent);
+    background-clip: padding-box;
+}
+
+.vc-presets-merge-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-default, #ddd);
+    background-clip: padding-box;
+}
+
+.vc-presets-merge-list::-webkit-scrollbar-thumb:active {
+    background: var(--brand, var(--brand-experiment, #5865f2));
+    background-clip: padding-box;
+}
+
+.vc-presets-merge-list::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+.vc-presets-merge-chip {
+    padding: 4px 8px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 999px;
+    color: var(--text-default);
+    background: var(--background-base-low);
+    font-size: 12px;
+    transition: border-color .12s ease, background-color .12s ease, transform .12s ease;
+}
+
+.vc-presets-merge-chip:hover {
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 35%, var(--border-subtle));
+    background: var(--background-base-lower-alt);
+    transform: translateY(-1px);
+}
+
+.vc-presets-merge-conflicts {
+    gap: 10px;
+}
+
+.vc-presets-merge-conflict {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 18%, var(--border-subtle));
+    border-radius: 8px;
+    background: var(--background-base-low);
+    transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+}
+
+.vc-presets-merge-conflict:hover,
+.vc-presets-merge-conflict:focus-within {
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 42%, var(--border-subtle));
+    box-shadow: var(--elevation-low), 0 1px 0 rgb(255 255 255 / 5%) inset;
+    transform: translateY(-1px);
+}
+
+.vc-presets-merge-conflict-text {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.vc-presets-merge-kind {
+    width: fit-content;
+    padding: 2px 6px;
+    border-radius: 999px;
+    color: var(--brand, var(--brand-experiment, #5865f2));
+    background: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 14%, transparent);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.vc-presets-merge-dropdown {
+    position: relative;
+    width: 170px;
+    flex: 0 0 170px;
+    align-self: center;
+}
+
+.vc-presets-merge-dropdown-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+    min-height: 32px;
+    padding: 6px 9px;
+    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 18%, var(--border-subtle));
+    border-radius: 8px;
+    color: var(--text-default);
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 13%, transparent), transparent 56%),
+        var(--background-base-lower-alt);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 5%) inset, 0 6px 16px rgb(0 0 0 / 10%);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .14s ease, box-shadow .14s ease, filter .14s ease, transform .14s ease;
+}
+
+.vc-presets-merge-dropdown-button:hover,
+.vc-presets-merge-dropdown-button:focus-visible,
+.vc-presets-merge-dropdown-open .vc-presets-merge-dropdown-button {
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 44%, var(--border-subtle));
+    box-shadow: var(--elevation-low), 0 1px 0 rgb(255 255 255 / 7%) inset;
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+}
+
+.vc-presets-merge-dropdown-button:focus-visible {
+    outline: 2px solid var(--brand, var(--brand-experiment, #5865f2));
+    outline-offset: 2px;
+}
+
+.vc-presets-merge-dropdown-chevron {
+    color: var(--text-subtle);
+    transition: color .14s ease, transform .18s ease;
+}
+
+.vc-presets-merge-dropdown-open .vc-presets-merge-dropdown-chevron {
+    color: var(--text-default);
+    transform: rotate(180deg);
+}
+
+.vc-presets-merge-dropdown-menu {
+    position: absolute;
+    z-index: 10;
+    top: calc(100% + 6px);
+    right: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 5px;
+    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 26%, var(--border-subtle));
+    border-radius: 10px;
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 10%, var(--background-base-lower-alt)), var(--background-base-lower-alt) 62%),
+        var(--background-base-lower-alt, #1e1f22);
+    box-shadow: var(--elevation-high, 0 12px 32px rgb(0 0 0 / 35%));
+    transform-origin: top center;
+    animation: vc-presets-dropdown-in .14s ease;
+}
+
+.vc-presets-merge-dropdown-option {
+    padding: 7px 8px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    color: var(--text-default);
+    background: transparent;
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color .12s ease, border-color .12s ease, color .12s ease, transform .12s ease;
+}
+
+.vc-presets-merge-dropdown-option:hover,
+.vc-presets-merge-dropdown-option:focus-visible {
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 28%, transparent);
+    color: var(--text-default);
+    background: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 14%, var(--background-base-low));
+    outline: none;
+    transform: translateX(2px);
+}
+
+.vc-presets-merge-dropdown-option-selected {
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 36%, transparent);
+    color: var(--text-default);
+    background: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 22%, var(--background-base-low));
+}
+
+.vc-presets-merge-clean {
+    padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--status-positive, #23a55a) 32%, var(--border-subtle));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--status-positive, #23a55a) 10%, transparent);
+}
+
+.vc-presets-merge-footer {
+    display: block;
+}
+
+.vc-presets-merge-footer-inner {
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
 }
 
 /* ── Import preview ───────────────────────────────────────────────── */
@@ -720,6 +1021,11 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
 @keyframes vc-presets-fade-in {
     from { opacity: 0; transform: translateY(4px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes vc-presets-dropdown-in {
+    from { opacity: 0; transform: translateY(-4px) scale(.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
