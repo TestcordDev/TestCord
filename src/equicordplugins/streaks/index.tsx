@@ -40,8 +40,7 @@ const colorFor = (streak: number) => {
 };
 
 const StreakBadge = ({ userId }: { userId: string; }) => {
-    const streaks = useStreaksStore(state => state.streaks);
-    const streak = streaks[userId];
+    const streak = useStreaksStore(state => state.streaks[userId]);
 
     if (!streak || streak.count < 1) return null;
 
@@ -120,11 +119,15 @@ export default definePlugin({
     renderMessageDecoration({ message }) {
         const userId = message?.author?.id;
         if (!userId || userId === UserStore.getCurrentUser()?.id) return null;
+        const streak = useStreaksStore.getState().streaks[userId];
+        if (!streak || streak.count < 1) return null;
         return <StreakBadge userId={userId} />;
     },
 
     renderMemberListDecorator({ user, type }: DecoratorProps) {
         if (type !== "dm" || !user || user.id === UserStore.getCurrentUser()?.id) return null;
+        const streak = useStreaksStore.getState().streaks[user.id];
+        if (!streak || streak.count < 1) return null;
         return <StreakBadge userId={user.id} />;
     },
 });

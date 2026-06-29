@@ -104,7 +104,8 @@ export async function loadEvents(limit?: number) {
 export async function recordEvent(event: SurveillanceEvent, limit: number) {
     await loadEvents(limit);
 
-    events = [event, ...events].slice(0, Math.max(MIN_EVENTS, limit));
+    events.unshift(event);
+    events.length = Math.min(events.length, Math.max(MIN_EVENTS, limit));
     notify();
     scheduleSave();
 }

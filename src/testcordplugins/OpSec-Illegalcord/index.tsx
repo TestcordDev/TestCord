@@ -166,6 +166,7 @@ function findContextCorrections(text: string, vocab: Set<string>): Map<string, s
             if (known.length < 2 || lowerWord.length < 2) continue;
 
             const maxDist = Math.max(1, Math.floor(Math.min(known.length, lowerWord.length) / 3));
+            if (Math.abs(known.length - lowerWord.length) > maxDist) continue;
 
             const dist = levenshteinDistance(lowerWord, known);
 

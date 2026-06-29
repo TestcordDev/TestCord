@@ -6,8 +6,19 @@
 
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { escapeRegExp } from "@utils/text";
 import definePlugin, { OptionType } from "@utils/types";
 import { Toasts } from "@webpack/common";
+
+let wordRegexes: RegExp[] = [];
+
+function compileWords(words: string) {
+    wordRegexes = words
+        .split(/[\n,]/)
+        .map(w => w.trim())
+        .filter(Boolean)
+        .map(word => new RegExp(`\\b${escapeRegExp(word)}\\b`, "gi"));
+}
 
 const settings = definePluginSettings({
     enabled: {
@@ -18,7 +29,8 @@ const settings = definePluginSettings({
     words: {
         type: OptionType.STRING,
         description: "Words to filter, separated by commas or newlines. Strict whole-word, case-insensitive; combined words (e.g. \"fuckass\") are never matched.",
-        default: ""
+        default: "",
+        onChange: compileWords
     },
     duckOnEmpty: {
         type: OptionType.BOOLEAN,
@@ -27,21 +39,12 @@ const settings = definePluginSettings({
     }
 });
 
-function parseWords(): string[] {
-    return settings.store.words
-        .split(/[\n,]/)
-        .map(w => w.trim())
-        .filter(Boolean);
-}
-
 function filter(content: string): string {
-    const words = parseWords();
-    if (words.length === 0) return content;
+    if (wordRegexes.length === 0) return content;
 
     let result = content;
-    for (const word of words) {
-        const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        result = result.replace(new RegExp(`\\b${escaped}\\b`, "gi"), "");
+    for (const regex of wordRegexes) {
+        result = result.replace(regex, "");
     }
 
     return result
@@ -74,6 +77,7 @@ export default definePlugin({
     settings,
 
     start() {
+        compileWords(settings.store.words);
         document.addEventListener("keydown", toggleHandler);
     },
 

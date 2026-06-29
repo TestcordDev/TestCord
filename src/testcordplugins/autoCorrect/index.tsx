@@ -8,11 +8,14 @@ import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
 import { addChannelToolbarButton, addHeaderBarButton, ChannelToolbarButton, HeaderBarButton, removeChannelToolbarButton, removeHeaderBarButton } from "@api/HeaderBar";
 import { definePluginSettings } from "@api/Settings";
 import { showApiKeyWarning } from "@utils/apiKeyWarning";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { React } from "@webpack/common";
 
 import { effectiveProviderRequiresGroqKey, HOMELANDER_MODEL_OPTIONS, LOCAL_PROVIDER_OPTIONS, SURF_MODEL_OPTIONS, SWISHAI_MODEL_OPTIONS, testcordChat } from "../TestcordAI/aiProvider";
 import { getGroqKey } from "../TestcordAI/groqManager";
+
+const AUTO_CORRECT_TIMEOUT = 3000;
 
 const settings = definePluginSettings({
     location: {
@@ -238,8 +241,12 @@ export default definePlugin({
     async onBeforeMessageSend(_channelId: string, message: { content: string; }) {
         if (!settings.store.isActive) return;
         if (!message.content || message.content.trim().length < 3) return;
+        if (message.content.startsWith("/") || message.content.length > 2000) return;
 
-        const corrected = await correctText(message.content);
+        const corrected = await Promise.race([
+            correctText(message.content),
+            sleep(AUTO_CORRECT_TIMEOUT).then(() => message.content)
+        ]);
         if (corrected && corrected !== message.content) {
             message.content = corrected;
         }

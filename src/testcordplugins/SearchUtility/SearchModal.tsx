@@ -168,7 +168,7 @@ export function SearchModal({ modalProps }: { modalProps: ModalProps; }) {
         if (selectedIndex >= 0 && resultsRef.current) {
             const element = resultsRef.current.children[selectedIndex] as HTMLElement;
             if (element) {
-                element.scrollIntoView({ block: "nearest", behavior: "smooth" });
+                element.scrollIntoView({ block: "nearest" });
             }
         }
     }, [selectedIndex, activeFilter]);
@@ -206,7 +206,7 @@ export function SearchModal({ modalProps }: { modalProps: ModalProps; }) {
             }
         };
 
-        container.addEventListener("scroll", handleScroll);
+        container.addEventListener("scroll", handleScroll, { passive: true });
         return () => container.removeEventListener("scroll", handleScroll);
     }, [activeFilter, displayedResults, allResults, loadingMore, loadMoreBatchSize]);
 
@@ -243,7 +243,7 @@ export function SearchModal({ modalProps }: { modalProps: ModalProps; }) {
             }
         };
 
-        container.addEventListener("scroll", handleScroll);
+        container.addEventListener("scroll", handleScroll, { passive: true });
         return () => container.removeEventListener("scroll", handleScroll);
     }, [activeFilter, displayedResults, allResults, loadingMore, loadMoreBatchSize]);
 

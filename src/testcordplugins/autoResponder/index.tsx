@@ -139,28 +139,49 @@ const settings = definePluginSettings({
         description: "Maximum Delay (seconds)",
         default: 12,
         restartNeeded: false,
+    },
+    realcontext: {
+        type: OptionType.NUMBER,
+        description: "Real Context Wait (seconds). Wait this long after their last message and reply using the whole message burst. Set to 0 to disable.",
+        default: 0,
+        restartNeeded: false,
     }
 });
 
 const DS_STYLE_KEY = "auto-responder-global-style";
 const SERVER_THREAD_TTL = 10 * 60 * 1000;
 
+interface AutoResponderMessage {
+    id: string;
+    content?: string;
+    channel_id: string;
+    guild_id?: string;
+    author: {
+        id: string;
+        username?: string;
+    };
+    mentions?: Array<{ id: string; }>;
+    message_reference?: { message_id?: string; };
+    referenced_message?: AutoResponderMessage;
+}
+
 let lastMessageId = "";
 const cachedGlobalStyle = "";
 const pendingResponses = new Set<ReturnType<typeof setTimeout>>();
 const serverThreads = new Map<string, { userId: string; lastIncomingMessageId: string; lastResponseMessageId: string; lastActivity: number; }>();
+const realContextBuffers = new Map<string, { messages: AutoResponderMessage[]; timeout: ReturnType<typeof setTimeout>; }>();
 
-function isMentioningUser(message: any, userId: string) {
-    return message.content?.includes(`<@${userId}>`) || message.content?.includes(`<@!${userId}>`) || message.mentions?.some((user: any) => user.id === userId);
+function isMentioningUser(message: AutoResponderMessage, userId: string) {
+    return message.content?.includes(`<@${userId}>`) || message.content?.includes(`<@!${userId}>`) || message.mentions?.some(user => user.id === userId);
 }
 
-function getReferencedMessage(message: any) {
+function getReferencedMessage(message: AutoResponderMessage) {
     const referencedId = message.message_reference?.message_id || message.referenced_message?.id;
     if (!referencedId) return undefined;
     return message.referenced_message || MessageStore.getMessage?.(message.channel_id, referencedId);
 }
 
-function getServerTrigger(message: any, currentUserId: string) {
+function getServerTrigger(message: AutoResponderMessage, currentUserId: string) {
     const now = Date.now();
     const thread = serverThreads.get(message.channel_id);
     const referenced = getReferencedMessage(message);
@@ -176,30 +197,7 @@ async function hasRequiredKey() {
     return !effectiveProviderRequiresGroqKey(settings.store.provider) || Boolean(await getGroqKey());
 }
 
-async function handleMessage(message: any) {
-    if (!settings.store.isActive) return;
-
-    const currentUser = UserStore.getCurrentUser();
-    if (!currentUser || message.author.id === currentUser.id) return;
-
-    // User blacklist check
-    const blacklistedUsers = settings.store.blacklistedUsers?.split(",").map((id: string) => id.trim()) || [];
-    if (blacklistedUsers.includes(message.author.id)) {
-        console.log(`[AutoResponder] Skipping blacklisted user: ${message.author.username} (${message.author.id})`);
-        return;
-    }
-
-    if (message.id === lastMessageId) return;
-
-    const channel = ChannelStore.getChannel(message.channel_id);
-    if (!channel) return;
-
-    const isDm = channel.type === 1;
-    const serverTrigger = isDm ? undefined : settings.store.talkInServers ? getServerTrigger(message, currentUser.id) : undefined;
-    if (!isDm && !serverTrigger) return;
-
-    lastMessageId = message.id;
-
+async function respondToMessage(message: AutoResponderMessage, currentUser: { id: string; }, isDm: boolean, serverTrigger: string | undefined, realContextMessages?: AutoResponderMessage[]) {
     try {
         if (!await hasRequiredKey()) {
             try {
@@ -220,6 +218,8 @@ async function handleMessage(message: any) {
             return;
         }
 
+        const latestMessage = realContextMessages?.at(-1) ?? message;
+        const latestMessageContent = realContextMessages?.map(m => m.content).filter(Boolean).join("\n") || message.content;
         let localHistory = "";
         try {
             const msgs = MessageStore.getMessages(message.channel_id).toArray().slice(-15);
@@ -246,7 +246,7 @@ ${settings.store.blacklistedWords}
 HISTORY:
 ${localHistory}
 
-LATEST MESSAGE : "${message.content}"
+LATEST MESSAGE : "${latestMessageContent}"
 
 CONTEXT:
 ${isDm ? "Direct message." : `Server trigger: ${serverTrigger}. Always reply to this exact message.`}
@@ -293,7 +293,7 @@ Reply naturally. ONLY RETURN THE TEXT OF YOUR REPLY.`;
                     body: isDm ? { content: reply } : {
                         content: reply,
                         message_reference: {
-                            message_id: message.id,
+                            message_id: latestMessage.id,
                             channel_id: message.channel_id,
                             guild_id: message.guild_id,
                         },
@@ -306,7 +306,7 @@ Reply naturally. ONLY RETURN THE TEXT OF YOUR REPLY.`;
                 if (!isDm) {
                     serverThreads.set(message.channel_id, {
                         userId: message.author.id,
-                        lastIncomingMessageId: message.id,
+                        lastIncomingMessageId: latestMessage.id,
                         lastResponseMessageId: res.body?.id ?? "",
                         lastActivity: Date.now(),
                     });
@@ -317,6 +317,54 @@ Reply naturally. ONLY RETURN THE TEXT OF YOUR REPLY.`;
     } catch (err) {
         console.error("[AutoResponder] Error:", err);
     }
+}
+
+async function handleMessage(message: AutoResponderMessage) {
+    if (!settings.store.isActive) return;
+
+    const currentUser = UserStore.getCurrentUser();
+    if (!currentUser || message.author.id === currentUser.id) return;
+
+    // User blacklist check
+    const blacklistedUsers = settings.store.blacklistedUsers?.split(",").map((id: string) => id.trim()) || [];
+    if (blacklistedUsers.includes(message.author.id)) {
+        console.log(`[AutoResponder] Skipping blacklisted user: ${message.author.username} (${message.author.id})`);
+        return;
+    }
+
+    if (message.id === lastMessageId) return;
+
+    const channel = ChannelStore.getChannel(message.channel_id);
+    if (!channel) return;
+
+    const realContextSeconds = Math.max(0, settings.store.realcontext);
+    const realContextKey = `${message.channel_id}:${message.author.id}`;
+    const isDm = channel.type === 1;
+    const serverTrigger = isDm
+        ? undefined
+        : settings.store.talkInServers
+            ? realContextSeconds > 0 && realContextBuffers.has(realContextKey) ? "followup" : getServerTrigger(message, currentUser.id)
+            : undefined;
+    if (!isDm && !serverTrigger) return;
+
+    lastMessageId = message.id;
+
+    if (realContextSeconds > 0) {
+        const existing = realContextBuffers.get(realContextKey);
+        if (existing) clearTimeout(existing.timeout);
+
+        const messages = existing ? [...existing.messages, message] : [message];
+        const timeout = setTimeout(() => {
+            realContextBuffers.delete(realContextKey);
+            if (!settings.store.isActive) return;
+            respondToMessage(message, currentUser, isDm, serverTrigger, messages);
+        }, realContextSeconds * 1000);
+
+        realContextBuffers.set(realContextKey, { messages, timeout });
+        return;
+    }
+
+    respondToMessage(message, currentUser, isDm, serverTrigger);
 }
 
 const messageCreateListener = (data: any) => {
@@ -445,6 +493,8 @@ export default definePlugin({
     stop() {
         for (const timeout of pendingResponses) clearTimeout(timeout);
         pendingResponses.clear();
+        for (const { timeout } of realContextBuffers.values()) clearTimeout(timeout);
+        realContextBuffers.clear();
         serverThreads.clear();
         removeHeaderBarButton("AutoResponder");
         removeChannelToolbarButton("AutoResponder");

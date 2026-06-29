@@ -21,33 +21,33 @@ const allSounds = {
 
 let chosenPack: typeof packs[keyof typeof packs];
 const keysCurrentlyPressed = new Set<string>();
+const ignoredKeySet = new Set(ignoredKeys);
+const arrowKeySet = new Set(["ArrowUp", "ArrowRight", "ArrowLeft", "ArrowDown"]);
+let allowedIgnoredKeySet = new Set<string>();
+
+function getRandomSound(soundsArray: { playing: boolean; player: AudioPlayerInterface; }[]) {
+    const start = Math.floor(Math.random() * soundsArray.length);
+    let chosenSound = soundsArray[start];
+
+    for (let i = 0; i < soundsArray.length; i++) {
+        const sound = soundsArray[(start + i) % soundsArray.length];
+        if (!sound.playing) {
+            chosenSound = sound;
+            break;
+        }
+    }
+
+    chosenSound.playing = true;
+    chosenSound.player.restart();
+}
 
 const keyup = (e: KeyboardEvent) => { keysCurrentlyPressed.delete(e.code); };
 
 const keydown = (e: KeyboardEvent) => {
     if (!chosenPack) return;
-    if (ignoredKeys.includes(e.code) && !chosenPack.allowedIgnored?.includes(e.key)) return;
+    if (ignoredKeySet.has(e.code) && !allowedIgnoredKeySet.has(e.key)) return;
     if (keysCurrentlyPressed.has(e.code)) return;
     keysCurrentlyPressed.add(e.code);
-
-    function getRandomSound(soundsArray: { playing: boolean; player: AudioPlayerInterface; }[]) {
-        const nonplayingSounds = soundsArray.filter(sound => !sound?.playing);
-        let randomIndex;
-        let chosenSound;
-
-        if (nonplayingSounds.length) {
-            randomIndex = Math.floor(Math.random() * nonplayingSounds.length);
-            chosenSound = nonplayingSounds[randomIndex];
-        } else {
-            randomIndex = Math.floor(Math.random() * soundsArray.length);
-            chosenSound = soundsArray[randomIndex];
-        }
-
-        if (chosenSound) {
-            chosenSound.playing = true;
-            chosenSound.player.restart();
-        }
-    }
 
     if (e.code === "Backspace" && allSounds.backspaces.length) {
         getRandomSound(allSounds.backspaces);
@@ -55,7 +55,7 @@ const keydown = (e: KeyboardEvent) => {
         getRandomSound(allSounds.caps);
     } else if (e.code === "Enter" && allSounds.enters.length) {
         getRandomSound(allSounds.enters);
-    } else if (["ArrowUp", "ArrowRight", "ArrowLeft", "ArrowDown"].includes(e.code) && allSounds.arrows.length) {
+    } else if (arrowKeySet.has(e.code) && allSounds.arrows.length) {
         getRandomSound(allSounds.arrows);
     } else if (allSounds.others.length) {
         getRandomSound(allSounds.others);
@@ -70,6 +70,7 @@ function clearSounds() {
 function assignSounds(volume: number, pack: "operagx" | "osu") {
     clearSounds();
     chosenPack = packs[pack];
+    allowedIgnoredKeySet = new Set(chosenPack?.allowedIgnored);
 
     if (!chosenPack) {
         return;
@@ -83,15 +84,17 @@ function assignSounds(volume: number, pack: "operagx" | "osu") {
             for (const url of chosenPack[key]) {
                 soundIndex++;
 
-                allSounds[key].push({
+                const sound = {
                     playing: false,
                     player: createAudioPlayer(url, {
                         volume,
                         preload: true,
                         persistent: true,
-                        onEnded: () => { allSounds[key][soundIndex].playing = false; }
+                        onEnded: () => { sound.playing = false; }
                     })
-                });
+                };
+
+                allSounds[key].push(sound);
             }
         }
     }

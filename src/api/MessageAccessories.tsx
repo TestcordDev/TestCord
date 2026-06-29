@@ -48,6 +48,8 @@ export function _modifyAccessories(
     props: Record<string, any>
 ) {
     try {
+        if (accessories.size === 0) return elements;
+
         for (const [key, accessory] of accessories.entries()) {
             const res = (
                 <ErrorBoundary noop message={`Failed to render ${key} Message Accessory`} key={key}>
@@ -55,12 +57,15 @@ export function _modifyAccessories(
                 </ErrorBoundary>
             );
 
+            if (accessory.position == null) {
+                elements.push(res);
+                continue;
+            }
+
             elements.splice(
-                accessory.position != null
-                    ? accessory.position < 0
-                        ? elements.length + accessory.position
-                        : accessory.position
-                    : elements.length,
+                accessory.position < 0
+                    ? elements.length + accessory.position
+                    : accessory.position,
                 0,
                 res
             );

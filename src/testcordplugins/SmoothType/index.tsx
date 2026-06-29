@@ -147,8 +147,30 @@ function applyCaretPosition() {
 let observer: MutationObserver | null = null;
 let scanQueued = false;
 let scanFrame: number | null = null;
+let caretQueued = false;
+let caretFrame: number | null = null;
 
 let observedEditor: Element | null = null;
+
+function hideCaret() {
+    const el = document.getElementById("vc-smoothtype-caret") as HTMLDivElement | null;
+    if (el) el.style.display = "none";
+}
+
+function scheduleApplyCaretPosition() {
+    if (!document.activeElement?.closest("[data-slate-editor]")) {
+        hideCaret();
+        return;
+    }
+    if (caretQueued) return;
+
+    caretQueued = true;
+    caretFrame = requestAnimationFrame(() => {
+        caretFrame = null;
+        caretQueued = false;
+        applyCaretPosition();
+    });
+}
 
 // The caret moves on selection changes (typing, arrows, clicks), which the direct
 // listeners already handle synchronously. The observer only needs to catch the rarer
@@ -184,15 +206,27 @@ function stopObserver() {
         cancelAnimationFrame(scanFrame);
         scanFrame = null;
     }
+    if (caretFrame !== null) {
+        cancelAnimationFrame(caretFrame);
+        caretFrame = null;
+    }
     scanQueued = false;
+    caretQueued = false;
 }
 
 const handlers = {
-    sel:   () => applyCaretPosition(),
-    focus: () => { observeEditor(); applyCaretPosition(); },
-    blur:  () => { observeEditor(); getCaret().style.display = "none"; },
-    key:   () => applyCaretPosition(),
-    click: () => { observeEditor(); applyCaretPosition(); },
+    sel:   () => scheduleApplyCaretPosition(),
+    focus: () => { observeEditor(); scheduleApplyCaretPosition(); },
+    blur:  () => { observeEditor(); hideCaret(); },
+    key:   () => scheduleApplyCaretPosition(),
+    click: (e: MouseEvent) => {
+        if (!(e.target instanceof Element) || !e.target.closest("[data-slate-editor]")) {
+            hideCaret();
+            return;
+        }
+        observeEditor();
+        scheduleApplyCaretPosition();
+    },
 };
 
 function startListeners() {
