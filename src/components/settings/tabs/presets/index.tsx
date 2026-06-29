@@ -35,6 +35,16 @@ interface PresetDragItem {
     name: string;
 }
 
+interface DragPreviewPoint {
+    x: number;
+    y: number;
+}
+
+interface DragPreviewOffset {
+    x: number;
+    y: number;
+}
+
 // Sync animation prefs to <body> classes so both the tab and the modal portals
 // (which render outside this subtree) can key off them. master off => all off.
 function syncAnimClasses() {
@@ -63,7 +73,39 @@ function formatDate(ts: number) {
     return new Intl.DateTimeFormat(navigator.language, { dateStyle: "medium", timeStyle: "short" }).format(ts);
 }
 
-function PresetRow({ preset, globalDefault, hideDuplicate, draggingName, dragOverName, dropIntent, setDraggingName, setDragOverName, setDropIntent, onChange }: { preset: Preset; globalDefault: boolean; hideDuplicate: boolean; draggingName: string | null; dragOverName: string | null; dropIntent: DropIntent | null; setDraggingName: (name: string | null) => void; setDragOverName: (name: string | null) => void; setDropIntent: (intent: DropIntent | null) => void; onChange: () => void; }) {
+function PresetDragPreview({ preset, point, offset }: { preset: Preset | undefined; point: DragPreviewPoint | null; offset: DragPreviewOffset; }) {
+    if (!preset || !point) return null;
+
+    const count = Object.values(preset.plugins).filter(p => p.enabled).length;
+
+    return (
+        <div
+            className="vc-presets-row vc-presets-drag-preview"
+            style={{ transform: `translate3d(${point.x - offset.x}px, ${point.y - offset.y}px, 0)` }}
+        >
+            <button className="vc-presets-row-gear" aria-label="Preset settings" tabIndex={-1}>
+                <MainSettingsIcon />
+            </button>
+
+            <div className="vc-presets-row-info">
+                <span className="vc-presets-row-name">{preset.name}</span>
+                <span className="vc-presets-row-meta">
+                    {count} enabled · {formatDate(preset.createdAt)}
+                    {preset.liveBackup && <span className="vc-presets-row-badge">● live</span>}
+                </span>
+            </div>
+
+            <div className="vc-presets-row-actions">
+                <Button size="small">Apply</Button>
+                <Button size="small" variant="secondary">Rename</Button>
+                <Button size="small" variant="secondary">Duplicate</Button>
+                <Button size="small" variant="dangerPrimary">Delete</Button>
+            </div>
+        </div>
+    );
+}
+
+function PresetRow({ preset, globalDefault, hideDuplicate, draggingName, dragOverName, dropIntent, setDraggingName, setDragOverName, setDropIntent, setDragPreviewPoint, setDragPreviewOffset, onChange }: { preset: Preset; globalDefault: boolean; hideDuplicate: boolean; draggingName: string | null; dragOverName: string | null; dropIntent: DropIntent | null; setDraggingName: (name: string | null) => void; setDragOverName: (name: string | null) => void; setDropIntent: (intent: DropIntent | null) => void; setDragPreviewPoint: (point: DragPreviewPoint | null) => void; setDragPreviewOffset: (offset: DragPreviewOffset) => void; onChange: () => void; }) {
     const rowRef = React.useRef<HTMLDivElement>(null);
     const effectiveRestore = preset.restoreSettings ?? globalDefault;
 
@@ -125,11 +167,21 @@ function PresetRow({ preset, globalDefault, hideDuplicate, draggingName, dragOve
     const [{ isDragging }, drag] = useDrag({
         type: PRESET_DND_TYPE,
         item: () => {
+            const rect = rowRef.current?.getBoundingClientRect();
+            const event = window.event instanceof DragEvent ? window.event : null;
+            if (rect && event) {
+                setDragPreviewOffset({ x: event.clientX - rect.left, y: event.clientY - rect.top });
+            } else {
+                setDragPreviewOffset({ x: 16, y: 16 });
+            }
+
             setDraggingName(preset.name);
+            setDragPreviewPoint(null);
             return { name: preset.name };
         },
         end: () => {
             setDraggingName(null);
+            setDragPreviewPoint(null);
             clearDragTarget();
         },
         collect: monitor => ({ isDragging: monitor.isDragging() }),
@@ -142,6 +194,7 @@ function PresetRow({ preset, globalDefault, hideDuplicate, draggingName, dragOve
             if (!rowRef.current || item.name === preset.name) return;
             const clientOffset = monitor.getClientOffset();
             if (!clientOffset) return;
+            setDragPreviewPoint(clientOffset);
 
             const intent = getDropIntent(clientOffset.y);
             if (!intent) return;
@@ -163,6 +216,7 @@ function PresetRow({ preset, globalDefault, hideDuplicate, draggingName, dragOve
         drop: (item: PresetDragItem, monitor) => {
             if (monitor.didDrop() || item.name === preset.name) return;
             const clientOffset = monitor.getClientOffset();
+            if (clientOffset) setDragPreviewPoint(clientOffset);
             const intent = clientOffset ? getDropIntent(clientOffset.y) : dropIntent;
             clearDragTarget();
 
@@ -214,6 +268,8 @@ function PresetsTab() {
     const [draggingName, setDraggingName] = React.useState<string | null>(null);
     const [dragOverName, setDragOverName] = React.useState<string | null>(null);
     const [dropIntent, setDropIntent] = React.useState<DropIntent | null>(null);
+    const [dragPreviewPoint, setDragPreviewPoint] = React.useState<DragPreviewPoint | null>(null);
+    const [dragPreviewOffset, setDragPreviewOffset] = React.useState<DragPreviewOffset>({ x: 16, y: 16 });
 
     // Hydrate the cache from the shared native file once on mount, then render.
     React.useEffect(() => { loadPresets().then(() => setReady(true)); }, []);
@@ -221,11 +277,23 @@ function PresetsTab() {
     // Keep <body> animation classes in sync on every render (cheap, idempotent).
     React.useEffect(syncAnimClasses);
 
+    React.useEffect(() => {
+        if (!draggingName) return;
+
+        const updatePreview = (event: DragEvent) => {
+            setDragPreviewPoint({ x: event.clientX, y: event.clientY });
+        };
+
+        document.addEventListener("dragover", updatePreview);
+        return () => document.removeEventListener("dragover", updatePreview);
+    }, [draggingName]);
+
     const globalDefault = getRestoreDefault();
     const hideDuplicate = getHideDuplicate();
     const animMaster = getAnimMaster();
 
     const presets = listPresets();
+    const dragPreviewPreset = draggingName ? presets.find(preset => preset.name === draggingName) : undefined;
 
     const onSave = () => openSaveModal("", (name, scope) => {
         const exists = hasPreset(name);
@@ -322,7 +390,8 @@ function PresetsTab() {
                     ? <Paragraph className={Margins.top16} style={{ opacity: 0.6 }}>No presets yet. Save your current loadout to create one.</Paragraph>
                     : (
                         <div className={`vc-presets-list ${Margins.top16}`}>
-                            {presets.map(p => <PresetRow key={p.name} preset={p} globalDefault={globalDefault} hideDuplicate={hideDuplicate} draggingName={draggingName} dragOverName={dragOverName} dropIntent={dropIntent} setDraggingName={setDraggingName} setDragOverName={setDragOverName} setDropIntent={setDropIntent} onChange={forceUpdate} />)}
+                            {presets.map(p => <PresetRow key={p.name} preset={p} globalDefault={globalDefault} hideDuplicate={hideDuplicate} draggingName={draggingName} dragOverName={dragOverName} dropIntent={dropIntent} setDraggingName={setDraggingName} setDragOverName={setDragOverName} setDropIntent={setDropIntent} setDragPreviewPoint={setDragPreviewPoint} setDragPreviewOffset={setDragPreviewOffset} onChange={forceUpdate} />)}
+                            <PresetDragPreview preset={dragPreviewPreset} point={dragPreviewPoint} offset={dragPreviewOffset} />
                         </div>
                     )}
         </SettingsTab>
