@@ -72,11 +72,11 @@ function getMaxCacheEntries(): number {
 }
 
 function pruneCache(now = Date.now()): void {
-    if (!isBoundCacheEnabled()) return;
-
     for (const [key, entry] of cache) {
         if (entry.expiresAt <= now) cache.delete(key);
     }
+
+    if (!isBoundCacheEnabled()) return;
 
     const maxEntries = getMaxCacheEntries();
     while (cache.size > maxEntries) {
