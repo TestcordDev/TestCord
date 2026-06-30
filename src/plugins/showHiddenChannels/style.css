@@ -94,6 +94,14 @@
     color: var(--text-default);
 }
 
+.vc-shc-allowed-users-and-roles-container-export-btn {
+    all: unset;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    color: var(--text-default);
+}
+
 .vc-shc-allowed-users-and-roles-container > [class*="members"] {
     margin-left: 12px;
     flex-wrap: wrap;

@@ -22,11 +22,12 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import PermissionsViewerPlugin from "@plugins/permissionsViewer";
 import openRolesAndUsersPermissionsModal from "@plugins/permissionsViewer/components/RolesAndUsersPermissions";
 import { sortPermissionOverwrites } from "@plugins/permissionsViewer/utils";
+import { getUniqueUsername } from "@utils/discord";
 import { classes } from "@utils/misc";
 import { formatDuration } from "@utils/text";
-import type { Channel, RoleOrUserPermission } from "@vencord/discord-types";
+import type { Channel, GuildMember, Role, RoleOrUserPermission, User } from "@vencord/discord-types";
 import { findByPropsLazy, findComponentByCodeLazy, findCssClassesLazy } from "@webpack";
-import { EmojiStore, FluxDispatcher, GuildMemberStore, GuildStore, Parser, PermissionsBits, PermissionStore, SnowflakeUtils, Timestamp, Tooltip, useEffect, useState } from "@webpack/common";
+import { EmojiStore, FluxDispatcher, GuildMemberStore, GuildRoleStore, GuildStore, Parser, PermissionsBits, PermissionStore, showToast, SnowflakeUtils, Timestamp, Toasts, Tooltip, UserStore, useEffect, useState } from "@webpack/common";
 import { ComponentType } from "react";
 
 import { cl, settings } from "..";
@@ -98,6 +99,122 @@ const VideoQualityModesToNames = {
     [VideoQualityModes.FULL]: "720p"
 };
 
+function downloadChannelAccessExport(channel: Channel) {
+    const guild = GuildStore.getGuild(channel.guild_id);
+
+    if (!guild) {
+        showToast("Failed to export channel access: missing guild data.", Toasts.Type.FAILURE);
+        return;
+    }
+
+    const overwrites = Object.values(channel.permissionOverwrites ?? {});
+    const allowedUserIds = new Set<string>();
+    const allowedRoleIds = new Set<string>();
+
+    for (const overwrite of overwrites) {
+        if ((overwrite.allow & PermissionsBits.VIEW_CHANNEL) !== PermissionsBits.VIEW_CHANNEL) continue;
+
+        if (overwrite.type === 1) {
+            allowedUserIds.add(overwrite.id);
+        } else if (overwrite.type === 0 && overwrite.id !== guild.id) {
+            allowedRoleIds.add(overwrite.id);
+        }
+    }
+
+    const memberIds = GuildMemberStore.getMemberIds(guild.id);
+    const members = memberIds
+        .map(id => {
+            const member = GuildMemberStore.getMember(guild.id, id);
+            const user = UserStore.getUser(id);
+            return member && user ? { member, user } : null;
+        })
+        .filter((entry): entry is { member: GuildMember; user: User; } => entry != null);
+
+    const serializeUser = (user: User, member?: GuildMember) => ({
+        id: user.id,
+        username: user.username,
+        globalName: user.globalName ?? null,
+        displayName: getUniqueUsername(user),
+        nickname: member?.nick ?? null,
+        bot: user.bot ?? false
+    });
+
+    const serializeRole = (role: Role) => ({
+        id: role.id,
+        name: role.name,
+        color: role.color,
+        colorString: role.colorString ?? null,
+        position: role.position
+    });
+
+    const directAllowedUsers = Array.from(allowedUserIds)
+        .map(userId => {
+            const member = GuildMemberStore.getMember(guild.id, userId);
+            const user = member?.user ?? UserStore.getUser(userId);
+            if (!user) return null;
+
+            return serializeUser(user, member ?? void 0);
+        })
+        .filter((entry): entry is ReturnType<typeof serializeUser> => entry != null);
+
+    const allowedRoles = Array.from(allowedRoleIds)
+        .map(roleId => {
+            const role = GuildRoleStore.getRole(guild.id, roleId);
+            if (!role) return null;
+
+            return {
+                ...serializeRole(role),
+                members: members
+                    .filter(({ member }) => member.roles.includes(roleId))
+                    .map(({ member, user }) => serializeUser(user, member))
+            };
+        })
+        .filter((entry): entry is ReturnType<typeof serializeRole> & { members: Array<ReturnType<typeof serializeUser>>; } => entry != null);
+
+    const effectiveAllowedUsersMap = new Map<string, ReturnType<typeof serializeUser>>();
+
+    for (const user of directAllowedUsers) {
+        effectiveAllowedUsersMap.set(user.id, user);
+    }
+
+    for (const role of allowedRoles) {
+        for (const member of role.members) {
+            effectiveAllowedUsersMap.set(member.id, member);
+        }
+    }
+
+    const exportData = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        guild: {
+            id: guild.id,
+            name: guild.name
+        },
+        channel: {
+            id: channel.id,
+            name: channel.name,
+            type: channel.type
+        },
+        allowedUsers: Array.from(effectiveAllowedUsersMap.values()),
+        directAllowedUsers,
+        allowedRoles
+    };
+
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeChannelName = (channel.name || channel.id).replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || channel.id;
+
+    a.href = url;
+    a.download = `hidden-channel-access-${safeChannelName}-${channel.id}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast("Exported hidden channel access to JSON.", Toasts.Type.SUCCESS);
+}
+
 // Icon from the modal when clicking a message link you don't have access to view
 const HiddenChannelLogo = "/assets/433e3ec4319a9d11b0cbe39342614982.svg";
 
@@ -126,22 +243,22 @@ function HiddenChannelLockScreen({ channel }: { channel: Channel; }) {
     } = channel;
 
     useEffect(() => {
-        const membersToFetch: Array<string> = [];
+        const membersToFetch = new Set<string>();
 
         const guildOwnerId = GuildStore.getGuild(guild_id)?.ownerId;
-        if (!GuildMemberStore.getMember(guild_id, guildOwnerId)) membersToFetch.push(guildOwnerId);
+        if (guildOwnerId && !GuildMemberStore.getMember(guild_id, guildOwnerId)) membersToFetch.add(guildOwnerId);
 
         Object.values(permissionOverwrites).forEach(({ type, id: userId }) => {
             if (type === 1 && !GuildMemberStore.getMember(guild_id, userId)) {
-                membersToFetch.push(userId);
+                membersToFetch.add(userId);
             }
         });
 
-        if (membersToFetch.length > 0) {
+        if (membersToFetch.size > 0) {
             FluxDispatcher.dispatch({
                 type: "GUILD_MEMBERS_REQUEST",
                 guildIds: [guild_id],
-                userIds: membersToFetch
+                userIds: Array.from(membersToFetch)
             });
         }
 
@@ -293,6 +410,20 @@ function HiddenChannelLockScreen({ channel }: { channel: Channel; }) {
                                 )}
                             </Tooltip>
                         )}
+                        <Tooltip text="Export Allowed Users and Roles as JSON">
+                            {({ onMouseLeave, onMouseEnter }) => (
+                                <button
+                                    onMouseLeave={onMouseLeave}
+                                    onMouseEnter={onMouseEnter}
+                                    className={cl("allowed-users-and-roles-container-export-btn")}
+                                    onClick={() => downloadChannelAccessExport(channel)}
+                                >
+                                    <svg width="24" height="24" viewBox="0 0 24 24">
+                                        <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v8.59l2.3-2.29a1 1 0 1 1 1.4 1.41l-4 3.99a1 1 0 0 1-1.4 0l-4-3.99a1 1 0 0 1 1.4-1.41L11 12.59V4a1 1 0 0 1 1-1Zm-7 14a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z" />
+                                    </svg>
+                                </button>
+                            )}
+                        </Tooltip>
                         <BaseText size="lg" weight="bold">Allowed users and roles:</BaseText>
                         <Tooltip text={defaultAllowedUsersAndRolesDropdownState ? "Hide Allowed Users and Roles" : "View Allowed Users and Roles"}>
                             {({ onMouseLeave, onMouseEnter }) => (
