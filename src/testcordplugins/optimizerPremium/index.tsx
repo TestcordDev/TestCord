@@ -632,6 +632,24 @@ const settings = definePluginSettings({
         description: "Pause all CSS animations and transitions while the window is hidden/backgrounded. Stops the client burning CPU+GPU on offscreen animation; everything resumes on refocus.",
         default: true
     },
+
+    // --- Typing and attachment optimizations ---
+
+    optimizeChatInput: {
+        type: OptionType.BOOLEAN,
+        description: "Isolate the chat input with layout/paint containment, strip its transitions, and debounce per-keystroke draft saves so storage writes happen after you stop typing. Kills typing lag spikes.",
+        default: true
+    },
+    optimizeLargeAttachments: {
+        type: OptionType.BOOLEAN,
+        description: "Apply content-visibility and containment to text/code file previews so a large txt attachment doesn't repaint the entire message list. Big win when a long file is posted in chat.",
+        default: true
+    },
+    containAttachmentImages: {
+        type: OptionType.BOOLEAN,
+        description: "Apply content-visibility, containment and async decode to attachment image grids. Offscreen images in image-heavy messages skip decode and paint until scrolled into view.",
+        default: true
+    },
 });
 
 interface CacheEntry {
@@ -651,7 +669,7 @@ type WebkitWindow = Window & typeof globalThis & {
 
 export default definePlugin({
     name: "optimizerPremium",
-    description: "All-in-one performance suite: webpack patches (tooltip, emoji, spinner, confetti, analytics, reactions, Sentry), bounded image cache, react-spring skip, offscreen media pause, MutationObserver DOM throttle, CSS containment (messages, members, DMs, embeds, servers, channels, forum, guild list, search), backdrop-blur/sticker/effect/upsell/spoiler/box-shadow/text-shadow/filter/backdrop suppression, lazy images/iframes, rAF reduction, passive listeners, console suppression (log/debug/info/warn/group/count/assert/dir/timers), ResizeObserver throttle, memory manager, GIF freeze (canvas/css), concurrency limit, message cache trimmer, animated avatar freeze, avatar quality reducer, cache limits, idle callback optimizer, drag-and-drop suppression, spellcheck opt-out, overscroll contain, link preview suppress, canvas effects hide.",
+    description: "All-in-one performance suite: webpack patches (tooltip, emoji, spinner, confetti, analytics, reactions, Sentry), bounded image cache, react-spring skip, offscreen media pause, MutationObserver DOM throttle, CSS containment (messages, members, DMs, embeds, servers, channels, forum, guild list, search), backdrop-blur/sticker/effect/upsell/spoiler/box-shadow/text-shadow/filter/backdrop suppression, lazy images/iframes, rAF reduction, passive listeners, console suppression (log/debug/info/warn/group/count/assert/dir/timers), ResizeObserver throttle, memory manager, GIF freeze (canvas/css), concurrency limit, message cache trimmer, animated avatar freeze, avatar quality reducer, cache limits, idle callback optimizer, drag-and-drop suppression, spellcheck opt-out, overscroll contain, link preview suppress, canvas effects hide, chat input containment (typing lag), large text attachment containment, attachment image grid containment.",
     tags: ["Utility", "Developers"],
     authors: [TestcordDevs.x2b, TestcordDevs.SirPhantom89],
     settings,
@@ -810,6 +828,7 @@ export default definePlugin({
     spellcheckObserver: null as MutationObserver | null,
     unfocusedFreezeStyleEl: null as HTMLStyleElement | null,
     unfocusedVisibilityHandler: null as (() => void) | null,
+    chatInputThrottleState: null as { origDispatch: (payload: { type: string; }) => void; timers: Map<string, ReturnType<typeof setTimeout>>; } | null,
 
     start() {
         if (settings.store.verboseLogging) logger.info("Starting optimizer suite");
@@ -858,6 +877,7 @@ export default definePlugin({
         try { if (settings.store.unifiedMemberListGradient) this.installMemberListGradient(); } catch (e) { logger.warn("installMemberListGradient failed", e); }
         try { if (settings.store.freezeMemberList) this.installMemberFreezer(); } catch (e) { logger.warn("installMemberFreezer failed", e); }
         try { if (settings.store.freezeWhenUnfocused) this.installUnfocusedFreezer(); } catch (e) { logger.warn("installUnfocusedFreezer failed", e); }
+        try { if (settings.store.optimizeChatInput) this.installChatInputThrottle(); } catch (e) { logger.warn("installChatInputThrottle failed", e); }
         try { if (settings.store.killVoiceVideo) this.installVoiceVideoKiller(); } catch (e) { logger.warn("installVoiceVideoKiller failed", e); }
         try { if (settings.store.preventWebSocketFlood) this.installWebSocketFloodPreventer(); } catch (e) { logger.warn("installWebSocketFloodPreventer failed", e); }
         try { this.installExtraCSS(); } catch (e) { logger.warn("installExtraCSS failed", e); }
@@ -921,6 +941,7 @@ export default definePlugin({
         this.teardownMemberListGradient();
         this.teardownMemberFreezer();
         this.teardownUnfocusedFreezer();
+        this.teardownChatInputThrottle();
         this.teardownVoiceVideoKiller();
         this.teardownWebSocketFloodPreventer();
 
@@ -1959,6 +1980,28 @@ export default definePlugin({
             );
         }
 
+        if (settings.store.optimizeChatInput) {
+            rules.push(
+                "[class*=\"channelTextArea_\"], [class*=\"scrollableContainer_\"][class*=\"channelTextArea_\"] { contain: layout style paint; }",
+                "[class*=\"channelTextArea_\"] [class*=\"slateContainer_\"], [class*=\"channelTextArea_\"] [class*=\"textArea_\"] { contain: layout style; }",
+                "[class*=\"channelTextArea_\"] *, [class*=\"channelTextArea_\"] *::before, [class*=\"channelTextArea_\"] *::after { transition: none !important; animation: none !important; }",
+                "[data-slate-editor] { contain: layout style; }"
+            );
+        }
+        if (settings.store.optimizeLargeAttachments) {
+            rules.push(
+                "[class*=\"messageAttachment_\"], [class*=\"nonMediaAttachment_\"], [class*=\"fileNameLink_\"] { contain: content; }",
+                "[class*=\"messageListItem_\"] pre, [class*=\"messageListItem_\"] [class*=\"codeContainer_\"], [class*=\"messageListItem_\"] [class*=\"hljs\"] { content-visibility: auto; contain-intrinsic-size: auto 400px; contain: content; }",
+                "[class*=\"textPreview_\"], [class*=\"codeActionsCodeBlock_\"] { content-visibility: auto; contain-intrinsic-size: auto 300px; }"
+            );
+        }
+        if (settings.store.containAttachmentImages) {
+            rules.push(
+                "[class*=\"imageContainer_\"], [class*=\"mosaicItem_\"], [class*=\"clickableWrapper_\"][class*=\"imageZoom_\"] { content-visibility: auto; contain-intrinsic-size: auto 300px; contain: content; }",
+                "[class*=\"mosaic_\"], [class*=\"gridContainer_\"][class*=\"attachment_\"] { contain: layout style; }"
+            );
+        }
+
         if (!rules.length) return;
         this.extraStyleEl = document.createElement("style");
         this.extraStyleEl.id = "op-extra-optimizations";
@@ -2706,6 +2749,39 @@ export default definePlugin({
             state.timers.clear();
             FluxDispatcher.dispatch = state.origDispatch;
             delete (window as any).__op_fluxState;
+        }
+    },
+
+    installChatInputThrottle() {
+        if (this.chatInputThrottleState) return;
+        const origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
+        const timers = new Map<string, ReturnType<typeof setTimeout>>();
+        this.chatInputThrottleState = { origDispatch, timers };
+        const THROTTLED = new Set(["DRAFT_CHANGE", "DRAFT_SAVE"]);
+        const DEBOUNCE_MS = 300;
+        FluxDispatcher.dispatch = function (payload: { type: string; channelId?: string; }) {
+            if (THROTTLED.has(payload.type)) {
+                const key = `${payload.type}:${payload.channelId ?? ""}`;
+                const existing = timers.get(key);
+                if (existing) clearTimeout(existing);
+                timers.set(key, setTimeout(() => {
+                    timers.delete(key);
+                    origDispatch(payload);
+                }, DEBOUNCE_MS));
+                return undefined;
+            }
+            return origDispatch(payload);
+        } as typeof FluxDispatcher.dispatch;
+        if (settings.store.verboseLogging) logger.info("Chat input draft throttle active");
+    },
+
+    teardownChatInputThrottle() {
+        const state = this.chatInputThrottleState;
+        if (state) {
+            for (const t of state.timers.values()) clearTimeout(t);
+            state.timers.clear();
+            FluxDispatcher.dispatch = state.origDispatch as typeof FluxDispatcher.dispatch;
+            this.chatInputThrottleState = null;
         }
     },
 
