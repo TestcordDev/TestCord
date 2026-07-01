@@ -26,14 +26,6 @@ export const TestcordAdmins = Object.freeze({
         name: "mixiruri",
         id: 1467863852782850160n
     },
-    dxrx99: {
-        name: "SirPhantom89",
-        id: 1464279455844274188n // this vro got hacked so i need to change there his id to the new acc and also add a new record with his new name js so 2 plugins wont break.
-    },
-    SirPhantom89: {
-        name: "SirPhantom89",
-        id: 1464279455844274188n
-    },
     xxx: {
         name: "xxx",
         id: 1491847142367822026n
@@ -64,10 +56,6 @@ export const TestcordOwners = Object.freeze({
     mixiruri: {
         name: "mixiruri",
         id: 1467863852782850160n
-    },
-    SirPhantom89: {
-        name: "SirPhantom89",
-        id: 1464279455844274188n
     },
     xxx: {
         name: "xxx", // vro gota banned fr
@@ -103,14 +91,6 @@ export const TestcordDevelopers = Object.freeze({
     mixiruri: {
         name: "mixiruri",
         id: 1467863852782850160n
-    },
-    dxrx99: {
-        name: "SirPhantom89",
-        id: 1464279455844274188n
-    },
-    SirPhantom89: {
-        name: "SirPhantom89",
-        id: 1464279455844274188n
     },
     xxx: {
         name: "xxx",
