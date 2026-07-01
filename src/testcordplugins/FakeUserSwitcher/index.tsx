@@ -6,7 +6,7 @@
 
 import { addProfileBadge, BadgePosition, type ProfileBadge, removeProfileBadge } from "@api/Badges";
 import { addContextMenuPatch, NavContextMenuPatchCallback, removeContextMenuPatch } from "@api/ContextMenu";
-import { addUserAreaButton, buttons, UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
+import { buttons, UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import BadgeAPIPlugin from "@plugins/_api/badges";
 import { TestcordDevs } from "@utils/constants";
 import { openModal } from "@utils/modal";
@@ -1297,29 +1297,6 @@ function FakeUserSwitcherButton({ iconForeground, hideTooltips, nameplate }: Use
     const [, force] = React.useReducer(x => x + 1, 0);
     React.useEffect(() => subscribe(() => force()), []);
 
-    // Ensure our button sits exactly between Game Activity toggle and Spotify toggle
-    React.useEffect(() => {
-        let changed = false;
-        try {
-            const gameToggle = buttons.get("GameActivityToggle");
-            if (gameToggle && gameToggle.priority !== -2) {
-                gameToggle.priority = -2;
-                changed = true;
-            }
-            const spotifyToggle = buttons.get("SpotifyActivityToggle");
-            if (spotifyToggle && spotifyToggle.priority !== 0) {
-                spotifyToggle.priority = 0;
-                changed = true;
-            }
-            if (changed) {
-                const selfButton = buttons.get("FakeUserSwitcher");
-                if (selfButton) {
-                    addUserAreaButton("FakeUserSwitcher", selfButton.render, -1);
-                }
-            }
-        } catch { /* ignore */ }
-    }, []);
-
     const activeTarget = getActiveTargetForGuild(undefined);
     const active = !!activeTarget;
 
@@ -1941,25 +1918,6 @@ const plugin = definePlugin({
         patchPresence();
         patchSnowflake();
         patchInternalAccountSwitcher();
-
-        // Intercept registrations on the buttons Map to enforce priority sorting
-        originalSet = buttons.set.bind(buttons);
-        buttons.set = function (key, value) {
-            if (key === "GameActivityToggle") {
-                value.priority = -2;
-            } else if (key === "SpotifyActivityToggle") {
-                value.priority = 0;
-            }
-            return originalSet!(key, value);
-        };
-
-        // Adjust priorities of other toggles to ensure FakeUserSwitcher is between them
-        try {
-            const gameToggle = buttons.get("GameActivityToggle");
-            if (gameToggle) gameToggle.priority = -2;
-            const spotifyToggle = buttons.get("SpotifyActivityToggle");
-            if (spotifyToggle) spotifyToggle.priority = 0;
-        } catch { /* ignore */ }
 
         FluxDispatcher.subscribe("MULTI_ACCOUNT_SWITCH_ATTEMPT", activateSwitcherIdentity);
         FluxDispatcher.subscribe("MULTI_ACCOUNT_SWITCH_FAILURE", activateSwitcherIdentity);
