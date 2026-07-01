@@ -19,11 +19,12 @@
 import "./style.css";
 
 import ErrorBoundary from "@components/ErrorBoundary";
+import { definePluginSettings } from "@api/Settings";
 import { addChannelToolbarButton, ChannelToolbarButton, removeChannelToolbarButton } from "@api/HeaderBar";
-import { Devs } from "@utils/constants";
+import { TestcordDevs } from "@utils/constants";
 import { getUniqueUsername } from "@utils/discord";
 import { classNameFactory } from "@utils/css";
-import definePlugin from "@utils/types";
+import definePlugin, { OptionType } from "@utils/types";
 import type { GuildMember, User } from "@vencord/discord-types";
 import { findStoreLazy } from "@webpack";
 import { ChannelStore, GuildMemberStore, GuildRoleStore, GuildStore, SelectedChannelStore, SelectedGuildStore, showToast, Toasts, Tooltip, UserStore } from "@webpack/common";
@@ -33,6 +34,17 @@ const cl = classNameFactory("vc-memberlist-export-");
 const ChannelMemberStore = findStoreLazy("ChannelMemberStore") as {
     getProps(guildId?: string, channelId?: string): { groups: { count: number; id: string; }[]; };
 };
+
+const settings = definePluginSettings({
+    exportFormat: {
+        type: OptionType.SELECT,
+        description: "File format used when exporting the member list.",
+        options: [
+            { label: "JSON", value: "json", default: true },
+            { label: "CSV", value: "csv" }
+        ]
+    }
+});
 
 function serializeUser(user: User, member?: GuildMember) {
     return {
@@ -44,6 +56,24 @@ function serializeUser(user: User, member?: GuildMember) {
         bot: user.bot ?? false,
         roles: member?.roles ?? []
     };
+}
+
+function escapeCsvValue(value: string | number | boolean | null) {
+    const stringValue = String(value ?? "");
+    return `"${stringValue.replace(/"/g, '""')}"`;
+}
+
+function toCsv(rows: Array<Record<string, string | number | boolean | null>>) {
+    if (!rows.length) return "";
+
+    const headers = Object.keys(rows[0]);
+    const lines = [headers.map(escapeCsvValue).join(",")];
+
+    for (const row of rows) {
+        lines.push(headers.map(header => escapeCsvValue(row[header] ?? null)).join(","));
+    }
+
+    return lines.join("\n");
 }
 
 function downloadMemberList() {
@@ -109,17 +139,34 @@ function downloadMemberList() {
         roles
     };
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const safeChannelName = (channel.name || channel.id).replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || channel.id;
+    const memberRows = visibleMembers.map(({ member, user }) => {
+        const serialized = serializeUser(user, member);
+        return {
+            id: serialized.id,
+            username: serialized.username,
+            globalName: serialized.globalName,
+            displayName: serialized.displayName,
+            nickname: serialized.nickname,
+            bot: serialized.bot,
+            roles: serialized.roles.join("|")
+        };
+    });
+
+    const isCsv = settings.store.exportFormat === "csv";
+    const fileContents = isCsv
+        ? toCsv(memberRows)
+        : JSON.stringify(exportData, null, 2);
+    const blob = new Blob([fileContents], { type: isCsv ? "text/csv;charset=utf-8" : "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const safeChannelName = (channel.name || channel.id).replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || channel.id;
 
     a.href = url;
-    a.download = `member-list-${safeChannelName}-${channel.id}.json`;
+    a.download = `member-list-${safeChannelName}-${channel.id}.${isCsv ? "csv" : "json"}`;
     a.click();
     URL.revokeObjectURL(url);
 
-    showToast(`Exported ${visibleMembers.length} members to JSON.`, Toasts.Type.SUCCESS);
+    showToast(`Exported ${visibleMembers.length} members to ${isCsv ? "CSV" : "JSON"}.`, Toasts.Type.SUCCESS);
 }
 
 function MemberListExportButton() {
@@ -142,10 +189,11 @@ function MemberListExportButton() {
 
 export default definePlugin({
     name: "MemberListExport",
-    description: "Adds a download button to export the current member list as JSON.",
-    authors: [Devs.Ven],
+    description: "Adds a download button to export the current member list as JSON or CSV.",
+    authors: [TestcordDevs.sirphantom89],
     tags: ["Servers", "Utility"],
     dependencies: ["HeaderBarAPI"],
+    settings,
     start() {
         addChannelToolbarButton("MemberListExport", () => {
             const guildId = SelectedGuildStore.getGuildId();
@@ -157,7 +205,7 @@ export default definePlugin({
             return (
                 <ChannelToolbarButton
                     icon={ErrorBoundary.wrap(() => <MemberListExportButton />, { noop: true }) as any}
-                    tooltip="Download member list as JSON"
+                    tooltip={`Download member list as ${settings.store.exportFormat.toUpperCase()}`}
                     onClick={downloadMemberList}
                 />
             );
