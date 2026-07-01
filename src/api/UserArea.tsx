@@ -89,10 +89,6 @@ function UserAreaButtons({ props }: { props: UserAreaRenderProps; }) {
         ...props,
         iconForeground: classes(props.iconForeground, "vc-plugin-icon-button")
     };
-    const wrapperStyle: CSSProperties & Record<"--vc-plugin-icon-color", string | undefined> = {
-        "--vc-plugin-icon-color": iconColor
-    };
-
     useEffect(() => {
         const listener = () => forceUpdate(n => n + 1);
         userAreaListeners.add(listener);
@@ -105,9 +101,7 @@ function UserAreaButtons({ props }: { props: UserAreaRenderProps; }) {
                 .sort(([, a], [, b]) => a.priority - b.priority)
                 .map(([id, { render: Button }]) => (
                     <ErrorBoundary noop key={id} onError={e => logger.error(`Failed to render ${id}`, e.error)}>
-                        <span className="vc-plugin-icon-button" style={wrapperStyle}>
-                            <Button {...buttonProps} />
-                        </span>
+                        <Button {...buttonProps} />
                     </ErrorBoundary>
                 ))}
         </>
