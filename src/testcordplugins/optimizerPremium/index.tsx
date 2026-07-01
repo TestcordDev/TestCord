@@ -603,7 +603,7 @@ const settings = definePluginSettings({
     },
     preventWebSocketFlood: {
         type: OptionType.BOOLEAN,
-        description: "Throttle WebSocket reconnect attempts with exponential backoff cap. Prevents reconnect storms from flooding the main thread during transient network issues.",
+        description: "Drop only byte-identical gateway frames sent back to back within 50ms. Never blocks reconnect, resume, or heartbeat traffic, so it cannot wedge the connection when tabbed out.",
         default: false,
         restartNeeded: true
     },
@@ -630,7 +630,7 @@ const settings = definePluginSettings({
     freezeWhenUnfocused: {
         type: OptionType.BOOLEAN,
         description: "Pause all CSS animations and transitions while the window is hidden/backgrounded. Stops the client burning CPU+GPU on offscreen animation; everything resumes on refocus.",
-        default: true
+        default: false
     },
 
     // --- Typing and attachment optimizations ---
@@ -2692,26 +2692,18 @@ export default definePlugin({
     installWebSocketFloodPreventer() {
         const origSend = WebSocket.prototype.send;
         (window as any).__op_origWsSend = origSend;
-        let reconnectCount = 0;
-        let lastReconnect = 0;
-        const MIN_INTERVAL = 2000;
+        const DEDUPE_WINDOW_MS = 50;
+        const lastSend = new WeakMap<WebSocket, { data: string; at: number; }>();
         WebSocket.prototype.send = function (data: any) {
-            try {
-                const parsed = typeof data === "string" && data.startsWith("{") ? JSON.parse(data) : null;
-                if (parsed && parsed.op === 7) {
-                    const now = Date.now();
-                    if (now - lastReconnect < MIN_INTERVAL) {
-                        reconnectCount++;
-                        if (reconnectCount > 3) return;
-                    } else {
-                        reconnectCount = 0;
-                    }
-                    lastReconnect = now;
-                }
-            } catch { }
+            if (typeof data === "string") {
+                const now = Date.now();
+                const prev = lastSend.get(this);
+                if (prev && prev.data === data && now - prev.at < DEDUPE_WINDOW_MS) return;
+                lastSend.set(this, { data, at: now });
+            }
             return origSend.call(this, data);
         };
-        if (settings.store.verboseLogging) logger.info("WebSocket reconnect throttle active");
+        if (settings.store.verboseLogging) logger.info("WebSocket duplicate-frame dedupe active");
     },
 
     teardownWebSocketFloodPreventer() {

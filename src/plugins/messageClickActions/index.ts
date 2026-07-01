@@ -92,6 +92,10 @@ const keyup = (e: KeyboardEvent) => {
 };
 const focusChanged = () => {
     if (!WindowStore.isFocused()) {
+        clearClickTimeouts();
+        pendingDoubleClickAction = null;
+        doubleClickFired = false;
+        resetClickState();
         pressedModifiers.clear();
     }
 };
