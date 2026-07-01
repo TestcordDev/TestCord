@@ -828,7 +828,16 @@ export default definePlugin({
     spellcheckObserver: null as MutationObserver | null,
     unfocusedFreezeStyleEl: null as HTMLStyleElement | null,
     unfocusedVisibilityHandler: null as (() => void) | null,
-    chatInputThrottleState: null as { origDispatch: (payload: { type: string; }) => void; timers: Map<string, ReturnType<typeof setTimeout>>; } | null,
+    fluxThrottleState: null as {
+        origDispatch: typeof FluxDispatcher.dispatch;
+        wrappedDispatch: typeof FluxDispatcher.dispatch;
+        timers: Map<string, ReturnType<typeof setTimeout>>;
+    } | null,
+    chatInputThrottleState: null as {
+        origDispatch: typeof FluxDispatcher.dispatch;
+        wrappedDispatch: typeof FluxDispatcher.dispatch;
+        timers: Map<string, ReturnType<typeof setTimeout>>;
+    } | null,
 
     start() {
         if (settings.store.verboseLogging) logger.info("Starting optimizer suite");
@@ -2716,12 +2725,14 @@ export default definePlugin({
     },
 
     installFluxThrottle() {
+        if (this.fluxThrottleState) return;
+
         const origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
         const THROTTLED = new Set(["TYPING_START", "TYPING_STOP"]);
         const timers = new Map<string, ReturnType<typeof setTimeout>>();
         const DEBOUNCE_MS = 120;
-        (window as any).__op_fluxState = { origDispatch, timers };
-        FluxDispatcher.dispatch = function (payload: { type: string }) {
+
+        const wrappedDispatch = function (payload: { type: string }) {
             if (THROTTLED.has(payload.type)) {
                 const existing = timers.get(payload.type);
                 if (existing) clearTimeout(existing);
@@ -2733,26 +2744,34 @@ export default definePlugin({
             }
             return origDispatch(payload);
         } as typeof FluxDispatcher.dispatch;
+
+        this.fluxThrottleState = { origDispatch, wrappedDispatch, timers };
+        FluxDispatcher.dispatch = wrappedDispatch;
     },
 
     teardownFluxThrottle() {
-        const state = (window as any).__op_fluxState;
+        const state = this.fluxThrottleState;
         if (state) {
             for (const t of state.timers.values()) clearTimeout(t);
             state.timers.clear();
-            FluxDispatcher.dispatch = state.origDispatch;
-            delete (window as any).__op_fluxState;
+
+            if (FluxDispatcher.dispatch === state.wrappedDispatch) {
+                FluxDispatcher.dispatch = state.origDispatch;
+            }
+
+            this.fluxThrottleState = null;
         }
     },
 
     installChatInputThrottle() {
         if (this.chatInputThrottleState) return;
+
         const origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
         const timers = new Map<string, ReturnType<typeof setTimeout>>();
-        this.chatInputThrottleState = { origDispatch, timers };
         const THROTTLED = new Set(["DRAFT_SAVE"]);
         const DEBOUNCE_MS = 300;
-        FluxDispatcher.dispatch = function (payload: { type: string; channelId?: string; }) {
+
+        const wrappedDispatch = function (payload: { type: string; channelId?: string; }) {
             if (THROTTLED.has(payload.type)) {
                 const key = `${payload.type}:${payload.channelId ?? ""}`;
                 const existing = timers.get(key);
@@ -2765,6 +2784,9 @@ export default definePlugin({
             }
             return origDispatch(payload);
         } as typeof FluxDispatcher.dispatch;
+
+        this.chatInputThrottleState = { origDispatch, wrappedDispatch, timers };
+        FluxDispatcher.dispatch = wrappedDispatch;
         if (settings.store.verboseLogging) logger.info("Chat input draft throttle active");
     },
 
@@ -2773,7 +2795,11 @@ export default definePlugin({
         if (state) {
             for (const t of state.timers.values()) clearTimeout(t);
             state.timers.clear();
-            FluxDispatcher.dispatch = state.origDispatch as typeof FluxDispatcher.dispatch;
+
+            if (FluxDispatcher.dispatch === state.wrappedDispatch) {
+                FluxDispatcher.dispatch = state.origDispatch;
+            }
+
             this.chatInputThrottleState = null;
         }
     },
