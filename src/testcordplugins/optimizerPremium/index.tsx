@@ -1982,10 +1982,11 @@ export default definePlugin({
 
         if (settings.store.optimizeChatInput) {
             rules.push(
-                "[class*=\"channelTextArea_\"], [class*=\"scrollableContainer_\"][class*=\"channelTextArea_\"] { contain: layout style paint; }",
-                "[class*=\"channelTextArea_\"] [class*=\"slateContainer_\"], [class*=\"channelTextArea_\"] [class*=\"textArea_\"] { contain: layout style; }",
+                "[class*=\"channelTextArea_\"], [class*=\"scrollableContainer_\"][class*=\"channelTextArea_\"] { contain: layout style; }",
+                "[class*=\"channelTextArea_\"] [class*=\"slateContainer_\"], [class*=\"channelTextArea_\"] [class*=\"textArea_\"] { contain: style; }",
                 "[class*=\"channelTextArea_\"] *, [class*=\"channelTextArea_\"] *::before, [class*=\"channelTextArea_\"] *::after { transition: none !important; animation: none !important; }",
-                "[data-slate-editor] { contain: layout style; }"
+                "[data-slate-editor] { contain: style; }",
+                "[class*=\"autocomplete_\"], [class*=\"autocompleteInner_\"], [class*=\"autocompleteRow_\"], [class*=\"applicationCommand_\"], [role=\"listbox\"] { contain: none !important; content-visibility: visible !important; }"
             );
         }
         if (settings.store.optimizeLargeAttachments) {
@@ -2749,7 +2750,7 @@ export default definePlugin({
         const origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
         const timers = new Map<string, ReturnType<typeof setTimeout>>();
         this.chatInputThrottleState = { origDispatch, timers };
-        const THROTTLED = new Set(["DRAFT_CHANGE", "DRAFT_SAVE"]);
+        const THROTTLED = new Set(["DRAFT_SAVE"]);
         const DEBOUNCE_MS = 300;
         FluxDispatcher.dispatch = function (payload: { type: string; channelId?: string; }) {
             if (THROTTLED.has(payload.type)) {
