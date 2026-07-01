@@ -833,11 +833,6 @@ export default definePlugin({
         wrappedDispatch: typeof FluxDispatcher.dispatch;
         timers: Map<string, ReturnType<typeof setTimeout>>;
     } | null,
-    chatInputThrottleState: null as {
-        origDispatch: typeof FluxDispatcher.dispatch;
-        wrappedDispatch: typeof FluxDispatcher.dispatch;
-        timers: Map<string, ReturnType<typeof setTimeout>>;
-    } | null,
 
     start() {
         if (settings.store.verboseLogging) logger.info("Starting optimizer suite");
@@ -886,7 +881,6 @@ export default definePlugin({
         try { if (settings.store.unifiedMemberListGradient) this.installMemberListGradient(); } catch (e) { logger.warn("installMemberListGradient failed", e); }
         try { if (settings.store.freezeMemberList) this.installMemberFreezer(); } catch (e) { logger.warn("installMemberFreezer failed", e); }
         try { if (settings.store.freezeWhenUnfocused) this.installUnfocusedFreezer(); } catch (e) { logger.warn("installUnfocusedFreezer failed", e); }
-        try { if (settings.store.optimizeChatInput) this.installChatInputThrottle(); } catch (e) { logger.warn("installChatInputThrottle failed", e); }
         try { if (settings.store.killVoiceVideo) this.installVoiceVideoKiller(); } catch (e) { logger.warn("installVoiceVideoKiller failed", e); }
         try { if (settings.store.preventWebSocketFlood) this.installWebSocketFloodPreventer(); } catch (e) { logger.warn("installWebSocketFloodPreventer failed", e); }
         try { this.installExtraCSS(); } catch (e) { logger.warn("installExtraCSS failed", e); }
@@ -950,7 +944,6 @@ export default definePlugin({
         this.teardownMemberListGradient();
         this.teardownMemberFreezer();
         this.teardownUnfocusedFreezer();
-        this.teardownChatInputThrottle();
         this.teardownVoiceVideoKiller();
         this.teardownWebSocketFloodPreventer();
 
@@ -2760,47 +2753,6 @@ export default definePlugin({
             }
 
             this.fluxThrottleState = null;
-        }
-    },
-
-    installChatInputThrottle() {
-        if (this.chatInputThrottleState) return;
-
-        const origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
-        const timers = new Map<string, ReturnType<typeof setTimeout>>();
-        const THROTTLED = new Set(["DRAFT_SAVE"]);
-        const DEBOUNCE_MS = 300;
-
-        const wrappedDispatch = function (payload: { type: string; channelId?: string; }) {
-            if (THROTTLED.has(payload.type)) {
-                const key = `${payload.type}:${payload.channelId ?? ""}`;
-                const existing = timers.get(key);
-                if (existing) clearTimeout(existing);
-                timers.set(key, setTimeout(() => {
-                    timers.delete(key);
-                    origDispatch(payload);
-                }, DEBOUNCE_MS));
-                return undefined;
-            }
-            return origDispatch(payload);
-        } as typeof FluxDispatcher.dispatch;
-
-        this.chatInputThrottleState = { origDispatch, wrappedDispatch, timers };
-        FluxDispatcher.dispatch = wrappedDispatch;
-        if (settings.store.verboseLogging) logger.info("Chat input draft throttle active");
-    },
-
-    teardownChatInputThrottle() {
-        const state = this.chatInputThrottleState;
-        if (state) {
-            for (const t of state.timers.values()) clearTimeout(t);
-            state.timers.clear();
-
-            if (FluxDispatcher.dispatch === state.wrappedDispatch) {
-                FluxDispatcher.dispatch = state.origDispatch;
-            }
-
-            this.chatInputThrottleState = null;
         }
     },
 
