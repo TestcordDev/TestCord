@@ -118,8 +118,8 @@ const settings = definePluginSettings({
     },
     virtualizeMessages: {
         type: OptionType.BOOLEAN,
-        description: "Apply CSS containment to messages so the browser skips work on offscreen rows.",
-        default: true
+        description: "Apply light paint containment to messages. Off by default because Discord's virtualized chat can mis-measure contained rows after updates.",
+        default: false
     },
     optimizeTextRendering: {
         type: OptionType.BOOLEAN,
@@ -157,8 +157,8 @@ const settings = definePluginSettings({
     },
     throttleResizeObservers: {
         type: OptionType.BOOLEAN,
-        description: "Coalesce ResizeObserver callbacks via requestAnimationFrame. Prevents layout thrash during window resize and dynamic UI changes.",
-        default: true,
+        description: "Coalesce ResizeObserver callbacks via requestAnimationFrame. Can interfere with Discord's virtualized chat measurement after client updates, so it is off by default.",
+        default: false,
         restartNeeded: true
     },
     reduceMotion: {
@@ -168,12 +168,12 @@ const settings = definePluginSettings({
     },
     killWillChange: {
         type: OptionType.BOOLEAN,
-        description: "Strip will-change hints Discord scatters around. Reduces GPU memory and layer explosions.",
-        default: true
+        description: "Strip will-change hints Discord scatters around. Reduces GPU memory, but may hurt scroll smoothness on newer Discord builds.",
+        default: false
     },
     lazyEmbedImages: {
         type: OptionType.BOOLEAN,
-        description: "Force loading=lazy and decoding=async on every embed/attachment image.",
+        description: "Use async image decoding and only lazy-load non-chat images so virtualized message rows do not resize late while scrolling.",
         default: true
     },
     disableTypingIndicator: {
@@ -220,7 +220,7 @@ const settings = definePluginSettings({
     },
     messageContentVisibility: {
         type: OptionType.BOOLEAN,
-        description: "Apply content-visibility: auto on message list items so the browser skips layout/paint for offscreen messages entirely. Stronger than contain.",
+        description: "Apply extra paint containment to message list items without changing virtualized row sizing.",
         default: false
     },
     suppressEmbedPreviews: {
@@ -642,13 +642,13 @@ const settings = definePluginSettings({
     },
     optimizeLargeAttachments: {
         type: OptionType.BOOLEAN,
-        description: "Apply content-visibility and containment to text/code file previews so a large txt attachment doesn't repaint the entire message list. Big win when a long file is posted in chat.",
-        default: true
+        description: "Apply containment to text/code file previews so a large txt attachment doesn't repaint the entire message list.",
+        default: false
     },
     containAttachmentImages: {
         type: OptionType.BOOLEAN,
-        description: "Apply content-visibility, containment and async decode to attachment image grids. Offscreen images in image-heavy messages skip decode and paint until scrolled into view.",
-        default: true
+        description: "Apply light containment and async decode to attachment image grids. Off by default to avoid virtualized chat height jumps.",
+        default: false
     },
 });
 
@@ -1366,12 +1366,11 @@ export default definePlugin({
     installCSSOptimizations() {
         const rules: string[] = [];
         if (settings.store.virtualizeMessages) {
-            rules.push("[class*=\"messageListItem_\"] { contain: layout style; }");
+            rules.push("[class*=\"messageListItem_\"] { contain: style; }");
         }
         if (settings.store.optimizeTextRendering) {
             rules.push(
-                "[class*=\"messageContent_\"], [class*=\"markup_\"] { text-rendering: optimizeSpeed; }",
-                "[class*=\"chatContent_\"] { contain: style layout; }"
+                "[class*=\"messageContent_\"], [class*=\"markup_\"] { text-rendering: optimizeSpeed; }"
             );
         }
         if (rules.length) {
@@ -1585,10 +1584,11 @@ export default definePlugin({
     },
 
     installLazyImages() {
+        const isChatImage = (img: HTMLImageElement) => img.closest("[class*=\"scrollerInner_\"], [class*=\"messageListItem_\"]") !== null;
         const apply = (img: HTMLImageElement) => {
             if (img.dataset.opLazy === "1") return;
             img.dataset.opLazy = "1";
-            if (!img.hasAttribute("loading")) img.loading = "lazy";
+            if (!isChatImage(img) && !img.hasAttribute("loading")) img.loading = "lazy";
             if (!img.hasAttribute("decoding")) img.decoding = "async";
         };
         document.querySelectorAll<HTMLImageElement>("img").forEach(apply);
@@ -1748,8 +1748,7 @@ export default definePlugin({
         }
         if (settings.store.messageContentVisibility) {
             rules.push(
-                "[class*=\"messageListItem_\"] { content-visibility: auto; contain-intrinsic-size: 90px; }",
-                "[class*=\"scrollerInner_\"] > [class*=\"divider\"] { contain-intrinsic-size: 0; }"
+                "[class*=\"messageListItem_\"] { contain: style; }"
             );
         }
         if (settings.store.suppressEmbedPreviews) {
@@ -1890,12 +1889,12 @@ export default definePlugin({
 
         if (settings.store.containDmList) {
             rules.push(
-                "[class*=\"privateChannels_\"] [class*=\"channel_\"] { content-visibility: auto; contain-intrinsic-size: 48px; }"
+                "[class*=\"privateChannels_\"] [class*=\"channel_\"] { contain: style paint; }"
             );
         }
         if (settings.store.containEmbeds) {
             rules.push(
-                "article[class*=\"embed_\"] { contain: layout style; }"
+                "article[class*=\"embed_\"] { contain: style paint; }"
             );
         }
         if (settings.store.optimizeToasts) {
@@ -1915,7 +1914,7 @@ export default definePlugin({
         }
         if (settings.store.forceScrollBehavior) {
             rules.push(
-                "[class*=\"scroller_\"], [class*=\"scrollingContainer_\"] { scroll-behavior: auto !important; overflow-anchor: none; }"
+                "[class*=\"scroller_\"], [class*=\"scrollingContainer_\"] { scroll-behavior: auto !important; }"
             );
         }
         if (settings.store.overscrollContain) {
@@ -1941,7 +1940,7 @@ export default definePlugin({
         }
         if (settings.store.containChannelList) {
             rules.push(
-                "[class*=\"containerDefault_\"] { content-visibility: auto; contain-intrinsic-size: 40px; }"
+                "[class*=\"containerDefault_\"] { contain: style paint; }"
             );
         }
         if (settings.store.containSearchResults) {
@@ -1993,15 +1992,15 @@ export default definePlugin({
         }
         if (settings.store.optimizeLargeAttachments) {
             rules.push(
-                "[class*=\"messageAttachment_\"], [class*=\"nonMediaAttachment_\"], [class*=\"fileNameLink_\"] { contain: content; }",
-                "[class*=\"messageListItem_\"] pre, [class*=\"messageListItem_\"] [class*=\"codeContainer_\"], [class*=\"messageListItem_\"] [class*=\"hljs\"] { content-visibility: auto; contain-intrinsic-size: auto 400px; contain: content; }",
-                "[class*=\"textPreview_\"], [class*=\"codeActionsCodeBlock_\"] { content-visibility: auto; contain-intrinsic-size: auto 300px; }"
+                "[class*=\"messageAttachment_\"], [class*=\"nonMediaAttachment_\"], [class*=\"fileNameLink_\"] { contain: style; }",
+                "[class*=\"messageListItem_\"] pre, [class*=\"messageListItem_\"] [class*=\"codeContainer_\"], [class*=\"messageListItem_\"] [class*=\"hljs\"] { contain: style; }",
+                "[class*=\"textPreview_\"], [class*=\"codeActionsCodeBlock_\"] { contain: style; }"
             );
         }
         if (settings.store.containAttachmentImages) {
             rules.push(
-                "[class*=\"imageContainer_\"], [class*=\"mosaicItem_\"], [class*=\"clickableWrapper_\"][class*=\"imageZoom_\"] { content-visibility: auto; contain-intrinsic-size: auto 300px; contain: content; }",
-                "[class*=\"mosaic_\"], [class*=\"gridContainer_\"][class*=\"attachment_\"] { contain: layout style; }"
+                "[class*=\"imageContainer_\"], [class*=\"mosaicItem_\"], [class*=\"clickableWrapper_\"][class*=\"imageZoom_\"] { contain: style; }",
+                "[class*=\"mosaic_\"], [class*=\"gridContainer_\"][class*=\"attachment_\"] { contain: style; }"
             );
         }
 

@@ -502,7 +502,7 @@ function getUserSubtitle(user: User) {
 }
 
 function escapeLinkLabel(label: string) {
-    return label.replace(/[\\\]\[]/g, "\\$&");
+    return label.replaceAll("\\", "\\\\").replaceAll("]", "\\]").replaceAll("[", "\\[");
 }
 
 function getCachedUsers() {
@@ -788,10 +788,16 @@ export default definePlugin({
     },
 
     renderMessageAccessory(props) {
+        const { content } = props.message;
+        const showPluginCards = !(isPerformanceEnabled() && settings.store.performanceDisablePluginCards) && PLUGIN_CARD_MARKER_PATTERN.test(content);
+        const showProfileCards = !settings.store.disableProfilePopoutEmbeds && USER_CARD_MARKER_PATTERN.test(content);
+
+        if (!showPluginCards && !showProfileCards) return null;
+
         return (
             <>
-                <PluginCards message={props.message} />
-                <ProfileCards message={props.message} />
+                {showPluginCards ? <PluginCards message={props.message} /> : null}
+                {showProfileCards ? <ProfileCards message={props.message} /> : null}
             </>
         );
     },
