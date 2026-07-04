@@ -53,6 +53,15 @@ export function intToHex(value: number) {
     return `#${value.toString(16).padStart(6, "0")}`;
 }
 
+let cachedKey: IconColorSettingKey | "" = "";
+let cachedRaw: unknown = undefined;
+let cachedResult: string | undefined = undefined;
+
 export function getTestcordIconColor(key: IconColorSettingKey) {
-    return normalizeIconColor(Settings.plugins.TestcordHelper?.[key]);
+    const raw = Settings.plugins.TestcordHelper?.[key];
+    if (key === cachedKey && raw === cachedRaw) return cachedResult;
+    cachedKey = key;
+    cachedRaw = raw;
+    cachedResult = normalizeIconColor(raw);
+    return cachedResult;
 }

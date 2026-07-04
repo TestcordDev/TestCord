@@ -251,40 +251,55 @@ export function removeChannelToolbarButton(id: string) {
     channelToolbarListeners.forEach(listener => listener());
 }
 
+let cachedHeaderBarButtons: { id: string; render: HeaderBarButtonFactory; }[] | null = null;
+let cachedChannelToolbarButtons: { id: string; render: HeaderBarButtonFactory; }[] | null = null;
+
+function getSortedHeaderBarButtons() {
+    if (cachedHeaderBarButtons && cachedHeaderBarButtons.length === headerBarButtons.size) return cachedHeaderBarButtons;
+    cachedHeaderBarButtons = Array.from(headerBarButtons)
+        .sort(([, a], [, b]) => a.priority - b.priority)
+        .map(([id, { render }]) => ({ id, render }));
+    return cachedHeaderBarButtons;
+}
+
+function getSortedChannelToolbarButtons() {
+    if (cachedChannelToolbarButtons && cachedChannelToolbarButtons.length === channelToolbarButtons.size) return cachedChannelToolbarButtons;
+    cachedChannelToolbarButtons = Array.from(channelToolbarButtons)
+        .sort(([, a], [, b]) => a.priority - b.priority)
+        .map(([id, { render }]) => ({ id, render }));
+    return cachedChannelToolbarButtons;
+}
+
 function HeaderBarButtons() {
     const [, forceUpdate] = useState(0);
 
     useEffect(() => {
-        const listener = () => forceUpdate(n => n + 1);
+        const listener = () => { cachedHeaderBarButtons = null; forceUpdate(n => n + 1); };
         headerBarListeners.add(listener);
         return () => { headerBarListeners.delete(listener); };
     }, []);
 
-    return Array.from(headerBarButtons)
-        .sort(([, a], [, b]) => a.priority - b.priority)
-        .map(([id, { render: Button }]) => (
-            <ErrorBoundary noop key={id} onError={e => logger.error(`Failed to render header bar button: ${id}`, e.error)}>
-                <Button />
-            </ErrorBoundary>
-        ));
+    return getSortedHeaderBarButtons().map(({ id, render: Button }) => (
+        <ErrorBoundary noop key={id} onError={e => logger.error(`Failed to render header bar button: ${id}`, e.error)}>
+            <Button />
+        </ErrorBoundary>
+    ));
 }
 
 function ChannelToolbarButtons() {
     const [, forceUpdate] = useState(0);
 
     useEffect(() => {
-        const listener = () => forceUpdate(n => n + 1);
+        const listener = () => { cachedChannelToolbarButtons = null; forceUpdate(n => n + 1); };
         channelToolbarListeners.add(listener);
         return () => { channelToolbarListeners.delete(listener); };
     }, []);
 
-    return Array.from(channelToolbarButtons)
-        .sort(([, a], [, b]) => a.priority - b.priority)
-        .map(([id, { render: Button }]) => (
-            <ErrorBoundary noop key={id} onError={e => logger.error(`Failed to render channel toolbar button: ${id}`, e.error)}>
-                <Button />
-            </ErrorBoundary>
-        ));
+    return getSortedChannelToolbarButtons().map(({ id, render: Button }) => (
+        <ErrorBoundary noop key={id} onError={e => logger.error(`Failed to render channel toolbar button: ${id}`, e.error)}>
+            <Button />
+        </ErrorBoundary>
+    ));
 }
 
 /** @internal Injected by HeaderBarAPI patch (do NOT call directly) */

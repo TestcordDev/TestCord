@@ -81,6 +81,16 @@ export function removeUserAreaButton(id: string) {
     notifyUserAreaChange();
 }
 
+let cachedButtons: { id: string; render: UserAreaButtonFactory; }[] | null = null;
+
+function getSortedButtons() {
+    if (cachedButtons && cachedButtons.length === buttons.size) return cachedButtons;
+    cachedButtons = Array.from(buttons)
+        .sort(([, a], [, b]) => a.priority - b.priority)
+        .map(([id, { render }]) => ({ id, render }));
+    return cachedButtons;
+}
+
 function UserAreaButtons({ props }: { props: UserAreaRenderProps; }) {
     const [, forceUpdate] = useState(0);
     useSettings(TESTCORD_USER_AREA_ICON_COLOR_SETTING);
@@ -90,20 +100,18 @@ function UserAreaButtons({ props }: { props: UserAreaRenderProps; }) {
         iconForeground: classes(props.iconForeground, "vc-plugin-icon-button")
     };
     useEffect(() => {
-        const listener = () => forceUpdate(n => n + 1);
+        const listener = () => { cachedButtons = null; forceUpdate(n => n + 1); };
         userAreaListeners.add(listener);
         return () => { userAreaListeners.delete(listener); };
     }, []);
 
     return (
         <>
-            {Array.from(buttons)
-                .sort(([, a], [, b]) => a.priority - b.priority)
-                .map(([id, { render: Button }]) => (
-                    <ErrorBoundary noop key={id} onError={e => logger.error(`Failed to render ${id}`, e.error)}>
-                        <Button {...buttonProps} />
-                    </ErrorBoundary>
-                ))}
+            {getSortedButtons().map(({ id, render: Button }) => (
+                <ErrorBoundary noop key={id} onError={e => logger.error(`Failed to render ${id}`, e.error)}>
+                    <Button {...buttonProps} />
+                </ErrorBoundary>
+            ))}
         </>
     );
 }

@@ -103,6 +103,15 @@ function ruleFor(selectors: string, body: string): string | null {
     return `${valid.join(", ")} { ${body} }`;
 }
 
+function hasElementDescendants(node: Element): boolean {
+    let child = node.firstElementChild;
+    while (child) {
+        if (child.childElementCount > 0) return true;
+        child = child.nextElementSibling;
+    }
+    return false;
+}
+
 function chatImageSelector(): string {
     return orSel(ScrollerClasses.scrollerInner, MessageClasses.messageListItem);
 }
@@ -935,7 +944,7 @@ export default definePlugin({
     start() {
         if (settings.store.verboseLogging) logger.info("Starting optimizer suite");
 
-        try { if (settings.store.throttleMutationObservers) this.installConsolidatedObserver(); } catch (e) { logger.warn("installConsolidatedObserver failed", e); }
+        try { this.installConsolidatedObserver(); } catch (e) { logger.warn("installConsolidatedObserver failed", e); }
         try { if (settings.store.domThrottle) this.installDomThrottle(); } catch (e) { logger.warn("installDomThrottle failed", e); }
         try { if (settings.store.networkCache || settings.store.forceLowImageQuality) this.installNetworkLayer(); } catch (e) { logger.warn("installNetworkLayer failed", e); }
         try { if (settings.store.disableSpringAnimations) this.installSpringSkip(); } catch (e) { logger.warn("installSpringSkip failed", e); }
@@ -1055,6 +1064,7 @@ export default definePlugin({
         if (typeof MutationObserver === "undefined") return;
 
         const callbacks = this.observerCallbacks;
+        const throttle = settings.store.throttleMutationObservers;
         let queued: MutationRecord[] = [];
         let frame = 0;
         const flush = () => {
@@ -1072,8 +1082,19 @@ export default definePlugin({
 
         try {
             this.consolidatedObserver = new MutationObserver(records => {
-                queued.push(...records);
-                if (!frame) frame = requestAnimationFrame(flush);
+                if (callbacks.size === 0) return;
+                if (throttle) {
+                    queued.push(...records);
+                    if (!frame) frame = requestAnimationFrame(flush);
+                } else {
+                    for (const cb of callbacks.values()) {
+                        try {
+                            cb(records);
+                        } catch (err) {
+                            if (settings.store.verboseLogging) logger.warn("Consolidated observer callback error", err);
+                        }
+                    }
+                }
             });
             this.consolidatedObserver.observe(document.body, { childList: true, subtree: true });
             if (settings.store.verboseLogging) logger.info("Installed consolidated MutationObserver");
@@ -1430,7 +1451,7 @@ export default definePlugin({
                 for (const node of r.addedNodes) {
                     if (node instanceof HTMLMediaElement) {
                         this.intersectionObserver?.observe(node);
-                    } else if (node instanceof Element) {
+                    } else if (node instanceof Element && hasElementDescendants(node)) {
                         watch(node);
                     }
                 }
@@ -1650,7 +1671,7 @@ export default definePlugin({
             for (const r of records) {
                 for (const node of r.addedNodes) {
                     if (node instanceof HTMLImageElement) freeze(node);
-                    else if (node instanceof Element) node.querySelectorAll<HTMLImageElement>("img").forEach(freeze);
+                    else if (node instanceof Element && hasElementDescendants(node)) node.querySelectorAll<HTMLImageElement>("img").forEach(freeze);
                 }
             }
         };
@@ -1696,7 +1717,7 @@ export default definePlugin({
             for (const r of records) {
                 for (const node of r.addedNodes) {
                     if (node instanceof HTMLImageElement) apply(node);
-                    else if (node instanceof Element) node.querySelectorAll<HTMLImageElement>("img").forEach(apply);
+                    else if (node instanceof Element && hasElementDescendants(node)) node.querySelectorAll<HTMLImageElement>("img").forEach(apply);
                 }
             }
         };
@@ -1752,7 +1773,7 @@ export default definePlugin({
             for (const r of records) {
                 for (const node of r.addedNodes) {
                     if (node instanceof HTMLIFrameElement) observeIframe(node);
-                    else if (node instanceof Element) node.querySelectorAll<HTMLIFrameElement>("iframe").forEach(observeIframe);
+                    else if (node instanceof Element && hasElementDescendants(node)) node.querySelectorAll<HTMLIFrameElement>("iframe").forEach(observeIframe);
                 }
             }
         };
@@ -1800,7 +1821,7 @@ export default definePlugin({
             for (const r of records) {
                 for (const node of r.addedNodes) {
                     if (node instanceof HTMLImageElement) apply(node);
-                    else if (node instanceof Element) node.querySelectorAll<HTMLImageElement>("img").forEach(apply);
+                    else if (node instanceof Element && hasElementDescendants(node)) node.querySelectorAll<HTMLImageElement>("img").forEach(apply);
                 }
             }
         };
@@ -1997,7 +2018,7 @@ export default definePlugin({
             const cta = sel(ChannelTextAreaClasses.channelTextArea);
             if (cta) {
                 const sc = sel(ChannelTextAreaClasses.scrollableContainer);
-                push(ruleFor(`${cta}, ${sc}${cta}`, "contain: layout style"));
+                push(ruleFor(`${cta}, ${sc}${cta}`, "contain: style"));
                 push(ruleFor(`${cta} ${sel(ChannelTextAreaClasses.slateContainer)}, ${cta} ${sel(ChannelTextAreaClasses.textArea)}`, "contain: style"));
                 push(ruleFor(`${cta} *, ${cta} *::before, ${cta} *::after`, "transition: none !important; animation: none !important"));
             }
@@ -2052,7 +2073,7 @@ export default definePlugin({
                     if (!(node instanceof Element)) continue;
                     if (node instanceof HTMLImageElement) {
                         if (node.classList.contains("emoji") || node.src.includes("emojis")) rewrite(node);
-                    } else {
+                    } else if (hasElementDescendants(node)) {
                         node.querySelectorAll<HTMLImageElement>("img.emoji, img[src*=\"emojis\"]").forEach(rewrite);
                     }
                 }
@@ -2104,7 +2125,7 @@ export default definePlugin({
                 for (const node of r.addedNodes) {
                     if (!(node instanceof Element)) continue;
                     if (node instanceof HTMLVideoElement && /gif|media\.discord/i.test(node.src)) pause(node);
-                    else node.querySelectorAll<HTMLVideoElement>("video[src*=\"gif\"], video[src*=\"media.discord\"]").forEach(pause);
+                    else if (hasElementDescendants(node)) node.querySelectorAll<HTMLVideoElement>("video[src*=\"gif\"], video[src*=\"media.discord\"]").forEach(pause);
                 }
             }
         };
@@ -2526,7 +2547,7 @@ export default definePlugin({
                 for (const node of r.addedNodes) {
                     if (!(node instanceof Element)) continue;
                     if (node instanceof HTMLImageElement && isAvatar(node)) freeze(node);
-                    else if (avatarSel) node.querySelectorAll<HTMLImageElement>(avatarSel).forEach(freeze);
+                    else if (avatarSel && hasElementDescendants(node)) node.querySelectorAll<HTMLImageElement>(avatarSel).forEach(freeze);
                 }
             }
         };
@@ -2580,7 +2601,7 @@ export default definePlugin({
                 for (const node of r.addedNodes) {
                     if (!(node instanceof Element)) continue;
                     if (node instanceof HTMLImageElement && isAvatar(node)) rewrite(node);
-                    else if (avatarSel) node.querySelectorAll<HTMLImageElement>(avatarSel).forEach(rewrite);
+                    else if (avatarSel && hasElementDescendants(node)) node.querySelectorAll<HTMLImageElement>(avatarSel).forEach(rewrite);
                 }
             }
         };

@@ -18,7 +18,7 @@ import { Clickable, Menu, Tooltip, useEffect, useState } from "@webpack/common";
 import { CSSProperties, HTMLProps, JSX, MouseEventHandler, ReactNode } from "react";
 
 import { addContextMenuPatch, findGroupChildrenByChildId } from "./ContextMenu";
-import { useSettings } from "./Settings";
+import { SettingsStore, useSettings } from "./Settings";
 
 const ButtonWrapperClasses = findCssClassesLazy("button", "buttonWrapper", "notificationDot");
 const ChannelTextAreaClasses = findCssClassesLazy("buttonContainer", "channelTextArea", "button");
@@ -109,12 +109,21 @@ export const BackpackedButtons = new Set<string>();
 export const backpackListeners = new Set<() => void>();
 export function notifyBackpackChange() { backpackListeners.forEach(l => l()); }
 
+let cachedChatBarButtons: { key: string; render: ChatBarButtonFactory; }[] | null = null;
+
+function getSortedChatBarButtons() {
+    if (cachedChatBarButtons && cachedChatBarButtons.length === ChatBarButtonMap.size) return cachedChatBarButtons;
+    cachedChatBarButtons = Array.from(ChatBarButtonMap)
+        .map(([key, { render }]) => ({ key, render }));
+    return cachedChatBarButtons;
+}
+
 function VencordChatBarButtons(props: ChatBarProps) {
     const { chatBarButtons } = useSettings(["uiElements.chatBarButtons.*"]).uiElements;
     const [, forceUpdate] = useState(0);
 
     useEffect(() => {
-        const listener = () => forceUpdate(n => n + 1);
+        const listener = () => { cachedChatBarButtons = null; forceUpdate(n => n + 1); };
         chatBarButtonListeners.add(listener);
         return () => { chatBarButtonListeners.delete(listener); };
     }, []);
@@ -122,9 +131,9 @@ function VencordChatBarButtons(props: ChatBarProps) {
     const { analyticsName } = props.type;
     return (
         <>
-            {Array.from(ChatBarButtonMap)
-                .filter(([key]) => chatBarButtons[key]?.enabled !== false)
-                .map(([key, { render: Button }]) => (
+            {getSortedChatBarButtons()
+                .filter(({ key }) => chatBarButtons[key]?.enabled !== false)
+                .map(({ key, render: Button }) => (
                     <ErrorBoundary noop key={key} onError={e => logger.error(`Failed to render ${key}`, e.error)}>
                         <Button {...props} isMainChat={analyticsName === "normal"} isAnyChat={analyticsName === "normal" || analyticsName === "sidebar"} />
                     </ErrorBoundary>
@@ -195,7 +204,7 @@ export const ChatBarButton = ErrorBoundary.wrap((props: ChatBarButtonProps) => {
 }, { noop: true });
 
 addContextMenuPatch("textarea-context", (children, args) => {
-    const { chatBarButtons } = useSettings(["uiElements.chatBarButtons.*"]).uiElements;
+    const { chatBarButtons } = SettingsStore.store.uiElements;
 
     const buttons = Array.from(ChatBarButtonMap.entries());
     if (!buttons.length) return;

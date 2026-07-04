@@ -241,6 +241,8 @@ function onGlobalKeydown(e: KeyboardEvent) {
 // ─── DOM Attribute Injection ──────────────────────────────────────────────────
 
 let observer: MutationObserver | null = null;
+let updateQueued = false;
+let updateFrame = 0;
 
 function updateDomAttributes() {
     const btns = getAllButtons();
@@ -257,9 +259,14 @@ function updateDomAttributes() {
 function startObserver() {
     if (observer) return;
     observer = new MutationObserver(() => {
-        updateDomAttributes();
+        if (updateQueued) return;
+        updateQueued = true;
+        updateFrame = requestAnimationFrame(() => {
+            updateQueued = false;
+            updateFrame = 0;
+            updateDomAttributes();
+        });
     });
-    // Triggers when layout items or labels toggle
     observer.observe(document.body, {
         childList: true,
         subtree: true,
@@ -274,6 +281,11 @@ function stopObserver() {
         observer.disconnect();
         observer = null;
     }
+    if (updateFrame) {
+        cancelAnimationFrame(updateFrame);
+        updateFrame = 0;
+    }
+    updateQueued = false;
 }
 
 // ─── CSS Builders ─────────────────────────────────────────────────────────────
