@@ -123,8 +123,8 @@ const settings = definePluginSettings({
     },
     optimizeTextRendering: {
         type: OptionType.BOOLEAN,
-        description: "Apply optimizeSpeed text-rendering on message content. Faster text layout on large channels.",
-        default: true
+        description: "Apply optimizeSpeed text-rendering on message content. Disabling kerning/ligatures changes line breaks, which changes message heights and can trigger scroll re-anchoring — off by default.",
+        default: false
     },
     killBackdropBlur: {
         type: OptionType.BOOLEAN,
