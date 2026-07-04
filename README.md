@@ -4,7 +4,7 @@
 [![Discord](https://img.shields.io/discord/1434211283317690502?color=5865F2&label=Discord&logo=discord&logoColor=white)](https://discord.gg/EMDpkV57gW)
 [![Owner](https://img.shields.io/badge/Owner-Mixiruri-ff69b4?logo=github&logoColor=white)](https://github.com/Mixiruri)
 [![Owner](https://img.shields.io/badge/Owner-x2b1-red?logo=github&logoColor=white)](https://github.com/x2b1)
-[![Owner](https://img.shields.io/badge/Owner-dxrx99-orange?logo=github&logoColor=white)](https://github.com/dxrx99)
+[![betrayer and spoiled kid](https://img.shields.io/badge/Owner-dxrx99-orange?logo=github&logoColor=white)](https://github.com/dxrx99)
 
 Testcord is a fork of [Equicord](https://github.com/Equicord/Equicord) which is a fork of [Vencord](https://github.com/Vendicated/Vencord), with over 710 plugins.
 
