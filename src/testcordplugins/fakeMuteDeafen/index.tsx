@@ -71,7 +71,10 @@ const fakeVoiceState = {
     selfVideo: false
 };
 
+let buttonRerender: (() => void) | null = null;
+
 function refreshVoiceState() {
+    buttonRerender?.();
     if (!wsModule || !SelectedChannelStore || !ChannelStore || !MediaEngineStore) return;
 
     const socket = wsModule.getSocket();
@@ -228,8 +231,8 @@ function FakeMuteDeafenButton() {
     const isEnabled = fakeVoiceState.selfDeaf;
 
     React.useEffect(() => {
-        const interval = setInterval(() => forceUpdate(), 500);
-        return () => clearInterval(interval);
+        buttonRerender = forceUpdate;
+        return () => { buttonRerender = null; };
     }, []);
 
     return (

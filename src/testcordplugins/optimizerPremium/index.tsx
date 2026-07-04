@@ -7,14 +7,113 @@
 import { definePluginSettings } from "@api/Settings";
 import { disableCacheLimits, resetCacheLimits } from "@utils/cacheLimits";
 import { TestcordDevs } from "@utils/constants";
+import { classNameToSelector } from "@utils/css";
 import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
-import { findAll } from "@webpack";
+import { findAll, findCssClassesLazy } from "@webpack";
 import { FluxDispatcher, MessageStore, SelectedChannelStore } from "@webpack/common";
 
 const logger = new Logger("OptimizerPremium");
 
 const THROTTLED_CLASS_TOKENS = ["activity", "subText", "botText", "clanTag"] as const;
+
+const ChatClasses = findCssClassesLazy("chat", "chatContent");
+const TopicClasses = findCssClassesLazy("topic", "title", "channelTopic");
+const ScrollerClasses = findCssClassesLazy("scroller", "scrollerInner");
+const ScrollingContainerClasses = findCssClassesLazy("scrollingContainer", "content");
+const MessageClasses = findCssClassesLazy("messageListItem", "messageContent", "markup");
+const AttachmentClasses = findCssClassesLazy("messageAttachment", "nonMediaAttachment", "fileNameLink", "textPreview", "codeActionsCodeBlock");
+const CodeClasses = findCssClassesLazy("codeContainer", "hljs");
+const EmbedClasses = findCssClassesLazy("embed", "embedFull", "embedInner", "embedWrapper");
+const MemberClasses = findCssClassesLazy("members", "membersWrap", "member", "membersGroup");
+const SelectedClasses = findCssClassesLazy("selected");
+const FocusedClasses = findCssClassesLazy("focused");
+const ChannelClasses = findCssClassesLazy("containerDefault", "sidebar");
+const GuildClasses = findCssClassesLazy("guilds", "listItem");
+const GuildItemClasses = findCssClassesLazy("guild");
+const DmClasses = findCssClassesLazy("privateChannels");
+const DmChannelClasses = findCssClassesLazy("channel", "interactive", "subtext");
+const ChannelTextAreaClasses = findCssClassesLazy("channelTextArea", "scrollableContainer", "slateContainer", "textArea");
+const AutocompleteClasses = findCssClassesLazy("autocomplete", "autocompleteInner", "autocompleteRow", "applicationCommand");
+const AvatarClasses = findCssClassesLazy("avatar", "avatarDecoration");
+const DecorationClasses = findCssClassesLazy("decoration");
+const TypingClasses = findCssClassesLazy("typing", "typingDots");
+const HeaderClasses = findCssClassesLazy("header", "banner");
+const BannerClasses = findCssClassesLazy("bannerImage", "bannerImg", "animatedBanner");
+const BadgeClasses = findCssClassesLazy("badge", "number");
+const MentionClasses = findCssClassesLazy("mention", "badgePulse");
+const UnreadClasses = findCssClassesLazy("unread", "unreadPill", "unreadBar");
+const PanelClasses = findCssClassesLazy("activityPanel", "nowPlaying", "panel", "whatsNew");
+const VoicePanelClasses = findCssClassesLazy("voicePanel", "voiceCall", "chatToasts");
+const BoostClasses = findCssClassesLazy("boostBar", "boostedGuild");
+const NitroClasses = findCssClassesLazy("upsell", "premiumUpsell", "premiumPromo");
+const ServerGuideClasses = findCssClassesLazy("homeBanner", "serverGuide");
+const OnboardingClasses = findCssClassesLazy("onboarding", "onboardingStep");
+const SoundboardClasses = findCssClassesLazy("soundButton", "soundboardButton");
+const GiftClasses = findCssClassesLazy("giftButton", "trinketsDecoration");
+const StickerClasses = findCssClassesLazy("sticker", "stickerButton", "stickerResults");
+const StickerAssetClasses = findCssClassesLazy("asset");
+const EmojiPickerClasses = findCssClassesLazy("emojiPicker");
+const EffectsClasses = findCssClassesLazy("effects", "effectsWrapper", "messageEffects");
+const EffectClasses = findCssClassesLazy("effect");
+const EffectsCanvasClasses = findCssClassesLazy("effectsCanvas");
+const ProfileEffectClasses = findCssClassesLazy("profileEffects", "profileEffect");
+const ProfileClasses = findCssClassesLazy("profile");
+const ForumClasses = findCssClassesLazy("mainCard");
+const SearchClasses = findCssClassesLazy("searchResult");
+const LayerClasses = findCssClassesLazy("layer", "animating");
+const ModalClasses = findCssClassesLazy("modal", "backdrop", "popout");
+const MenuClasses = findCssClassesLazy("menu", "contextMenu");
+const ToastClasses = findCssClassesLazy("toast");
+const SpoilerClasses = findCssClassesLazy("spoilerContent");
+const SkeletonClasses = findCssClassesLazy("skeleton", "skeletonWave", "skeletonContainer");
+const DiscoveryClasses = findCssClassesLazy("discovery");
+const FolderClasses = findCssClassesLazy("folder", "expandedFolder", "folderIcon");
+const InviteClasses = findCssClassesLazy("invite", "inviteCard");
+const WrapperClasses = findCssClassesLazy("wrapper");
+const ReactionClasses = findCssClassesLazy("reaction", "reactionBtn", "reactionCount");
+const MessageAncestorClasses = findCssClassesLazy("message");
+const CanvasEffectClasses = findCssClassesLazy("spriteCanvas", "particles", "confetti", "sparkle");
+const AttachmentImageClasses = findCssClassesLazy("imageContainer", "mosaic", "mosaicItem", "imageZoom", "clickableWrapper", "gridContainer");
+const AttachmentWrapClasses = findCssClassesLazy("attachment");
+const FilterClasses = findCssClassesLazy("filter");
+const CardClasses = findCssClassesLazy("card");
+const TextClasses = findCssClassesLazy("text");
+
+function sel(cls: string | undefined): string {
+    if (!cls) return "";
+    try {
+        return classNameToSelector(cls);
+    } catch {
+        return "";
+    }
+}
+
+function orSel(...clses: Array<string | undefined>): string {
+    return clses.filter((c): c is string => !!c).map(c => { try { return classNameToSelector(c); } catch { return ""; } }).filter(Boolean).join(", ");
+}
+
+function joinSel(...selectors: Array<string | undefined>): string {
+    return selectors.filter((c): c is string => !!c).join(", ");
+}
+
+function ruleFor(selectors: string, body: string): string | null {
+    const valid = selectors.split(",").map(s => s.trim()).filter(Boolean);
+    if (!valid.length) return null;
+    return `${valid.join(", ")} { ${body} }`;
+}
+
+function chatImageSelector(): string {
+    return orSel(ScrollerClasses.scrollerInner, MessageClasses.messageListItem);
+}
+
+function avatarImgSelector(): string {
+    return joinSel(`img${sel(AvatarClasses.avatar)}`, `${sel(MemberClasses.member)} img`);
+}
+
+function avatarClosestSelector(): string {
+    return orSel(AvatarClasses.avatar, MemberClasses.member);
+}
 
 const settings = definePluginSettings({
     domThrottle: {
@@ -387,7 +486,7 @@ const settings = definePluginSettings({
     },
     containDmList: {
         type: OptionType.BOOLEAN,
-        description: "Apply CSS containment to DM list rows. Reduces layout cost when presence/status changes.",
+        description: "Apply CSS containment to DM list rows. Off by default — Discord's virtualized DM list uses row-height math in scrollToChannel, and paint containment mis-measures rows so clicking a DM scrolls to the wrong offset. Same root cause as the chat scroller fixes.",
         default: false
     },
     containEmbeds: {
@@ -808,7 +907,6 @@ export default definePlugin({
     originalConsoleDir: null as typeof console.dir | null,
     originalConsoleDirxml: null as typeof console.dirxml | null,
     fetchQueue: [] as Array<{ target: RequestInfo | URL; init?: RequestInit; resolve: (v: Response) => void; reject: (v: unknown) => void }>,
-    originalScrollTo: null as typeof window.scrollTo | null,
     rICMessagePort: null as MessagePort | null,
     rICMessagePort1: null as MessagePort | null,
     rICCallbacks: null as Map<number, { cb: IdleRequestCallback; options?: IdleRequestOptions }> | null,
@@ -1366,12 +1464,12 @@ export default definePlugin({
     installCSSOptimizations() {
         const rules: string[] = [];
         if (settings.store.virtualizeMessages) {
-            rules.push("[class*=\"messageListItem_\"] { contain: style; }");
+            const r = ruleFor(sel(MessageClasses.messageListItem), "contain: style");
+            if (r) rules.push(r);
         }
         if (settings.store.optimizeTextRendering) {
-            rules.push(
-                "[class*=\"messageContent_\"], [class*=\"markup_\"] { text-rendering: optimizeSpeed; }"
-            );
+            const r = ruleFor(orSel(MessageClasses.messageContent, MessageClasses.markup), "text-rendering: optimizeSpeed");
+            if (r) rules.push(r);
         }
         if (rules.length) {
             this.optimizerStyleEl = document.createElement("style");
@@ -1584,7 +1682,8 @@ export default definePlugin({
     },
 
     installLazyImages() {
-        const isChatImage = (img: HTMLImageElement) => img.closest("[class*=\"scrollerInner_\"], [class*=\"messageListItem_\"]") !== null;
+        const chatSel = chatImageSelector();
+        const isChatImage = (img: HTMLImageElement) => chatSel ? img.closest(chatSel) !== null : false;
         const apply = (img: HTMLImageElement) => {
             if (img.dataset.opLazy === "1") return;
             img.dataset.opLazy = "1";
@@ -1687,7 +1786,8 @@ export default definePlugin({
     },
 
     installImageDecodingOptimization() {
-        const isChatImage = (img: HTMLImageElement) => img.closest("[class*=\"scrollerInner_\"], [class*=\"messageListItem_\"]") !== null;
+        const chatSel = chatImageSelector();
+        const isChatImage = (img: HTMLImageElement) => chatSel ? img.closest(chatSel) !== null : false;
         const apply = (img: HTMLImageElement) => {
             if (img.dataset.opDecoding === "1") return;
             img.dataset.opDecoding = "1";
@@ -1723,11 +1823,10 @@ export default definePlugin({
 
     installExtraCSS() {
         const rules: string[] = [];
+        const push = (r: string | null) => { if (r) rules.push(r); };
 
         if (settings.store.killBackdropBlur) {
-            rules.push(
-                "[class*=\"backdrop_\"], [class*=\"layer_\"], [class*=\"popout_\"], [class*=\"modal_\"] { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }"
-            );
+            push(ruleFor(orSel(ModalClasses.backdrop, LayerClasses.layer, ModalClasses.popout, ModalClasses.modal), "backdrop-filter: none !important; -webkit-backdrop-filter: none !important"));
         }
         if (settings.store.reduceMotion) {
             rules.push(
@@ -1735,274 +1834,187 @@ export default definePlugin({
             );
         }
         if (settings.store.killWillChange) {
-            rules.push(
-                "[style*=\"will-change\"], [class*=\"scroller_\"], [class*=\"messageListItem_\"] { will-change: auto !important; }"
-            );
+            push(ruleFor(orSel(ScrollerClasses.scroller, MessageClasses.messageListItem), "will-change: auto !important"));
         }
         if (settings.store.disableTypingIndicator) {
-            rules.push("[class*=\"typing_\"], [class*=\"typingDots_\"] { display: none !important; }");
+            push(ruleFor(orSel(TypingClasses.typing, TypingClasses.typingDots), "display: none !important"));
         }
         if (settings.store.disableAnimatedHeaders) {
-            rules.push(
-                "[class*=\"header_\"], [class*=\"banner_\"] { animation: none !important; transition: none !important; }"
-            );
+            push(ruleFor(orSel(HeaderClasses.header, HeaderClasses.banner), "animation: none !important; transition: none !important"));
         }
         if (settings.store.messageContentVisibility) {
-            rules.push(
-                "[class*=\"messageListItem_\"] { contain: style; }"
-            );
+            push(ruleFor(sel(MessageClasses.messageListItem), "contain: style"));
         }
         if (settings.store.suppressEmbedPreviews) {
-            rules.push(
-                "article[class*=\"embed_\"], [class*=\"embedWrapper_\"], [class*=\"embedFull_\"], [class*=\"embedInner_\"] { display: none !important; }"
-            );
+            const embedSel = sel(EmbedClasses.embed);
+            if (embedSel) push(ruleFor(`article${embedSel}`, "display: none !important"));
+            push(ruleFor(orSel(EmbedClasses.embedWrapper, EmbedClasses.embedFull, EmbedClasses.embedInner), "display: none !important"));
         }
 
         // --- Advanced CSS optimizations ---
         if (settings.store.freezeGifsUntilHover && settings.store.gifFreezeMethod === "css") {
             rules.push(
-                "img[src*=\".gif\"]:not([class*=\"emoji\"]):not([data-op-gif-suppressed=\"1\"]) { content-visibility: hidden; }",
-                "img[src*=\".gif\"]:not([class*=\"emoji\"]):hover { content-visibility: visible; }"
+                "img[src*=\".gif\"]:not(.emoji):not([data-op-gif-suppressed=\"1\"]) { content-visibility: hidden; }",
+                "img[src*=\".gif\"]:not(.emoji):hover { content-visibility: visible; }"
             );
         }
         if (settings.store.containMemberList) {
-            rules.push(
-                "[class*=\"members_\"] > [class*=\"member_\"] { content-visibility: auto; contain-intrinsic-size: 48px; }",
-                "[class*=\"members_\"] > [class*=\"membersGroup_\"] { content-visibility: auto; contain-intrinsic-size: 32px; }"
-            );
+            push(ruleFor(`${sel(MemberClasses.members)} > ${sel(MemberClasses.member)}`, "content-visibility: auto; contain-intrinsic-size: 48px"));
+            push(ruleFor(`${sel(MemberClasses.members)} > ${sel(MemberClasses.membersGroup)}`, "content-visibility: auto; contain-intrinsic-size: 32px"));
         }
         if (settings.store.containServerList) {
-            rules.push(
-                "[class*=\"guilds_\"] > [class*=\"listItem_\"] { content-visibility: auto; contain-intrinsic-size: 48px; }"
-            );
+            push(ruleFor(`${sel(GuildClasses.guilds)} > ${sel(GuildClasses.listItem)}`, "content-visibility: auto; contain-intrinsic-size: 48px"));
         }
         if (settings.store.hideVoicePanel) {
-            rules.push(
-                "[class*=\"voicePanel_\"], [class*=\"voiceCall_\"] { display: none !important; }",
-                "[class*=\"chatToasts_\"] { display: none !important; }"
-            );
+            push(ruleFor(orSel(VoicePanelClasses.voicePanel, VoicePanelClasses.voiceCall), "display: none !important"));
+            push(ruleFor(sel(VoicePanelClasses.chatToasts), "display: none !important"));
         }
         if (settings.store.hideActivityPanel) {
-            rules.push(
-                "[class*=\"activityPanel_\"], [class*=\"nowPlaying_\"][class*=\"panel_\"], [class*=\"whatsNew_\"][class*=\"panel_\"] { display: none !important; }"
-            );
+            push(ruleFor(`${sel(PanelClasses.activityPanel)}, ${sel(PanelClasses.nowPlaying)}${sel(PanelClasses.panel)}, ${sel(PanelClasses.whatsNew)}${sel(PanelClasses.panel)}`, "display: none !important"));
         }
         if (settings.store.hideServerBanner) {
-            rules.push(
-                "[class*=\"bannerImage_\"], [class*=\"bannerImg_\"] { display: none !important; }",
-                "[class*=\"animatedBanner_\"] { display: none !important; }"
-            );
+            push(ruleFor(orSel(BannerClasses.bannerImage, BannerClasses.bannerImg), "display: none !important"));
+            push(ruleFor(sel(BannerClasses.animatedBanner), "display: none !important"));
         }
         if (settings.store.hideAvatarDecorations) {
-            rules.push(
-                "[class*=\"avatarDecoration_\"], img[class*=\"decoration_\"], [class*=\"profileEffect_\"], video[src*=\"decorations\"] { display: none !important; }"
-            );
+            push(ruleFor(`${orSel(AvatarClasses.avatarDecoration, ProfileEffectClasses.profileEffect)}, img${sel(DecorationClasses.decoration)}, video[src*="decorations"]`, "display: none !important"));
         }
         if (settings.store.suppressProfileEffects) {
-            rules.push(
-                "[class*=\"profileEffects_\"], [class*=\"effect_\"][class*=\"profile_\"], video[class*=\"effect_\"] { display: none !important; }"
-            );
+            push(ruleFor(`${orSel(ProfileEffectClasses.profileEffects, ProfileClasses.profile)}, ${sel(ProfileEffectClasses.profileEffect)}${sel(ProfileClasses.profile)}, video${sel(EffectClasses.effect)}`, "display: none !important"));
         }
         if (settings.store.hideServerBoosting) {
-            rules.push(
-                "[class*=\"boostBar_\"] { display: none !important; }",
-                "[class*=\"boostedGuild_\"] { display: none !important; }"
-            );
+            push(ruleFor(orSel(BoostClasses.boostBar, BoostClasses.boostedGuild), "display: none !important"));
         }
         if (settings.store.hideNitroUpsell) {
-            rules.push(
-                "[class*=\"upsell_\"] { display: none !important; }",
-                "[class*=\"premiumUpsell_\"], [class*=\"premiumPromo_\"] { display: none !important; }",
-                "[href*=\"/shop\"] { display: none !important; }",
-                "[data-testid*=\"upsell\"] { display: none !important; }"
-            );
+            push(ruleFor(sel(NitroClasses.upsell), "display: none !important"));
+            push(ruleFor(orSel(NitroClasses.premiumUpsell, NitroClasses.premiumPromo), "display: none !important"));
+            rules.push("[href*=\"/shop\"] { display: none !important; }", "[data-testid*=\"upsell\"] { display: none !important; }");
         }
         if (settings.store.hideServerGuide) {
-            rules.push("[class*=\"homeBanner_\"], [class*=\"serverGuide_\"] { display: none !important; }");
+            push(ruleFor(orSel(ServerGuideClasses.homeBanner, ServerGuideClasses.serverGuide), "display: none !important"));
         }
         if (settings.store.hideServerOnboarding) {
-            rules.push(
-                "[class*=\"onboarding_\"] { display: none !important; }",
-                "[class*=\"onboardingStep_\"] { display: none !important; }"
-            );
+            push(ruleFor(orSel(OnboardingClasses.onboarding, OnboardingClasses.onboardingStep), "display: none !important"));
         }
         if (settings.store.hideSoundboardButton) {
-            rules.push(
-                "[class*=\"soundButton_\"], [class*=\"soundboardButton_\"], button[aria-label*=\"Soundboard\"] { display: none !important; }"
-            );
+            push(ruleFor(`${orSel(SoundboardClasses.soundButton, SoundboardClasses.soundboardButton)}, button[aria-label*="Soundboard"]`, "display: none !important"));
         }
         if (settings.store.hideGiftButton) {
-            rules.push(
-                "button[aria-label*=\"Send a gift\"], button[aria-label*=\"Gift\"], [class*=\"giftButton_\"], [class*=\"trinketsDecoration_\"] { display: none !important; }"
-            );
+            push(ruleFor(`button[aria-label*="Send a gift"], button[aria-label*="Gift"], ${orSel(GiftClasses.giftButton, GiftClasses.trinketsDecoration)}`, "display: none !important"));
         }
         if (settings.store.hideStickerButton) {
-            rules.push(
-                "button[aria-label*=\"Sticker\"], [class*=\"stickerButton_\"], button[class*=\"stickerButton\"] { display: none !important; }"
-            );
+            push(ruleFor(`button[aria-label*="Sticker"], ${sel(StickerClasses.stickerButton)}`, "display: none !important"));
         }
         if (settings.store.suppressChannelAnimations) {
-            rules.push(
-                "[class*=\"channel_\"] { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }",
-                "[class*=\"sidebar_\"] { animation: none !important; transition: none !important; }"
-            );
+            push(ruleFor(sel(DmChannelClasses.channel), "animation-duration: 0.001ms !important; transition-duration: 0.001ms !important"));
+            push(ruleFor(sel(ChannelClasses.sidebar), "animation: none !important; transition: none !important"));
         }
         if (settings.store.suppressUnreadBadgeAnimations) {
-            rules.push(
-                "[class*=\"unread_\"] { animation: none !important; }",
-                "[class*=\"badge_\"]:not([class*=\"mention_\"]) { animation: none !important; transition: none !important; }"
-            );
+            push(ruleFor(sel(UnreadClasses.unread), "animation: none !important"));
+            push(ruleFor(`${sel(BadgeClasses.badge)}:not(${sel(MentionClasses.mention)})`, "animation: none !important; transition: none !important"));
         }
         if (settings.store.suppressMentionBadgeAnimations) {
-            rules.push(
-                "[class*=\"mention_\"] { animation: none !important; }",
-                "[class*=\"badgePulse_\"] { animation: none !important; }"
-            );
+            push(ruleFor(orSel(MentionClasses.mention, MentionClasses.badgePulse), "animation: none !important"));
         }
         if (settings.store.suppressStickerAnimation) {
-            rules.push(
-                "[class*=\"sticker_\"][class*=\"asset_\"] video { display: none !important; }",
-                "[class*=\"sticker_\"][class*=\"asset_\"] img[src*=\"gif\"] { content-visibility: hidden !important; }",
-                "[class*=\"stickerResults_\"] video { display: none !important; }"
-            );
+            push(ruleFor(`${sel(StickerClasses.sticker)}${sel(StickerAssetClasses.asset)} video`, "display: none !important"));
+            push(ruleFor(`${sel(StickerClasses.sticker)}${sel(StickerAssetClasses.asset)} img[src*="gif"]`, "content-visibility: hidden !important"));
+            push(ruleFor(`${sel(StickerClasses.stickerResults)} video`, "display: none !important"));
         }
         if (settings.store.suppressEmbedAutoLoad) {
-            rules.push(
-                "article[class*=\"embed_\"] img:not([class*=\"emoji\"]) { content-visibility: hidden; }"
-            );
+            push(ruleFor(`article${sel(EmbedClasses.embed)} img:not(.emoji)`, "content-visibility: hidden"));
         }
         if (settings.store.containForumPosts) {
-            rules.push(
-                "[class*=\"mainCard_\"] { content-visibility: auto; contain-intrinsic-size: 200px; }"
-            );
+            push(ruleFor(sel(ForumClasses.mainCard), "content-visibility: auto; contain-intrinsic-size: 200px"));
         }
         if (settings.store.suppressEmojiPickerAnimations) {
-            rules.push(
-                "[class*=\"emojiPicker_\"] { animation-duration: 0.001ms !important; animation-delay: 0ms !important; transition-duration: 0.001ms !important; transition-delay: 0ms !important; }"
-            );
+            push(ruleFor(sel(EmojiPickerClasses.emojiPicker), "animation-duration: 0.001ms !important; animation-delay: 0ms !important; transition-duration: 0.001ms !important; transition-delay: 0ms !important"));
         }
         if (settings.store.killMessageEffects) {
-            rules.push(
-                "[class*=\"effectsWrapper_\"], [class*=\"effects_\"], [class*=\"messageEffects_\"] { display: none !important; }",
-                "canvas[class*=\"effectsCanvas_\"] { display: none !important; }"
-            );
+            push(ruleFor(orSel(EffectsClasses.effectsWrapper, EffectsClasses.effects, EffectsClasses.messageEffects), "display: none !important"));
+            push(ruleFor(`canvas${sel(EffectsCanvasClasses.effectsCanvas)}`, "display: none !important"));
         }
 
         if (settings.store.containDmList) {
-            rules.push(
-                "[class*=\"privateChannels_\"] [class*=\"channel_\"] { contain: style paint; }"
-            );
+            push(ruleFor(`${sel(DmClasses.privateChannels)} ${sel(DmChannelClasses.channel)}`, "contain: style paint"));
         }
         if (settings.store.containEmbeds) {
-            rules.push(
-                "article[class*=\"embed_\"] { contain: style paint; }"
-            );
+            push(ruleFor(`article${sel(EmbedClasses.embed)}`, "contain: style paint"));
         }
         if (settings.store.optimizeToasts) {
-            rules.push(
-                "[class*=\"toast_\"] { animation: none !important; transition: none !important; }"
-            );
+            push(ruleFor(sel(ToastClasses.toast), "animation: none !important; transition: none !important"));
         }
         if (settings.store.simplifySpoilers) {
-            rules.push(
-                "[class*=\"spoilerContent_\"] { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: var(--background-primary) !important; }"
-            );
+            push(ruleFor(sel(SpoilerClasses.spoilerContent), "backdrop-filter: none !important; -webkit-backdrop-filter: none !important; background: var(--background-primary) !important"));
         }
         if (settings.store.suppressSkeletonAnimation) {
-            rules.push(
-                "[class*=\"skeleton_\"], [class*=\"skeletonWave_\"], [class*=\"skeletonContainer_\"] { animation: none !important; }"
-            );
+            push(ruleFor(orSel(SkeletonClasses.skeleton, SkeletonClasses.skeletonWave, SkeletonClasses.skeletonContainer), "animation: none !important"));
         }
         if (settings.store.forceScrollBehavior) {
-            rules.push(
-                "[class*=\"scroller_\"], [class*=\"scrollingContainer_\"] { scroll-behavior: auto !important; }"
-            );
+            push(ruleFor(orSel(ScrollerClasses.scroller, ScrollingContainerClasses.scrollingContainer), "scroll-behavior: auto !important"));
         }
         if (settings.store.overscrollContain) {
-            rules.push(
-                "[class*=\"chat_\"], [class*=\"chatContent_\"], [class*=\"scroller_\"], [class*=\"membersWrap_\"], [class*=\"sidebar_\"] { overscroll-behavior: contain; }"
-            );
+            push(ruleFor(orSel(ChatClasses.chat, ChatClasses.chatContent, ScrollerClasses.scroller, MemberClasses.membersWrap, ChannelClasses.sidebar), "overscroll-behavior: contain"));
         }
         if (settings.store.disableCSSFilters) {
-            rules.push(
-                "[class*=\"effects_\"], [class*=\"filter_\"] { filter: none !important; -webkit-filter: none !important; }",
-                "[class*=\"backdrop_\"] { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }"
-            );
+            push(ruleFor(orSel(EffectsClasses.effects, FilterClasses.filter), "filter: none !important; -webkit-filter: none !important"));
+            push(ruleFor(sel(ModalClasses.backdrop), "backdrop-filter: none !important; -webkit-backdrop-filter: none !important"));
         }
         if (settings.store.disableBoxShadows) {
-            rules.push(
-                "[class*=\"card_\"], [class*=\"popout_\"], [class*=\"menu_\"] { box-shadow: none !important; }"
-            );
+            push(ruleFor(orSel(CardClasses.card, ModalClasses.popout, MenuClasses.menu), "box-shadow: none !important"));
         }
         if (settings.store.disableTextShadows) {
-            rules.push(
-                "[class*=\"text_\"] { text-shadow: none !important; }"
-            );
+            push(ruleFor(sel(TextClasses.text), "text-shadow: none !important"));
         }
         if (settings.store.containChannelList) {
-            rules.push(
-                "[class*=\"containerDefault_\"] { contain: style paint; }"
-            );
+            push(ruleFor(sel(ChannelClasses.containerDefault), "contain: style paint"));
         }
         if (settings.store.containSearchResults) {
-            rules.push(
-                "[class*=\"searchResult_\"] { content-visibility: auto; contain-intrinsic-size: 60px; }"
-            );
+            push(ruleFor(sel(SearchClasses.searchResult), "content-visibility: auto; contain-intrinsic-size: 60px"));
         }
         if (settings.store.suppressModalAnimations) {
-            rules.push(
-                "[class*=\"modal_\"] { animation: none !important; transition: none !important; }",
-                "[class*=\"layer_\"][class*=\"animating_\"] { animation: none !important; transition: none !important; }"
-            );
+            push(ruleFor(sel(ModalClasses.modal), "animation: none !important; transition: none !important"));
+            push(ruleFor(`${sel(LayerClasses.layer)}${sel(LayerClasses.animating)}`, "animation: none !important; transition: none !important"));
         }
         if (settings.store.suppressScrollbarAnimations) {
-            rules.push(
-                "[class*=\"scroller_\"]::-webkit-scrollbar-thumb { transition: none !important; animation: none !important; }"
-            );
+            push(ruleFor(`${sel(ScrollerClasses.scroller)}::-webkit-scrollbar-thumb`, "transition: none !important; animation: none !important"));
         }
         if (settings.store.suppressDiscoveryAnimations) {
-            rules.push(
-                "[class*=\"discovery_\"] { animation-duration: 0.001ms !important; animation-delay: 0ms !important; transition-duration: 0.001ms !important; transition-delay: 0ms !important; }"
-            );
+            push(ruleFor(sel(DiscoveryClasses.discovery), "animation-duration: 0.001ms !important; animation-delay: 0ms !important; transition-duration: 0.001ms !important; transition-delay: 0ms !important"));
         }
         if (settings.store.containGuildList) {
-            rules.push(
-                "[class*=\"guilds_\"] [class*=\"guild_\"] { content-visibility: auto; contain-intrinsic-size: 48px; }"
-            );
+            push(ruleFor(`${sel(GuildClasses.guilds)} ${sel(GuildItemClasses.guild)}`, "content-visibility: auto; contain-intrinsic-size: 48px"));
         }
         if (settings.store.suppressContextMenuAnimations) {
-            rules.push(
-                "[class*=\"menu_\"] { animation: none !important; transition: none !important; }",
-                "[class*=\"contextMenu_\"] { animation: none !important; }"
-            );
+            push(ruleFor(sel(MenuClasses.menu), "animation: none !important; transition: none !important"));
+            push(ruleFor(sel(MenuClasses.contextMenu), "animation: none !important"));
         }
         if (settings.store.disableCanvasEffects) {
-            rules.push(
-                "canvas[class*=\"effects_\"], canvas[class*=\"particles_\"], canvas[class*=\"confetti_\"], canvas[class*=\"sparkle_\"], canvas[class*=\"spriteCanvas_\"] { display: none !important; }"
-            );
+            push(ruleFor(joinSel(`canvas${sel(EffectsClasses.effects)}`, `canvas${sel(CanvasEffectClasses.particles)}`, `canvas${sel(CanvasEffectClasses.confetti)}`, `canvas${sel(CanvasEffectClasses.sparkle)}`, `canvas${sel(CanvasEffectClasses.spriteCanvas)}`), "display: none !important"));
         }
 
         if (settings.store.optimizeChatInput) {
-            rules.push(
-                "[class*=\"channelTextArea_\"], [class*=\"scrollableContainer_\"][class*=\"channelTextArea_\"] { contain: layout style; }",
-                "[class*=\"channelTextArea_\"] [class*=\"slateContainer_\"], [class*=\"channelTextArea_\"] [class*=\"textArea_\"] { contain: style; }",
-                "[class*=\"channelTextArea_\"] *, [class*=\"channelTextArea_\"] *::before, [class*=\"channelTextArea_\"] *::after { transition: none !important; animation: none !important; }",
-                "[data-slate-editor] { contain: style; }",
-                "[class*=\"autocomplete_\"], [class*=\"autocompleteInner_\"], [class*=\"autocompleteRow_\"], [class*=\"applicationCommand_\"], [role=\"listbox\"] { contain: none !important; content-visibility: visible !important; }"
-            );
+            const cta = sel(ChannelTextAreaClasses.channelTextArea);
+            if (cta) {
+                const sc = sel(ChannelTextAreaClasses.scrollableContainer);
+                push(ruleFor(`${cta}, ${sc}${cta}`, "contain: layout style"));
+                push(ruleFor(`${cta} ${sel(ChannelTextAreaClasses.slateContainer)}, ${cta} ${sel(ChannelTextAreaClasses.textArea)}`, "contain: style"));
+                push(ruleFor(`${cta} *, ${cta} *::before, ${cta} *::after`, "transition: none !important; animation: none !important"));
+            }
+            rules.push("[data-slate-editor] { contain: style; }");
+            push(ruleFor(orSel(AutocompleteClasses.autocomplete, AutocompleteClasses.autocompleteInner, AutocompleteClasses.autocompleteRow, AutocompleteClasses.applicationCommand) + ", [role=\"listbox\"]", "contain: none !important; content-visibility: visible !important"));
         }
         if (settings.store.optimizeLargeAttachments) {
-            rules.push(
-                "[class*=\"messageAttachment_\"], [class*=\"nonMediaAttachment_\"], [class*=\"fileNameLink_\"] { contain: style; }",
-                "[class*=\"messageListItem_\"] pre, [class*=\"messageListItem_\"] [class*=\"codeContainer_\"], [class*=\"messageListItem_\"] [class*=\"hljs\"] { contain: style; }",
-                "[class*=\"textPreview_\"], [class*=\"codeActionsCodeBlock_\"] { contain: style; }"
-            );
+            push(ruleFor(orSel(AttachmentClasses.messageAttachment, AttachmentClasses.nonMediaAttachment, AttachmentClasses.fileNameLink), "contain: style"));
+            const mli = sel(MessageClasses.messageListItem);
+            if (mli) {
+                push(ruleFor(`${mli} pre, ${mli} ${sel(CodeClasses.codeContainer)}, ${mli} ${sel(CodeClasses.hljs)}`, "contain: style"));
+            }
+            push(ruleFor(orSel(AttachmentClasses.textPreview, AttachmentClasses.codeActionsCodeBlock), "contain: style"));
         }
         if (settings.store.containAttachmentImages) {
-            rules.push(
-                "[class*=\"imageContainer_\"], [class*=\"mosaicItem_\"], [class*=\"clickableWrapper_\"][class*=\"imageZoom_\"] { contain: style; }",
-                "[class*=\"mosaic_\"], [class*=\"gridContainer_\"][class*=\"attachment_\"] { contain: style; }"
-            );
+            push(ruleFor(joinSel(sel(AttachmentImageClasses.imageContainer), sel(AttachmentImageClasses.mosaicItem), `${sel(AttachmentImageClasses.clickableWrapper)}${sel(AttachmentImageClasses.imageZoom)}`), "contain: style"));
+            push(ruleFor(joinSel(sel(AttachmentImageClasses.mosaic), `${sel(AttachmentImageClasses.gridContainer)}${sel(AttachmentWrapClasses.attachment)}`), "contain: style"));
         }
 
         if (!rules.length) return;
@@ -2032,7 +2044,7 @@ export default definePlugin({
             if (staticSrc !== src) img.src = staticSrc;
         };
 
-        document.querySelectorAll<HTMLImageElement>("img[class*=\"emoji\"], img[src*=\"emojis\"]").forEach(rewrite);
+        document.querySelectorAll<HTMLImageElement>("img.emoji, img[src*=\"emojis\"]").forEach(rewrite);
 
         const callback = (records: MutationRecord[]) => {
             for (const r of records) {
@@ -2041,7 +2053,7 @@ export default definePlugin({
                     if (node instanceof HTMLImageElement) {
                         if (node.classList.contains("emoji") || node.src.includes("emojis")) rewrite(node);
                     } else {
-                        node.querySelectorAll<HTMLImageElement>("img[class*=\"emoji\"], img[src*=\"emojis\"]").forEach(rewrite);
+                        node.querySelectorAll<HTMLImageElement>("img.emoji, img[src*=\"emojis\"]").forEach(rewrite);
                     }
                 }
             }
@@ -2217,10 +2229,15 @@ export default definePlugin({
     },
 
     installCompositingLayers() {
-        const css = "[class*=\"scroller_\"][class*=\"content_\"]{contain:content}[class*=\"guilds\"]{contain:layout}[class*=\"membersWrap_\"]{contain:layout}";
+        const rules: string[] = [];
+        const sc = `${sel(ScrollerClasses.scroller)}${sel(ScrollingContainerClasses.content)}`;
+        if (sc) rules.push(`${sc}{contain:content}`);
+        if (GuildClasses.guilds) rules.push(`${sel(GuildClasses.guilds)}{contain:layout}`);
+        if (MemberClasses.membersWrap) rules.push(`${sel(MemberClasses.membersWrap)}{contain:layout}`);
+        if (!rules.length) return;
         this.compositingStyleEl = document.createElement("style");
         this.compositingStyleEl.id = "op-compositing";
-        this.compositingStyleEl.textContent = css;
+        this.compositingStyleEl.textContent = rules.join("");
         document.head.appendChild(this.compositingStyleEl);
     },
 
@@ -2480,7 +2497,9 @@ export default definePlugin({
     },
 
     installAnimatedAvatarOptimizer() {
-        const isAvatar = (img: HTMLImageElement) => img.matches("img[class*=\"avatar\"]") || img.closest("[class*=\"avatar\"]") !== null;
+        const avatarSel = avatarImgSelector();
+        const closestSel = avatarClosestSelector();
+        const isAvatar = (img: HTMLImageElement) => (avatarSel ? img.matches(avatarSel) : false) || (closestSel ? img.closest(closestSel) !== null : false);
         const freeze = (img: HTMLImageElement) => {
             if (img.dataset.opAvFrozen === "1") return;
             const src = img.src || img.currentSrc;
@@ -2500,14 +2519,14 @@ export default definePlugin({
             };
         };
 
-        document.querySelectorAll<HTMLImageElement>("img[class*=\"avatar\"]").forEach(freeze);
+        if (avatarSel) document.querySelectorAll<HTMLImageElement>(avatarSel).forEach(freeze);
 
         const callback = (records: MutationRecord[]) => {
             for (const r of records) {
                 for (const node of r.addedNodes) {
                     if (!(node instanceof Element)) continue;
                     if (node instanceof HTMLImageElement && isAvatar(node)) freeze(node);
-                    else node.querySelectorAll<HTMLImageElement>("img[class*=\"avatar\"]").forEach(freeze);
+                    else if (avatarSel) node.querySelectorAll<HTMLImageElement>(avatarSel).forEach(freeze);
                 }
             }
         };
@@ -2537,7 +2556,9 @@ export default definePlugin({
     },
 
     installAvatarQualityReducer() {
-        const isAvatar = (img: HTMLImageElement) => img.matches("img[class*=\"avatar\"]") || img.closest("[class*=\"avatar\"], [class*=\"member\"]") !== null;
+        const avatarSel = avatarImgSelector();
+        const closestSel = avatarClosestSelector();
+        const isAvatar = (img: HTMLImageElement) => (avatarSel ? img.matches(avatarSel) : false) || (closestSel ? img.closest(closestSel) !== null : false);
         const rewrite = (img: HTMLImageElement) => {
             if (img.dataset.opAvQuality === "1") return;
             const src = img.src || img.currentSrc;
@@ -2552,14 +2573,14 @@ export default definePlugin({
             } catch { /* ignore */ }
         };
 
-        document.querySelectorAll<HTMLImageElement>("img[class*=\"avatar\"], [class*=\"member\"] img").forEach(rewrite);
+        if (avatarSel) document.querySelectorAll<HTMLImageElement>(avatarSel).forEach(rewrite);
 
         const callback = (records: MutationRecord[]) => {
             for (const r of records) {
                 for (const node of r.addedNodes) {
                     if (!(node instanceof Element)) continue;
                     if (node instanceof HTMLImageElement && isAvatar(node)) rewrite(node);
-                    else node.querySelectorAll<HTMLImageElement>("img[class*=\"avatar\"], [class*=\"member\"] img").forEach(rewrite);
+                    else if (avatarSel) node.querySelectorAll<HTMLImageElement>(avatarSel).forEach(rewrite);
                 }
             }
         };
@@ -2757,12 +2778,18 @@ export default definePlugin({
     },
 
     installReactionSimplifier() {
+        const msg = sel(MessageAncestorClasses.message);
+        const reaction = sel(ReactionClasses.reaction);
+        const reactionBtn = sel(ReactionClasses.reactionBtn);
+        const reactionCount = sel(ReactionClasses.reactionCount);
+        if (!msg || !reaction || !reactionBtn) return;
+        const base = `${msg} ${reaction}${reactionBtn}`;
         const css = `
-[class*="message_"] [class*="reaction_"][class*="reactionBtn_"]{background:none!important;border:none!important;padding:2px 4px!important;min-width:unset!important}
-[class*="message_"] [class*="reaction_"][class*="reactionBtn_"]:hover{background:none!important}
-[class*="message_"] [class*="reactionCount_"]{font-size:11px!important;font-weight:400!important}
-[class*="message_"] [class*="reaction_"][class*="reactionBtn_"] img,[class*="message_"] [class*="reaction_"][class*="reactionBtn_"] [class*="emoji"]{width:14px!important;height:14px!important}
-[class*="message_"] [class*="reaction_"][class*="reactionBtn_"]:not(:hover){opacity:.6}
+${base}{background:none!important;border:none!important;padding:2px 4px!important;min-width:unset!important}
+${base}:hover{background:none!important}
+${msg} ${reactionCount}{font-size:11px!important;font-weight:400!important}
+${base} img,${base} .emoji{width:14px!important;height:14px!important}
+${base}:not(:hover){opacity:.6}
 `;
         this.reactionStyleEl = document.createElement("style");
         this.reactionStyleEl.id = "op-simplify-reactions";
@@ -2778,18 +2805,27 @@ export default definePlugin({
     },
 
     installUnreadBadgeKiller() {
-        const css = `
-[class*="sidebar_"] [class*="unread_"]{display:none!important}
-[class*="chat_"] [class*="unread_"]{display:none!important}
-[class*="sidebar_"] [class*="badge_"][class*="number_"]{display:none!important}
-[class*="sidebar_"] [class*="mention_"][class*="badge_"]{display:none!important}
-[class*="badgePulse_"]{display:none!important}
-[class*="sidebar_"] [class*="unreadPill_"]{display:none!important}
-[class*="sidebar_"] [class*="unreadBar_"]{display:none!important}
-`;
+        const sidebar = sel(ChannelClasses.sidebar);
+        const chat = sel(ChatClasses.chat);
+        const unread = sel(UnreadClasses.unread);
+        const badge = sel(BadgeClasses.badge);
+        const number = sel(BadgeClasses.number);
+        const mention = sel(MentionClasses.mention);
+        const badgePulse = sel(MentionClasses.badgePulse);
+        const unreadPill = sel(UnreadClasses.unreadPill);
+        const unreadBar = sel(UnreadClasses.unreadBar);
+        const rules: string[] = [];
+        if (sidebar && unread) rules.push(`${sidebar} ${unread}{display:none!important}`);
+        if (chat && unread) rules.push(`${chat} ${unread}{display:none!important}`);
+        if (sidebar && badge && number) rules.push(`${sidebar} ${badge}${number}{display:none!important}`);
+        if (sidebar && mention && badge) rules.push(`${sidebar} ${mention}${badge}{display:none!important}`);
+        if (badgePulse) rules.push(`${badgePulse}{display:none!important}`);
+        if (sidebar && unreadPill) rules.push(`${sidebar} ${unreadPill}{display:none!important}`);
+        if (sidebar && unreadBar) rules.push(`${sidebar} ${unreadBar}{display:none!important}`);
+        if (!rules.length) return;
         this.unreadBadgeEl = document.createElement("style");
         this.unreadBadgeEl.id = "op-kill-badges";
-        this.unreadBadgeEl.textContent = css;
+        this.unreadBadgeEl.textContent = rules.join("\n");
         document.head.appendChild(this.unreadBadgeEl);
     },
 
@@ -2801,10 +2837,13 @@ export default definePlugin({
     },
 
     installCanvasSuppressor() {
-        const css = "canvas[class*=\"spriteCanvas_\"],canvas[class*=\"effects_\"],canvas[id*=\"confetti\"]{display:none!important}";
+        const rules: string[] = [];
+        if (CanvasEffectClasses.spriteCanvas) rules.push(`canvas${sel(CanvasEffectClasses.spriteCanvas)}{display:none!important}`);
+        if (EffectsClasses.effects) rules.push(`canvas${sel(EffectsClasses.effects)}{display:none!important}`);
+        rules.push("canvas[id*=\"confetti\"]{display:none!important}");
         this.canvasSuppressEl = document.createElement("style");
         this.canvasSuppressEl.id = "op-kill-canvas";
-        this.canvasSuppressEl.textContent = css;
+        this.canvasSuppressEl.textContent = rules.join("");
         document.head.appendChild(this.canvasSuppressEl);
     },
 
@@ -2816,14 +2855,19 @@ export default definePlugin({
     },
 
     installChannelTopicKiller() {
-        const css = `
-[class*="chatContent_"]>[class*="topic_"]{display:none!important}
-[class*="chat_"]>[class*="title_"]>[class*="topic_"]{display:none!important}
-[class*="chat_"] [class*="channelTopic_"]{display:none!important}
-`;
+        const chatContent = sel(ChatClasses.chatContent);
+        const chat = sel(ChatClasses.chat);
+        const title = sel(TopicClasses.title);
+        const topic = sel(TopicClasses.topic);
+        const channelTopic = sel(TopicClasses.channelTopic);
+        const rules: string[] = [];
+        if (chatContent && topic) rules.push(`${chatContent}>${topic}{display:none!important}`);
+        if (chat && title && topic) rules.push(`${chat}>${title}>${topic}{display:none!important}`);
+        if (chat && channelTopic) rules.push(`${chat} ${channelTopic}{display:none!important}`);
+        if (!rules.length) return;
         this.channelTopicEl = document.createElement("style");
         this.channelTopicEl.id = "op-kill-topic";
-        this.channelTopicEl.textContent = css;
+        this.channelTopicEl.textContent = rules.join("\n");
         document.head.appendChild(this.channelTopicEl);
     },
 
@@ -2835,13 +2879,16 @@ export default definePlugin({
     },
 
     installFolderAnimationKiller() {
-        const css = `
-[class*="folder_"][class*="expandedFolder_"]{animation:none!important;transition:none!important}
-[class*="folderIcon_"]{animation:none!important;transition:none!important}
-`;
+        const folder = sel(FolderClasses.folder);
+        const expandedFolder = sel(FolderClasses.expandedFolder);
+        const folderIcon = sel(FolderClasses.folderIcon);
+        const rules: string[] = [];
+        if (folder && expandedFolder) rules.push(`${folder}${expandedFolder}{animation:none!important;transition:none!important}`);
+        if (folderIcon) rules.push(`${folderIcon}{animation:none!important;transition:none!important}`);
+        if (!rules.length) return;
         this.folderAnimEl = document.createElement("style");
         this.folderAnimEl.id = "op-kill-folder-anim";
-        this.folderAnimEl.textContent = css;
+        this.folderAnimEl.textContent = rules.join("\n");
         document.head.appendChild(this.folderAnimEl);
     },
 
@@ -2853,14 +2900,19 @@ export default definePlugin({
     },
 
     installInvitePreviewKiller() {
-        const css = `
-[class*="chat_"] [class*="invite_"]{display:none!important}
-[class*="chat_"] [class*="inviteCard_"]{display:none!important}
-[class*="chat_"] [class*="wrapper_"][class*="invite_"]{display:none!important}
-`;
+        const chat = sel(ChatClasses.chat);
+        const invite = sel(InviteClasses.invite);
+        const inviteCard = sel(InviteClasses.inviteCard);
+        const wrapper = sel(WrapperClasses.wrapper);
+        if (!chat) return;
+        const rules: string[] = [];
+        if (invite) rules.push(`${chat} ${invite}{display:none!important}`);
+        if (inviteCard) rules.push(`${chat} ${inviteCard}{display:none!important}`);
+        if (wrapper && invite) rules.push(`${chat} ${wrapper}${invite}{display:none!important}`);
+        if (!rules.length) return;
         this.invitePreviewEl = document.createElement("style");
         this.invitePreviewEl.id = "op-kill-invites";
-        this.invitePreviewEl.textContent = css;
+        this.invitePreviewEl.textContent = rules.join("\n");
         document.head.appendChild(this.invitePreviewEl);
     },
 
@@ -2872,18 +2924,26 @@ export default definePlugin({
     },
 
     installMemberListGradient() {
-        const css = `
-[class*="members_"]>[class*="member_"]{background:none!important}
-[class*="members_"]>[class*="member_"]:hover{background:none!important}
-[class*="members_"]>[class*="member_"][class*="selected_"]{background:none!important}
-[class*="members_"]>[class*="member_"][class*="focused_"]{background:none!important}
-[class*="membersWrap_"]{background:linear-gradient(180deg,var(--background-primary),var(--background-secondary-alt),var(--background-primary))!important;position:relative}
-[class*="membersWrap_"]::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 0%,var(--background-modifier-hover) 50%,transparent 100%);pointer-events:none;z-index:0}
-[class*="members_"]{position:relative;z-index:1}
-`;
+        const members = sel(MemberClasses.members);
+        const member = sel(MemberClasses.member);
+        const membersWrap = sel(MemberClasses.membersWrap);
+        const selected = sel(SelectedClasses.selected);
+        const focused = sel(FocusedClasses.focused);
+        if (!members || !member || !membersWrap) return;
+        const rules: string[] = [
+            `${members}>${member}{background:none!important}`,
+            `${members}>${member}:hover{background:none!important}`,
+        ];
+        if (selected) rules.push(`${members}>${member}${selected}{background:none!important}`);
+        if (focused) rules.push(`${members}>${member}${focused}{background:none!important}`);
+        rules.push(
+            `${membersWrap}{background:linear-gradient(180deg,var(--background-primary),var(--background-secondary-alt),var(--background-primary))!important;position:relative}`,
+            `${membersWrap}::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 0%,var(--background-modifier-hover) 50%,transparent 100%);pointer-events:none;z-index:0}`,
+            `${members}{position:relative;z-index:1}`
+        );
         this.memberListGradientEl = document.createElement("style");
         this.memberListGradientEl.id = "op-member-gradient";
-        this.memberListGradientEl.textContent = css;
+        this.memberListGradientEl.textContent = rules.join("\n");
         document.head.appendChild(this.memberListGradientEl);
     },
 
@@ -2895,14 +2955,18 @@ export default definePlugin({
     },
 
     installMemberFreezer() {
-        const css = `
-[class*="members_"]>[class*="member_"]{contain:paint layout style}
-[class*="members_"]>[class*="member_"] *{animation:none!important;transition:none!important}
-[class*="members_"]>[class*="membersGroup_"]{contain:paint layout style}
-`;
+        const members = sel(MemberClasses.members);
+        const member = sel(MemberClasses.member);
+        const membersGroup = sel(MemberClasses.membersGroup);
+        if (!members || !member) return;
+        const rules: string[] = [
+            `${members}>${member}{contain:paint layout style}`,
+            `${members}>${member} *{animation:none!important;transition:none!important}`,
+        ];
+        if (membersGroup) rules.push(`${members}>${membersGroup}{contain:paint layout style}`);
         this.memberFreezeEl = document.createElement("style");
         this.memberFreezeEl.id = "op-freeze-members";
-        this.memberFreezeEl.textContent = css;
+        this.memberFreezeEl.textContent = rules.join("\n");
         document.head.appendChild(this.memberFreezeEl);
 
         const REFRESH_MS = 3 * 60 * 1000;
