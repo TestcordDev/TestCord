@@ -7,7 +7,6 @@
 export { queryCertPL } from "./analyzers/CertPL/native";
 export { queryCordCat } from "./analyzers/CordCat/native";
 export { queryCrtSh } from "./analyzers/CrtSh/native";
-export { lookupDangeCordProfile } from "./analyzers/Dangercord/native";
 export { queryDiscordGuildWidget,queryDiscordInvite } from "./analyzers/DiscordInvite/native";
 export { queryFishFish } from "./analyzers/FishFish/native";
 export { hybridAnalysisGetScan, hybridAnalysisHashFile, hybridAnalysisQuickScanFile, hybridAnalysisQuickScanUrl, hybridAnalysisSearchHash } from "./analyzers/HybridAnalysis/native";

@@ -9,10 +9,9 @@ import { migratePluginSettings } from "@api/Settings";
 import { Devs, EquicordDevs } from "@utils/constants";
 import { classNameFactory } from "@utils/css";
 import { sendMessage } from "@utils/discord";
-import { useForceUpdater } from "@utils/react";
 import definePlugin from "@utils/types";
 import { Message } from "@vencord/discord-types";
-import { ChannelStore, Menu, useEffect } from "@webpack/common";
+import { ChannelStore, Menu } from "@webpack/common";
 
 interface AttachmentInfo {
     filename: string;
@@ -93,22 +92,6 @@ const messageCtxPatch: NavContextMenuPatchCallback = (children, { msg }: { msg: 
 
     const group = findGroupChildrenByChildId("copy-text", children);
     if (!group) return;
-
-    const forceUpdate = useForceUpdater();
-
-    useEffect(() => {
-        const handler = () => {
-            forceUpdate();
-        };
-
-        window.addEventListener("keydown", handler);
-        window.addEventListener("keyup", handler);
-
-        return () => {
-            window.removeEventListener("keydown", handler);
-            window.removeEventListener("keyup", handler);
-        };
-    }, []);
 
     group.splice(group.findIndex(c => c?.props?.id === "reply") + 1, 0, (
         <Menu.MenuItem

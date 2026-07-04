@@ -8,7 +8,7 @@
 
 Testcord is a fork of [Equicord](https://github.com/Equicord/Equicord) which is a fork of [Vencord](https://github.com/Vendicated/Vencord), with over 710 plugins.
 
-You can join our [Discord server](https://discord.gg/EMDpkV57gW) for commits, changes, chatting, or even support.
+You can join our [Discord server](https://discord.gg/UjAbZCgXtB) for commits, changes, chatting, or even support.
 
 ## What makes Testcord different?
 
