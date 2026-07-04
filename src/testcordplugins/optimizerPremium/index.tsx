@@ -1589,7 +1589,7 @@ export default definePlugin({
             if (img.dataset.opLazy === "1") return;
             img.dataset.opLazy = "1";
             if (!isChatImage(img) && !img.hasAttribute("loading")) img.loading = "lazy";
-            if (!img.hasAttribute("decoding")) img.decoding = "async";
+            if (!isChatImage(img) && !img.hasAttribute("decoding")) img.decoding = "async";
         };
         document.querySelectorAll<HTMLImageElement>("img").forEach(apply);
 
