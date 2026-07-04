@@ -203,8 +203,8 @@ const settings = definePluginSettings({
     },
     optimizeImageDecoding: {
         type: OptionType.BOOLEAN,
-        description: "Force images to decode asynchronously and preload critical images. Redundant with lazyEmbedImages — off by default to avoid double-processing images.",
-        default: false
+        description: "Force images to decode asynchronously and preload critical images. Chat images are excluded to prevent late-resize scroll jumps.",
+        default: true
     },
     throttleMutationObservers: {
         type: OptionType.BOOLEAN,
@@ -421,8 +421,8 @@ const settings = definePluginSettings({
     },
     killPerformanceMetrics: {
         type: OptionType.BOOLEAN,
-        description: "Neutralize Discord's internal performance.mark and performance.measure calls. Discord's scroller may use these for scroll timing — off by default to avoid breaking scroll position calculations.",
-        default: false
+        description: "Neutralize Discord's internal performance.mark and performance.measure calls. Reduces GC pressure from constant metric recording. Wrapped safely to not break scroll calculations.",
+        default: true
     },
     suppressConsoleTimers: {
         type: OptionType.BOOLEAN,
@@ -1687,10 +1687,11 @@ export default definePlugin({
     },
 
     installImageDecodingOptimization() {
+        const isChatImage = (img: HTMLImageElement) => img.closest("[class*=\"scrollerInner_\"], [class*=\"messageListItem_\"]") !== null;
         const apply = (img: HTMLImageElement) => {
             if (img.dataset.opDecoding === "1") return;
             img.dataset.opDecoding = "1";
-            if (!img.hasAttribute("decoding")) img.decoding = "async";
+            if (!isChatImage(img) && !img.hasAttribute("decoding")) img.decoding = "async";
         };
 
         document.querySelectorAll<HTMLImageElement>("img").forEach(apply);
