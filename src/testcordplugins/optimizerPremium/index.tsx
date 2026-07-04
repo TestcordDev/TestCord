@@ -19,8 +19,8 @@ const THROTTLED_CLASS_TOKENS = ["activity", "subText", "botText", "clanTag"] as 
 const settings = definePluginSettings({
     domThrottle: {
         type: OptionType.BOOLEAN,
-        description: "Defer non-critical visual updates (activity, subText, botText, clan tags) via MutationObserver. Safe — does not patch appendChild.",
-        default: true
+        description: "Defer non-critical visual updates (activity, subText, botText, clan tags) via MutationObserver. The delayed visibility toggle can cause layout shifts with Discord's latest scroller, so off by default.",
+        default: false
     },
     domThrottleDelay: {
         type: OptionType.SLIDER,
@@ -203,13 +203,13 @@ const settings = definePluginSettings({
     },
     optimizeImageDecoding: {
         type: OptionType.BOOLEAN,
-        description: "Force images to decode asynchronously and preload critical images. Smoother first paint.",
-        default: true
+        description: "Force images to decode asynchronously and preload critical images. Redundant with lazyEmbedImages — off by default to avoid double-processing images.",
+        default: false
     },
     throttleMutationObservers: {
         type: OptionType.BOOLEAN,
-        description: "Consolidate multiple MutationObservers into a single shared observer with priority dispatch.",
-        default: true,
+        description: "Consolidate multiple MutationObservers into a single shared observer with priority dispatch. Batching all mutations at rAF can cause late layout that Discord's scroller doesn't expect — off by default.",
+        default: false,
         restartNeeded: true
     },
     suppressReactionAnimations: {
@@ -421,8 +421,8 @@ const settings = definePluginSettings({
     },
     killPerformanceMetrics: {
         type: OptionType.BOOLEAN,
-        description: "Neutralize Discord's internal performance.mark and performance.measure calls. Reduces GC pressure from constant metric recording.",
-        default: true
+        description: "Neutralize Discord's internal performance.mark and performance.measure calls. Discord's scroller may use these for scroll timing — off by default to avoid breaking scroll position calculations.",
+        default: false
     },
     suppressConsoleTimers: {
         type: OptionType.BOOLEAN,
