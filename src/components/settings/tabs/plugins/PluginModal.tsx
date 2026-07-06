@@ -28,6 +28,7 @@ import { Flex } from "@components/Flex";
 import { Paragraph } from "@components/Paragraph";
 import { gitRemote } from "@shared/vencordUserAgent";
 import { classNameFactory } from "@utils/css";
+import { buildIssueUrl, generateGitHubIssueBody } from "@utils/debugReport";
 import { proxyLazy } from "@utils/lazy";
 import { Margins } from "@utils/margins";
 import { classes, isObjectEmpty } from "@utils/misc";
@@ -248,18 +249,47 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
                                 )}
                             </Tooltip>
                         ) : <div />}
-                        {!pluginMeta.userPlugin && (
-                            <div className={cl("links")}>
-                                <WebsiteButton
-                                    text="Website"
-                                    href={isEquicordPlugin ? `https://equicord.org/plugins/${plugin.name}` : `https://vencord.dev/plugins/${plugin.name}`}
-                                />
-                                <GithubButton
-                                    text="Source Code"
-                                    href={`https://github.com/${gitRemote}/tree/main/${pluginMeta.folderName}`}
-                                />
-                            </div>
-                        )}
+                        <Flex style={{ gap: 8, alignItems: "center" }}>
+                            <Tooltip text="Open a pre-filled GitHub issue for this plugin">
+                                {({ onMouseEnter, onMouseLeave }) => (
+                                    <Button
+                                        size="small"
+                                        variant="secondary"
+                                        onMouseEnter={onMouseEnter}
+                                        onMouseLeave={onMouseLeave}
+                                        onClick={() => {
+                                            try {
+                                                const body = generateGitHubIssueBody({ pluginName: plugin.name });
+                                                const url = buildIssueUrl(`[${plugin.name}] Bug report`, body, ["bug"]);
+                                                VencordNative.native.openExternal(url);
+                                            } catch (e) {
+                                                console.error("Failed to build issue URL", e);
+                                                Toasts.show({
+                                                    id: Toasts.genId(),
+                                                    message: "Failed to build issue URL",
+                                                    type: Toasts.Type.FAILURE,
+                                                    options: { position: Toasts.Position.TOP }
+                                                });
+                                            }
+                                        }}
+                                    >
+                                        Report Issue
+                                    </Button>
+                                )}
+                            </Tooltip>
+                            {!pluginMeta.userPlugin && (
+                                <div className={cl("links")}>
+                                    <WebsiteButton
+                                        text="Website"
+                                        href={isEquicordPlugin ? `https://equicord.org/plugins/${plugin.name}` : `https://vencord.dev/plugins/${plugin.name}`}
+                                    />
+                                    <GithubButton
+                                        text="Source Code"
+                                        href={`https://github.com/${gitRemote}/tree/main/${pluginMeta.folderName}`}
+                                    />
+                                </div>
+                            )}
+                        </Flex>
                     </Flex>
                 </Flex>
             </div>

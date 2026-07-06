@@ -5,11 +5,12 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
-import { BackupRestoreIcon, BookmarkIcon, CloudIcon, InfoIcon, LogIcon, MainSettingsIcon, PaintbrushIcon, PatchHelperIcon, PluginsIcon, UpdaterIcon } from "@components/Icons";
+import { BackupRestoreIcon, BookmarkIcon, CloudIcon, InfoIcon, LogIcon, MainSettingsIcon, PaintbrushIcon, PatchHelperIcon, PluginsIcon, SafetyIcon, UpdaterIcon } from "@components/Icons";
 import {
     BackupAndRestoreTab,
     ChangelogTab,
     CloudTab,
+    HealthTab,
     PatchHelperTab,
     PluginsTab,
     PresetsTab,
@@ -669,6 +670,13 @@ export default definePlugin({
                 panelTitle: "TestCord Stats",
                 Component: StatsTab,
                 Icon: InfoIcon,
+            }),
+            buildEntry({
+                key: "testcord_health",
+                title: "Plugin Health",
+                panelTitle: "Plugin Health",
+                Component: HealthTab,
+                Icon: SafetyIcon,
             }),
             buildEntry({
                 key: "testcord_presets",

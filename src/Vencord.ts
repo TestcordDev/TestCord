@@ -41,6 +41,7 @@ import { SettingsRouter } from "@webpack/common";
 import { get as dsGet } from "./api/DataStore";
 import { popNotice, showNotice } from "./api/Notices";
 import { NotificationData, showNotification } from "./api/Notifications";
+import { PluginHealth } from "./api/PluginHealth";
 import { initPluginManager, PMLogger, startAllPlugins } from "./api/PluginManager";
 import { PlainSettings, Settings, SettingsStore } from "./api/Settings";
 import { areLocalSettingsDirty, getCloudSettings, getCloudSyncDirection, markLocalSettingsDirty, putCloudSettings, shouldCloudSync } from "./api/SettingsSync/cloudSync";
@@ -234,6 +235,19 @@ async function init() {
                 "\n\n" + pendingPatches.map(p => `${p.plugin}: ${p.find}`).join("\n")
             );
     }
+
+    // Delayed scan for patches that never matched any module.
+    // Deferred so lazy-loaded chunks have a chance to arrive before we flag anything.
+    setTimeout(() => {
+        for (const patch of patches) {
+            if (patch.all) continue;
+            if (patch.predicate && patch.predicate() === false) continue;
+            PluginHealth.recordPatchFailure(patch.plugin, {
+                kind: "noModule",
+                find: String(patch.find)
+            });
+        }
+    }, 60_000);
 
     // Defer non-critical IPC init to not block the critical startup path
     setTimeout(initTrayIpc, 0);

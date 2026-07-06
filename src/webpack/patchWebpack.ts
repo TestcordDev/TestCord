@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { PluginHealth } from "@api/PluginHealth";
 import { Settings } from "@api/Settings";
 import { reporterData } from "@debug/reporterData";
 import { traceFunctionWithResults } from "@debug/Tracer";
@@ -615,6 +616,12 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
                                 ...patch,
                                 id: moduleId
                             });
+                        PluginHealth.recordPatchFailure(patch.plugin, {
+                            kind: "noEffect",
+                            find: String(patch.find),
+                            match: String(replacement.match),
+                            moduleId: String(moduleId)
+                        });
                     }
 
                     if (patch.group) {
@@ -631,6 +638,12 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
                                 ...patch,
                                 id: moduleId
                             });
+                        PluginHealth.recordPatchFailure(patch.plugin, {
+                            kind: "undoingGroup",
+                            find: String(patch.find),
+                            match: String(replacement.match),
+                            moduleId: String(moduleId)
+                        });
 
                         break;
                     }
@@ -668,6 +681,13 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
                             newModule: code,
                             id: moduleId
                         });
+                    PluginHealth.recordPatchFailure(patch.plugin, {
+                        kind: "errored",
+                        find: String(patch.find),
+                        match: String(replacement.match),
+                        moduleId: String(moduleId),
+                        error: err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+                    });
 
                     if (IS_DEV) {
                         diffErroredPatch(code, lastCode, lastCode.match(replacement.match)!);
@@ -685,6 +705,12 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
                             ...patch,
                             id: moduleId
                         });
+                    PluginHealth.recordPatchFailure(patch.plugin, {
+                        kind: "undoingGroup",
+                        find: String(patch.find),
+                        match: String(replacement.match),
+                        moduleId: String(moduleId)
+                    });
                     code = previousCode;
                     patchedFactory = previousFactory;
                     break;

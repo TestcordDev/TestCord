@@ -1,0 +1,106 @@
+.vc-plugin-health-empty {
+    padding: 1.25em;
+}
+
+.vc-plugin-health-card {
+    padding: 1em 1.25em;
+    margin-bottom: 1em;
+}
+
+.vc-plugin-health-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1em;
+    margin-bottom: 1em;
+}
+
+.vc-plugin-health-card-actions {
+    display: flex;
+    gap: 0.5em;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.vc-plugin-health-section-heading {
+    margin-top: 0.75em;
+    margin-bottom: 0.5em;
+}
+
+.vc-plugin-health-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.vc-plugin-health-list > li {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    gap: 0.75em;
+    padding: 0.5em 0;
+    border-bottom: 1px solid var(--border-subtle);
+    align-items: start;
+}
+
+.vc-plugin-health-list > li:last-child {
+    border-bottom: none;
+}
+
+.vc-plugin-health-kind {
+    font-size: 0.75em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.25em 0.5em;
+    border-radius: 4px;
+    background: var(--background-modifier-accent);
+    color: var(--text-normal);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vc-plugin-health-kind[data-kind="errored"],
+.vc-plugin-health-kind[data-kind="error"] {
+    background: var(--status-danger-background);
+    color: var(--status-danger-text);
+}
+
+.vc-plugin-health-kind[data-kind="noModule"] {
+    background: var(--background-feedback-warning);
+    color: var(--text-status-idle);
+}
+
+.vc-plugin-health-detail {
+    font-size: 0.85em;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    min-width: 0;
+}
+
+.vc-plugin-health-detail code {
+    background: var(--background-secondary-alt);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-family: var(--font-code, monospace);
+}
+
+.vc-plugin-health-error {
+    background: var(--background-base-lowest);
+    padding: 0.5em 0.75em;
+    border-radius: 4px;
+    margin-top: 0.4em;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: var(--font-code, monospace);
+    font-size: 0.85em;
+    max-height: 200px;
+    overflow: auto;
+}
+
+.vc-plugin-health-timestamp {
+    color: var(--text-subtle);
+    font-size: 0.75em;
+    margin-top: 0.4em;
+}

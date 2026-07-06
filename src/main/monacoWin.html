@@ -9,8 +9,7 @@
         referrerpolicy="no-referrer" />
     <style>
         html,
-        body,
-        #container {
+        body {
             position: absolute;
             left: 0;
             top: 0;
@@ -19,12 +18,93 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
+            background: #1e1e1e;
+            color: #ddd;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+        }
+
+        #toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 6px 12px;
+            background: #252526;
+            border-bottom: 1px solid #333;
+            font-size: 12px;
+            user-select: none;
+        }
+
+        #toolbar button {
+            background: #3a3d41;
+            color: #ddd;
+            border: 1px solid #4a4d51;
+            border-radius: 3px;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        #toolbar button:hover {
+            background: #4a4d51;
+        }
+
+        #toolbar button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #toolbar label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        #toolbar .spacer {
+            flex: 1;
+        }
+
+        #status {
+            color: #999;
+            font-size: 12px;
+            min-width: 200px;
+            text-align: right;
+        }
+
+        #status.error {
+            color: #f48771;
+        }
+
+        #status.saved {
+            color: #89d185;
+        }
+
+        #container {
+            position: absolute;
+            top: 34px;
+            left: 0;
+            right: 0;
+            bottom: 0;
         }
     </style>
 </head>
 
 <body>
+    <div id="toolbar">
+        <button id="btn-format" title="Ctrl+Shift+F">Format</button>
+        <label>
+            <input type="checkbox" id="chk-format-on-save" checked />
+            Format on save (Ctrl+S)
+        </label>
+        <label>
+            <input type="checkbox" id="chk-lint" checked />
+            Lint
+        </label>
+        <div class="spacer"></div>
+        <div id="status">Loading…</div>
+    </div>
     <div id="container"></div>
+
     <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js"
         integrity="sha256-KcU48TGr84r7unF7J5IgBo95aeVrEbrGe04S7TcFUjs=" crossorigin="anonymous"
         referrerpolicy="no-referrer"></script>
@@ -36,23 +116,427 @@
             },
         });
 
+        const STORAGE_KEY = "testcord.monaco.prefs";
+
+        function loadPrefs() {
+            try {
+                return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+            } catch {
+                return {};
+            }
+        }
+
+        function savePrefs(prefs) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+            } catch {
+                /* ignore quota errors */
+            }
+        }
+
+        const statusEl = document.getElementById("status");
+        let statusResetTimer = null;
+
+        function setStatus(text, kind) {
+            statusEl.textContent = text;
+            statusEl.className = kind || "";
+            if (statusResetTimer) {
+                clearTimeout(statusResetTimer);
+                statusResetTimer = null;
+            }
+            if (kind === "saved") {
+                statusResetTimer = setTimeout(() => setStatus("Idle", ""), 1500);
+            }
+        }
+
+        /**
+         * Manual CSS lint pass on top of Monaco's built-in CSS diagnostics.
+         * We only flag things that Monaco misses and that are unambiguous bugs
+         * in a QuickCSS context — this file is never fed to a real bundler,
+         * so we want *fewer* false positives, not more.
+         */
+        function computeManualDiagnostics(monaco, model) {
+            const markers = [];
+            const text = model.getValue();
+
+            // Track brace balance so we can point at an unclosed rule.
+            let depth = 0;
+            let lastOpenLine = 0;
+            let lastOpenCol = 0;
+            let inLineComment = false; // CSS has no line comments, but users forget
+            let inBlockComment = false;
+            let inString = null;
+
+            const lines = text.split(/\r?\n/);
+            for (let li = 0; li < lines.length; li++) {
+                const line = lines[li];
+                for (let ci = 0; ci < line.length; ci++) {
+                    const ch = line[ci];
+                    const next = line[ci + 1];
+
+                    if (inBlockComment) {
+                        if (ch === "*" && next === "/") {
+                            inBlockComment = false;
+                            ci++;
+                        }
+                        continue;
+                    }
+                    if (inString) {
+                        if (ch === "\\") { ci++; continue; }
+                        if (ch === inString) inString = null;
+                        continue;
+                    }
+                    if (ch === "/" && next === "*") {
+                        inBlockComment = true;
+                        ci++;
+                        continue;
+                    }
+                    if (ch === "/" && next === "/") {
+                        markers.push({
+                            severity: monaco.MarkerSeverity.Warning,
+                            message: "CSS does not support // line comments. Use /* … */ instead.",
+                            startLineNumber: li + 1,
+                            startColumn: ci + 1,
+                            endLineNumber: li + 1,
+                            endColumn: line.length + 1
+                        });
+                        break; // rest of the line is treated as comment intent
+                    }
+                    if (ch === "\"" || ch === "'") {
+                        inString = ch;
+                        continue;
+                    }
+                    if (ch === "{") {
+                        depth++;
+                        lastOpenLine = li + 1;
+                        lastOpenCol = ci + 1;
+                    } else if (ch === "}") {
+                        depth--;
+                        if (depth < 0) {
+                            markers.push({
+                                severity: monaco.MarkerSeverity.Error,
+                                message: "Unexpected '}' — no matching '{'.",
+                                startLineNumber: li + 1,
+                                startColumn: ci + 1,
+                                endLineNumber: li + 1,
+                                endColumn: ci + 2
+                            });
+                            depth = 0;
+                        }
+                    }
+                }
+            }
+
+            if (depth > 0) {
+                markers.push({
+                    severity: monaco.MarkerSeverity.Error,
+                    message: `Unclosed '{' — expected '}' before end of file (${depth} still open).`,
+                    startLineNumber: lastOpenLine || 1,
+                    startColumn: lastOpenCol || 1,
+                    endLineNumber: lastOpenLine || 1,
+                    endColumn: (lastOpenCol || 1) + 1
+                });
+            }
+
+            // Empty rule bodies: `foo {}` — usually a mistake in QuickCSS.
+            const emptyRule = /([^{}\n]+)\{\s*\}/g;
+            let m;
+            while ((m = emptyRule.exec(text)) !== null) {
+                const before = text.slice(0, m.index);
+                const startLine = before.split(/\n/).length;
+                markers.push({
+                    severity: monaco.MarkerSeverity.Hint,
+                    message: "Empty rule — this selector has no declarations.",
+                    startLineNumber: startLine,
+                    startColumn: 1,
+                    endLineNumber: startLine,
+                    endColumn: 1 + (m[0].length)
+                });
+            }
+
+            return markers;
+        }
+
+        function scheduleLint(monaco, editor) {
+            let timer = null;
+            const model = editor.getModel();
+
+            const run = () => {
+                const enabled = document.getElementById("chk-lint").checked;
+                monaco.editor.setModelMarkers(
+                    model,
+                    "testcord-quickcss-lint",
+                    enabled ? computeManualDiagnostics(monaco, model) : []
+                );
+            };
+
+            model.onDidChangeContent(() => {
+                if (timer) clearTimeout(timer);
+                timer = setTimeout(run, 300);
+            });
+            document.getElementById("chk-lint").addEventListener("change", run);
+            run();
+        }
+
+        /**
+         * Deterministic CSS pretty-printer used as a fallback when Monaco's
+         * built-in formatter is not available (or produces nothing). Kept
+         * intentionally simple: normalises whitespace around braces/semicolons
+         * and re-indents by brace depth. Does not touch comments or the
+         * contents of strings.
+         */
+        function fallbackFormat(css) {
+            const out = [];
+            let depth = 0;
+            let i = 0;
+            let atLineStart = true;
+
+            const indent = () => "    ".repeat(depth);
+            const trimTrailing = () => {
+                while (out.length && /[ \t]$/.test(out[out.length - 1])) {
+                    out[out.length - 1] = out[out.length - 1].replace(/[ \t]+$/, "");
+                }
+            };
+
+            while (i < css.length) {
+                const ch = css[i];
+                const next = css[i + 1];
+
+                // Preserve block comments as-is
+                if (ch === "/" && next === "*") {
+                    const end = css.indexOf("*/", i + 2);
+                    const chunk = end === -1 ? css.slice(i) : css.slice(i, end + 2);
+                    if (atLineStart) out.push(indent());
+                    out.push(chunk);
+                    i = end === -1 ? css.length : end + 2;
+                    atLineStart = false;
+                    continue;
+                }
+
+                // Preserve strings verbatim
+                if (ch === "\"" || ch === "'") {
+                    const quote = ch;
+                    let j = i + 1;
+                    while (j < css.length && css[j] !== quote) {
+                        if (css[j] === "\\") j++;
+                        j++;
+                    }
+                    out.push(css.slice(i, j + 1));
+                    i = j + 1;
+                    atLineStart = false;
+                    continue;
+                }
+
+                if (ch === "{") {
+                    trimTrailing();
+                    out.push(" {\n");
+                    depth++;
+                    atLineStart = true;
+                    i++;
+                    continue;
+                }
+
+                if (ch === "}") {
+                    trimTrailing();
+                    // Remove trailing newline before the closer if present
+                    if (out.length && !out[out.length - 1].endsWith("\n")) out.push("\n");
+                    depth = Math.max(0, depth - 1);
+                    out.push(indent() + "}\n");
+                    atLineStart = true;
+                    i++;
+                    continue;
+                }
+
+                if (ch === ";") {
+                    trimTrailing();
+                    out.push(";\n");
+                    atLineStart = true;
+                    i++;
+                    continue;
+                }
+
+                if (ch === "\n" || ch === "\r") {
+                    // Collapse blank lines to at most one
+                    trimTrailing();
+                    if (!out.length || !out[out.length - 1].endsWith("\n\n")) {
+                        if (out.length && !out[out.length - 1].endsWith("\n")) {
+                            out.push("\n");
+                        }
+                    }
+                    atLineStart = true;
+                    i++;
+                    continue;
+                }
+
+                if (atLineStart) {
+                    if (/\s/.test(ch)) { i++; continue; }
+                    out.push(indent());
+                    atLineStart = false;
+                }
+
+                out.push(ch);
+                i++;
+            }
+
+            return out.join("").replace(/\n{3,}/g, "\n\n").replace(/\s+$/, "") + "\n";
+        }
+
+        async function tryMonacoFormat(monaco, editor) {
+            const action = editor.getAction("editor.action.formatDocument");
+            if (action) {
+                try {
+                    await action.run();
+                    return true;
+                } catch {
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        async function formatAndSave(monaco, editor, prefs) {
+            if (prefs.formatOnSave !== false) {
+                const ok = await tryMonacoFormat(monaco, editor);
+                if (!ok) {
+                    // Monaco's built-in CSS formatter is minimal and may bail
+                    // in the standalone environment. Fall back to our own.
+                    try {
+                        const current = editor.getValue();
+                        const formatted = fallbackFormat(current);
+                        if (formatted !== current) {
+                            editor.executeEdits("testcord-format", [{
+                                range: editor.getModel().getFullModelRange(),
+                                text: formatted,
+                                forceMoveMarkers: true
+                            }]);
+                        }
+                    } catch (err) {
+                        console.error("[QuickCSS] Fallback format failed:", err);
+                    }
+                }
+            }
+            try {
+                await setCss(editor.getValue());
+                setStatus("Saved", "saved");
+            } catch (err) {
+                console.error("[QuickCSS] setCss failed:", err);
+                setStatus("Save failed", "error");
+            }
+        }
+
         require(["vs/editor/editor.main"], () => {
+            const prefs = loadPrefs();
+            const chkFormat = document.getElementById("chk-format-on-save");
+            const chkLint = document.getElementById("chk-lint");
+            if (prefs.formatOnSave === false) chkFormat.checked = false;
+            if (prefs.lint === false) chkLint.checked = false;
+
+            chkFormat.addEventListener("change", () => {
+                prefs.formatOnSave = chkFormat.checked;
+                savePrefs(prefs);
+            });
+            chkLint.addEventListener("change", () => {
+                prefs.lint = chkLint.checked;
+                savePrefs(prefs);
+            });
+
+            // Enable stricter CSS diagnostics on top of the defaults.
+            monaco.languages.css.cssDefaults.setDiagnosticsOptions({
+                validate: true,
+                lint: {
+                    compatibleVendorPrefixes: "warning",
+                    vendorPrefix: "ignore",
+                    duplicateProperties: "warning",
+                    emptyRules: "warning",
+                    importStatement: "ignore",
+                    boxModel: "ignore",
+                    universalSelector: "ignore",
+                    zeroUnits: "ignore",
+                    fontFaceProperties: "warning",
+                    hexColorLength: "error",
+                    argumentsInColorFunction: "error",
+                    unknownProperties: "warning",
+                    ieHack: "ignore",
+                    unknownVendorSpecificProperties: "ignore",
+                    propertyIgnoredDueToDisplay: "warning",
+                    important: "ignore",
+                    float: "ignore",
+                    idSelector: "ignore"
+                }
+            });
+
             getCurrentCss().then((css) => {
-                var editor = monaco.editor.create(
+                const editor = monaco.editor.create(
                     document.getElementById("container"),
                     {
                         value: css,
                         language: "css",
                         theme: getTheme(),
+                        automaticLayout: true,
+                        formatOnPaste: true,
+                        tabSize: 4,
+                        insertSpaces: true,
+                        renderWhitespace: "selection",
+                        wordWrap: "on",
+                        minimap: { enabled: false }
                     }
                 );
-                editor.onDidChangeModelContent(() =>
-                    setCss(editor.getValue())
-                );
-                window.addEventListener("resize", () => {
-                    // make monaco re-layout
-                    editor.layout();
+
+                setStatus("Idle", "");
+
+                editor.onDidChangeModelContent(() => {
+                    // Debounced write happens through the preload-side debounce.
+                    setCss(editor.getValue());
                 });
+
+                // Ctrl+S / Cmd+S: format (if enabled) then persist.
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+                    formatAndSave(monaco, editor, prefs);
+                });
+
+                // Ctrl+Shift+F: format without saving explicitly (auto-save
+                // still fires on the next content change).
+                editor.addCommand(
+                    monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF,
+                    async () => {
+                        const ok = await tryMonacoFormat(monaco, editor);
+                        if (!ok) {
+                            const current = editor.getValue();
+                            const formatted = fallbackFormat(current);
+                            if (formatted !== current) {
+                                editor.executeEdits("testcord-format", [{
+                                    range: editor.getModel().getFullModelRange(),
+                                    text: formatted,
+                                    forceMoveMarkers: true
+                                }]);
+                            }
+                        }
+                        setStatus("Formatted", "saved");
+                    }
+                );
+
+                document.getElementById("btn-format").addEventListener("click", async () => {
+                    const ok = await tryMonacoFormat(monaco, editor);
+                    if (!ok) {
+                        const current = editor.getValue();
+                        const formatted = fallbackFormat(current);
+                        if (formatted !== current) {
+                            editor.executeEdits("testcord-format", [{
+                                range: editor.getModel().getFullModelRange(),
+                                text: formatted,
+                                forceMoveMarkers: true
+                            }]);
+                        }
+                    }
+                    setStatus("Formatted", "saved");
+                });
+
+                scheduleLint(monaco, editor);
+
+                window.addEventListener("resize", () => editor.layout());
+            }).catch((err) => {
+                console.error("[QuickCSS] Failed to load current CSS:", err);
+                setStatus("Failed to load", "error");
             });
         });
     </script>

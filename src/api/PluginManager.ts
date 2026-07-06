@@ -26,6 +26,7 @@ import { addMessageDecoration, removeMessageDecoration } from "@api/MessageDecor
 import { addMessageClickListener, addMessagePreEditListener, addMessagePreSendListener, removeMessageClickListener, removeMessagePreEditListener, removeMessagePreSendListener } from "@api/MessageEvents";
 import { addMessagePopoverButton, removeMessagePopoverButton } from "@api/MessagePopover";
 import { addNicknameIcon, removeNicknameIcon } from "@api/NicknameIcons";
+import { PluginHealth } from "@api/PluginHealth";
 import { Settings, SettingsStore } from "@api/Settings";
 import { disableStyle, enableStyle, removeStyle } from "@api/Styles";
 import { traceFunction } from "@debug/Tracer";
@@ -189,10 +190,14 @@ export function subscribePluginFluxEvents(p: Plugin, fluxDispatcher: typeof Flux
                 try {
                     const res = handler!.apply(p, arguments as any);
                     return res instanceof Promise
-                        ? res.catch(e => logger.error(`${p.name}: Error while handling ${event}\n`, e))
+                        ? res.catch(e => {
+                            logger.error(`${p.name}: Error while handling ${event}\n`, e);
+                            PluginHealth.recordRuntimeError(p.name, `flux:${event}`, e);
+                        })
                         : res;
                 } catch (e) {
                     logger.error(`${p.name}: Error while handling ${event}\n`, e);
+                    PluginHealth.recordRuntimeError(p.name, `flux:${event}`, e);
                 }
             };
 
@@ -242,6 +247,7 @@ export const startPlugin = traceFunction("startPlugin", function startPlugin(p: 
             p.start();
         } catch (e) {
             logger.error(`Failed to start ${name}\n`, e);
+            PluginHealth.recordRuntimeError(name, "start", e);
             return false;
         }
     }
@@ -326,6 +332,7 @@ export const stopPlugin = traceFunction("stopPlugin", function stopPlugin(p: Plu
             p.stop();
         } catch (e) {
             logger.error(`Failed to stop ${name}\n`, e);
+            PluginHealth.recordRuntimeError(name, "stop", e);
             return false;
         }
     }
