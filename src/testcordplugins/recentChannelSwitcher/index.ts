@@ -260,6 +260,7 @@ function createIcon(location: RecentLocation, size: number) {
 function animateRemoveLocation(card: HTMLDivElement, location: RecentLocation) {
     if (!settings.store.animations) {
         removeLocation(location);
+        if (!overlay) return;
         if (!switcherCandidates.length) removeOverlay();
         else renderOverlay();
         return;
@@ -272,12 +273,31 @@ function animateRemoveLocation(card: HTMLDivElement, location: RecentLocation) {
 
     setTimeout(() => {
         removeLocation(location);
+        if (!overlay) return;
         if (!switcherCandidates.length) removeOverlay();
         else renderOverlay();
     }, 140);
 }
 
+const SCROLLBAR_STYLE_ID = "RecentChannelSwitcher_scrollbarStyle";
+
+function ensureScrollbarStyle() {
+    if (document.getElementById(SCROLLBAR_STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = SCROLLBAR_STYLE_ID;
+    style.textContent = `
+        .rcs-scroll { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, rgba(255,255,255,.15)) transparent; }
+        .rcs-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .rcs-scroll::-webkit-scrollbar-track { background: transparent; border-radius: 4px; }
+        .rcs-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thin-thumb, rgba(255,255,255,.15)); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+        .rcs-scroll::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-auto-thumb, rgba(255,255,255,.3)); background-clip: padding-box; }
+        .rcs-scroll::-webkit-scrollbar-corner { background: transparent; }
+    `;
+    document.head.appendChild(style);
+}
+
 function ensureOverlay() {
+    ensureScrollbarStyle();
     overlay ??= document.createElement("div");
     overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);pointer-events:auto;";
     overlay.onmousedown = event => {
@@ -294,12 +314,8 @@ function renderOverlay() {
     overlay.replaceChildren();
 
     const shell = document.createElement("div");
-    shell.style.cssText = "width:min(720px,calc(100vw - 48px));max-height:min(500px,calc(100vh - 48px));padding:16px;border-radius:12px;background:var(--background-floating,#111214);box-shadow:var(--elevation-high,0 8px 24px rgba(0,0,0,.35));border:1px solid var(--background-modifier-accent,rgba(255,255,255,.08));font-family:var(--font-primary,Arial,sans-serif);color:var(--text-normal,#dbdee1);";
+    shell.style.cssText = "width:min(720px,calc(100vw - 48px));max-height:min(500px,calc(100vh - 48px));padding:16px;border-radius:12px;background:var(--background-floating,#111214);box-shadow:var(--elevation-high,0 8px 24px rgba(0,0,0,.35));border:1px solid var(--background-modifier-accent,rgba(255,255,255,.08));font-family:var(--font-primary,Arial,sans-serif);color:var(--text-normal,#dbdee1);display:flex;flex-direction:column;";
     shell.onmousedown = event => event.stopPropagation();
-    shell.onwheel = event => {
-        event.preventDefault();
-        cycleSwitcher(event.deltaY >= 0 ? 1 : -1);
-    };
 
     const title = createTextElement("div", "Switch Channel");
     title.style.cssText = "font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted,#949ba4);margin:0 0 12px 2px;";
@@ -341,7 +357,16 @@ function renderOverlay() {
     }
 
     const list = document.createElement("div");
-    list.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;overflow:auto;max-height:300px;padding:1px;";
+    list.className = "rcs-scroll";
+    list.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;overflow-y:auto;overflow-x:hidden;flex:1 1 auto;min-height:0;padding:1px;";
+    list.onwheel = event => {
+        const canScrollDown = list.scrollTop + list.clientHeight < list.scrollHeight - 1;
+        const canScrollUp = list.scrollTop > 0;
+        const wantsDown = event.deltaY > 0;
+        if ((wantsDown && canScrollDown) || (!wantsDown && canScrollUp)) return;
+        event.preventDefault();
+        cycleSwitcher(wantsDown ? 1 : -1);
+    };
     const cards: HTMLDivElement[] = [];
     let lastSection = "";
 
@@ -415,7 +440,12 @@ function renderOverlay() {
             event.stopImmediatePropagation();
             toggleStarred(location);
             switcherCandidates = getValidLocations();
-            selectedIndex = switcherCandidates.findIndex(candidate => isSameLocation(candidate, location));
+            if (!switcherCandidates.length) {
+                removeOverlay();
+                return;
+            }
+            const nextIndex = switcherCandidates.findIndex(candidate => isSameLocation(candidate, location));
+            selectedIndex = nextIndex >= 0 ? nextIndex : Math.min(i, switcherCandidates.length - 1);
             renderOverlay();
         };
         card.appendChild(star);
@@ -449,10 +479,15 @@ function renderOverlay() {
 
     shell.appendChild(list);
 
-    if (!switcherCandidates.some(candidate => candidate.channelId !== SelectedChannelStore.getChannelId())) {
+    if (!switcherCandidates.length) {
         const empty = createTextElement("div", "No other channels yet. Star channels or visit more channels to fill this menu.");
         empty.style.cssText = "padding:16px;border-radius:8px;background:var(--background-secondary-alt,#232428);color:var(--text-muted,#949ba4);font-size:13px;text-align:center;";
         list.appendChild(empty);
+    }
+
+    const selectedCard = cards[selectedIndex];
+    if (selectedCard) {
+        requestAnimationFrame(() => selectedCard.scrollIntoView({ block: "nearest", inline: "nearest" }));
     }
 
     const hint = createTextElement("div", "Hold Ctrl and press Tab to cycle. Release Ctrl to switch. Esc cancels.");
@@ -471,17 +506,18 @@ function removeOverlay() {
 }
 
 function cycleSwitcher(direction: 1 | -1) {
-    const candidates = getValidLocations();
-    if (!candidates.length) return;
+    const currentChannelId = SelectedChannelStore.getChannelId();
+    const candidates = getValidLocations().filter(candidate => candidate.channelId !== currentChannelId);
 
     if (!overlay) {
         switcherCandidates = candidates;
-        const currentChannelId = SelectedChannelStore.getChannelId();
-        selectedIndex = direction === 1
-            ? candidates.findIndex(candidate => candidate.channelId !== currentChannelId)
-            : candidates.findLastIndex(candidate => candidate.channelId !== currentChannelId);
-        if (selectedIndex === -1) selectedIndex = 0;
+        if (!candidates.length) {
+            renderOverlay();
+            return;
+        }
+        selectedIndex = direction === 1 ? 0 : candidates.length - 1;
     } else {
+        if (!switcherCandidates.length) return;
         selectedIndex = (selectedIndex + direction + switcherCandidates.length) % switcherCandidates.length;
     }
 
@@ -507,6 +543,10 @@ function cancelSwitcher() {
 
 function onKeyDown(event: KeyboardEvent) {
     if (event.key === "Escape") {
+        if (!overlay) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
         cancelSwitcher();
         return;
     }
@@ -529,7 +569,7 @@ function onKeyDown(event: KeyboardEvent) {
 }
 
 function onKeyUp(event: KeyboardEvent) {
-    if (event.key !== "Control") return;
+    if (event.key !== "Control" || !overlay) return;
 
     event.preventDefault();
     event.stopPropagation();
@@ -547,7 +587,13 @@ export default definePlugin({
 
     async start() {
         starredLocations = await DataStore.get<RecentLocation[]>(STARRED_DATA_KEY) ?? [];
-        recents = settings.store.persistRecents ? await DataStore.get<RecentLocation[]>(RECENTS_DATA_KEY) ?? [] : [];
+        if (settings.store.persistRecents) {
+            const stored = await DataStore.get<RecentLocation[]>(RECENTS_DATA_KEY) ?? [];
+            recents = stored.slice(0, settings.store.maxRecentChannels);
+        } else {
+            recents = [];
+            void DataStore.del(RECENTS_DATA_KEY);
+        }
         rememberLocation(SelectedGuildStore.getGuildId(), SelectedChannelStore.getChannelId());
         window.addEventListener("keydown", onKeyDown, true);
         window.addEventListener("keyup", onKeyUp, true);
@@ -557,8 +603,12 @@ export default definePlugin({
         window.removeEventListener("keydown", onKeyDown, true);
         window.removeEventListener("keyup", onKeyUp, true);
         removeOverlay();
+        document.getElementById(SCROLLBAR_STYLE_ID)?.remove();
         recents = [];
         starredLocations = [];
+        switcherCandidates = [];
+        selectedIndex = 0;
+        cancelSwitch = false;
     },
 
     flux: {
