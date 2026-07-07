@@ -128,7 +128,16 @@ export async function exportSettings({ syncDataStore = true, type = "all", minif
 
     switch (type) {
         case "all": {
-            return JSON.stringify({ settings, quickCss, ...(dataStore && { dataStore }) }, null, minify ? undefined : 4);
+            try {
+                return JSON.stringify({ settings, quickCss, ...(dataStore && { dataStore }) }, null, minify ? undefined : 4);
+            } catch (e) {
+                if (dataStore && e instanceof RangeError) {
+                    logger.warn("DataStore too large to stringify - exporting without it");
+                    toast(Toasts.Type.MESSAGE, "DataStore too large - exported without it. Export DataStore separately if needed.");
+                    return JSON.stringify({ settings, quickCss }, null, minify ? undefined : 4);
+                }
+                throw e;
+            }
         }
         case "plugins": {
             return JSON.stringify({ settings }, null, minify ? undefined : 4);
@@ -137,22 +146,79 @@ export async function exportSettings({ syncDataStore = true, type = "all", minif
             return JSON.stringify({ quickCss }, null, minify ? undefined : 4);
         }
         case "datastore": {
-            return JSON.stringify({ dataStore }, null, minify ? undefined : 4);
+            try {
+                return JSON.stringify({ dataStore }, null, minify ? undefined : 4);
+            } catch (e) {
+                throw new Error("DataStore is too large to export. Please clear some plugin data and try again.");
+            }
         }
     }
 }
 
+async function buildExportBlob(type: BackupType, minify?: boolean): Promise<Blob> {
+    const nl = minify ? "" : "\n";
+    const ind = minify ? "" : "  ";
+    const col = minify ? ":" : ": ";
+    const [hasSettings, hasCss, hasDs] = [type === "all" || type === "plugins", type === "all" || type === "css", type === "all" || type === "datastore"];
+
+    const parts: BlobPart[] = [`{${nl}`];
+
+    if (hasSettings) {
+        const settings = VencordNative.settings.get();
+        parts.push(`${ind}"settings":${col}${JSON.stringify(settings)}`);
+    }
+
+    if (hasCss) {
+        if (hasSettings) parts.push(`,${nl}`);
+        const quickCss = await VencordNative.quickCss.get();
+        parts.push(`${ind}"quickCss":${col}${JSON.stringify(quickCss)}`);
+    }
+
+    if (hasDs) {
+        if (hasSettings || hasCss) parts.push(`,${nl}`);
+        try {
+            const entries = await DataStore.entries();
+            parts.push(`${ind}"dataStore":${col}[${nl}`);
+            for (let i = 0; i < entries.length; i++) {
+                if (i > 0) parts.push(`,`);
+                parts.push(nl);
+                const [key, value] = entries[i];
+                parts.push(`${ind}${ind}[${JSON.stringify(key)},${col}${JSON.stringify(value)}]`);
+            }
+            parts.push(`${nl}${ind}]`);
+        } catch (err) {
+            if (type === "datastore") {
+                throw new Error("DataStore is too large to export. Please clear some plugin data and try again.");
+            }
+            logger.warn("Skipping DataStore in backup due to size.");
+            toast(Toasts.Type.MESSAGE, "DataStore too large - exported without it.");
+        }
+    }
+
+    parts.push(`${nl}}`);
+    return new Blob(parts, { type: "application/json" });
+}
+
 export async function downloadSettingsBackup(type: BackupType = "all", { minify }: { minify?: boolean; } = {}) {
     try {
-        const syncDataStore = type === "all" || type === "datastore";
-        const backup = await exportSettings({ minify, type, syncDataStore });
         const filename = `testcord-${type}-backup-${moment().format("YYYY-MM-DD")}.json`;
-        const data = new TextEncoder().encode(backup);
+        const syncDataStore = type === "all" || type === "datastore";
 
-        if (IS_DISCORD_DESKTOP) {
-            DiscordNative.fileManager.saveWithDialog(data, filename);
+        if (syncDataStore) {
+            const blob = await buildExportBlob(type, minify);
+            if (IS_DISCORD_DESKTOP) {
+                DiscordNative.fileManager.saveWithDialog(new Uint8Array(await blob.arrayBuffer()), filename);
+            } else {
+                saveFile(new File([blob], filename, { type: "application/json" }));
+            }
         } else {
-            saveFile(new File([data], filename, { type: "application/json" }));
+            const backup = await exportSettings({ minify, type, syncDataStore: false });
+            const data = new TextEncoder().encode(backup);
+            if (IS_DISCORD_DESKTOP) {
+                DiscordNative.fileManager.saveWithDialog(data, filename);
+            } else {
+                saveFile(new File([data], filename, { type: "application/json" }));
+            }
         }
     } catch (err) {
         logger.error("Failed to export settings:", err);
