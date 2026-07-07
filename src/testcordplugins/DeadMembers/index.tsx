@@ -9,7 +9,7 @@ import "./style.css";
 import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { ChannelStore, GuildMemberStore, useStateFromStores } from "@webpack/common";
+import { ChannelStore, GuildMemberStore } from "@webpack/common";
 
 const settings = definePluginSettings({
     indicatorStyle: {
@@ -72,11 +72,11 @@ export default definePlugin({
 });
 
 function DeadIndicator({ channel, userId, text }: { channel: any; userId: string; text: any; }) {
-    const isMember = useStateFromStores(
-        [GuildMemberStore],
-        () => GuildMemberStore.isMember(channel?.guild_id, userId),
-    );
-    if (!channel?.guild_id || isMember) return text;
+    const guildId = channel?.guild_id;
+    if (!guildId) return text;
+
+    const isMember = GuildMemberStore.isMember(guildId, userId);
+    if (isMember) return text;
 
     if (settings.store.indicatorStyle === "badge") {
         return <span className="c98-author-dead-badge">{text}</span>;

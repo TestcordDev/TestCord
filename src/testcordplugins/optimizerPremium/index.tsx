@@ -5,7 +5,7 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
-import { disableCacheLimits, resetCacheLimits } from "@utils/cacheLimits";
+import { resetCacheLimits } from "@utils/cacheLimits";
 import { TestcordDevs } from "@utils/constants";
 import { classNameToSelector } from "@utils/css";
 import { Logger } from "@utils/Logger";
@@ -994,9 +994,6 @@ export default definePlugin({
         if (settings.store.cacheLimitsEnabled) {
             resetCacheLimits();
             if (settings.store.verboseLogging) logger.info("Plugin cache limits active");
-        } else {
-            disableCacheLimits();
-            if (settings.store.verboseLogging) logger.info("Plugin cache limits disabled");
         }
 
         if (settings.store.verboseLogging) logger.info("Started");
