@@ -65,14 +65,35 @@ const settings = definePluginSettings({
     }
 });
 
+let usersToBlockSet: Set<string> | null = null;
+let lastUsersToBlock = "";
+let guildBlackListSet: Set<string> | null = null;
+let lastBlackList = "";
+let guildWhiteListSet: Set<string> | null = null;
+let lastWhiteList = "";
+
+function getCachedSet(value: string, cache: { set: Set<string> | null; last: string; }): Set<string> {
+    if (cache.set && cache.last === value) return cache.set;
+    cache.last = value;
+    cache.set = new Set(value.split(",").map(s => s.trim()).filter(Boolean));
+    return cache.set;
+}
+
 function isChannelInGuildBlocked(channelID, guild) {
     const guildID = guild ? channelID : ChannelStore.getChannel(channelID)?.guild_id;
 
-    const blacklist = settings.store.guildBlackList?.split(",").map(s => s.trim()).filter(Boolean) ?? [];
-    const whitelist = settings.store.guildWhiteList?.split(",").map(s => s.trim()).filter(Boolean) ?? [];
+    const blacklistStr = settings.store.guildBlackList ?? "";
+    const blacklist = getCachedSet(blacklistStr, { set: guildBlackListSet, last: lastBlackList });
+    guildBlackListSet = blacklist;
+    lastBlackList = blacklistStr;
 
-    if (blacklist.includes(guildID)) return true;
-    if (whitelist.length && !whitelist.includes(guildID)) return true;
+    const whitelistStr = settings.store.guildWhiteList ?? "";
+    const whitelist = getCachedSet(whitelistStr, { set: guildWhiteListSet, last: lastWhiteList });
+    guildWhiteListSet = whitelist;
+    lastWhiteList = whitelistStr;
+
+    if (blacklist.has(guildID)) return true;
+    if (whitelist.size && !whitelist.has(guildID)) return true;
 
     return false;
 }
@@ -80,8 +101,12 @@ function isChannelInGuildBlocked(channelID, guild) {
 function shouldHideUser(userId: string, channelId?: string) {
     if (channelId && isChannelInGuildBlocked(channelId, false)) return true;
     if (RelationshipStore.isBlocked(userId) && settings.store.hideBlockedUsers) return true;
-    if (settings.store.usersToBlock.length === 0) return false;
-    return settings.store.usersToBlock.split(", ").includes(userId);
+    const usersStr = settings.store.usersToBlock;
+    if (!usersStr.length) return false;
+    const blockSet = getCachedSet(usersStr, { set: usersToBlockSet, last: lastUsersToBlock });
+    usersToBlockSet = blockSet;
+    lastUsersToBlock = usersStr;
+    return blockSet.has(userId);
 }
 
 function isRoleAllBlockedMembers(roleId, guildId) {

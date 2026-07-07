@@ -13,6 +13,7 @@ import { FluxDispatcher, GuildMemberStore,GuildStore, Toasts, UserStore } from "
 const VoiceStateStore = findStoreLazy("VoiceStateStore");
 
 const alarm = "https://www.myinstants.com/media/sounds/tmp_7901-951678082.mp3";
+let audioElement: HTMLAudioElement | null = null;
 
 export default definePlugin({
     name: "antiMod",
@@ -44,7 +45,7 @@ const cb = async (e: any) => {
     if (state?.channelId === state?.oldChannelId) return;
 
     const channelVoiceStates = VoiceStateStore.getVoiceStatesForChannel(state?.channelId) ?? {};
-    if (!Object.keys(channelVoiceStates).includes(UserStore.getCurrentUser().id)) return;
+    if (!Object.prototype.hasOwnProperty.call(channelVoiceStates, UserStore.getCurrentUser().id)) return;
     const member = GuildMemberStore.getMember(state.guildId, state.userId!);
     if (!member) return;
 
@@ -83,8 +84,11 @@ function getSortedRoles({ id }: Guild, member: GuildMember) {
 }
 
 function audio() {
-    const audioElement = document.createElement("audio");
-    audioElement.src = alarm;
-    audioElement.volume = 1;
-    audioElement.play();
+    if (!audioElement) {
+        audioElement = document.createElement("audio");
+        audioElement.src = alarm;
+        audioElement.volume = 1;
+    }
+    audioElement.currentTime = 0;
+    audioElement.play().catch(() => {});
 }
