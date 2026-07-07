@@ -4,16 +4,16 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import * as DataStore from "@api/DataStore";
 import { definePluginSettings } from "@api/Settings";
 import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
-import * as DataStore from "@api/DataStore";
+import { BaseText } from "@components/BaseText";
+import { Card } from "@components/Card";
+import { Flex } from "@components/Flex";
+import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
-import { BaseText } from "@components/BaseText";
-import { Flex } from "@components/Flex";
-import { Card } from "@components/Card";
-import { FormSwitch } from "@components/FormSwitch";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
+import { ModalContent, ModalFooter, ModalHeader, ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
 import { Button, React, Select, Slider } from "@webpack/common";
 
@@ -215,7 +215,7 @@ function formatKeybind(e: KeyboardEvent): string {
     if (e.altKey) parts.push("Alt");
     if (e.shiftKey) parts.push("Shift");
     if (e.metaKey) parts.push("Meta");
-    const key = e.key;
+    const { key } = e;
     if (!["Control", "Alt", "Shift", "Meta"].includes(key)) {
         parts.push(key.length === 1 ? key.toUpperCase() : key);
     }
@@ -808,10 +808,10 @@ function ButtonsDragTab() {
                             <div
                                 key={item.id}
                                 draggable
-                                onDragStart={(e) => handleDragStart(e, index)}
-                                onDragOver={(e) => handleDragOver(e, index)}
+                                onDragStart={e => handleDragStart(e, index)}
+                                onDragOver={e => handleDragOver(e, index)}
                                 onDragLeave={() => { if (dragOverIndex === index) setDragOverIndex(null); }}
-                                onDrop={(e) => handleDrop(e, index)}
+                                onDrop={e => handleDrop(e, index)}
                                 onDragEnd={handleDragEnd}
                                 style={{
                                     display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
@@ -835,7 +835,7 @@ function ButtonsDragTab() {
                                 />
                                 <MiniToggle
                                     value={!cfg.hidden}
-                                    onChange={(v) => {
+                                    onChange={v => {
                                         setBtnCfg(item.id, { hidden: !v });
                                         apply(); forceUpdate();
                                     }}
@@ -910,11 +910,11 @@ function PanelLayoutModal({ modalProps }: { modalProps: ModalProps; }) {
 
     const tabsList: { id: Tab; label: string; }[] = [
         { id: "panel", label: "Panel" },
-        { id: "call",  label: "Call Bar" },
+        { id: "call", label: "Call Bar" },
         { id: "style", label: "Style" },
         { id: "colors", label: "Colors" },
-        { id: "hide",  label: "Visibility" },
-        { id: "drag",  label: "Buttons" },
+        { id: "hide", label: "Visibility" },
+        { id: "drag", label: "Buttons" },
     ];
 
     function resetDefaults() {
@@ -1099,7 +1099,7 @@ export default definePlugin({
         startObserver();
         document.addEventListener("keydown", onGlobalKeydown, true);
     },
-    stop()  {
+    stop() {
         stopObserver();
         document.getElementById(STYLE_ID)?.remove();
         document.getElementById(CUSTOM_STYLE_ID)?.remove();

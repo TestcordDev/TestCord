@@ -153,7 +153,7 @@ const settings = definePluginSettings({
     networkCache: {
         type: OptionType.BOOLEAN,
         description: "Cache static image responses (png, jpg, webp) in memory to cut redundant fetches. Bounded by entry count and TTL.",
-        default: true
+        default: false
     },
     networkCacheMinutes: {
         type: OptionType.SLIDER,
@@ -179,12 +179,12 @@ const settings = definePluginSettings({
     pauseOffscreenMedia: {
         type: OptionType.BOOLEAN,
         description: "Auto-pause videos and animated content that scroll out of view.",
-        default: true
+        default: false
     },
     memoryManagement: {
         type: OptionType.BOOLEAN,
         description: "Periodically check JS heap pressure and trim caches when usage is high. Requires Chromium performance.memory.",
-        default: true
+        default: false
     },
     memoryCheckSeconds: {
         type: OptionType.SLIDER,
@@ -197,32 +197,29 @@ const settings = definePluginSettings({
     optimizeTooltips: {
         type: OptionType.BOOLEAN,
         description: "Skip the unnecessary flushSync inside Discord's tooltip module. Smoother tooltip transitions.",
-        default: true,
+        default: false,
         restartNeeded: true
     },
     optimizeEmojiCache: {
         type: OptionType.BOOLEAN,
         description: "Cache repeat emoji-pack getter calls to avoid re-walking emoji lists on every render.",
-        default: true,
+        default: false,
         restartNeeded: true
     },
     killLoadingSpinner: {
         type: OptionType.BOOLEAN,
         description: "Strip the app loading spinner. It's pretty but it has measurable cost.",
-        default: true,
-        restartNeeded: true
+        default: false
     },
     killConfettiCanvas: {
         type: OptionType.BOOLEAN,
         description: "Remove the SpriteCanvas used for confetti, particles and similar visual effects.",
-        default: true,
-        restartNeeded: true
+        default: false
     },
     killGatewayAnalytics: {
         type: OptionType.BOOLEAN,
         description: "Drop the analytics flush block that JSON.stringifies the gateway READY payload.",
-        default: true,
-        restartNeeded: true
+        default: false
     },
     virtualizeMessages: {
         type: OptionType.BOOLEAN,
@@ -247,7 +244,7 @@ const settings = definePluginSettings({
     suppressConsoleSpam: {
         type: OptionType.BOOLEAN,
         description: "Suppress Discord's noisy console.log/debug output. Console.error and console.warn still pass through.",
-        default: true
+        default: false
     },
     freezeGifsUntilHover: {
         type: OptionType.BOOLEAN,
@@ -282,7 +279,7 @@ const settings = definePluginSettings({
     lazyEmbedImages: {
         type: OptionType.BOOLEAN,
         description: "Use async image decoding and only lazy-load non-chat images so virtualized message rows do not resize late while scrolling.",
-        default: true
+        default: false
     },
     disableTypingIndicator: {
         type: OptionType.BOOLEAN,
@@ -297,12 +294,12 @@ const settings = definePluginSettings({
     cacheLimitsEnabled: {
         type: OptionType.BOOLEAN,
         description: "Cap internal plugin caches (diffs, translations, ZIP previews, logged messages, voice stats) to prevent unbounded memory growth. Disable if you have RAM to spare and want maximum cache hit rate.",
-        default: true
+        default: false
     },
     lazyIframes: {
         type: OptionType.BOOLEAN,
         description: "Defer iframe loading until they scroll into view. Reduces initial page load cost. hcaptcha iframes are excluded to prevent breaking verification.",
-        default: true
+        default: false
     },
     disableAnimatedHeaders: {
         type: OptionType.BOOLEAN,
@@ -312,7 +309,7 @@ const settings = definePluginSettings({
     optimizeImageDecoding: {
         type: OptionType.BOOLEAN,
         description: "Force images to decode asynchronously and preload critical images. Chat images are excluded to prevent late-resize scroll jumps.",
-        default: true
+        default: false
     },
     throttleMutationObservers: {
         type: OptionType.BOOLEAN,
@@ -323,7 +320,7 @@ const settings = definePluginSettings({
     suppressReactionAnimations: {
         type: OptionType.BOOLEAN,
         description: "Strip entrance/exit animations from reaction buttons. Those pop/glow transitions cause layout on every reaction add.",
-        default: true,
+        default: false,
         restartNeeded: true
     },
     messageContentVisibility: {
@@ -530,12 +527,12 @@ const settings = definePluginSettings({
     killPerformanceMetrics: {
         type: OptionType.BOOLEAN,
         description: "Neutralize Discord's internal performance.mark and performance.measure calls. Reduces GC pressure from constant metric recording. Wrapped safely to not break scroll calculations.",
-        default: true
+        default: false
     },
     suppressConsoleTimers: {
         type: OptionType.BOOLEAN,
         description: "Block console.time and console.timeEnd calls. These create internal timer objects even when console output is suppressed.",
-        default: true
+        default: false
     },
     killHoverTransitions: {
         type: OptionType.BOOLEAN,
@@ -545,7 +542,7 @@ const settings = definePluginSettings({
     preconnectDiscordCdn: {
         type: OptionType.BOOLEAN,
         description: "Insert preconnect hints to Discord's CDN on startup. Warms DNS+TLS so the first image load is faster.",
-        default: true,
+        default: false,
         restartNeeded: true
     },
     forceCompositingLayers: {
@@ -746,7 +743,7 @@ const settings = definePluginSettings({
     optimizeChatInput: {
         type: OptionType.BOOLEAN,
         description: "Isolate the chat input with layout/paint containment, strip its transitions, and debounce per-keystroke draft saves so storage writes happen after you stop typing. Kills typing lag spikes.",
-        default: true
+        default: false
     },
     optimizeLargeAttachments: {
         type: OptionType.BOOLEAN,
@@ -2741,8 +2738,9 @@ export default definePlugin({
         (window as any).__op_origWsSend = origSend;
         const DEDUPE_WINDOW_MS = 50;
         const lastSend = new WeakMap<WebSocket, { data: string; at: number; }>();
+        const GATEWAY_CONTROL = /^\{"op":(?:1|2|6|7|11)/;
         WebSocket.prototype.send = function (data: any) {
-            if (typeof data === "string") {
+            if (typeof data === "string" && !GATEWAY_CONTROL.test(data)) {
                 const now = Date.now();
                 const prev = lastSend.get(this);
                 if (prev && prev.data === data && now - prev.at < DEDUPE_WINDOW_MS) return;
