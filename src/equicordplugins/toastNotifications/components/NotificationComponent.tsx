@@ -10,7 +10,7 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import { settings as PluginSettings } from "@equicordplugins/toastNotifications/index";
 import { classNameFactory } from "@utils/css";
 import { findComponentByCodeLazy } from "@webpack";
-import { FluxDispatcher, GuildStore, IconUtils, React, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { FluxDispatcher, GuildStore, IconUtils, React, useEffect, useMemo, useState } from "@webpack/common";
 
 import { MessageNotification, NotificationData } from "./Notifications";
 
@@ -62,29 +62,15 @@ function renderContextHeader(channel: MessageNotification["channel"]): React.Rea
 
 export default ErrorBoundary.wrap(function NotificationComponent(props: NotificationData) {
     const [isHover, setIsHover] = useState(false);
-    const [elapsed, setElapsed] = useState(0);
 
     const timeout = (PluginSettings.store.timeout ?? 5) * 1000;
     const opacity = PluginSettings.store.opacity / 100;
-    const startRef = useRef(Date.now());
 
     useEffect(() => {
-        if (isHover || props.permanent) {
-            setElapsed(0);
-            return;
-        }
-
-        startRef.current = Date.now();
-        const intervalId = setInterval(() => {
-            const next = Date.now() - startRef.current;
-            if (next >= timeout) props.onClose!();
-            else setElapsed(next);
-        }, 10);
-
-        return () => clearInterval(intervalId);
-    }, [isHover, props.permanent, timeout]);
-
-    const timeoutProgress = elapsed / timeout;
+        if (isHover || props.permanent || timeout === 0) return;
+        const timerId = setTimeout(() => props.onClose!(), timeout);
+        return () => clearTimeout(timerId);
+    }, [isHover, props.permanent, timeout, props.onClose]);
 
     const handleClick = () => {
         props.onClick?.();
@@ -172,8 +158,8 @@ export default ErrorBoundary.wrap(function NotificationComponent(props: Notifica
             {content}
             {timeout !== 0 && !props.permanent && (
                 <div
-                    className={cl("notification-progressbar")}
-                    style={{ width: `${(1 - timeoutProgress) * 100}%` }}
+                    className={cl("notification-progressbar", { paused: isHover })}
+                    style={{ animationDuration: `${timeout}ms` }}
                 />
             )}
         </button>

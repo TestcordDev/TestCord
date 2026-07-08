@@ -177,7 +177,7 @@ async function _reidverseChat(opts: ReidverseChatOptions, attempt = 0): Promise<
     return data.choices?.[0]?.message?.content?.trim() ?? "(empty response)";
 }
 
-// ── Legacy groqChat (kept for backward compat, delegates to reidverseChat) ────
+// ── Groq chat (real Groq API, requires user API key) ──────────────────────────
 
 export interface GroqChatMessage {
     role: "system" | "user" | "assistant";
@@ -186,18 +186,34 @@ export interface GroqChatMessage {
 
 export interface GroqCallOptions {
     messages: GroqChatMessage[];
+    apiKey: string;
+    model?: string;
     temperature?: number;
     maxTokens?: number;
-    forceModel?: string;
-    maxRetries?: number;
 }
 
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+
 export async function groqChat(opts: GroqCallOptions): Promise<string> {
-    return reidverseChat({
-        messages: opts.messages,
-        model: opts.forceModel,
-        temperature: opts.temperature,
-        maxTokens: opts.maxTokens,
-        maxRetries: opts.maxRetries,
-    });
+    const { messages, apiKey, model = "llama-3.3-70b-versatile", temperature = 0.7, maxTokens = 1000 } = opts;
+    const key = apiKey.trim();
+    if (!key) throw new Error("Missing Groq API key. Add one in TestcordAI settings.");
+
+    const res = await groqFetch(GROQ_API_URL, "POST", {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+    }, JSON.stringify({
+        model,
+        temperature,
+        max_tokens: maxTokens,
+        messages,
+    }));
+
+    if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`Groq API ${res.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim() ?? "(empty response)";
 }

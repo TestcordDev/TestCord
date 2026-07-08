@@ -25,18 +25,36 @@ export default function ProgressCircle({ border, audioRef, ...props }: ProgressC
     const [progress, setProgress] = useState(0);
 
     useEffect(() => {
-        let handle = requestAnimationFrame(function update() {
+        let handle: number;
+        let cancelled = false;
+
+        function update() {
+            if (cancelled) return;
             const audio = audioRef.current;
             if (audio && !Number.isNaN(audio.duration) && !audio.paused) {
                 setProgress(audio.currentTime / audio.duration);
-            } else {
-                setProgress(0);
+                handle = requestAnimationFrame(update);
             }
+        }
 
-            handle = requestAnimationFrame(update);
-        });
+        function onPlay() { handle = requestAnimationFrame(update); }
+        function onPause() { cancelAnimationFrame(handle); setProgress(0); }
 
-        return () => cancelAnimationFrame(handle);
+        const audio = audioRef.current;
+        if (audio) {
+            audio.addEventListener("play", onPlay);
+            audio.addEventListener("pause", onPause);
+            if (!audio.paused) handle = requestAnimationFrame(update);
+        }
+
+        return () => {
+            cancelled = true;
+            cancelAnimationFrame(handle);
+            if (audio) {
+                audio.removeEventListener("play", onPlay);
+                audio.removeEventListener("pause", onPause);
+            }
+        };
     }, [audioRef]);
 
     return (

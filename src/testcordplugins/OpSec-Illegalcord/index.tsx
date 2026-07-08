@@ -186,12 +186,21 @@ function findContextCorrections(text: string, vocab: Set<string>): Map<string, s
     return corrections;
 }
 
+const correctionRegexCache = new Map<string, RegExp>();
+function getCorrectionRegex(word: string): RegExp {
+    let rx = correctionRegexCache.get(word);
+    if (!rx) {
+        rx = new RegExp(`\\b${word}\\b`, "gi");
+        correctionRegexCache.set(word, rx);
+    }
+    return rx;
+}
+
 function applyContextCorrections(text: string, corrections: Map<string, string>): string {
     let result = text;
 
     for (const [misspelled, correct] of corrections) {
-        const regex = new RegExp(`\\b${misspelled}\\b`, "gi");
-        result = result.replace(regex, match => {
+        result = result.replace(getCorrectionRegex(misspelled), match => {
             if (match[0] === match[0].toUpperCase()) {
                 return correct.charAt(0).toUpperCase() + correct.slice(1);
             }

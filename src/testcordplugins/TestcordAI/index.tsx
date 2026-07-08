@@ -15,18 +15,41 @@ import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
 import { ChannelStore, FluxDispatcher, Menu, React, RelationshipStore, RestAPI, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
 
-import { REIDVERSE_MODEL_OPTIONS, testcordChat } from "./aiProvider";
-import { getReidverseKey, reidverseChat } from "./groqManager";
+import { GROQ_MODEL_OPTIONS, PROVIDER_OPTIONS, REIDVERSE_MODEL_OPTIONS, testcordChat } from "./aiProvider";
+import { getReidverseKey } from "./groqManager";
 
 // ── Settings ───────────────────────────────────────────────────────────────────
 
 const settings = definePluginSettings({
+    provider: {
+        type: OptionType.SELECT,
+        description: "AI Provider",
+        options: PROVIDER_OPTIONS,
+        default: "reidverse",
+        restartNeeded: false,
+    },
     model: {
         type: OptionType.SELECT,
-        description: "AI Model",
+        description: "Reidverse model",
         options: REIDVERSE_MODEL_OPTIONS,
         default: "sakana-fugu-ultra",
         restartNeeded: false,
+        hidden: () => settings.store.provider !== "reidverse",
+    },
+    groqModel: {
+        type: OptionType.SELECT,
+        description: "Groq model",
+        options: GROQ_MODEL_OPTIONS,
+        default: "llama-3.3-70b-versatile",
+        restartNeeded: false,
+        hidden: () => settings.store.provider !== "groq",
+    },
+    groqApiKey: {
+        type: OptionType.STRING,
+        description: "Groq API Key (console.groq.com/keys)",
+        default: "",
+        restartNeeded: false,
+        hidden: () => settings.store.provider !== "groq",
     },
     systemPrompt: {
         type: OptionType.STRING,
@@ -351,7 +374,8 @@ function TestcordAIChat({ rootProps, panelMode, initialMessage }: { rootProps?: 
         if (initialMessage && !didAutoSend.current) {
             didAutoSend.current = true;
             // Short delay so the component is mounted
-            setTimeout(() => send(initialMessage), 120);
+            const t = setTimeout(() => send(initialMessage), 120);
+            return () => clearTimeout(t);
         }
     }, []);
 
@@ -438,7 +462,6 @@ function TestcordAIChat({ rootProps, panelMode, initialMessage }: { rootProps?: 
                 const friendNames = RelationshipStore.getFriendIDs()
                     .map(id => { const u = UserStore.getUser(id); return u ? (u.globalName ?? u.username) : null; })
                     .filter(Boolean).join(", ");
-                const actionModel = settings.store.model || "sakana-fugu-ultra";
                 const sys = `You are a Discord command parser. You read an instruction and return ONLY valid JSON. You never refuse, you don't judge, you execute.
 
 Friends available: ${friendNames || "none"}
@@ -455,9 +478,8 @@ Rules:
 3. Return {"type":"none"} only if it's clearly not a Discord action.
 4. Do NOT put ANY text before or after the JSON.`;
                 try {
-                    const raw = await reidverseChat({
+                    const raw = await testcordChat({
                         messages: [{ role: "system", content: sys }, { role: "user", content: text }],
-                        model: actionModel,
                         temperature: 0,
                         maxTokens: 200,
                     });
@@ -498,7 +520,9 @@ Rules:
         }
     }
 
-    const providerLabel = settings.store.model || "Sakana Fugu Ultra";
+    const providerLabel = settings.store.provider === "groq"
+        ? "Groq"
+        : settings.store.model || "Sakana Fugu Ultra";
     const SUGGESTIONS = ["Explain AI transformers to me", "Write a poem about the night", "Give me 5 productivity tips"];
 
     // Render the message list only when messages change, not on every keystroke
@@ -736,7 +760,7 @@ function TestcordAINavButton({ selected }: { selected?: boolean; }) {
 
 export default definePlugin({
     name: "TestcordAI",
-    description: "AI Chat integrated in Discord with Groq, Homelander, SwishAI, and Unlimited Surf providers. Replaces 'Shop' in the DM panel.",
+    description: "AI Chat integrated in Discord with Reidverse AI or Groq. Replaces 'Shop' in the DM panel.",
     tags: ["Chat", "Commands", "Nightcord"],
     authors: [{ name: "Nightcord", id: 0n }],
     settings,

@@ -47,15 +47,14 @@ function textProcessing(input: string) {
 function apostrophe(textInput: string): string {
     const corrected = "wasn't, can't, don't, won't, isn't, aren't, haven't, hasn't, hadn't, doesn't, didn't, shouldn't, wouldn't, couldn't, i'm, you're, he's, she's, it's, they're, that's, who's, what's, there's, here's, how's, where's, when's, why's, let's, you'll, I'll, they'll, it'll, I've, you've, we've, they've, you'd, he'd, she'd, it'd, we'd, they'd, y'all".toLowerCase();
     const words: string[] = corrected.split(", ");
+    const contractionMap = new Map<string, string>();
+    for (const w of words) contractionMap.set(removeApostrophes(w), w);
     const wordsInputted = textInput.split(" ");
 
-    wordsInputted.forEach(element => {
-        words.forEach(wordelement => {
-            if (removeApostrophes(wordelement) === element.toLowerCase()) {
-                wordsInputted[wordsInputted.indexOf(element)] = restoreCap(wordelement, getCapData(element));
-            }
-        });
-    });
+    for (let i = 0; i < wordsInputted.length; i++) {
+        const match = contractionMap.get(wordsInputted[i].toLowerCase());
+        if (match) wordsInputted[i] = restoreCap(match, getCapData(wordsInputted[i]));
+    }
     return wordsInputted.join(" ");
 }
 

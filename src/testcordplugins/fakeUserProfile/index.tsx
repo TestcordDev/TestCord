@@ -565,7 +565,7 @@ function FakeUserProfileIcon({ className, style }: { className?: string; style?:
 
 function FakeUserProfileButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
     const [, force] = React.useReducer(x => x + 1, 0);
-    React.useEffect(() => subscribe(() => force()), []);
+    React.useEffect(() => { return subscribe(() => force()); }, []);
 
     const target = getCachedTarget();
     const active = isActive();

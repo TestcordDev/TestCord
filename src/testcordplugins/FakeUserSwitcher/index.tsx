@@ -480,9 +480,9 @@ function startSwitcherDropdownObserver() {
 
     switcherDropdownOpen = readSwitcherDropdownOpen();
     switcherDropdownObserver = new MutationObserver(() => {
-        // Coalesce: class mutations fire continuously across the whole body
-        // (hover, typing, animations). Schedule at most one querySelector scan
-        // per frame instead of running it on every mutation record.
+        // Coalesce: body mutations fire continuously (hover, typing, animations,
+        // context menu open/close). Schedule at most one querySelector scan per
+        // frame instead of running it on every mutation record.
         if (switcherDropdownCheckQueued) return;
         switcherDropdownCheckQueued = true;
         requestAnimationFrame(() => {
@@ -493,8 +493,6 @@ function startSwitcherDropdownObserver() {
     switcherDropdownObserver.observe(body, {
         childList: true,
         subtree: true,
-        attributes: true,
-        attributeFilter: ["class"]
     });
 }
 
@@ -1295,7 +1293,7 @@ function FakeUserSwitcherIcon({ className, style }: { className?: string; style?
 
 function FakeUserSwitcherButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
     const [, force] = React.useReducer(x => x + 1, 0);
-    React.useEffect(() => subscribe(() => force()), []);
+    React.useEffect(() => { return subscribe(() => force()); }, []);
 
     const activeTarget = getActiveTargetForGuild(undefined);
     const active = !!activeTarget;
@@ -1919,7 +1917,6 @@ const plugin = definePlugin({
         patchSnowflake();
         patchInternalAccountSwitcher();
 
-        FluxDispatcher.subscribe("MULTI_ACCOUNT_SWITCH_ATTEMPT", activateSwitcherIdentity);
         FluxDispatcher.subscribe("MULTI_ACCOUNT_SWITCH_FAILURE", activateSwitcherIdentity);
         FluxDispatcher.subscribe("MULTI_ACCOUNT_REMOVE_ACCOUNT", removeSwitcherIdentity);
 
@@ -1983,7 +1980,6 @@ const plugin = definePlugin({
         unpatchInternalAccountSwitcher();
         removeProfileBadge(dynamicBadge);
 
-        FluxDispatcher.unsubscribe("MULTI_ACCOUNT_SWITCH_ATTEMPT", activateSwitcherIdentity);
         FluxDispatcher.unsubscribe("MULTI_ACCOUNT_SWITCH_FAILURE", activateSwitcherIdentity);
         FluxDispatcher.unsubscribe("MULTI_ACCOUNT_REMOVE_ACCOUNT", removeSwitcherIdentity);
 
@@ -2035,11 +2031,11 @@ const plugin = definePlugin({
             group: true,
             replacement: [
                 {
-                    match: /(?<=\.avatarDecoration,guildId:\i\}\)\),)(?<=user:(\i).+?)/,
+                    match: /(?<=\.avatarDecoration,guildId:\i\}\)\),)(?<=user:(\i).{0,150}?)/,
                     replace: "vcFusAvatarDecoration=$self.useUserAvatarDecoration($1),"
                 },
                 {
-                    match: /(?<={avatarDecoration:).{1,20}?(?=,)(?<=avatarDecorationOverride:(\i).+?)/,
+                    match: /(?<={avatarDecoration:).{1,20}?(?=,)(?<=avatarDecorationOverride:(\i).{0,150}?)/,
                     replace: "$1??vcFusAvatarDecoration??($&)"
                 },
                 {
@@ -2052,7 +2048,7 @@ const plugin = definePlugin({
             find: "#{intl::ACCOUNT_SPEAKING_WHILE_MUTED}",
             replacement: [
                 {
-                    match: /(?<=\i\)\({avatarDecoration:)\i(?=,)(?<=currentUser:(\i).+?)/,
+                    match: /(?<=\i\)\({avatarDecoration:)\i(?=,)(?<=currentUser:(\i).{0,150}?)/,
                     replace: "$self.useUserAvatarDecoration($1)??$&"
                 }
             ]
@@ -2073,7 +2069,7 @@ const plugin = definePlugin({
         {
             find: "UserProfileStore",
             replacement: {
-                match: /(?<=getUserProfile\(\i\){return )(.+?)(?=})/,
+                    match: /(?<=getUserProfile\(\i\){return )(.{0,150}?)(?=})/,
                 replace: "$self.profileHook(arguments[0],$1)"
             }
         },

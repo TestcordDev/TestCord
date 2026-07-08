@@ -37,6 +37,30 @@ const ContextMenuLogger = new Logger("ContextMenu");
 export const navPatches = new Map<string, Set<NavContextMenuPatchCallback>>();
 export const globalPatches = new Set<GlobalContextMenuPatchCallback>();
 
+interface MenuCacheEntry {
+    children: Array<ReactElement<any> | null>;
+    timestamp: number;
+}
+
+const menuCache = new Map<string, MenuCacheEntry>();
+const CACHE_TTL = 3000;
+const CACHE_MAX = 10;
+
+function getArgsSignature(args: Array<any>): string {
+    const parts: string[] = [];
+    for (const a of args) {
+        if (a == null) { parts.push("n"); continue; }
+        if (typeof a !== "object") { parts.push(String(a)); continue; }
+        const id = a.id ?? a.user?.id ?? a.userId ?? a.message?.id ?? a.channel?.id ?? a.guild?.id ?? a.guildId ?? a.channelId;
+        if (id != null) {
+            parts.push(String(id));
+        } else {
+            return "\u0000" + Math.random().toString(36).slice(2);
+        }
+    }
+    return parts.join(",");
+}
+
 /**
  * Add a context menu patch
  * @param navId The navId(s) for the context menu(s) to patch
@@ -86,6 +110,9 @@ export function removeGlobalContextMenuPatch(patch: GlobalContextMenuPatchCallba
     return globalPatches.delete(patch);
 }
 
+let findCacheChildren: Array<ReactElement<any> | null> | null = null;
+let findCache: Map<string, Array<ReactElement<any> | null | undefined> | null> | null = null;
+
 /**
  * A helper function for finding the children array of a group nested inside a context menu based on the id(s) of its children
  * @param id The id of the child. If an array is specified, all ids will be tried
@@ -93,11 +120,24 @@ export function removeGlobalContextMenuPatch(patch: GlobalContextMenuPatchCallba
  * @param matchSubstring Whether to check if the id is a substring of the child id
  */
 export function findGroupChildrenByChildId(id: string | string[], children: Array<ReactElement<any> | null | undefined>, matchSubstring = false): Array<ReactElement<any> | null | undefined> | null {
+    if (findCache && !matchSubstring && children === findCacheChildren) {
+        const key = Array.isArray(id) ? id.join("\0") : id;
+        if (findCache.has(key)) {
+            return findCache.get(key) ?? null;
+        }
+        const result = findGroupChildrenByChildIdImpl(id, children, false);
+        findCache.set(key, result);
+        return result;
+    }
+    return findGroupChildrenByChildIdImpl(id, children, matchSubstring);
+}
+
+function findGroupChildrenByChildIdImpl(id: string | string[], children: Array<ReactElement<any> | null | undefined>, matchSubstring = false): Array<ReactElement<any> | null | undefined> | null {
     for (const child of children) {
         if (child == null) continue;
 
         if (Array.isArray(child)) {
-            const found = findGroupChildrenByChildId(id, child, matchSubstring);
+            const found = findGroupChildrenByChildIdImpl(id, child, matchSubstring);
             if (found !== null) return found;
         }
 
@@ -113,7 +153,7 @@ export function findGroupChildrenByChildId(id: string | string[], children: Arra
                 child.props.children = nextChildren;
             }
 
-            const found = findGroupChildrenByChildId(id, nextChildren, matchSubstring);
+            const found = findGroupChildrenByChildIdImpl(id, nextChildren, matchSubstring);
             if (found !== null) return found;
         }
     }
@@ -131,35 +171,74 @@ interface ContextMenuProps {
 }
 
 export function _usePatchContextMenu(props: ContextMenuProps) {
+    const mountState = React.useRef<{ decided: boolean; cachedChildren: Array<ReactElement<any> | null> | null }>({ decided: false, cachedChildren: null });
+
     if (!Menu.MenuItem) return props; // Prevent crashes in case we fail to acquire menu items for some reason
 
-    props = {
-        ...props,
-        children: cloneMenuChildren(props.children),
-    };
+    if (!mountState.current.decided) {
+        mountState.current.decided = true;
+        props.contextMenuAPIArguments ??= [];
+        const key = props.navId + ":" + getArgsSignature(props.contextMenuAPIArguments);
+        const entry = menuCache.get(key);
+        if (entry && Date.now() - entry.timestamp <= CACHE_TTL) {
+            mountState.current.cachedChildren = entry.children;
+            return { ...props, children: entry.children };
+        }
+    } else if (mountState.current.cachedChildren) {
+        return { ...props, children: mountState.current.cachedChildren };
+    }
 
     props.contextMenuAPIArguments ??= [];
+    const args = props.contextMenuAPIArguments;
     const contextMenuPatches = navPatches.get(props.navId);
+
+    const hasPatches = (contextMenuPatches?.size ?? 0) > 0 || globalPatches.size > 0;
+    if (hasPatches) {
+        props = {
+            ...props,
+            children: cloneMenuChildren(props.children),
+        };
+    }
 
     if (!Array.isArray(props.children)) props.children = [props.children];
 
-    if (contextMenuPatches) {
-        for (const patch of contextMenuPatches) {
-            try {
-                patch(props.children, ...props.contextMenuAPIArguments);
-            } catch (err) {
-                ContextMenuLogger.error(`Patch for ${props.navId} errored,`, err);
+    findCacheChildren = props.children;
+    findCache = new Map();
+    try {
+        if (contextMenuPatches?.size) {
+            for (const patch of contextMenuPatches) {
+                try {
+                    patch(props.children, ...args);
+                } catch (err) {
+                    ContextMenuLogger.error(`Patch for ${props.navId} errored,`, err);
+                }
             }
         }
+
+        if (globalPatches.size) {
+            for (const patch of globalPatches) {
+                try {
+                    patch(props.navId, props.children, ...args);
+                } catch (err) {
+                    ContextMenuLogger.error("Global patch errored,", err);
+                }
+            }
+        }
+    } finally {
+        findCache = null;
+        findCacheChildren = null;
     }
 
-    for (const patch of globalPatches) {
-        try {
-            patch(props.navId, props.children, ...props.contextMenuAPIArguments);
-        } catch (err) {
-            ContextMenuLogger.error("Global patch errored,", err);
+    const cacheKey = props.navId + ":" + getArgsSignature(args);
+    if (menuCache.size >= CACHE_MAX) {
+        let oldestKey: string | null = null;
+        let oldestTime = Infinity;
+        for (const [k, v] of menuCache) {
+            if (v.timestamp < oldestTime) { oldestTime = v.timestamp; oldestKey = k; }
         }
+        if (oldestKey) menuCache.delete(oldestKey);
     }
+    menuCache.set(cacheKey, { children: props.children, timestamp: Date.now() });
 
     return props;
 }

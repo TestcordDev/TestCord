@@ -36,9 +36,10 @@ export function ProgressNotification({ onComplete }: { onComplete?: () => void; 
         if (isComplete && !completionHandled && onComplete) {
             setCompletionHandled(true);
             // Show "Upload Complete!" for 2 seconds, then dismiss
-            setTimeout(() => {
+            const t = setTimeout(() => {
                 onComplete();
             }, 2000);
+            return () => clearTimeout(t);
         }
     }, [isComplete, completionHandled, onComplete]);
 

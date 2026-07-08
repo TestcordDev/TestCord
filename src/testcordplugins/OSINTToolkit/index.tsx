@@ -111,7 +111,7 @@ function normalizeUsername(input: string): string {
 
 async function getDomainInfo(domain: string): Promise<DomainInfo | null> {
     try {
-        const response = await fetch(`https://rdap.org/domain/${encodeURIComponent(domain)}`);
+        const response = await fetch(`https://rdap.org/domain/${encodeURIComponent(domain)}`, { signal: AbortSignal.timeout(15000) });
         if (!response.ok) throw new Error(`RDAP lookup failed with status ${response.status}`);
         const data = await response.json();
 
@@ -322,7 +322,7 @@ function parseProviderResponse(data: any, ip?: string): IPInfo {
 
 async function getIPInfo(ip: string): Promise<IPInfo | null> {
     try {
-        const response = await fetch(getProviderUrl(ip));
+        const response = await fetch(getProviderUrl(ip), { signal: AbortSignal.timeout(15000) });
         if (!response.ok) throw new Error(`IP lookup failed with status ${response.status}`);
         const data = await response.json();
         return parseProviderResponse(data, ip);
@@ -334,7 +334,7 @@ async function getIPInfo(ip: string): Promise<IPInfo | null> {
 
 async function getMyIP(): Promise<IPInfo | null> {
     try {
-        const response = await fetch(getProviderUrl());
+        const response = await fetch(getProviderUrl(), { signal: AbortSignal.timeout(15000) });
         if (!response.ok) throw new Error(`My IP lookup failed with status ${response.status}`);
         const data = await response.json();
         return parseProviderResponse(data);

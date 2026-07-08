@@ -776,10 +776,11 @@ function handleHoveringMessage(message: any, isHovering: boolean) {
     const repliedId = message?.messageReference?.message_id;
     const groupId = message?.showMeYourNameGroupId ?? "";
 
+    const shouldTrack = settings.store.animateGradients || settings.store.alwaysShowEffects;
     const effectiveIsHovering = settings.store.alwaysShowEffects || isHovering;
 
     useEffect(() => {
-        if (!message) return;
+        if (!message || !shouldTrack) return;
 
         if (effectiveIsHovering) {
             addHoveringMessage(messageId);
@@ -790,7 +791,7 @@ function handleHoveringMessage(message: any, isHovering: boolean) {
             removeHoveringMessage(groupId);
             removeHoveringReply(repliedId);
         }
-    }, [messageId, groupId, effectiveIsHovering]);
+    }, [messageId, groupId, effectiveIsHovering, shouldTrack]);
 }
 
 function addHoveringMessage(id: string) {

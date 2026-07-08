@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { isPluginEnabled, isPluginRequired } from "@api/PluginManager";
-import { definePluginSettings, useSettings } from "@api/Settings";
+import { isPluginEnabled, isPluginRequired, plugins as Plugins, startPlugin, stopPlugin } from "@api/PluginManager";
+import { definePluginSettings, Settings, useSettings } from "@api/Settings";
 import { getUserSettingLazy } from "@api/UserSettings";
 import { BaseText } from "@components/BaseText";
 import ErrorBoundary from "@components/ErrorBoundary";
@@ -29,6 +29,33 @@ import plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
 import { hexToInt, ICON_COLOR_FALLBACK, IconColorSettingKey, IconColorSettings, intToHex, isIconColorInputValid } from "./iconColors";
 
 const logger = new Logger("TestcordHelper");
+
+let prevOnerror: ((...args: any[]) => any) | null = null;
+let crashGuardsActive = false;
+
+function crashRejectionHandler(e: PromiseRejectionEvent) {
+    e.preventDefault();
+    logger.warn("Suppressed unhandled promise rejection:", e.reason);
+}
+
+function installCrashGuards() {
+    if (crashGuardsActive) return;
+    crashGuardsActive = true;
+    prevOnerror = window.onerror;
+    window.onerror = (_msg, _src, _line, _col, error) => {
+        logger.warn("Suppressed unhandled error:", error ?? _msg);
+        return true;
+    };
+    window.addEventListener("unhandledrejection", crashRejectionHandler);
+}
+
+function uninstallCrashGuards() {
+    if (!crashGuardsActive) return;
+    crashGuardsActive = false;
+    window.onerror = prevOnerror;
+    prevOnerror = null;
+    window.removeEventListener("unhandledrejection", crashRejectionHandler);
+}
 
 interface ProfileTheme {
     themeColors?: number[] | null;
@@ -206,6 +233,31 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Aggressive network mode for supported plugins (e.g. AutoRedeem skip-precheck and higher concurrency). Faster, but may increase captcha and rate-limit risk. Requires the network optimizations toggle above.",
         default: false,
+    },
+    orchestrator: {
+        type: OptionType.BOOLEAN,
+        description: "Enable the performance orchestrator. Coalesces duplicate Flux event subscriptions into a single dispatch and hardens context menu patches so a throwing patch is auto-disabled instead of lagging every right-click. Applies live, no restart needed.",
+        default: false,
+        onChange(value) {
+            const p = Plugins.OrchestratorAPI;
+            if (!p) return;
+            if (value) {
+                Settings.plugins.OrchestratorAPI.enabled = true;
+                if (!p.started) startPlugin(p);
+            } else {
+                if (p.started) stopPlugin(p);
+                Settings.plugins.OrchestratorAPI.enabled = false;
+            }
+        }
+    },
+    preventCrashes: {
+        type: OptionType.BOOLEAN,
+        description: "Swallow all unhandled errors and promise rejections to keep Discord running no matter what. Errors are logged to console instead of crashing. Applies live, no restart needed.",
+        default: false,
+        onChange(value) {
+            if (value) installCrashGuards();
+            else uninstallCrashGuards();
+        }
     }
 });
 
@@ -803,6 +855,7 @@ export default definePlugin({
     },
 
     start() {
+        if (settings.store.preventCrashes) installCrashGuards();
         hotkeyHandler = (e: KeyboardEvent) => {
             if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "h") {
                 e.preventDefault();
@@ -818,6 +871,7 @@ export default definePlugin({
     },
 
     stop() {
+        uninstallCrashGuards();
         if (hotkeyHandler) {
             document.removeEventListener("keydown", hotkeyHandler, true);
             hotkeyHandler = null;

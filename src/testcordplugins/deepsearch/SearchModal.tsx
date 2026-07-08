@@ -54,10 +54,24 @@ function FilterInput({ label, value, placeholder, onChange }: { label: string; v
     );
 }
 
+const highlightRegexCache = new Map<string, RegExp>();
+function getHighlightRegex(highlight: string): RegExp {
+    let rx = highlightRegexCache.get(highlight);
+    if (!rx) {
+        const escaped = highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        rx = new RegExp(`(${escaped})`, "gi");
+        highlightRegexCache.set(highlight, rx);
+        if (highlightRegexCache.size > 64) {
+            const oldest = highlightRegexCache.keys().next().value;
+            if (oldest !== undefined) highlightRegexCache.delete(oldest);
+        }
+    }
+    return rx;
+}
+
 function highlightText(text: string, highlight: string): React.ReactNode {
     if (!highlight || !text) return text;
-    const escaped = highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+    const parts = text.split(getHighlightRegex(highlight));
     return parts.map((part, i) =>
         part.toLowerCase() === highlight.toLowerCase() ? (
             <mark key={i} className={cl("highlight")}>{part}</mark>

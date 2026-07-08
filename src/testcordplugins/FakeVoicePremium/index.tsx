@@ -446,7 +446,7 @@ function FakeVoiceOptionToggleButton({ iconForeground, hideTooltips, nameplate }
     // Re-render so the button reflects `faked` after it changes via any control
     // (keybind, context menu, slash command). Event-driven: subscribe to the
     // single mutation point (setFakeVoiceEnabled) instead of polling.
-    React.useEffect(() => subscribeFaked(forceUpdate), []);
+    React.useEffect(() => { return subscribeFaked(forceUpdate); }, []);
 
     const isEnabled = faked;
     const Icon = isEnabled ? EnabledIcon : DisabledIcon;

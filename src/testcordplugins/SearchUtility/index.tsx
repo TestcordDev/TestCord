@@ -939,6 +939,7 @@ function openQuickSearchResults(options: QuickSearchModalOptions) {
 }
 
 const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, props) => {
+    const [queryObject, setQueryObject] = useState<Record<string, boolean>>({});
     if (!props) return;
     if (props.channel && !PermissionStore.can(PermissionsBits.VIEW_CHANNEL, props.channel)) return;
 
@@ -948,7 +949,6 @@ const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, prop
 
     const userId = props.message?.author?.id || props.user?.id;
     const content = props.message?.content;
-    const [queryObject, setQueryObject] = useState<Record<string, boolean>>({});
     const quickSearchItems: QuickSearchItem[] = [
         {
             name: "quick-search-channel",

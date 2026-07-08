@@ -71,7 +71,7 @@ function getTickVersion() {
 
 function useGlobalTick() {
     const [, forceUpdate] = useReducer((n: number) => n + 1, 0);
-    useEffect(() => subscribeTick(forceUpdate), []);
+    useEffect(() => { return subscribeTick(forceUpdate); }, []);
 }
 
 // ─── Renderers called by the patches ─────────────────────────────────────────

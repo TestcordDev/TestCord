@@ -33,6 +33,7 @@ let serverTargets: string[] = [];
 const targetListeners = new Set<() => void>();
 const serverTargetListeners = new Set<() => void>();
 const messageCache = new Map<string, MessageSnapshot>();
+const MESSAGE_CACHE_LIMIT = 2000;
 const previousVoiceStates = new Map<string, VoiceState>();
 const voiceSessions = new Map<string, { channelId: string; startedAt: number; }>();
 const typingCooldowns = new Map<string, number>();
@@ -965,6 +966,10 @@ const logMessage = (message: Message) => {
         attachments,
         links,
     });
+    if (messageCache.size > MESSAGE_CACHE_LIMIT) {
+        const oldest = messageCache.keys().next().value;
+        if (oldest !== undefined) messageCache.delete(oldest);
+    }
 
     if (!settings.store.logMessages) return;
 
@@ -1012,6 +1017,10 @@ const logMessageUpdate = (message: Message) => {
         attachments,
         links,
     });
+    if (messageCache.size > MESSAGE_CACHE_LIMIT) {
+        const oldest = messageCache.keys().next().value;
+        if (oldest !== undefined) messageCache.delete(oldest);
+    }
 
     addEvent({
         type: "message_edit",

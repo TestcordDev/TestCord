@@ -191,6 +191,18 @@
     background-color: var(--vc-toast-notifications-progressbar-color);
     border-radius: 5px;
     margin-top: auto;
+    animation-name: vc-toast-notifications-progress;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+
+.vc-toast-notifications-notification-progressbar.paused {
+    animation-play-state: paused;
+}
+
+@keyframes vc-toast-notifications-progress {
+    from { width: 100%; }
+    to { width: 0%; }
 }
 
 .vc-toast-notifications-notification-p {

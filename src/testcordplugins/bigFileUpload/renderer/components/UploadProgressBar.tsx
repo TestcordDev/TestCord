@@ -265,35 +265,15 @@ export function UploadProgressBar() {
             });
             parentObserver.observe(chatForm.parentElement);
 
-            // Add mutation observer to catch when Discord modifies the chat area
-            let mutationTimeout: NodeJS.Timeout | null = null;
-            const mutationObserver = new MutationObserver(() => {
-                // Debounce mutation updates to prevent spam
-                if (mutationTimeout) clearTimeout(mutationTimeout);
-                mutationTimeout = setTimeout(() => {
-                    updateWidth();
-                }, 100);
-            });
-
-            // Observe the chat form and its parent for any changes
-            mutationObserver.observe(chatForm.parentElement, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ["class", "style"]
-            });
-
             return () => {
                 // Clear all tracked timeouts
                 timeoutIds.forEach(id => clearTimeout(id));
                 if (resizeTimeout) clearTimeout(resizeTimeout);
-                if (mutationTimeout) clearTimeout(mutationTimeout);
                 window.removeEventListener("resize", handleResize);
                 if (resizeObserver) {
                     resizeObserver.disconnect();
                 }
                 parentObserver.disconnect();
-                mutationObserver.disconnect();
             };
         }
 

@@ -271,7 +271,7 @@ const RPC_PRESETS: Record<string, {
 export function FakeUserSwitcherModal({ modalProps }: { modalProps: ModalProps; }) {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
 
-    React.useEffect(() => subscribe(() => forceUpdate()), []);
+    React.useEffect(() => { return subscribe(() => forceUpdate()); }, []);
 
     const [inputId, setInputId] = React.useState("");
     const [loading, setLoading] = React.useState(false);
@@ -305,7 +305,8 @@ export function FakeUserSwitcherModal({ modalProps }: { modalProps: ModalProps; 
     }, []);
 
     React.useEffect(() => {
-        fetch(DECORATIONS_API)
+        const ctrl = new AbortController();
+        fetch(DECORATIONS_API, { signal: ctrl.signal })
             .then(r => r.json())
             .then((data: any) => {
                 if (!mountedRef.current) return;
@@ -313,7 +314,7 @@ export function FakeUserSwitcherModal({ modalProps }: { modalProps: ModalProps; 
                 setDecorations(items as DecorationPreset[]);
             })
             .catch(e => logger.error("Failed to fetch decorations", e));
-        fetch(EFFECTS_API)
+        fetch(EFFECTS_API, { signal: ctrl.signal })
             .then(r => r.json())
             .then((data: any) => {
                 if (!mountedRef.current) return;
@@ -321,7 +322,7 @@ export function FakeUserSwitcherModal({ modalProps }: { modalProps: ModalProps; 
                 setEffects(items as ProfileEffectPreset[]);
             })
             .catch(e => logger.error("Failed to fetch effects", e));
-        fetch(NAMEPLATES_API)
+        fetch(NAMEPLATES_API, { signal: ctrl.signal })
             .then(r => r.json())
             .then((data: any) => {
                 if (!mountedRef.current) return;
@@ -332,6 +333,7 @@ export function FakeUserSwitcherModal({ modalProps }: { modalProps: ModalProps; 
                 setNameplates(items as NameplatePreset[]);
             })
             .catch(e => logger.error("Failed to fetch nameplates", e));
+        return () => ctrl.abort();
     }, []);
 
     const resolvedId = resolveTargetUserId(inputId.trim());

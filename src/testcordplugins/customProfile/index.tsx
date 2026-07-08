@@ -564,10 +564,14 @@ function getRealNames(): { username: string | null; globalName: string | null; }
     } catch { return { username: null, globalName: null }; }
 }
 
+let _realDateKey: string | null = null;
+let _realDateVariants: string[] = [];
 function getRealDateVariants(): string[] {
     try {
         const u = UserStore.getCurrentUser();
         if (!u?.id) return [];
+        if (u.id === _realDateKey) return _realDateVariants;
+        _realDateKey = u.id;
         const ms = Number(BigInt(u.id) >> 22n) + 1420070400000;
         const d = new Date(ms);
         const variants = new Set<string>();
@@ -592,12 +596,16 @@ function getRealDateVariants(): string[] {
         const mS = monthsShort[d.getMonth()]; const mL = monthsLong[d.getMonth()];
         const patterns = [`${day} ${mS} ${year}`, `${day} ${mL} ${year}`, `${mS} ${day}, ${year}`, `${mL} ${day}, ${year}`, d.toISOString().slice(0, 10)];
         for (const p of patterns) { variants.add(p); variants.add(p.replace(/ /g, "\u00a0")); variants.add(p.replace(/\u00a0/g, " ")); }
-        variants.add(year.toString()); return [...variants].filter(v => v.length >= 4);
+        variants.add(year.toString()); _realDateVariants = [...variants].filter(v => v.length >= 4); return _realDateVariants;
     } catch { return []; }
 }
 
+let _fakeDateKey: string | null = null;
+let _fakeDateVariants: string[] = [];
 function getFakeDateVariants(isoDate: string): string[] {
     try {
+        if (isoDate === _fakeDateKey) return _fakeDateVariants;
+        _fakeDateKey = isoDate;
         const d = new Date(isoDate + "T12:00:00Z");
         const variants = new Set<string>();
         const fmtSpecs: Intl.DateTimeFormatOptions[] = [
@@ -607,7 +615,8 @@ function getFakeDateVariants(isoDate: string): string[] {
             { month: "long", day: "numeric", year: "numeric" },
         ];
         for (const fmt of fmtSpecs) { try { variants.add(new Intl.DateTimeFormat(navigator.language, fmt).format(d)); } catch { } }
-        return [...variants];
+        _fakeDateVariants = [...variants];
+        return _fakeDateVariants;
     } catch { return []; }
 }
 
