@@ -109,7 +109,7 @@ const DB_KEY_HISTORY = "PluginHealthHistory_v1";
 const registry = new Map<string, PluginHealthEntry>();
 const listeners = new Set<() => void>();
 
-let currentSession: SessionRecord = createSession();
+const currentSession: SessionRecord = createSession();
 let history: SessionRecord[] = [];
 let historyLoaded = false;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;

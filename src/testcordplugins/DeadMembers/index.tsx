@@ -7,6 +7,7 @@
 import "./style.css";
 
 import { definePluginSettings } from "@api/Settings";
+import ErrorBoundary from "@components/ErrorBoundary";
 import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { ChannelStore, GuildMemberStore } from "@webpack/common";
@@ -71,7 +72,7 @@ export default definePlugin({
     },
 });
 
-function DeadIndicator({ channel, userId, text }: { channel: any; userId: string; text: any; }) {
+const DeadIndicator = ErrorBoundary.wrap(function DeadIndicator({ channel, userId, text }: { channel: any; userId: string; text: any; }) {
     const guildId = channel?.guild_id;
     if (!guildId) return text;
 
@@ -82,4 +83,4 @@ function DeadIndicator({ channel, userId, text }: { channel: any; userId: string
         return <span className="c98-author-dead-badge">{text}</span>;
     }
     return <s className="c98-author-dead">{text}</s>;
-}
+}, { noop: true });

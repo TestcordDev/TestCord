@@ -48,7 +48,7 @@ import { PlainSettings, Settings, SettingsStore } from "./api/Settings";
 import { areLocalSettingsDirty, getCloudSettings, getCloudSyncDirection, markLocalSettingsDirty, putCloudSettings, shouldCloudSync } from "./api/SettingsSync/cloudSync";
 import { relaunch } from "./utils/native";
 import { changes, checkForUpdates, isOutdated as getIsOutdated, update, UpdateLogger } from "./utils/updater";
-import { onceReady, wreq, addFactoryListener } from "./webpack";
+import { addFactoryListener,onceReady, wreq } from "./webpack";
 import { patches } from "./webpack/patchWebpack";
 
 if (IS_REPORTER) {
@@ -297,6 +297,7 @@ async function init() {
             const source = getFactorySource();
             let isInBundle = false;
             if (patch.find instanceof RegExp) {
+                if (patch.find.global) patch.find.lastIndex = 0;
                 isInBundle = patch.find.test(source);
             } else {
                 isInBundle = source.includes(findStr);
@@ -321,7 +322,7 @@ async function init() {
         // that contains a previously "missing" module, the false positive
         // is automatically cleared.
         if (noModulePatches.length > 0) {
-            const removeListener = addFactoryListener((factory) => {
+            const removeListener = addFactoryListener(factory => {
                 let factorySource: string;
                 try {
                     factorySource = String(factory);
