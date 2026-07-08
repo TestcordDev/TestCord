@@ -7,6 +7,7 @@
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { IconComponent, OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
 import { Constants, DraftStore, DraftType, RestAPI } from "@webpack/common";
@@ -66,7 +67,7 @@ async function quickSend(channelId: string) {
         if (!messageId) return;
 
         if (deleteDelay > 0) {
-            await new Promise(r => setTimeout(r, deleteDelay));
+            await sleep(deleteDelay);
         }
 
         await RestAPI.del({ url: Constants.Endpoints.MESSAGE(channelId, messageId) });

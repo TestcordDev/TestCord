@@ -7,11 +7,10 @@
 import "./styles.css";
 
 import { addContextMenuPatch, removeContextMenuPatch } from "@api/ContextMenu";
+import { sleep } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
 import { GuildMemberStore, GuildRoleStore, GuildStore, Menu, React, RestAPI, Select, showToast, Toasts, useEffect, useRef, UserStore, useState } from "@webpack/common";
-
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 /* ── State ── */
 const state = {

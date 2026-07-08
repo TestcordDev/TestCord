@@ -24,6 +24,7 @@ let currentFetch: FetchTiming | null = null;
 let currentChannelId: string | null = null;
 const channelTimings: Map<string, { time: number; timestamp: Date; }> = new Map();
 const MAX_CHANNEL_TIMINGS = 100;
+const FETCH_BUTTON_KEYS = ["showMs", "iconColor", "showIcon", "location"];
 
 function trimChannelTimings() {
     while (channelTimings.size > MAX_CHANNEL_TIMINGS) {
@@ -108,7 +109,7 @@ function ChannelFetchTimeButton() {
 }
 
 const FetchTimeButton: ChatBarButtonFactory = ({ isMainChat }) => {
-    const { showMs, iconColor, showIcon, location } = settings.use(["showMs", "iconColor", "showIcon", "location"]);
+    const { showMs, iconColor, showIcon, location } = settings.use(FETCH_BUTTON_KEYS);
 
     if (!isMainChat || !showIcon || !currentChannelId || location !== "chatbar") {
         return null;

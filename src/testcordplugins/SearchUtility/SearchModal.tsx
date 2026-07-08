@@ -6,6 +6,7 @@
 
 import { DataStore, TestcordRequestCoordinator } from "@api/index";
 import { classNameFactory } from "@utils/css";
+import { sleep } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalProps, ModalRoot, ModalSize } from "@utils/modal";
 import type { Channel, Message, User } from "@vencord/discord-types";
 import { findStoreLazy } from "@webpack";
@@ -445,7 +446,7 @@ export function SearchModal({ modalProps }: { modalProps: ModalProps; }) {
 
                     // Short delay between batches
                     if (i > 0) {
-                        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+                        await sleep(delayBetweenBatches);
                     }
                     if (isStale()) return;
 
@@ -514,7 +515,7 @@ export function SearchModal({ modalProps }: { modalProps: ModalProps; }) {
                 const searchPromises = limitedChannelIds.map(async (channelId, index) => {
                     // Small delay to avoid blocking the UI (in batches of 5 channels)
                     if (index > 0 && index % 5 === 0) {
-                        await new Promise(resolve => setTimeout(resolve, 10));
+                        await sleep(10);
                     }
 
                     try {
@@ -643,7 +644,7 @@ export function SearchModal({ modalProps }: { modalProps: ModalProps; }) {
 
                 // Delay between requests to avoid rate limit
                 if (i > 0) {
-                    await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
+                    await sleep(delayBetweenRequests);
                 }
 
                 // Load messages from the API (limit of 100 messages per request)
@@ -666,7 +667,7 @@ export function SearchModal({ modalProps }: { modalProps: ModalProps; }) {
                         const retryAfter = parseFloat(error.response?.headers?.["retry-after"] || error.response?.headers?.["Retry-After"] || "1");
                         console.log(`[Ultra Advanced Search] Rate limit reached, waiting ${retryAfter}s...`);
                         // Wait the specified delay before continuing
-                        await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                        await sleep(retryAfter * 1000);
                         // Retry once after waiting
                         try {
                             response = await TestcordRequestCoordinator.request({

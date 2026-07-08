@@ -12,6 +12,7 @@ import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
 import { TestcordDevs } from "@utils/constants";
 import { getCurrentChannel, sendMessage } from "@utils/discord";
+import { sleep as wait } from "@utils/misc";
 import { useForceUpdater } from "@utils/react";
 import definePlugin, { OptionType } from "@utils/types";
 import { Button, React, TextInput } from "@webpack/common";
@@ -75,8 +76,6 @@ function generateRandomSentence(wordList: string): string {
     return text.charAt(0).toUpperCase() + text.slice(1) + ".";
 }
 
-// Helper to wait
-const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const emitRepeaterChange = () => repeatListeners.forEach(listener => listener());
 
 async function sendMessageEntry(entry: MessageEntry) {

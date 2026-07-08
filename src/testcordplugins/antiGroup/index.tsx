@@ -7,6 +7,7 @@
 import { showNotification } from "@api/Notifications";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { ChannelStore, Constants, RestAPI, UserStore } from "@webpack/common";
 
@@ -107,7 +108,7 @@ async function leaveGroupDM(channelId: string) {
                 verboseLog("⏱️ Waiting 500ms for message to be delivered...");
 
                 // Wait a bit before leaving so the message is sent
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await sleep(500);
             } catch (msgError) {
                 log(`❌ Error sending automatic message: ${msgError}`, "error");
             }

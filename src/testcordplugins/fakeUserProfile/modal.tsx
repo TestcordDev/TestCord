@@ -16,6 +16,17 @@ import { clearTarget, getCachedTarget, getManualProfile, loadTarget, logger, sav
 
 const DECORATIONS_API = "https://fakeprofile.sampath.me/decorations";
 const EFFECTS_API = "https://fakeprofile.sampath.me/profile-effects";
+const NAMEPLATES_API = "https://fakeprofile.sampath.me/nameplates";
+
+interface NameplatePreset { name: string; src: string; asset: string | null; }
+
+function extractNameplateAsset(src: string): string | null {
+    const shop = /collectibles-shop\/(\d+)\//.exec(src);
+    if (shop) return shop[1];
+    const asset = /assets\/collectibles\/nameplates\/(.+?)\/static/.exec(src);
+    if (asset) return asset[1];
+    return null;
+}
 
 let DecorationGridItem: React.ComponentType<any> | null = null;
 let DecorationGridDecoration: React.ComponentType<any> | null = null;
@@ -47,6 +58,20 @@ async function readImageAsDataUrl(file: File): Promise<string> {
 
 function SectionLabel({ children }: { children: React.ReactNode; }) {
     return <div className="fup-section-label">{children}</div>;
+}
+
+function Collapsible({ label, count, open, onToggle, children }: { label: string; count?: number; open: boolean; onToggle: () => void; children: React.ReactNode; }) {
+    return (
+        <div className="fup-field">
+            <button type="button" className="fup-collapse-header" onClick={onToggle} aria-expanded={open}>
+                <span className="fup-collapse-title">
+                    {label}{count != null ? ` (${count})` : ""}
+                </span>
+                <svg className="fup-collapse-chevron" style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+            </button>
+            {open && <div className="fup-collapse-body">{children}</div>}
+        </div>
+    );
 }
 
 function Field({ label, value, placeholder, onChange, type = "text" }: {
@@ -202,6 +227,11 @@ export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }
     const [mode, setMode] = useState(settings.store.targetMode ?? "lookup");
     const [decorations, setDecorations] = useState<DecorationPreset[]>([]);
     const [effects, setEffects] = useState<ProfileEffectPreset[]>([]);
+    const [nameplates, setNameplates] = useState<NameplatePreset[]>([]);
+    const [nameplatesLoaded, setNameplatesLoaded] = useState(false);
+    const [decoOpen, setDecoOpen] = useState(false);
+    const [effectOpen, setEffectOpen] = useState(false);
+    const [nameplateOpen, setNameplateOpen] = useState(false);
 
     useEffect(() => {
         fetch(DECORATIONS_API)
@@ -375,6 +405,21 @@ export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }
         setManualFlags(current => v ? current | flag : current & ~flag);
     }
 
+    function loadNameplates() {
+        if (nameplatesLoaded) return;
+        fetch(NAMEPLATES_API)
+            .then(r => r.json())
+            .then((data: any) => {
+                const raw = Array.isArray(data) ? data : (data && typeof data === "object" ? Object.values(data) : []);
+                const items = (raw as any[])
+                    .filter((n: any) => n && typeof n.src === "string")
+                    .map((n: any) => ({ name: n.name ?? "Nameplate", src: n.src as string, asset: extractNameplateAsset(n.src) }));
+                setNameplates(items as NameplatePreset[]);
+                setNameplatesLoaded(true);
+            })
+            .catch(e => logger.error("Failed to fetch nameplates", e));
+    }
+
     return (
         <ModalRoot {...modalProps} size={ModalSize.LARGE}>
             <ModalHeader>
@@ -497,110 +542,155 @@ export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }
 
                         <div className="fup-divider" />
 
-                        <SectionLabel>Avatar decoration</SectionLabel>
-                        <div className="fup-decoration-grid">
-                            <div
-                                className={`fup-decoration-item ${!manualAvatarDecoration ? "fup-decoration-item--selected" : ""}`}
-                                onClick={() => { setManualAvatarDecoration(""); setManualDecorationAsset(""); }}
-                            >
-                                <div className="fup-decoration-preview">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <circle cx="12" cy="12" r="10" />
-                                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-                                    </svg>
-                                </div>
-                                <span className="fup-decoration-label">None</span>
-                            </div>
-                            {decorations.map(d => (
+                        <Collapsible label="Avatar decoration" count={decorations.length} open={decoOpen} onToggle={() => setDecoOpen(!decoOpen)}>
+                            <div className="fup-decoration-grid">
                                 <div
-                                    key={d.asset}
-                                    className={`fup-decoration-item ${manualAvatarDecoration === d.asset ? "fup-decoration-item--selected" : ""}`}
-                                    onClick={() => {
-                                        const newval = manualAvatarDecoration === d.asset ? "" : d.asset;
-                                        setManualAvatarDecoration(newval);
-                                        setManualDecorationAsset(newval);
-                                    }}
+                                    className={`fup-decoration-item ${!manualAvatarDecoration ? "fup-decoration-item--selected" : ""}`}
+                                    onClick={() => { setManualAvatarDecoration(""); setManualDecorationAsset(""); }}
                                 >
                                     <div className="fup-decoration-preview">
-                                        <img
-                                            src={`https://cdn.discordapp.com/avatar-decoration-presets/${d.asset}.png`}
-                                            alt={d.name || d.asset}
-                                            className="fup-decoration-img"
-                                            onError={e => {
-                                                (e.target as HTMLImageElement).style.display = "none";
-                                            }}
-                                        />
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <circle cx="12" cy="12" r="10" />
+                                            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                                        </svg>
                                     </div>
-                                    <span className="fup-decoration-label">{d.name || d.asset.slice(0, 8)}</span>
+                                    <span className="fup-decoration-label">None</span>
                                 </div>
-                            ))}
-                        </div>
-                        <Field label="Custom decoration asset ID" value={manualDecorationAsset} placeholder="1144307957425778779" onChange={v => { setManualDecorationAsset(v); setManualAvatarDecoration(v); }} />
-
-                        <div className="fup-divider" />
-
-                        <SectionLabel>Nameplate</SectionLabel>
-                        <Field label="Nameplate asset ID" value={manualNameplateAsset} placeholder="e.g. a_abc123" onChange={setManualNameplateAsset} />
-                        <Field label="SKU ID" value={manualNameplateSkuId} placeholder="Same as asset ID if unsure" onChange={setManualNameplateSkuId} />
-                        <div className="fup-field">
-                            <SectionLabel>Palette</SectionLabel>
-                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                                <button
-                                    className={`fup-badge ${!manualNameplatePalette ? "fup-badge--on" : ""}`}
-                                    onClick={() => setManualNameplatePalette("")}
-                                >None</button>
-                                {NAMEPLATE_PALETTES.map(p => (
-                                    <button
-                                        key={p}
-                                        className={`fup-badge ${manualNameplatePalette === p ? "fup-badge--on" : ""}`}
-                                        onClick={() => setManualNameplatePalette(p)}
-                                    >{p}</button>
+                                {decorations.map(d => (
+                                    <div
+                                        key={d.asset}
+                                        className={`fup-decoration-item ${manualAvatarDecoration === d.asset ? "fup-decoration-item--selected" : ""}`}
+                                        onClick={() => {
+                                            const newval = manualAvatarDecoration === d.asset ? "" : d.asset;
+                                            setManualAvatarDecoration(newval);
+                                            setManualDecorationAsset(newval);
+                                        }}
+                                    >
+                                        <div className="fup-decoration-preview">
+                                            <img
+                                                src={`https://cdn.discordapp.com/avatar-decoration-presets/${d.asset}.png`}
+                                                alt={d.name || d.asset}
+                                                className="fup-decoration-img"
+                                                onError={e => {
+                                                    (e.target as HTMLImageElement).style.display = "none";
+                                                }}
+                                            />
+                                        </div>
+                                        <span className="fup-decoration-label">{d.name || d.asset.slice(0, 8)}</span>
+                                    </div>
                                 ))}
                             </div>
-                        </div>
-                        <Field label="Label (optional)" value={manualNameplateLabel} placeholder="Display name" onChange={setManualNameplateLabel} />
+                            <Field label="Custom decoration asset ID" value={manualDecorationAsset} placeholder="1144307957425778779" onChange={v => { setManualDecorationAsset(v); setManualAvatarDecoration(v); }} />
+                        </Collapsible>
 
                         <div className="fup-divider" />
 
-                        <SectionLabel>Profile effect</SectionLabel>
-                        <div className="fup-effect-grid">
-                            <div
-                                className={`fup-effect-item ${!manualProfileEffectId ? "fup-effect-item--selected" : ""}`}
-                                onClick={() => { setManualProfileEffectId(""); setManualProfileEffectAsset(""); }}
-                            >
-                                <div className="fup-effect-preview">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <circle cx="12" cy="12" r="10" />
-                                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
-                                    </svg>
+                        <Collapsible label="Nameplate" count={nameplatesLoaded ? nameplates.length : undefined} open={nameplateOpen} onToggle={() => setNameplateOpen(!nameplateOpen)}>
+                            {!nameplatesLoaded ? (
+                                <button className="fup-btn fup-btn-primary" style={{ width: "100%", justifyContent: "center", marginBottom: 10 }} onClick={loadNameplates}>Load nameplates</button>
+                            ) : (
+                                <div className="fup-decoration-grid">
+                                    <div
+                                        className={`fup-decoration-item ${!manualNameplateAsset ? "fup-decoration-item--selected" : ""}`}
+                                        onClick={() => { setManualNameplateAsset(""); setManualNameplateSkuId(""); }}
+                                    >
+                                        <div className="fup-decoration-preview">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <circle cx="12" cy="12" r="10" />
+                                                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                                            </svg>
+                                        </div>
+                                        <span className="fup-decoration-label">None</span>
+                                    </div>
+                                    {nameplates.filter(n => n.asset).map(n => (
+                                        <div
+                                            key={n.src}
+                                            className={`fup-decoration-item ${manualNameplateAsset === n.asset ? "fup-decoration-item--selected" : ""}`}
+                                            onClick={() => {
+                                                const newval = manualNameplateAsset === n.asset ? "" : n.asset!;
+                                                setManualNameplateAsset(newval);
+                                                setManualNameplateSkuId(newval);
+                                            }}
+                                        >
+                                            <div className="fup-decoration-preview" style={{ height: 40, borderRadius: 6 }}>
+                                                <img
+                                                    src={n.src}
+                                                    alt={n.name}
+                                                    className="fup-decoration-img"
+                                                    style={{ objectFit: "cover" }}
+                                                    onError={e => {
+                                                        (e.target as HTMLImageElement).style.display = "none";
+                                                    }}
+                                                />
+                                            </div>
+                                            <span className="fup-decoration-label">{n.name}</span>
+                                        </div>
+                                    ))}
                                 </div>
-                                <span className="fup-effect-label">None</span>
+                            )}
+                            <Field label="Nameplate asset ID" value={manualNameplateAsset} placeholder="e.g. a_abc123" onChange={setManualNameplateAsset} />
+                            <Field label="SKU ID" value={manualNameplateSkuId} placeholder="Same as asset ID if unsure" onChange={setManualNameplateSkuId} />
+                            <div className="fup-field">
+                                <SectionLabel>Palette</SectionLabel>
+                                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                                    <button
+                                        className={`fup-badge ${!manualNameplatePalette ? "fup-badge--on" : ""}`}
+                                        onClick={() => setManualNameplatePalette("")}
+                                    >None</button>
+                                    {NAMEPLATE_PALETTES.map(p => (
+                                        <button
+                                            key={p}
+                                            className={`fup-badge ${manualNameplatePalette === p ? "fup-badge--on" : ""}`}
+                                            onClick={() => setManualNameplatePalette(p)}
+                                        >{p}</button>
+                                    ))}
+                                </div>
                             </div>
-                            {effects.map(e => (
+                            <Field label="Label (optional)" value={manualNameplateLabel} placeholder="Display name" onChange={setManualNameplateLabel} />
+                        </Collapsible>
+
+                        <div className="fup-divider" />
+
+                        <Collapsible label="Profile effect" count={effects.length} open={effectOpen} onToggle={() => setEffectOpen(!effectOpen)}>
+                            <div className="fup-effect-grid">
                                 <div
-                                    key={e.skuId}
-                                    className={`fup-effect-item ${manualProfileEffectId === e.skuId ? "fup-effect-item--selected" : ""}`}
-                                    onClick={() => {
-                                        const newval = manualProfileEffectId === e.skuId ? "" : e.skuId;
-                                        setManualProfileEffectId(newval);
-                                        setManualProfileEffectAsset(newval);
-                                    }}
+                                    className={`fup-effect-item ${!manualProfileEffectId ? "fup-effect-item--selected" : ""}`}
+                                    onClick={() => { setManualProfileEffectId(""); setManualProfileEffectAsset(""); }}
                                 >
                                     <div className="fup-effect-preview">
-                                        <img
-                                            src={e.config.thumbnailPreviewSrc}
-                                            alt={e.config.title || e.skuId}
-                                            className="fup-effect-img"
-                                            onError={ev => {
-                                                (ev.target as HTMLImageElement).style.display = "none";
-                                            }}
-                                        />
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <circle cx="12" cy="12" r="10" />
+                                            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                                        </svg>
                                     </div>
-                                    <span className="fup-effect-label">{e.config.title || e.skuId.slice(0, 8)}</span>
+                                    <span className="fup-effect-label">None</span>
                                 </div>
-                            ))}
-                        </div>
-                        <Field label="Custom effect SKU ID" value={manualProfileEffectAsset} placeholder="e.g. 1234567890" onChange={v => { setManualProfileEffectAsset(v); setManualProfileEffectId(v); }} />
+                                {effects.map(e => (
+                                    <div
+                                        key={e.skuId}
+                                        className={`fup-effect-item ${manualProfileEffectId === e.skuId ? "fup-effect-item--selected" : ""}`}
+                                        onClick={() => {
+                                            const newval = manualProfileEffectId === e.skuId ? "" : e.skuId;
+                                            setManualProfileEffectId(newval);
+                                            setManualProfileEffectAsset(newval);
+                                        }}
+                                    >
+                                        <div className="fup-effect-preview">
+                                            <img
+                                                src={e.config.thumbnailPreviewSrc}
+                                                alt={e.config.title || e.skuId}
+                                                className="fup-effect-img"
+                                                onError={ev => {
+                                                    (ev.target as HTMLImageElement).style.display = "none";
+                                                }}
+                                            />
+                                        </div>
+                                        <span className="fup-effect-label">{e.config.title || e.skuId.slice(0, 8)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <Field label="Custom effect SKU ID" value={manualProfileEffectAsset} placeholder="e.g. 1234567890" onChange={v => { setManualProfileEffectAsset(v); setManualProfileEffectId(v); }} />
+                        </Collapsible>
 
                         <SectionLabel>Custom badges</SectionLabel>
                         <div className="fup-badges" style={{ marginBottom: 14 }}>

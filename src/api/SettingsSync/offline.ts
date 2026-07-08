@@ -59,12 +59,23 @@ function isSafeObject(obj: any) {
     return true;
 }
 
-export async function importSettings(data: string, type: BackupType = "all", cloud = false) {
-    try {
-        var parsed = JSON.parse(data);
-    } catch (err) {
-        console.log(data);
-        throw new Error("Failed to parse JSON: " + String(err));
+async function setDataStoreBatched(entries: [IDBValidKey, any][]) {
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+        await DataStore.setMany(entries.slice(i, i + BATCH_SIZE));
+    }
+}
+
+export async function importSettings(data: string | object, type: BackupType = "all", cloud = false) {
+    let parsed: any;
+    if (typeof data === "string") {
+        try {
+            parsed = JSON.parse(data);
+        } catch (err) {
+            throw new Error("Failed to parse JSON: " + String(err));
+        }
+    } else {
+        parsed = data;
     }
 
     if (!isSafeObject(parsed))
@@ -80,7 +91,7 @@ export async function importSettings(data: string, type: BackupType = "all", clo
                 await VencordNative.settings.set(PlainSettings);
             }
             if (parsed.quickCss) await VencordNative.quickCss.set(parsed.quickCss);
-            if (parsed.dataStore) await DataStore.setMany(parsed.dataStore);
+            if (parsed.dataStore) await setDataStoreBatched(parsed.dataStore);
             break;
         }
         case "plugins": {
@@ -99,7 +110,7 @@ export async function importSettings(data: string, type: BackupType = "all", clo
         case "datastore": {
             if (!parsed.dataStore) throw new Error("DataStore data missing");
 
-            await DataStore.setMany(parsed.dataStore);
+            await setDataStoreBatched(parsed.dataStore);
             break;
         }
     }
@@ -159,34 +170,39 @@ async function buildExportBlob(type: BackupType, minify?: boolean): Promise<Blob
     const nl = minify ? "" : "\n";
     const ind = minify ? "" : "  ";
     const col = minify ? ":" : ": ";
+    const arrSep = minify ? "," : ", ";
     const [hasSettings, hasCss, hasDs] = [type === "all" || type === "plugins", type === "all" || type === "css", type === "all" || type === "datastore"];
 
     const parts: BlobPart[] = [`{${nl}`];
 
     if (hasSettings) {
         const settings = VencordNative.settings.get();
-        parts.push(`${ind}"settings":${col}${JSON.stringify(settings)}`);
+        parts.push(`${ind}"settings"${col}${JSON.stringify(settings)}`);
     }
 
     if (hasCss) {
         if (hasSettings) parts.push(`,${nl}`);
         const quickCss = await VencordNative.quickCss.get();
-        parts.push(`${ind}"quickCss":${col}${JSON.stringify(quickCss)}`);
+        parts.push(`${ind}"quickCss"${col}${JSON.stringify(quickCss)}`);
     }
 
     if (hasDs) {
         if (hasSettings || hasCss) parts.push(`,${nl}`);
+        let dsStarted = false;
         try {
             const entries = await DataStore.entries();
-            parts.push(`${ind}"dataStore":${col}[${nl}`);
+            parts.push(`${ind}"dataStore"${col}[${nl}`);
+            dsStarted = true;
             for (let i = 0; i < entries.length; i++) {
-                if (i > 0) parts.push(`,`);
+                if (i > 0) parts.push(",");
                 parts.push(nl);
                 const [key, value] = entries[i];
-                parts.push(`${ind}${ind}[${JSON.stringify(key)},${col}${JSON.stringify(value)}]`);
+                const valueStr = JSON.stringify(value) ?? "null";
+                parts.push(`${ind}${ind}[${JSON.stringify(key)}${arrSep}${valueStr}]`);
             }
             parts.push(`${nl}${ind}]`);
         } catch (err) {
+            if (dsStarted) parts.push(`${nl}${ind}]`);
             if (type === "datastore") {
                 throw new Error("DataStore is too large to export. Please clear some plugin data and try again.");
             }
@@ -228,37 +244,15 @@ export async function downloadSettingsBackup(type: BackupType = "all", { minify 
 }
 
 export async function uploadSettingsBackup(type: BackupType = "all", showToast = true): Promise<void> {
-    if (IS_DISCORD_DESKTOP) {
-        const [file] = await DiscordNative.fileManager.openFiles({
-            filters: [
-                { name: "Testcord Settings Backup", extensions: ["json"] },
-                { name: "all", extensions: ["*"] }
-            ]
-        });
+    const file = await chooseFile("application/json,.json");
+    if (!file) return;
 
-        if (file) {
-            try {
-                await importSettings(new TextDecoder().decode(file.data), type);
-                if (showToast) toastSuccess();
-            } catch (err) {
-                logger.error(err);
-                if (showToast) toastFailure(err);
-            }
-        }
-    } else {
-        const file = await chooseFile("application/json");
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async () => {
-            try {
-                await importSettings(reader.result as string, type);
-                if (showToast) toastSuccess();
-            } catch (err) {
-                logger.error(err);
-                if (showToast) toastFailure(err);
-            }
-        };
-        reader.readAsText(file);
+    try {
+        const text = await file.text();
+        await importSettings(text, type);
+        if (showToast) toastSuccess();
+    } catch (err) {
+        logger.error(err);
+        if (showToast) toastFailure(err);
     }
 }

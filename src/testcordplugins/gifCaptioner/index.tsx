@@ -394,6 +394,7 @@ export default definePlugin({
     patches: [
         {
             find: "renderGIF",
+            noWarn: true,
             replacement: {
                 match: /(children:\[)(\i\([^)]+\)\?null:this\.renderGIF\(\))/,
                 replace: "$1$self.renderCaptionButton(this),$2"

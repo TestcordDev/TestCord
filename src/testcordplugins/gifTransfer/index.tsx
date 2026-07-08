@@ -8,6 +8,7 @@ import { definePluginSettings } from "@api/Settings";
 import { Link } from "@components/Link";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import type { ModuleFactory } from "@vencord/discord-types/webpack";
 import { findByPropsLazy, wreq } from "@webpack";
@@ -109,10 +110,6 @@ function getAddGifFn(): ((gif: any) => void) | null {
             UserSettingsDelay?.INFREQUENT_USER_ACTION ?? 3
         );
     };
-}
-
-function sleep(ms: number): Promise<void> {
-    return new Promise(r => setTimeout(r, ms));
 }
 
 // ─── Runtime limit lift (no restart) ──────────────────────────────────────────
@@ -496,6 +493,7 @@ export default definePlugin({
     patches: [
         {
             find: "toBinary(t).length>762880",
+            noWarn: true,
             replacement: {
                 match: /\.toBinary\(t\)\.length>762880/,
                 replace: ".toBinary(t).length>Number.MAX_SAFE_INTEGER",

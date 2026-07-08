@@ -8,6 +8,7 @@ import { HeaderBarButton } from "@api/HeaderBar";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
+import { sleep } from "@utils/misc";
 import definePlugin, { IconProps, OptionType } from "@utils/types";
 import type { MessageJSON } from "@vencord/discord-types";
 import { findByPropsLazy } from "@webpack";
@@ -60,8 +61,6 @@ const settings = definePluginSettings({
     }
 });
 
-const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
-
 function getDelayMs() {
     const delaySeconds = Number.isFinite(settings.store.delaySeconds)
         ? settings.store.delaySeconds
@@ -85,8 +84,10 @@ function TimeAlogIcon({ height = 20, width = 20, className, color = "currentColo
     );
 }
 
+const TIME_ALOG_KEYS = ["isActive"];
+
 function TimeAlogButton() {
-    const { isActive } = settings.use(["isActive"]);
+    const { isActive } = settings.use(TIME_ALOG_KEYS);
 
     const ButtonIcon = (props: IconProps & { color?: string; }) => (
         <TimeAlogIcon

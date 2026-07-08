@@ -8,6 +8,7 @@ import { ApplicationCommandInputType, ApplicationCommandOptionType, sendBotMessa
 import { TestcordDevs } from "@utils/constants";
 import { sendMessage } from "@utils/discord";
 import { Logger } from "@utils/Logger";
+import { sleep } from "@utils/misc";
 import definePlugin from "@utils/types";
 import { findByPropsLazy } from "@webpack";
 
@@ -65,7 +66,7 @@ export default definePlugin({
                     }
 
                     if (i < favs.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, delay));
+                        await sleep(delay);
                     }
                 }
 

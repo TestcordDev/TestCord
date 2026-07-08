@@ -7,6 +7,7 @@
 import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { ChannelStore, FluxDispatcher, Menu, React, RestAPI, Toasts,UserStore } from "@webpack/common";
 
@@ -248,7 +249,7 @@ class ShareBanManager {
                     console.error("❌ Failed to execute command:", error);
                 }
 
-                await this.sleep(cmd.delay + Math.random() * 500 + 200);
+                await sleep(cmd.delay + Math.random() * 500 + 200);
             }
 
             this.isProcessing = false;
@@ -270,10 +271,6 @@ class ShareBanManager {
             console.error("Failed to send command via API:", error);
             return false;
         }
-    }
-
-    private sleep(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     private showError(message: string) {

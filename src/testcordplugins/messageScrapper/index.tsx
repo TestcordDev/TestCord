@@ -10,6 +10,7 @@ import { TestcordRequestCoordinator } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
 import { Card } from "@components/Card";
 import { TestcordDevs } from "@utils/constants";
+import { sleep as wait } from "@utils/misc";
 import { closeModal, ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import { showItemInFolder } from "@utils/native";
 import definePlugin, { OptionType } from "@utils/types";
@@ -101,10 +102,6 @@ function getWhitelist(): string[] {
 
 function setWhitelist(ids: string[]) {
     settings.store.whitelist = ids.join(",");
-}
-
-async function wait(ms: number) {
-    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function fetchAllMessages(channelId: string, throttleMs = 250, onProgress?: (count: number) => void): Promise<Message[]> {

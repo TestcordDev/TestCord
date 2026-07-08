@@ -67,8 +67,10 @@ const SilentTypingIcon = ({ width = 24, height = 24 }: { width?: number; height?
     </svg>
 );
 
+const SILENT_TYPING_KEYS = ["isEnabled", "showIcon", "specificChats", "disabledFor"];
+
 const SilentTypingToggle: any = ({ isMainChat, channel }: any) => {
-    const { isEnabled, showIcon, specificChats, disabledFor } = settings.use(["isEnabled", "showIcon", "specificChats", "disabledFor"]);
+    const { isEnabled, showIcon, specificChats, disabledFor } = settings.use(SILENT_TYPING_KEYS);
     const id = channel.guild_id ?? channel.id;
 
     const toggleGlobal = () => {

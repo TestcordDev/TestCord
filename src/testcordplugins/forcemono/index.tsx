@@ -65,8 +65,10 @@ function MonoIcon({ className, active }: { className?: string; active?: boolean;
     );
 }
 
+const FORCE_MONO_KEYS = ["forceMono"];
+
 function MonoToggleButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
-    const { forceMono } = settings.use(["forceMono"]);
+    const { forceMono } = settings.use(FORCE_MONO_KEYS);
 
     return (
         <UserAreaButton

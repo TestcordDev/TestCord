@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { sleep } from "@utils/misc";
 import { PluginNative } from "@utils/types";
 import { Toasts } from "@webpack/common";
 
@@ -40,7 +41,7 @@ function buildDetails(stats: any): AnalysisValue["details"] {
 async function waitForVirusTotalReport(apiKey: string, analysisId: string, silent: boolean): Promise<any | null> {
     for (let i = 0; i < 8; i++) {
         if (i > 0) {
-            await new Promise(resolve => setTimeout(resolve, 2500));
+            await sleep(2500);
         }
 
         const reportResult = await Native.getVirusTotalFileReport(apiKey, analysisId);

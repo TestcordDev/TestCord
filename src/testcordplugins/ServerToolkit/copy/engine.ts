@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { sleep } from "@utils/misc";
 import { findByCodeLazy } from "@webpack";
 import {
     ChannelStore,
@@ -78,8 +79,6 @@ const StickerExtMap = {
 
 const MAX_EMOJI_SIZE_BYTES = 256 * 1024;
 const MAX_STICKER_SIZE_BYTES = 512 * 1024;
-
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 function throwIfAborted(signal?: AbortSignal) {
     if (signal?.aborted) throw new Error("Cancelled");

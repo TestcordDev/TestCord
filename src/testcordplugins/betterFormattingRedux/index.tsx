@@ -202,8 +202,10 @@ const FormatIcon = () => (
     </svg>
 );
 
+const FORMAT_BUTTON_KEYS = ["showButton"];
+
 const FormatButton: ChatBarButtonFactory = ({ isMainChat }) => {
-    const { showButton } = settings.use(["showButton"]);
+    const { showButton } = settings.use(FORMAT_BUTTON_KEYS);
     const [open, setOpen] = React.useState(false);
     const buttonRef = React.useRef<HTMLDivElement>(null);
 

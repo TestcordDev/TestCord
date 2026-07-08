@@ -7,6 +7,7 @@
 import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
 import type { Channel } from "@vencord/discord-types";
 import { findStoreLazy } from "@webpack";
@@ -23,7 +24,7 @@ async function runSequential<T>(promises: Promise<T>[]): Promise<T[]> {
         results.push(result);
 
         if (i % settings.store.waitAfter === 0) {
-            await new Promise(resolve => setTimeout(resolve, settings.store.waitSeconds * 1000));
+            await sleep(settings.store.waitSeconds * 1000);
         }
     }
 

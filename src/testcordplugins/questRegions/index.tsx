@@ -2829,6 +2829,7 @@ export default definePlugin({
     patches: [
         {
             find: /questContentPosition:\i,trackGuildAndChannelMetadata:\i===\i\.\i\.QUESTS_EMBED,sourceQuestContent:\i,children:\i=>/,
+            noWarn: true,
             replacement: {
                 match: /(children:\[)(\(0,(\i)\.jsx\)\(\i,\{quest:(\i),location:\i,isInteracting:\i,sourceQuestContent:\i\}\),)/,
                 replace: "$1(0,$3.jsx)($self.QuestRegionInfo,{quest:$4}),$2",
@@ -2836,6 +2837,7 @@ export default definePlugin({
         },
         {
             find: "onReceiveErrorHints:",
+            noWarn: true,
             replacement: {
                 match: /(onBlur:\i,children:\[)(?=\(0,(\i)\.jsx\))/,
                 replace: "$1(0,$2.jsx)($self.QuestRegionInfo,{quest:arguments[0].quest}),",

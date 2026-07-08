@@ -9,6 +9,7 @@ import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
 import { Link } from "@components/Link";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByCodeLazy,findByPropsLazy } from "@webpack";
 import { Menu, SelectedChannelStore,showToast, Toasts } from "@webpack/common";
@@ -128,10 +129,6 @@ async function isInHeartGifs(url: string): Promise<boolean> {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function sleep(ms: number): Promise<void> {
-    return new Promise(r => setTimeout(r, ms));
-}
 
 function getToken(): string | null {
     try {

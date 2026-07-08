@@ -536,6 +536,7 @@ export default definePlugin({
     patches: [
         {
             find: "#{intl::ATTACHMENT_PROCESSING}",
+            noWarn: true,
             replacement: {
                 match: /(renderAdjacentContent[\s\S]{0,200}\}=(\i);[\s\S]{0,200})null!=\i&&\i\(\)/,
                 replace: "$1$self.ZipAttachmentPreview({ attachment: $2 })"

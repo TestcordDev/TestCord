@@ -9,6 +9,7 @@ import "./styles.css";
 import { showNotification } from "@api/Notifications";
 import { definePluginSettings } from "@api/Settings";
 import { Logger } from "@utils/Logger";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 
 import OBSWebSocket, { OBSWebSocketError } from "./obs-websocket-js/json";
@@ -122,7 +123,7 @@ async function onVoiceChannelSelect({ guildId, channelId, currentVoiceChannelId 
                 if (!started) {
                     return;
                 }
-                await new Promise(resolve => setTimeout(resolve, 5000));
+                await sleep(5000);
             }
             await startReplayBuffer();
         }
@@ -135,7 +136,7 @@ async function onVoiceChannelSelect({ guildId, channelId, currentVoiceChannelId 
                 if (!started) {
                     return;
                 }
-                await new Promise(resolve => setTimeout(resolve, 5000));
+                await sleep(5000);
             }
             await startReplayBuffer();
         } else if (guildId && whitelist.length && !whitelist.includes(guildId)) {

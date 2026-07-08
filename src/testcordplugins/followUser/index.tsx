@@ -317,6 +317,7 @@ export default definePlugin({
     patches: [
         {
             find: "toolbar:function",
+            noWarn: true,
             replacement: {
                 match: /(function \i\(\i\){)(.{1,200}toolbar.{1,100}mobileToolbar)/,
                 replace: "$1$self.addIconToToolBar(arguments[0]);$2"

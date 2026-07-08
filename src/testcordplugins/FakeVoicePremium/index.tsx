@@ -16,6 +16,8 @@ import { ChannelStore, ContextMenuApi, MediaEngineStore, Menu, PermissionsBits, 
 
 import { settings } from "./settings";
 
+const CONTEXT_MENU_KEYS = ["fakeMute", "fakeDeafen", "fakeStream", "fakeGame", "fakeCam", "cutMicTransmission"];
+
 export let faked = false;
 
 // Subscribers notified whenever `faked` changes, so mounted UI (the user-area
@@ -470,14 +472,7 @@ function FakeVoiceOptionToggleButton({ iconForeground, hideTooltips, nameplate }
 
 function ContextMenu() {
     const [enabled, setEnabled] = React.useState(faked);
-    settings.use([
-        "fakeMute",
-        "fakeDeafen",
-        "fakeStream",
-        "fakeGame",
-        "fakeCam",
-        "cutMicTransmission"
-    ]);
+    settings.use(CONTEXT_MENU_KEYS);
 
     return (
         <Menu.Menu
@@ -495,14 +490,7 @@ function ContextMenu() {
 const VoiceChannelContext: NavContextMenuPatchCallback = (children, { channel }: { channel: Channel; }) => {
     if (!settings.store.contextMenu) return;
     if (!channel || (channel.type !== 2 && channel.type !== 13)) return;
-    settings.use([
-        "fakeMute",
-        "fakeDeafen",
-        "fakeStream",
-        "fakeGame",
-        "fakeCam",
-        "cutMicTransmission"
-    ]);
+    settings.use(CONTEXT_MENU_KEYS);
 
     children.splice(
         -1,

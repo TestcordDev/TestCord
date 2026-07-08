@@ -10,10 +10,18 @@ import { TestcordDevs } from "@utils/constants";
 import { classNameToSelector } from "@utils/css";
 import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
-import { findAll, findCssClassesLazy } from "@webpack";
+import { filters, find, findAll, mapMangledCssClasses, proxyLazyWebpack } from "@webpack";
 import { FluxDispatcher, MessageStore, SelectedChannelStore } from "@webpack/common";
 
 const logger = new Logger("OptimizerPremium");
+
+function findCssClassesLazy<S extends string>(...classes: S[]): Record<S, string | undefined> {
+    return proxyLazyWebpack(() => {
+        const res = find(filters.byClassNames(...classes), { isIndirect: true, topLevelOnly: true });
+        if (!res) return {} as Record<S, string>;
+        return mapMangledCssClasses(res, classes);
+    }) as Record<S, string | undefined>;
+}
 
 const THROTTLED_CLASS_TOKENS = ["activity", "subText", "botText", "clanTag"] as const;
 
@@ -148,6 +156,12 @@ const settings = definePluginSettings({
         description: "Drop frames from requestAnimationFrame. 0 disables, higher values skip more frames.",
         markers: [0, 25, 50, 75, 100],
         default: 0,
+        restartNeeded: true
+    },
+    fastNetwork: {
+        type: OptionType.BOOLEAN,
+        description: "Block analytics, science and tracing requests at the fetch level to free up connection slots for real Discord API calls. Also deduplicates simultaneous identical requests and preconnects to Discord CDN.",
+        default: true,
         restartNeeded: true
     },
     networkCache: {
@@ -945,7 +959,7 @@ export default definePlugin({
             try { this.installConsolidatedObserver(); } catch (e) { logger.warn("installConsolidatedObserver failed", e); }
         }
         try { if (settings.store.domThrottle) this.installDomThrottle(); } catch (e) { logger.warn("installDomThrottle failed", e); }
-        try { if (settings.store.networkCache || settings.store.forceLowImageQuality) this.installNetworkLayer(); } catch (e) { logger.warn("installNetworkLayer failed", e); }
+        try { if (settings.store.fastNetwork || settings.store.networkCache || settings.store.forceLowImageQuality) this.installNetworkLayer(); } catch (e) { logger.warn("installNetworkLayer failed", e); }
         try { if (settings.store.disableSpringAnimations) this.installSpringSkip(); } catch (e) { logger.warn("installSpringSkip failed", e); }
         try { if (settings.store.memoryManagement) this.installMemoryManager(); } catch (e) { logger.warn("installMemoryManager failed", e); }
         try { if (settings.store.pauseOffscreenMedia) this.installOffscreenMediaPause(); } catch (e) { logger.warn("installOffscreenMediaPause failed", e); }
@@ -989,7 +1003,9 @@ export default definePlugin({
         try { if (settings.store.freezeWhenUnfocused) this.installUnfocusedFreezer(); } catch (e) { logger.warn("installUnfocusedFreezer failed", e); }
         try { if (settings.store.killVoiceVideo) this.installVoiceVideoKiller(); } catch (e) { logger.warn("installVoiceVideoKiller failed", e); }
         try { if (settings.store.preventWebSocketFlood) this.installWebSocketFloodPreventer(); } catch (e) { logger.warn("installWebSocketFloodPreventer failed", e); }
-        try { this.installExtraCSS(); } catch (e) { logger.warn("installExtraCSS failed", e); }
+        const deferCss = (typeof requestIdleCallback === "function"
+            ? requestIdleCallback(() => { try { this.installExtraCSS(); } catch (e) { logger.warn("installExtraCSS failed", e); } }, { timeout: 3000 })
+            : setTimeout(() => { try { this.installExtraCSS(); } catch (e) { logger.warn("installExtraCSS failed", e); } }, 100));
 
         if (settings.store.cacheLimitsEnabled) {
             resetCacheLimits();
@@ -1235,6 +1251,7 @@ export default definePlugin({
         const originalFetch = window.fetch.bind(window);
         this.originals.fetch = window.fetch;
 
+        const { fastNetwork } = settings.store;
         const cacheEnabled = settings.store.networkCache;
         const cacheMs = settings.store.networkCacheMinutes * 60 * 1000;
         const maxEntries = Math.max(10, settings.store.networkCacheMaxEntries | 0);
@@ -1245,6 +1262,24 @@ export default definePlugin({
         const order = this.networkCacheOrder;
         const isImage = (url: string) => /\.(png|jpe?g|webp)(?:$|[?#])/i.test(url);
         const isDiscordCdn = (url: string) => /(?:cdn|media)\.discord(?:app)?\.(?:com|net)/.test(url);
+
+        const blockedPaths = [
+            /\/api\/v\d+\/science\b/,
+            /\/api\/v\d+\/tracing\b/,
+            /\/api\/v\d+\/logging\b/,
+            /\/api\/v\d+\/metrics\b/,
+            /\/api\/v\d+\/track\b/,
+        ];
+
+        const isBlocked = (url: string): boolean => {
+            if (!fastNetwork) return false;
+            try {
+                const u = new URL(url, window.location.origin);
+                return blockedPaths.some(re => re.test(u.pathname));
+            } catch {
+                return false;
+            }
+        };
 
         const stripCacheBusting = (u: URL) => {
             u.searchParams.delete("v");
@@ -1289,8 +1324,15 @@ export default definePlugin({
             }
         };
 
+        const inflight = new Map<string, Promise<Response>>();
+
         window.fetch = function patched(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
             const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+
+            if (isBlocked(rawUrl)) {
+                return Promise.resolve(new Response("", { status: 204, headers: { "content-type": "application/json" } }));
+            }
+
             const finalUrl = rewriteSize(rawUrl);
             const method = init?.method?.toUpperCase() ?? (input instanceof Request ? input.method.toUpperCase() : "GET");
             const useCache = cacheEnabled && isImage(finalUrl) && method === "GET";
@@ -1310,11 +1352,20 @@ export default definePlugin({
                 }
             }
 
+            if (fastNetwork && method === "GET") {
+                const dedupeKey = normalizeCacheKey(finalUrl);
+                const existing = inflight.get(dedupeKey);
+                if (existing) return existing.then(r => r.clone());
+            }
+
             const target: RequestInfo | URL = finalUrl !== rawUrl
                 ? (typeof input === "string" ? finalUrl : new Request(finalUrl, input instanceof Request ? input : undefined))
                 : input;
 
-            return originalFetch(target, init).then(res => {
+            const promise = originalFetch(target, init).then(res => {
+                if (fastNetwork && method === "GET") {
+                    inflight.delete(normalizeCacheKey(finalUrl));
+                }
                 if (useCache && res.ok) {
                     const bytes = Number(res.headers.get("content-length")) || 0;
                     if (bytes > 0 && bytes <= maxBytes) {
@@ -1329,7 +1380,26 @@ export default definePlugin({
                 }
                 return res;
             });
+
+            if (fastNetwork && method === "GET") {
+                inflight.set(normalizeCacheKey(finalUrl), promise);
+            }
+
+            return promise;
         };
+
+        if (fastNetwork) {
+            for (const href of ["https://cdn.discordapp.com", "https://media.discordapp.net"]) {
+                const existing = document.querySelector(`link[rel="preconnect"][href="${href}"]`);
+                if (!existing) {
+                    const link = document.createElement("link");
+                    link.rel = "preconnect";
+                    link.href = href;
+                    link.crossOrigin = "anonymous";
+                    document.head.appendChild(link);
+                }
+            }
+        }
 
         if (cacheEnabled) {
             this.cacheCleanupTimer = setInterval(() => {

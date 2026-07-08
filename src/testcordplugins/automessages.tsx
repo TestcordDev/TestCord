@@ -6,6 +6,7 @@
 
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
 import { ChannelStore, GuildStore, Menu, NavigationRouter, showToast, Toasts, UserStore } from "@webpack/common";
@@ -962,7 +963,7 @@ async function sendMessages() {
 
             // Small delay between messages (500ms)
             if (message !== messages[messages.length - 1]) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await sleep(500);
             }
         } catch (error) {
             console.error("[AutoMessageSender] Error sending message:", error);

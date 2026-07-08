@@ -9,6 +9,7 @@ import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/Co
 import { addMessagePopoverButton as addButton, removeMessagePopoverButton as removeButton } from "@api/MessagePopover";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { ChannelStore, Constants, Menu, RestAPI, UserStore } from "@webpack/common";
 
@@ -53,8 +54,6 @@ const SilentDeleteIcon = () => (
         <path d="M5 6.99902V18.999C5 20.101 5.897 20.999 7 20.999H17C18.103 20.999 19 20.101 19 18.999V6.99902H5ZM11 17H9V11H11V17ZM15 17H13V11H15V17Z" />
     </svg>
 );
-
-const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
 async function silentDeleteMessage(channelId: string, messageId: string, deleteOriginal = true): Promise<boolean> {
     try {

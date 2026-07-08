@@ -9,6 +9,7 @@ import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { sendMessage } from "@utils/discord";
 import { Logger } from "@utils/Logger";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { ChannelStore, FluxDispatcher, React, RelationshipStore, UserStore } from "@webpack/common";
 
@@ -192,7 +193,7 @@ export default definePlugin({
                                 channelId: null,
                             });
                             // Wait a bit for the channel to be created
-                            await new Promise(resolve => setTimeout(resolve, 100));
+                            await sleep(100);
                             channelId = ChannelStore.getDMFromUserId(userId);
                         }
                         if (channelId) {
@@ -203,7 +204,7 @@ export default definePlugin({
                     }
 
                     if (i < users.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, delay));
+                        await sleep(delay);
                     }
                 }
 

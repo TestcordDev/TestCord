@@ -6,6 +6,7 @@
 
 import { showNotification } from "@api/Notifications";
 import { definePluginSettings } from "@api/Settings";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { ChannelStore, Constants, RestAPI, UserStore } from "@webpack/common";
 
@@ -74,7 +75,7 @@ async function leaveGroupDM(channelId: string) {
                     url: Constants.Endpoints.MESSAGES(channelId),
                     body: { content: settings.store.replyMessage }
                 });
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await sleep(500);
             } catch (msgError) {
                 log(`❌ Error sending automatic message: ${msgError}`, "error");
             }

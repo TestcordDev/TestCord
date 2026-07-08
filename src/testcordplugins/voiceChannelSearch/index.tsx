@@ -7,6 +7,7 @@
 import "./styles.css";
 
 import { addHeaderBarButton, HeaderBarButton, removeHeaderBarButton } from "@api/HeaderBar";
+import { sleep } from "@utils/misc";
 import { ModalCloseButton,ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
 import { findByPropsLazy, findStoreLazy } from "@webpack";
@@ -172,7 +173,7 @@ function VoiceSearchModal({ rootProps, channels }: { rootProps: any; channels: V
         try {
             ChannelActions.selectVoiceChannel(ch.channelId);
             // Short delay for visual effect before closing
-            await new Promise(r => setTimeout(r, 400));
+            await sleep(400);
         } catch { }
         setJoiningId(null);
         rootProps.onClose();

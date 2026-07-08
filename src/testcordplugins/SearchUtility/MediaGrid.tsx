@@ -6,6 +6,7 @@
 
 import { DataStore, TestcordRequestCoordinator } from "@api/index";
 import { classNameFactory } from "@utils/css";
+import { sleep } from "@utils/misc";
 import type { Channel, Message, User } from "@vencord/discord-types";
 import { Avatar, ChannelStore, RestAPI, useMemo, UserStore } from "@webpack/common";
 
@@ -185,7 +186,7 @@ export async function loadAllMediaFromAPI(channelId: string, apiRequestDelay: nu
         try {
             // Delay between requests to avoid rate limits
             if (page > 1) {
-                await new Promise(resolve => setTimeout(resolve, delayBetweenRequests));
+                await sleep(delayBetweenRequests);
             }
 
             const url = before

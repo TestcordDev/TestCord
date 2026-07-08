@@ -8,6 +8,7 @@ import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/Co
 import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import { ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize,openModal } from "@utils/modal";
 import { useForceUpdater } from "@utils/react";
 import definePlugin, { OptionType } from "@utils/types";
@@ -150,7 +151,7 @@ async function executeVoiceChannelAction(guildId: string, channelId: string, dur
             socket.send(JSON.stringify(joinPayload));
             console.log(guildId, channelId, duration, rejoin);
         }
-        await new Promise(resolve => setTimeout(resolve, duration + 50));
+        await sleep(duration + 50);
         for (const socket of webSockets) {
             const leavePayload = {
                 op: 4,
@@ -161,7 +162,7 @@ async function executeVoiceChannelAction(guildId: string, channelId: string, dur
                     self_deaf: false
                 }
             };
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await sleep(50);
             socket.send(JSON.stringify(leavePayload));
         }
     } else {
@@ -181,7 +182,7 @@ async function executeVoiceChannelAction(guildId: string, channelId: string, dur
 
             socket.send(JSON.stringify(joinPayload));
             console.log(guildId, channelId, duration, rejoin);
-            await new Promise(resolve => setTimeout(resolve, duration + 50));
+            await sleep(duration + 50);
 
             const leavePayload = {
                 op: 4,
@@ -194,12 +195,12 @@ async function executeVoiceChannelAction(guildId: string, channelId: string, dur
             };
 
             socket.send(JSON.stringify(leavePayload));
-            await new Promise(resolve => setTimeout(resolve, randomDelay));
+            await sleep(randomDelay);
         }
 
         if (shouldStop) return;
 
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await sleep(delay);
         if (rejoin > 0) scheduleRejoin(guildId, channelId, duration, rejoin - 1, delay, randomDelay, amount);
     }
 }

@@ -11,6 +11,7 @@ import {
 import { showNotification } from "@api/Notifications";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { Channel } from "@vencord/discord-types";
 import {
@@ -204,7 +205,7 @@ async function kickAllMembers(channelId: string) {
             }
 
             // Small delay to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await sleep(100);
         }
 
         const totalProcessed = successCount + failureCount;

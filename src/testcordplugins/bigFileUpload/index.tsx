@@ -1551,6 +1551,7 @@ export default definePlugin({
     patches: [
         {
             find: "formWithLoadedChatInput",
+            noWarn: true,
             replacement: {
                 // Insert progress bar before the form
                 // The actual webpack code: (0,i.jsxs)("form",{ref:this.inputFormRef,onSubmit:e4,className:

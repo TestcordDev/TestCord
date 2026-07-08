@@ -49,8 +49,11 @@ const ComposeModeIcon = ({ width = 24, height = 24 }: { width?: number; height?:
     </svg>
 );
 
+const COMPOSE_CTX_KEYS = ["isEnabled", "contextMenu"];
+const COMPOSE_BUTTON_KEYS = ["isEnabled", "showIcon"];
+
 const ContextMenuPatch: NavContextMenuPatchCallback = (children, props: any) => {
-    const { isEnabled, contextMenu } = settings.use(["isEnabled", "contextMenu"]);
+    const { isEnabled, contextMenu } = settings.use(COMPOSE_CTX_KEYS);
     const container = findGroupChildrenByChildId("submit-button", children);
     if (container && contextMenu) {
         const idx = container.findIndex(c => c?.props?.id === "submit-button");
@@ -66,7 +69,7 @@ const ContextMenuPatch: NavContextMenuPatchCallback = (children, props: any) => 
 };
 
 const ComposeModeToggleButton: ChatBarButtonFactory = ({ isMainChat }) => {
-    const { isEnabled, showIcon } = settings.use(["isEnabled", "showIcon"]);
+    const { isEnabled, showIcon } = settings.use(COMPOSE_BUTTON_KEYS);
 
     if (!isMainChat || !showIcon || settings.store.location !== "chatbar") return null;
 

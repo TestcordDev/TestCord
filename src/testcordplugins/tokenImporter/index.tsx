@@ -10,6 +10,7 @@ import { addHeaderBarButton, HeaderBarButton, removeHeaderBarButton } from "@api
 import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { findByProps } from "@webpack";
@@ -428,7 +429,7 @@ function TokenModal({ rootProps }: { rootProps: any; }) {
             }
             if (!mountedRef.current) return;
             setStatuses({ ...ns });
-            await new Promise(r => setTimeout(r, 400));
+            await sleep(400);
         }
         if (!mountedRef.current) return;
         setVerifying(false);
@@ -482,7 +483,7 @@ function TokenModal({ rootProps }: { rootProps: any; }) {
             } catch { updated[i] = { ...updated[i], status: "error" }; }
             if (!mountedRef.current) return;
             setResults([...updated]);
-            await new Promise(r => setTimeout(r, 200));
+            await sleep(200);
         }
         const dest = destOverride ?? settings.store.importDestination ?? "both";
         if (dest !== "importer" && validForRouting.length) {
@@ -557,7 +558,7 @@ function TokenModal({ rootProps }: { rootProps: any; }) {
                                                     addedCount++;
                                                 }
                                             }
-                                            await new Promise(r => setTimeout(r, 200));
+                                            await sleep(200);
                                         }
                                     }
                                     if (addedCount > 0) {
@@ -857,7 +858,7 @@ export default definePlugin({
             const toInject = saved.filter(a => !existing.has(a.id));
             for (const acc of toInject) {
                 if (!this._started) return;
-                await new Promise(r => setTimeout(r, 0));
+                await sleep(0);
                 try {
                     FluxDispatcher.dispatch({
                         type: "MULTI_ACCOUNT_VALIDATE_TOKEN_SUCCESS",
@@ -866,7 +867,7 @@ export default definePlugin({
                         user: { id: acc.id, username: acc.username, discriminator: acc.discriminator, avatar: null }
                     });
                 } catch { }
-                await new Promise(r => setTimeout(r, 300));
+                await sleep(300);
             }
         } catch (e) { console.error("[TokenImporter] inject:", e); }
     },

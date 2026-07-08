@@ -8,6 +8,7 @@ import "./styles.css";
 
 import { DataStore } from "@api/index";
 import { UserAreaButton, UserAreaButtonFactory, UserAreaRenderProps } from "@api/UserArea";
+import { sleep } from "@utils/misc";
 import definePlugin, { PluginNative } from "@utils/types";
 import { findByPropsLazy, findStoreLazy } from "@webpack";
 import { React, ReactDOM, Toasts, useEffect, useRef,useState } from "@webpack/common";
@@ -131,7 +132,7 @@ async function ghostActivate(account: GhostAccount) {
     const vs = getMyVoiceState();
     try {
         // Add a short delay to avoid collisions during mass activations
-        await new Promise(r => setTimeout(r, 100));
+        await sleep(100);
         const result = await Native.connectGhost(account.userId, account.token, vs?.guildId ?? "", vs?.channelId ?? "", ghostMicLabel);
         if (!result.ok) {
             ghostStates.set(account.userId, { active: false, connecting: false, error: result.error ?? "Error" });
@@ -165,7 +166,7 @@ async function ghostDeactivateAll() {
         for (let i = 0; i < ids.length; i++) {
             Native.leaveVoice(ids[i]).catch(() => { });
             // Progressive delay: the more accounts, the more spacing to let the server breathe
-            if (i % 3 === 0) await new Promise(r => setTimeout(r, 150));
+            if (i % 3 === 0) await sleep(150);
         }
         // Final safety call to ensure EVERYTHING is cut server-side
         Native.leaveVoiceAll(ids).catch(() => { });
@@ -799,7 +800,7 @@ export default definePlugin({
                     Native.preConnectGhost(acc.userId, acc.token, ghostMicLabel)
                         .then(r => console.log("[GhostClient] Pre-connected:", acc.username, r?.ok))
                         .catch(() => { });
-                    await new Promise(r => setTimeout(r, 800));
+                    await sleep(800);
                 }
             })();
         }, 10000);

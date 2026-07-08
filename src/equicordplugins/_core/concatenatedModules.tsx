@@ -26,7 +26,6 @@ export default definePlugin({
         }
     ],
     iconsModule(value: IconsDef) {
-        console.warn("[ConcatenatedModules] iconsModule called with:", value);
         iconsModule = value;
     },
 });

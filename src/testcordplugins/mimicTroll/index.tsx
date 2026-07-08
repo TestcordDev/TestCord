@@ -8,6 +8,7 @@ import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { sendMessage } from "@utils/discord";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { ChannelStore, FluxDispatcher, Menu, React, Toasts, UserStore } from "@webpack/common";
 
@@ -327,7 +328,7 @@ class MimicManager {
                 }
 
                 // Wait between messages to avoid rate limiting
-                await this.sleep(Math.random() * 500 + 200);
+                await sleep(Math.random() * 500 + 200);
             }
 
             this.isProcessing = false;
@@ -350,10 +351,6 @@ class MimicManager {
             console.error("[MimicTroll] Failed to send message:", error);
             return false;
         }
-    }
-
-    private sleep(ms: number): Promise<void> {
-        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
     public clearQueue() {

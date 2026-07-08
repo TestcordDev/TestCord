@@ -11,6 +11,7 @@ import {
 } from "@api/Commands";
 import { DataStore } from "@api/index";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin from "@utils/types";
 import {
     ChannelStore,
@@ -165,7 +166,7 @@ async function restoreServer(
                     url: `/channels/${channelId}`,
                 });
                 deletedChannels++;
-                await new Promise(resolve => setTimeout(resolve, 300));
+                await sleep(300);
             } catch (error) {
                 console.error(
                     `[ServerBackup] Error deleting channel ${channel.name}:`,
@@ -189,7 +190,7 @@ async function restoreServer(
                     url: `/guilds/${targetGuildId}/roles/${role.id}`,
                 });
                 deletedRoles++;
-                await new Promise(resolve => setTimeout(resolve, 300));
+                await sleep(300);
             } catch (error) {
                 console.error(
                     `[ServerBackup] Error deleting role ${role.name}:`,
@@ -216,7 +217,7 @@ async function restoreServer(
                 });
                 roleMapping[role.id] = body.id;
                 // Delay to avoid rate limit
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await sleep(500);
             } catch (error) {
                 console.error(
                     `[ServerBackup] Error creating role ${role.name}:`,
@@ -249,7 +250,7 @@ async function restoreServer(
                     },
                 });
                 channelMapping[channel.id] = body.id;
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await sleep(500);
             } catch (error) {
                 console.error(
                     `[ServerBackup] Error creating category ${channel.name}:`,
@@ -287,7 +288,7 @@ async function restoreServer(
                     body: channelBody,
                 });
                 channelMapping[channel.id] = body.id;
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await sleep(500);
             } catch (error) {
                 console.error(
                     `[ServerBackup] Error creating channel ${channel.name}:`,

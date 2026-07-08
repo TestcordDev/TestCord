@@ -68,6 +68,7 @@ export default definePlugin({
     patches: [
         {
             find: "VoiceChannel, transitionTo: Channel does not have a guildId",
+            noWarn: true,
             replacement: {
                 match: /(?<=\|\|\i\|\|)\i\.default\.selectVoiceChannel\((\i)\.id\)/,
                 replace: "$self.promptVoiceChannel($1)||$&"

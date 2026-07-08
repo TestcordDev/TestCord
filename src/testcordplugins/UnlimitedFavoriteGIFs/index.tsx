@@ -132,6 +132,7 @@ export default definePlugin({
         {
             find: '"+XYXtZ"',
             all: true,
+            noWarn: true,
             replacement: {
                 match: /\.toBinary\(t\)\.length>\d+/,
                 replace: ".toBinary(t).length>Number.MAX_SAFE_INTEGER",

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { sleep } from "@utils/misc";
 import { ComponentDispatch,createRoot, React, ReactDOM, useEffect, useRef, useState } from "@webpack/common";
 
 import { HOMELANDER_MODEL_OPTIONS, LOCAL_PROVIDER_OPTIONS, SURF_MODEL_OPTIONS, SWISHAI_MODEL_OPTIONS, testcordChat } from "../../TestcordAI/aiProvider";
@@ -418,7 +419,7 @@ export function WordBombOverlay() {
                         rawText: char,
                         plainText: char
                     });
-                    await new Promise(r => setTimeout(r, 30));
+                    await sleep(30);
                 }
                 ComponentDispatch.dispatchToLastSubscribed("SUBMIT");
             }

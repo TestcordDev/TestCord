@@ -11,6 +11,7 @@ import { HeaderBarButton } from "@api/HeaderBar";
 import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
 import { Logger } from "@utils/Logger";
+import { sleep } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import { Message } from "@vencord/discord-types";
@@ -547,11 +548,11 @@ function OSINTScanPanel({ userId, channelId, modalProps }: { userId: string; cha
                     offset += messages.length;
                     if (!unlimited && acc.length >= limit) break;
                     if (offset >= total) break;
-                    await new Promise(r => setTimeout(r, 250));
+                    await sleep(250);
                 } catch (e: any) {
                     if (cancelled) break;
                     if (!unlimited) throw e;
-                    await new Promise(r => setTimeout(r, 1000));
+                    await sleep(1000);
                 }
             }
         }
@@ -929,7 +930,7 @@ function OSINTMultiScan({ modalProps }: { modalProps: any; }) {
                         offset += messages.length;
                         if (!unlimited && acc.length >= limit) break;
                         if (offset >= total) break;
-                        await new Promise(r => setTimeout(r, 250));
+                        await sleep(250);
                     }
                 }
 
@@ -945,7 +946,7 @@ function OSINTMultiScan({ modalProps }: { modalProps: any; }) {
                             dmOffset += messages.length;
                             if (!unlimited && acc.length >= limit) break;
                             if (dmOffset >= total) break;
-                            await new Promise(r => setTimeout(r, 250));
+                            await sleep(250);
                         }
                     }
                 }

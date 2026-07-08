@@ -7,6 +7,7 @@
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import type { Message } from "@vencord/discord-types";
 import { ChannelStore, Constants, RestAPI, SnowflakeUtils, UserStore } from "@webpack/common";
@@ -113,7 +114,7 @@ async function fetchMessages(
 
         before = batch[batch.length - 1].id;
         if (batch.length < batchSize) break;
-        await new Promise(r => setTimeout(r, 250));
+        await sleep(250);
     }
 
     return messages;

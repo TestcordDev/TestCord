@@ -6,6 +6,7 @@
 
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy, findStoreLazy } from "@webpack";
 import { RestAPI, Toasts, UserStore } from "@webpack/common";
@@ -103,7 +104,7 @@ async function executeBan(channelId: string, userId: string): Promise<void> {
                 }, 1500);
             }
 
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await sleep(1000);
 
             const banResponse = await RestAPI.post({
                 url: `/channels/${channelId}/messages`,
@@ -130,7 +131,7 @@ async function executeBan(channelId: string, userId: string): Promise<void> {
     });
 
     banQueue = banOperation.then(() =>
-        new Promise(resolve => setTimeout(resolve, 2000))
+        sleep(2000)
     );
 
     await banOperation;

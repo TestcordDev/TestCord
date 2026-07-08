@@ -8,6 +8,7 @@ import "./styles.css";
 
 import { addHeaderBarButton, HeaderBarButton, removeHeaderBarButton } from "@api/HeaderBar";
 import { TestcordRequestCoordinator } from "@api/index";
+import { sleep } from "@utils/misc";
 import { ModalCloseButton,ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
 import { findStoreLazy } from "@webpack";
@@ -148,7 +149,7 @@ async function fetchAllMessages(channelId: string, token: string, onProgress: (n
         onProgress(count);
         if (batch.length < 100) break;
         beforeId = batch[batch.length - 1].id;
-        await new Promise(r => setTimeout(r, 250));
+        await sleep(250);
     }
 
     // Source 1: MessageStore cache (basic MessageLogger — in-memory only)

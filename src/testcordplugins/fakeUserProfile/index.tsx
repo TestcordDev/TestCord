@@ -235,25 +235,32 @@ function useUserAvatarDecoration(user: User) {
 }
 
 let cachedWrap: { base: any; target: any; wrap: any; } | null = null;
+let wrapping = false;
 
 function wrapUser(base: any): any {
     const target = getTargetUser();
     if (!base || !target || !isActive()) return base;
+    if (wrapping) return base;
     if (cachedWrap && cachedWrap.base === base && cachedWrap.target === target) return cachedWrap.wrap;
-    const wrap = mergeUser(base, buildOverrides(target));
+    wrapping = true;
     try {
-        const manual = getCachedTarget()?.manualProfile;
-        const createdAt = manual?.createdAt
-            ? new Date(manual.createdAt + "T12:00:00Z")
-            : new Date(SnowflakeUtils.extractTimestamp(target.id));
-        Object.defineProperty(wrap, "createdAt", {
-            get() { return createdAt; },
-            enumerable: true,
-            configurable: true,
-        });
-    } catch { /* ignore */ }
-    cachedWrap = { base, target, wrap };
-    return wrap;
+        const wrap = mergeUser(base, buildOverrides(target));
+        try {
+            const manual = getCachedTarget()?.manualProfile;
+            const createdAt = manual?.createdAt
+                ? new Date(manual.createdAt + "T12:00:00Z")
+                : new Date(SnowflakeUtils.extractTimestamp(target.id));
+            Object.defineProperty(wrap, "createdAt", {
+                get() { return createdAt; },
+                enumerable: true,
+                configurable: true,
+            });
+        } catch { /* ignore */ }
+        cachedWrap = { base, target, wrap };
+        return wrap;
+    } finally {
+        wrapping = false;
+    }
 }
 
 function clearWrapCache() {
@@ -271,6 +278,7 @@ let originalGetFormattedName: typeof UsernameUtils.getFormattedName | null = nul
 let originalGetUserTag: typeof UsernameUtils.getUserTag | null = null;
 let originalUseName: typeof UsernameUtils.useName | null = null;
 let originalUseUserTag: typeof UsernameUtils.useUserTag | null = null;
+let originalExtractTimestamp: typeof SnowflakeUtils.extractTimestamp | null = null;
 let originalGetStatus: typeof PresenceStore.getStatus | null = null;
 let originalGetClientStatus: typeof PresenceStore.getClientStatus | null = null;
 let originalGetActivities: typeof PresenceStore.getActivities | null = null;
@@ -394,6 +402,21 @@ function patchUtils() {
         }
         return originalUseUserTag!.call(this, user, options);
     };
+
+    originalExtractTimestamp = SnowflakeUtils.extractTimestamp;
+    SnowflakeUtils.extractTimestamp = function (id: string) {
+        if (isActive() && isCurrentUser(id)) {
+            const manual = getCachedTarget()?.manualProfile;
+            if (manual?.createdAt) {
+                return new Date(manual.createdAt + "T12:00:00Z").getTime();
+            }
+            const target = getTargetUser();
+            if (target && target.id !== id) {
+                return originalExtractTimestamp!.call(this, target.id);
+            }
+        }
+        return originalExtractTimestamp!.call(this, id);
+    };
 }
 
 function unpatchUtils() {
@@ -406,6 +429,7 @@ function unpatchUtils() {
     if (originalGetUserTag) UsernameUtils.getUserTag = originalGetUserTag;
     if (originalUseName) UsernameUtils.useName = originalUseName;
     if (originalUseUserTag) UsernameUtils.useUserTag = originalUseUserTag;
+    if (originalExtractTimestamp) SnowflakeUtils.extractTimestamp = originalExtractTimestamp;
     utilsPatched = false;
 }
 
@@ -815,6 +839,7 @@ export default definePlugin({
     patches: [
         {
             find: ",getUserTag:",
+            noWarn: true,
             replacement: {
                 match: /if\(\i\((\i)\.global_name\)\)return(?=.{0,100}return"\?\?\?")/,
                 replace: "const vcFupName=$self.getUsername($1);if(vcFupName)return vcFupName;$&"
@@ -822,6 +847,7 @@ export default definePlugin({
         },
         {
             find: "getUserAvatarURL:",
+            noWarn: true,
             replacement: {
                 match: /(getUserAvatarURL:)(\i),/,
                 replace: "$1$self.wrapAvatar($2),"
@@ -829,6 +855,7 @@ export default definePlugin({
         },
         {
             find: "getAvatarDecorationURL:",
+            noWarn: true,
             replacement: {
                 match: /(?<=function \i\(\i\){)(?=let{avatarDecoration)/,
                 replace: "const vcFupDeco=$self.getAvatarDecorationURL(arguments[0]);if(vcFupDeco)return vcFupDeco;"
@@ -836,6 +863,7 @@ export default definePlugin({
         },
         {
             find: "UserProfileStore",
+            noWarn: true,
             replacement: {
                 match: /(?<=getUserProfile\(\i\){return )(.+?)(?=})/,
                 replace: "($self.logProfileCall(arguments[0]),$self.profileHook(arguments[0],$1))"
@@ -843,6 +871,7 @@ export default definePlugin({
         },
         {
             find: ".banner)==null",
+            noWarn: true,
             replacement: {
                 match: /(?<=void 0:)\i\.getPreviewBanner\(\i,\i,\i\)/,
                 replace: "($self.bannerHook(arguments[0])??($&))"
@@ -850,6 +879,7 @@ export default definePlugin({
         },
         {
             find: ":\"SHOULD_LOAD\");",
+            noWarn: true,
             replacement: {
                 match: /\i(?:\?)?\.getPreviewBanner\(\i,\i,\i\)(?=.{0,100}"COMPLETE")/,
                 replace: "($self.bannerHook(arguments[0])??($&))"
@@ -858,6 +888,7 @@ export default definePlugin({
         {
             find: "isAvatarDecorationAnimating:",
             group: true,
+            noWarn: true,
             replacement: [
                 {
                     match: /(?<=\.avatarDecoration,guildId:\i\}\)\),)(?<=user:(\i).+?)/,
@@ -884,6 +915,7 @@ export default definePlugin({
         },
         {
             find: "\"ProfileEffectStore\"",
+            noWarn: true,
             replacement: {
                 match: /getProfileEffectById\((\i)\){return null!=\i\?(\i)\[\i\]:void 0/,
                 replace: "getProfileEffectById($1){return $self.getProfileEffectById($1,$2)??(null!=$2?$2[$1]:void 0)"
@@ -895,6 +927,7 @@ export default definePlugin({
             "#{intl::ayozFl::raw}",
         ].map(find => ({
             find,
+            noWarn: true,
             replacement: [
                 {
                     match: /(\i)\.length>0\?void 0:(\i)\.avatarDecoration/,
@@ -904,6 +937,7 @@ export default definePlugin({
         })),
         {
             find: "80,onlyAnimateOnHoverOrFocus:!",
+            noWarn: true,
             replacement: [
                 {
                     match: /(?<==)\i=>{let{children.{20,200}isSelected:\i.{0,5}\}=\i/,

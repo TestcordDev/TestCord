@@ -18,6 +18,7 @@
 
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
+import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
 import { FluxDispatcher } from "@webpack/common";
@@ -244,7 +245,7 @@ export default definePlugin({
             } catch (error: any) {
                 this.handleDeletionError(error, item);
             } finally {
-                await new Promise(resolve => setTimeout(resolve, 2500));
+                await sleep(2500);
                 this.isProcessingQueue = false;
                 if (this.deletionQueue.length > 0) this.processQueue();
             }
@@ -283,7 +284,7 @@ export default definePlugin({
             const discordError = error as DiscordAPIError;
             if (discordError?.status === 429 && retryCount < 3) {
                 const retryAfter = discordError.body?.retry_after || 5;
-                await new Promise(resolve => setTimeout(resolve, retryAfter * 1000));
+                await sleep(retryAfter * 1000);
                 return this.safeDeleteMessage(channelId, messageId, retryCount + 1);
             }
             throw error;

@@ -10,6 +10,7 @@ import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { classNameFactory } from "@utils/css";
+import { sleep } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByCodeLazy } from "@webpack";
@@ -102,8 +103,6 @@ const StickerExtMap = {
 
 const MAX_EMOJI_SIZE_BYTES = 256 * 1024;
 const MAX_STICKER_SIZE_BYTES = 512 * 1024;
-
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 function hasAllPermissions(permissions: bigint, required: bigint) {
     return (permissions & required) === required;

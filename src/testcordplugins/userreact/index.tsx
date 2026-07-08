@@ -9,6 +9,7 @@ import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
+import { sleep } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import { Button, FluxDispatcher, Forms, Menu, React, RestAPI, showToast, TextInput, Toasts, UserStore } from "@webpack/common";
@@ -167,7 +168,7 @@ async function addReactionsSequentially(
     for (const emoji of reactions) {
         try {
             const delay = Math.floor(Math.random() * 2000) + 1;
-            await new Promise(resolve => setTimeout(resolve, delay));
+            await sleep(delay);
 
             let emojiStr: string;
             if (emoji.id) {

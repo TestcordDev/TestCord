@@ -8,6 +8,7 @@ import { showNotification } from "@api/Notifications";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
+import { sleep } from "@utils/misc";
 import { showItemInFolder } from "@utils/native";
 import definePlugin, { OptionType, type PluginNative } from "@utils/types";
 import { MediaEngineStore, UserStore, VoiceStateStore } from "@webpack/common";
@@ -85,7 +86,7 @@ async function saveRecordingFile(sourcePath: string) {
         return;
     }
     try {
-        await new Promise(r => setTimeout(r, 300));
+        await sleep(300);
         const fileData = await Native.readRecording(sourcePath);
         if (!fileData || !fileData.length) {
             logger.error("Empty recording");

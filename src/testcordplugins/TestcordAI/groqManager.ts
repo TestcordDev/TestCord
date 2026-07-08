@@ -5,19 +5,21 @@
  */
 
 /**
- * groqManager.ts — Shared Groq key manager between plugins
+ * groqManager.ts — Shared API key + fetch manager
  *
  * Features:
- * - API key stored in DataStore (single location)
- * - Automatic model rotation on 429 (rate limit)
- *   llama-3.3-70b-versatile → llama-3.1-8b-instant → gemma2-9b-it
- * - Retry with exponential backoff
- * - Queue to avoid simultaneous bursts
+ * - Reidverse AI: auto-register to get a free API key (stored in DataStore)
+ * - groqFetch: native IPC fetch (bypasses CORS in Electron), falls back to fetch
+ * - reidverseChat: OpenAI-compatible chat completions via Reidverse AI
+ * - Legacy Groq key storage (kept for voiceDictation Whisper transcription)
  */
 
 import { DataStore } from "@api/index";
+import { sleep } from "@utils/misc";
 
 import type { NativeGroqResponse } from "./native";
+
+const REIDVERSE_BASE = "https://reidverse-ai.up.railway.app";
 
 // ── Native IPC fetch (bypasses CORS in Electron) ─────────────────────────────
 
@@ -45,39 +47,56 @@ export async function groqFetch(url: string, method: string, headers: Record<str
             headers: res.headers ?? {},
         });
     }
-    // Fallback to direct fetch (web mode, may hit CORS)
     return fetch(url, { method, headers, body });
 }
 
 // ── DataStore Keys ─────────────────────────────────────────────────────────────
 
-const DS_API_KEY = "groq-shared-api-key";
+const DS_REIDVERSE_KEY = "reidverse-ai-api-key";
+const DS_GROQ_KEY = "groq-shared-api-key";
 
-// Models in fallback order (separate limits on Groq)
-const GROQ_MODELS = [
-    "llama-3.3-70b-versatile", // The best — RPM quota: 30/min
-    "llama3-70b-8192", // Old stable performer
-    "llama-3.1-8b-instant", // Fast — RPM quota: 30/min SEPARATE
-    "gemma2-9b-it", // Fallback — RPM quota: 30/min SEPARATE
-];
+// ── Reidverse AI key management ───────────────────────────────────────────────
 
-// Index of the currently used model (in memory only)
-let currentModelIdx = 0;
-// Cooldown time per model (timestamp ms)
-const modelCooldown: Record<string, number> = {};
+let _reidverseKeyPromise: Promise<string> | null = null;
 
-// ── API key read/write ──────────────────────────────────────────────────
+export async function getReidverseKey(): Promise<string> {
+    const key = await DataStore.get(DS_REIDVERSE_KEY) as string | null;
+    if (key?.trim()) return key.trim();
+    return registerReidverse();
+}
 
-// Fallback settings imported dynamically to avoid circular imports
+async function registerReidverse(): Promise<string> {
+    if (_reidverseKeyPromise) return _reidverseKeyPromise;
+    _reidverseKeyPromise = _doRegister();
+    try {
+        return await _reidverseKeyPromise;
+    } finally {
+        _reidverseKeyPromise = null;
+    }
+}
+
+async function _doRegister(): Promise<string> {
+    const res = await groqFetch(`${REIDVERSE_BASE}/register`, "POST", {
+        "Content-Type": "application/json",
+    });
+    if (!res.ok) throw new Error(`Reidverse register failed: ${res.status}`);
+    const data = await res.json();
+    const key = data?.key;
+    if (typeof key !== "string" || !key.trim()) throw new Error("Reidverse register returned no key");
+    await DataStore.set(DS_REIDVERSE_KEY, key.trim());
+    return key.trim();
+}
+
+// ── Legacy Groq key (kept for voiceDictation Whisper) ─────────────────────────
+
 let _settingsFallback: (() => string) | null = null;
 export function registerSettingsFallback(fn: () => string) {
     _settingsFallback = fn;
 }
 
 export async function getGroqKey(): Promise<string> {
-    const key = await DataStore.get(DS_API_KEY) as string | null;
+    const key = await DataStore.get(DS_GROQ_KEY) as string | null;
     if (key?.trim()) return key.trim();
-    // Fallback: read from TestcordAI Settings if available
     if (_settingsFallback) {
         const fallback = _settingsFallback();
         if (fallback) return fallback;
@@ -86,56 +105,79 @@ export async function getGroqKey(): Promise<string> {
 }
 
 export async function setGroqKey(key: string): Promise<void> {
-    await DataStore.set(DS_API_KEY, key.trim());
+    await DataStore.set(DS_GROQ_KEY, key.trim());
 }
 
-// ── Available model selection ────────────────────────────────────────────
-
-function getAvailableModel(): string {
-    const now = Date.now();
-    // Try the current model first
-    for (let i = 0; i < GROQ_MODELS.length; i++) {
-        const idx = (currentModelIdx + i) % GROQ_MODELS.length;
-        const model = GROQ_MODELS[idx];
-        const cooldownUntil = modelCooldown[model] ?? 0;
-        if (now >= cooldownUntil) {
-            currentModelIdx = idx;
-            return model;
-        }
-    }
-    // All in cooldown → wait the shortest time
-    let minCooldown = Infinity;
-    let bestIdx = 0;
-    for (let i = 0; i < GROQ_MODELS.length; i++) {
-        const cd = modelCooldown[GROQ_MODELS[i]] ?? 0;
-        if (cd < minCooldown) { minCooldown = cd; bestIdx = i; }
-    }
-    currentModelIdx = bestIdx;
-    return GROQ_MODELS[bestIdx];
-}
-
-function markModelRateLimited(model: string, retryAfterMs = 60_000): void {
-    modelCooldown[model] = Date.now() + retryAfterMs;
-    console.warn(`[GroqManager] Model ${model} in cooldown for ${retryAfterMs / 1000}s`);
-    // Switch to the next available model
-    currentModelIdx = (currentModelIdx + 1) % GROQ_MODELS.length;
-}
-
-// ── Lightweight queue ─────────────────────────────────────────────────────
+// ── Lightweight queue ─────────────────────────────────────────────────────────
 
 let queue = Promise.resolve();
-const MIN_DELAY_MS = 200; // at least 200ms between two requests
+const MIN_DELAY_MS = 100;
 
 function enqueue<T>(fn: () => Promise<T>): Promise<T> {
     const result = queue.then(() => fn());
     queue = result.then(
-        () => new Promise(r => setTimeout(r, MIN_DELAY_MS)),
-        () => new Promise(r => setTimeout(r, MIN_DELAY_MS)),
+        () => sleep(MIN_DELAY_MS),
+        () => sleep(MIN_DELAY_MS),
     );
     return result;
 }
 
-// ── Main API call ───────────────────────────────────────────────────────
+// ── Reidverse AI chat ─────────────────────────────────────────────────────────
+
+export interface ReidverseChatMessage {
+    role: "system" | "user" | "assistant";
+    content: string | any[];
+}
+
+export interface ReidverseChatOptions {
+    messages: ReidverseChatMessage[];
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    maxRetries?: number;
+}
+
+export async function reidverseChat(opts: ReidverseChatOptions): Promise<string> {
+    return enqueue(() => _reidverseChat(opts));
+}
+
+async function _reidverseChat(opts: ReidverseChatOptions, attempt = 0): Promise<string> {
+    const { messages, model = "sakana-fugu-ultra", temperature = 0.7, maxTokens = 1000, maxRetries = 2 } = opts;
+
+    let key = await getReidverseKey();
+
+    const res = await groqFetch(`${REIDVERSE_BASE}/v1/chat/completions`, "POST", {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+    }, JSON.stringify({
+        model,
+        temperature,
+        max_tokens: maxTokens,
+        messages,
+    }));
+
+    if (res.status === 401 && attempt < maxRetries) {
+        await DataStore.del(DS_REIDVERSE_KEY);
+        key = await registerReidverse();
+        return _reidverseChat(opts, attempt + 1);
+    }
+
+    if (res.status === 429 && attempt < maxRetries) {
+        const retryAfter = parseInt(res.headers.get("retry-after") ?? "5", 10);
+        await sleep((isNaN(retryAfter) ? 5 : retryAfter) * 1000);
+        return _reidverseChat(opts, attempt + 1);
+    }
+
+    if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`Reidverse API ${res.status}: ${body.slice(0, 200)}`);
+    }
+
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim() ?? "(empty response)";
+}
+
+// ── Legacy groqChat (kept for backward compat, delegates to reidverseChat) ────
 
 export interface GroqChatMessage {
     role: "system" | "user" | "assistant";
@@ -146,63 +188,16 @@ export interface GroqCallOptions {
     messages: GroqChatMessage[];
     temperature?: number;
     maxTokens?: number;
-    /** Force a specific model (optional) */
     forceModel?: string;
-    /** Max retries on 429 (default: 3) */
     maxRetries?: number;
 }
 
-/**
- * Calls the Groq API with automatic model rotation on rate limit.
- * Returns the text content of the response.
- */
 export async function groqChat(opts: GroqCallOptions): Promise<string> {
-    return enqueue(() => _groqChat(opts));
-}
-
-async function _groqChat(opts: GroqCallOptions, attempt = 0): Promise<string> {
-    const { messages, temperature = 0.7, maxTokens = 1000, forceModel, maxRetries = 3 } = opts;
-
-    const apiKey = await getGroqKey();
-    if (!apiKey) throw new Error("Groq API key missing — configure it in Settings → TestcordAI");
-
-    const model = forceModel ?? getAvailableModel();
-
-    const res = await groqFetch("https://api.groq.com/openai/v1/chat/completions", "POST", {
-        Authorization: `Bearer ${apiKey}`,
-    }, JSON.stringify({
-        model,
-        temperature,
-        max_tokens: maxTokens,
-        messages,
-    }));
-
-    // Rate limit handling
-    if (res.status === 429) {
-        if (attempt >= maxRetries) throw new Error("Groq rate limit — try again in a few moments");
-
-        // Read the Retry-After header if present
-        const retryAfterSec = parseInt(res.headers.get("retry-after") ?? "60", 10);
-        const retryAfterMs = (isNaN(retryAfterSec) ? 60 : retryAfterSec) * 1000;
-
-        markModelRateLimited(model, retryAfterMs);
-
-        // Retry immediately with the next model (no wait here)
-        return _groqChat({ ...opts, forceModel: undefined }, attempt + 1);
-    }
-
-    if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        throw new Error(`Groq API ${res.status}: ${body.slice(0, 200)}`);
-    }
-
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content?.trim() ?? "(empty response)";
-}
-
-/**
- * Returns the currently active model (useful for display)
- */
-export function getCurrentModel(): string {
-    return GROQ_MODELS[currentModelIdx] ?? GROQ_MODELS[0];
+    return reidverseChat({
+        messages: opts.messages,
+        model: opts.forceModel,
+        temperature: opts.temperature,
+        maxTokens: opts.maxTokens,
+        maxRetries: opts.maxRetries,
+    });
 }

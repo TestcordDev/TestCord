@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { sleep } from "@utils/misc";
 import { decompressFrames, parseGIF } from "gifuct-js";
 
 import type { CaptionMedia, GifTransform } from "../types";
@@ -43,7 +44,7 @@ export default async function captionGif(media: CaptionMedia, transform: GifTran
 
     for (const frame of frames) {
         renderer.addGifFrame(frame, parsed);
-        await new Promise(resolve => setTimeout(resolve));
+        await sleep(0);
     }
 
     renderer.render();

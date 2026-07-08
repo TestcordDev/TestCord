@@ -17,7 +17,7 @@ import { TooltipContainer } from "@components/TooltipContainer";
 import { gitHashShort } from "@shared/vencordUserAgent";
 import { fetchUserProfile, openUserProfile } from "@utils/discord";
 import { Logger } from "@utils/Logger";
-import { tryOrElse } from "@utils/misc";
+import { sleep, tryOrElse } from "@utils/misc";
 import { makeCodeblock } from "@utils/text";
 import definePlugin, { OptionType } from "@utils/types";
 import { Message, User } from "@vencord/discord-types";
@@ -299,7 +299,7 @@ function chunkByLines(text: string, limit: number): string[] {
 
 async function sendMessage(channelId: string, content: string) {
     MessageActions.sendMessage(channelId, { content, invalidEmojis: [] }, undefined, {});
-    await new Promise(r => setTimeout(r, 1000));
+    await sleep(1000);
 }
 
 async function sendDebugReport() {

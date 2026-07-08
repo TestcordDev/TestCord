@@ -346,3 +346,43 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+.fup-collapse-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1.5px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-sizing: border-box;
+}
+
+.fup-collapse-header:hover {
+    border-color: rgba(255, 255, 255, 0.22);
+    color: #fff;
+}
+
+.fup-collapse-title {
+    flex: 1;
+    text-align: left;
+}
+
+.fup-collapse-chevron {
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.fup-collapse-body {
+    max-height: 360px;
+    overflow-y: auto;
+    padding-top: 10px;
+}

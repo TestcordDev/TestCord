@@ -18,10 +18,6 @@
 
 import { Devs, IS_MAC } from "@utils/constants";
 import definePlugin from "@utils/types";
-import { findCssClassesLazy } from "@webpack";
-
-const SpoilerClasses = findCssClassesLazy("spoilerContent", "hidden");
-const MessagesClasses = findCssClassesLazy("messagesWrapper", "navigationDescription");
 
 export default definePlugin({
     name: "RevealAllSpoilers",
@@ -31,6 +27,7 @@ export default definePlugin({
     patches: [
         {
             find: ".removeObscurity,",
+            noWarn: true,
             replacement: {
                 match: /(?<=removeObscurity(?:",|=)(\i)=>{)/,
                 replace: (_, event) => `$self.reveal(${event});`
@@ -43,16 +40,31 @@ export default definePlugin({
 
         if (!(IS_MAC ? metaKey : ctrlKey)) { return; }
 
-        const { spoilerContent, hidden } = SpoilerClasses;
-        const { messagesWrapper } = MessagesClasses;
-
         const parent = shiftKey
-            ? document.querySelector(`div.${messagesWrapper}`)
-            : (target as HTMLSpanElement).parentElement;
+            ? document.querySelector('[class*="messagesWrapper"]')
+            : (target as HTMLElement).closest('[class*="spoilerContent"]')?.parentElement
+                ?? (target as HTMLElement).parentElement;
 
-        for (const spoiler of parent!.querySelectorAll(`span.${spoilerContent}.${hidden}`)) {
-            (spoiler as HTMLSpanElement).click();
+        if (!parent) return;
+
+        for (const spoiler of parent.querySelectorAll('[class*="spoilerContent"][class*="hidden"]')) {
+            (spoiler as HTMLElement).click();
+        }
+    },
+
+    start() {
+        this._clickHandler = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (!target?.closest('[class*="spoilerContent"]')) return;
+            this.reveal(e);
+        };
+        document.addEventListener("click", this._clickHandler, true);
+    },
+
+    stop() {
+        if (this._clickHandler) {
+            document.removeEventListener("click", this._clickHandler, true);
+            this._clickHandler = null;
         }
     }
-
 });

@@ -1245,7 +1245,7 @@ const patchUserContext: NavContextMenuPatchCallback = (children, { user }: UserC
 
 export default definePlugin({
     name: "Surveillance",
-    description: "Adds a local live event dashboard for selected users and servers.",
+    description: "Adds a local live event dashboard for selected users and servers, lets you watch over your friends and their actions.",
     tags: ["Friends", "Utility"],
     authors: [{ name: "irritably", id: 928787166916640838n }, TestcordDevs.x2b, EquicordDevs.omaw],
     enabledByDefault: false,

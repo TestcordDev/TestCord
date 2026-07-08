@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { sleep } from "@utils/misc";
 import { PluginNative } from "@utils/types";
 import { Toasts } from "@webpack/common";
 
@@ -81,7 +82,7 @@ function buildDetails(data: any): AnalysisValue["details"] {
 
 async function waitForResults(apiKey: string, scanId: string, silent: boolean): Promise<any> {
     for (let i = 0; i < 10; i++) {
-        await new Promise(r => setTimeout(r, 3000));
+        await sleep(3000);
         if (!silent && i === 0) safeToast("Waiting for Hybrid Analysis results...");
 
         const poll = await Native.hybridAnalysisGetScan(apiKey, scanId);
