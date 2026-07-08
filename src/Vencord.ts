@@ -47,7 +47,7 @@ import { PlainSettings, Settings, SettingsStore } from "./api/Settings";
 import { areLocalSettingsDirty, getCloudSettings, getCloudSyncDirection, markLocalSettingsDirty, putCloudSettings, shouldCloudSync } from "./api/SettingsSync/cloudSync";
 import { relaunch } from "./utils/native";
 import { changes, checkForUpdates, isOutdated as getIsOutdated, update, UpdateLogger } from "./utils/updater";
-import { onceReady } from "./webpack";
+import { onceReady, wreq } from "./webpack";
 import { patches } from "./webpack/patchWebpack";
 
 if (IS_REPORTER) {
@@ -236,21 +236,66 @@ async function init() {
             );
     }
 
-    // Delayed scan for patches that never matched any module.
-    // Deferred so lazy-loaded chunks have a chance to arrive before we flag anything.
+    // Delayed scan for patches that never matched any loaded module.
     //
-    // NOTE: This is a heuristic, not a definitive "patch is broken" signal.
-    // Discord lazy-loads many modules (emoji picker, settings panels, etc.)
-    // and a patch targeting one of those will remain unresolved until the
-    // user opens that UI. We record it as "noModule" so the user is aware,
-    // but it may simply mean "module not loaded yet this session".
+    // Instead of blindly flagging every unresolved patch as "broken", we
+    // search Discord's complete factory map (wreq.m) — which contains the
+    // source code of EVERY module, loaded or not — to distinguish:
+    //
+    //   1. "lazy" — the find string IS in some factory's source, so the
+    //      module exists in the bundle but hasn't been instantiated yet.
+    //      This is normal: Discord lazy-loads emoji picker, settings panels,
+    //      voice UI, etc. We do NOT flag these.
+    //
+    //   2. "missing" — the find string is NOT in any factory's source, so
+    //      Discord removed or renamed the module. This is a genuine breakage
+    //      that the user should know about. We flag these as "noModule".
     setTimeout(() => {
+        if (!wreq?.m) return;
+
+        // Build a single concatenated source string once, rather than calling
+        // .toString() on each factory individually per patch (which would be
+        // O(patches × factories) string operations).
+        // The bundle is typically 5–15 MB of source — this is fine for a
+        // one-time deferred scan.
+        let allFactorySource: string | null = null;
+        const getFactorySource = () => {
+            if (allFactorySource !== null) return allFactorySource;
+            const parts: string[] = [];
+            for (const id in wreq.m) {
+                try {
+                    parts.push(String(wreq.m[id]));
+                } catch {
+                    // Some factories may throw on toString — skip them.
+                }
+            }
+            allFactorySource = parts.join("\n");
+            return allFactorySource;
+        };
+
         for (const patch of patches) {
             if (patch.all) continue;
             if (patch.predicate && patch.predicate() === false) continue;
+
+            const findStr = String(patch.find);
+
+            // Check whether the find string exists anywhere in the bundle's
+            // factory source code. If it does, the module is lazy-loaded and
+            // will be patched when the user opens the relevant UI — not a
+            // real failure.
+            const source = getFactorySource();
+            let isInBundle = false;
+            if (patch.find instanceof RegExp) {
+                isInBundle = patch.find.test(source);
+            } else {
+                isInBundle = source.includes(findStr);
+            }
+
+            if (isInBundle) continue;
+
             PluginHealth.recordPatchFailure(patch.plugin, {
                 kind: "noModule",
-                find: String(patch.find)
+                find: findStr
             });
         }
     }, 60_000);

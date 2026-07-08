@@ -47,7 +47,7 @@ function truncateForDisplay(value: string, max = 140): string {
 }
 
 const KIND_LABEL: Record<string, string> = {
-    noModule: "not found",
+    noModule: "module missing",
     noEffect: "no effect",
     errored: "errored",
     undoingGroup: "group rolled back"
@@ -61,9 +61,10 @@ const BADGE_LABEL: Record<StabilityScore["badge"], string> = {
 };
 
 const NO_MODULE_DISCLAIMER =
-    "This patch's target module was not found within 60 seconds of startup. " +
-    "Discord lazy-loads many modules (emoji picker, settings panels, voice UI, etc.) — " +
-    "if the plugin works when you open the relevant UI, this entry can be safely dismissed.";
+    "This patch's target module was not found in Discord's bundle. " +
+    "This usually means a Discord update removed or renamed the module the plugin " +
+    "was targeting. The plugin likely needs an update from its author. " +
+    "If the plugin still works, this entry can be safely dismissed.";
 
 function StabilityBadge({ score }: { score: StabilityScore; }) {
     const { badge, sessionsSeen, sessionsBroken, ratio } = score;
