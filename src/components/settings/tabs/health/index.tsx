@@ -18,7 +18,7 @@
 
 import "./styles.css";
 
-import { PluginHealth, type PluginHealthEntry } from "@api/PluginHealth";
+import { PluginHealth, type PluginHealthEntry, type SessionRecord, type StabilityScore } from "@api/PluginHealth";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { Divider } from "@components/Divider";
@@ -46,10 +46,50 @@ function truncateForDisplay(value: string, max = 140): string {
     return value.slice(0, max) + "…";
 }
 
+const KIND_LABEL: Record<string, string> = {
+    noModule: "not found",
+    noEffect: "no effect",
+    errored: "errored",
+    undoingGroup: "group rolled back"
+};
+
+const BADGE_LABEL: Record<StabilityScore["badge"], string> = {
+    stable: "Stable",
+    flaky: "Flaky",
+    unstable: "Unstable",
+    unknown: "Not enough data"
+};
+
+const NO_MODULE_DISCLAIMER =
+    "This patch's target module was not found within 60 seconds of startup. " +
+    "Discord lazy-loads many modules (emoji picker, settings panels, voice UI, etc.) — " +
+    "if the plugin works when you open the relevant UI, this entry can be safely dismissed.";
+
+function StabilityBadge({ score }: { score: StabilityScore; }) {
+    const { badge, sessionsSeen, sessionsBroken, ratio } = score;
+    const tooltip =
+        badge === "unknown"
+            ? `Seen in ${sessionsSeen} recorded session${sessionsSeen === 1 ? "" : "s"} — need at least 3 to score.`
+            : `Broken in ${sessionsBroken} of the last ${sessionsSeen} sessions (${(ratio * 100).toFixed(0)}%).`;
+    return (
+        <span
+            className="vc-plugin-health-stability"
+            data-badge={badge}
+            title={tooltip}
+        >
+            {BADGE_LABEL[badge]}
+        </span>
+    );
+}
+
 function PluginHealthCard({ name, entry }: { name: string; entry: PluginHealthEntry; }) {
     const plugin = Plugins[name];
     const patchCount = entry.patchFailures.length;
     const errorCount = entry.runtimeErrors.length;
+    // Re-derive stability whenever the tracker notifies (deliberately not
+    // memoised: recomputing is cheap and the badge must react to history
+    // loading in from IndexedDB after mount).
+    const stability = PluginHealth.getStability(name);
 
     const openReport = () => {
         try {
@@ -92,7 +132,10 @@ function PluginHealthCard({ name, entry }: { name: string; entry: PluginHealthEn
         <Card className="vc-plugin-health-card">
             <div className="vc-plugin-health-card-header">
                 <div>
-                    <HeadingSecondary>{name}</HeadingSecondary>
+                    <div className="vc-plugin-health-card-title">
+                        <HeadingSecondary>{name}</HeadingSecondary>
+                        <StabilityBadge score={stability} />
+                    </div>
                     <Paragraph color="text-subtle">
                         {patchCount > 0 && `${patchCount} patch issue${patchCount === 1 ? "" : "s"}`}
                         {patchCount > 0 && errorCount > 0 && " • "}
@@ -124,10 +167,15 @@ function PluginHealthCard({ name, entry }: { name: string; entry: PluginHealthEn
             {patchCount > 0 && (
                 <>
                     <Heading className="vc-plugin-health-section-heading">Patch failures</Heading>
+                    {entry.patchFailures.some(f => f.kind === "noModule") && (
+                        <Paragraph color="text-subtle" className="vc-plugin-health-no-module-note">
+                            {NO_MODULE_DISCLAIMER}
+                        </Paragraph>
+                    )}
                     <ul className="vc-plugin-health-list">
                         {entry.patchFailures.map((f, i) => (
                             <li key={i}>
-                                <div className="vc-plugin-health-kind" data-kind={f.kind}>{f.kind}</div>
+                                <div className="vc-plugin-health-kind" data-kind={f.kind}>{KIND_LABEL[f.kind] ?? f.kind}</div>
                                 <div className="vc-plugin-health-detail">
                                     <div><strong>find</strong> <code>{truncateForDisplay(f.find)}</code></div>
                                     {f.match && (
@@ -167,10 +215,99 @@ function PluginHealthCard({ name, entry }: { name: string; entry: PluginHealthEn
     );
 }
 
+function SessionRow({ session, isCurrent }: { session: SessionRecord; isCurrent: boolean; }) {
+    const brokenNames = Object.entries(session.plugins)
+        .filter(([, counts]) => counts.patchFailures > 0 || counts.runtimeErrors > 0)
+        .map(([name]) => name)
+        .sort();
+    return (
+        <li>
+            <div className="vc-plugin-health-session-meta">
+                <div>
+                    <strong>{new Date(session.startedAt).toLocaleString()}</strong>
+                    {isCurrent && <span className="vc-plugin-health-session-current"> (current)</span>}
+                </div>
+                <div className="vc-plugin-health-session-counts">
+                    {session.enabledPlugins.length} plugin{session.enabledPlugins.length === 1 ? "" : "s"} enabled
+                    {" · "}
+                    {brokenNames.length
+                        ? `${brokenNames.length} broken`
+                        : "no failures"}
+                </div>
+            </div>
+            {brokenNames.length > 0 && (
+                <div className="vc-plugin-health-session-broken">
+                    {brokenNames.map(name => {
+                        const counts = session.plugins[name];
+                        const detail = [
+                            counts.patchFailures > 0 && `${counts.patchFailures} patch`,
+                            counts.runtimeErrors > 0 && `${counts.runtimeErrors} runtime`
+                        ].filter(Boolean).join(", ");
+                        return (
+                            <span key={name} className="vc-plugin-health-session-broken-item" title={detail}>
+                                {name}
+                            </span>
+                        );
+                    })}
+                </div>
+            )}
+        </li>
+    );
+}
+
+function SessionHistoryPanel() {
+    const [tick, setTick] = React.useState(0);
+    React.useEffect(() => {
+        void PluginHealth.loadHistory();
+    }, []);
+    React.useEffect(() => PluginHealth.subscribe(() => setTick(t => t + 1)), []);
+
+    const sessions = React.useMemo(() => {
+        const past = [...PluginHealth.getHistory()];
+        const current = PluginHealth.getCurrentSession();
+        // Newest → oldest, with the current session (in-progress) always first.
+        const withoutDupe = past.filter(s => s.id !== current.id).reverse();
+        return [current, ...withoutDupe];
+    }, [tick]);
+
+    if (sessions.length === 0) return null;
+
+    return (
+        <Card className="vc-plugin-health-history">
+            <div className="vc-plugin-health-history-header">
+                <HeadingSecondary>Session history</HeadingSecondary>
+                <Button
+                    size="small"
+                    variant="link"
+                    onClick={() => { void PluginHealth.clearHistory(); }}
+                >
+                    Clear history
+                </Button>
+            </div>
+            <Paragraph color="text-subtle" className={Margins.bottom8}>
+                The last {sessions.length} recorded session{sessions.length === 1 ? "" : "s"}. Used to
+                compute the stability badge next to each plugin.
+            </Paragraph>
+            <ul className="vc-plugin-health-session-list">
+                {sessions.map(session => (
+                    <SessionRow
+                        key={session.id}
+                        session={session}
+                        isCurrent={session.id === PluginHealth.getCurrentSession().id}
+                    />
+                ))}
+            </ul>
+        </Card>
+    );
+}
+
 function HealthTab() {
     // Force re-render when the tracker changes.
-    const [, setTick] = React.useState(0);
+    const [tick, setTick] = React.useState(0);
     React.useEffect(() => PluginHealth.subscribe(() => setTick(t => t + 1)), []);
+    React.useEffect(() => {
+        void PluginHealth.loadHistory();
+    }, []);
 
     const snapshot = React.useMemo(() => {
         const out: Array<[string, PluginHealthEntry]> = [];
@@ -178,20 +315,23 @@ function HealthTab() {
             out.push([name, entry]);
         }
         out.sort((a, b) => {
+            // Prefer plugins with runtime errors, then patch errors, then
+            // alphabetical.
             const aErrors = a[1].runtimeErrors.length;
             const bErrors = b[1].runtimeErrors.length;
             if (aErrors !== bErrors) return bErrors - aErrors;
             return a[0].localeCompare(b[0]);
         });
         return out;
-    }, [PluginHealth.totalUnhealthyPlugins()]);
+    }, [tick]);
 
     return (
         <SettingsTab>
             <Heading className={Margins.top16}>Plugin Health</Heading>
             <Paragraph className={Margins.bottom8}>
                 This page lists plugins that have reported patch failures or runtime errors during
-                this session. Data is not persisted across restarts.
+                this session. A rolling summary of the last {10} sessions is stored locally so we
+                can flag plugins that keep breaking.
             </Paragraph>
             <Paragraph color="text-subtle" className={Margins.bottom20}>
                 Discord ships frequent updates that can break individual plugins. If a plugin here
@@ -201,7 +341,7 @@ function HealthTab() {
 
             {snapshot.length === 0 ? (
                 <Card variant="brand" className="vc-plugin-health-empty">
-                    <HeadingSecondary>All plugins healthy</HeadingSecondary>
+                    <HeadingSecondary>All plugins healthy this session</HeadingSecondary>
                     <Paragraph>
                         No patch failures or runtime errors have been recorded this session.
                     </Paragraph>
@@ -223,6 +363,9 @@ function HealthTab() {
                     ))}
                 </>
             )}
+
+            <Divider className={Margins.top20 + " " + Margins.bottom16} />
+            <SessionHistoryPanel />
         </SettingsTab>
     );
 }

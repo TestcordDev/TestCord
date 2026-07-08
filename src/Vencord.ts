@@ -238,6 +238,12 @@ async function init() {
 
     // Delayed scan for patches that never matched any module.
     // Deferred so lazy-loaded chunks have a chance to arrive before we flag anything.
+    //
+    // NOTE: This is a heuristic, not a definitive "patch is broken" signal.
+    // Discord lazy-loads many modules (emoji picker, settings panels, etc.)
+    // and a patch targeting one of those will remain unresolved until the
+    // user opens that UI. We record it as "noModule" so the user is aware,
+    // but it may simply mean "module not loaded yet this session".
     setTimeout(() => {
         for (const patch of patches) {
             if (patch.all) continue;

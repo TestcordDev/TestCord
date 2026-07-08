@@ -23,9 +23,17 @@
  * path that wants to report a plugin failure. Consumed by the Plugin Health
  * settings tab and the "Report Issue" flow.
  *
- * Kept intentionally small and dependency-free — this module runs early
- * during boot, before most of the codebase is initialised.
+ * Also persists a rolling summary of the last N sessions so we can compute
+ * a per-plugin stability score across restarts. The stability score is
+ * derived from `sessionsBroken / sessionsSeen` over a rolling window.
+ *
+ * Kept intentionally small — this module runs early during boot, before
+ * most of the codebase is initialised. Persistence layer is fully lazy:
+ * the module works with an empty history if `DataStore` is unavailable
+ * (e.g. during unit tests).
  */
+
+import * as DataStore from "@api/DataStore";
 
 export type PatchFailureKind = "noModule" | "noEffect" | "errored" | "undoingGroup";
 
@@ -58,11 +66,70 @@ interface PluginHealthEntry {
 
 export type { PluginHealthEntry };
 
+/** A recorded summary of one Testcord session. */
+export interface SessionRecord {
+    id: string;
+    startedAt: number;
+    endedAt: number;
+    /** Names of plugins that were enabled during the session. */
+    enabledPlugins: string[];
+    /**
+     * Per-plugin counts recorded during the session. Absent plugins in this
+     * map are considered "healthy that session".
+     */
+    plugins: Record<string, {
+        patchFailures: number;
+        runtimeErrors: number;
+    }>;
+}
+
+export type StabilityBadge = "stable" | "flaky" | "unstable" | "unknown";
+
+export interface StabilityScore {
+    badge: StabilityBadge;
+    sessionsSeen: number;
+    sessionsBroken: number;
+    /** Ratio in [0, 1]; NaN if `sessionsSeen === 0`. */
+    ratio: number;
+}
+
 const MAX_ENTRIES_PER_PLUGIN = 50;
 const MAX_ERROR_STRING_LENGTH = 2000;
+/** How many past sessions to keep. */
+const HISTORY_WINDOW = 10;
+/** Minimum sessions before we consider a plugin's badge trustworthy. */
+const MIN_SESSIONS_FOR_BADGE = 3;
+/** Ratio above which a plugin is flagged as unstable. */
+const UNSTABLE_RATIO = 0.4;
+/** Debounce delay before flushing session summary to DataStore. */
+const FLUSH_DEBOUNCE_MS = 5_000;
+
+const DB_KEY_HISTORY = "PluginHealthHistory_v1";
 
 const registry = new Map<string, PluginHealthEntry>();
 const listeners = new Set<() => void>();
+
+let currentSession: SessionRecord = createSession();
+let history: SessionRecord[] = [];
+let historyLoaded = false;
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let flushInFlight = false;
+
+function makeSessionId(): string {
+    // Small non-cryptographic id. `nanoid` is a dependency but we intentionally
+    // avoid importing it here to keep this module dependency-light.
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createSession(): SessionRecord {
+    return {
+        id: makeSessionId(),
+        startedAt: Date.now(),
+        endedAt: Date.now(),
+        enabledPlugins: [],
+        plugins: {}
+    };
+}
 
 function truncate(value: string): string {
     if (value.length <= MAX_ERROR_STRING_LENGTH) return value;
@@ -83,6 +150,13 @@ function push<T>(list: T[], value: T) {
     if (list.length > MAX_ENTRIES_PER_PLUGIN) list.shift();
 }
 
+function bumpSessionCounter(plugin: string, kind: "patchFailures" | "runtimeErrors") {
+    const existing = currentSession.plugins[plugin] ??= { patchFailures: 0, runtimeErrors: 0 };
+    existing[kind]++;
+    currentSession.endedAt = Date.now();
+    scheduleFlush();
+}
+
 function notify() {
     for (const listener of listeners) {
         try {
@@ -91,6 +165,101 @@ function notify() {
             // Ignore listener errors; a broken UI subscriber must not break the tracker.
         }
     }
+}
+
+async function loadHistory() {
+    if (historyLoaded) return;
+    historyLoaded = true; // set optimistically to avoid re-entrant loads
+
+    try {
+        const stored = await DataStore.get<SessionRecord[]>(DB_KEY_HISTORY);
+        if (Array.isArray(stored)) {
+            // Defensive: filter obviously malformed entries and clamp to window.
+            history = stored
+                .filter(s => s && typeof s.id === "string" && typeof s.startedAt === "number" && s.plugins)
+                .slice(-HISTORY_WINDOW);
+            notify();
+        }
+    } catch (err) {
+        // History is best-effort. If IndexedDB is unavailable (e.g. private
+        // browsing on the web build), just proceed with an empty history.
+        console.warn("[PluginHealth] Failed to load history:", err);
+    }
+}
+
+function scheduleFlush() {
+    if (flushTimer) clearTimeout(flushTimer);
+    flushTimer = setTimeout(() => {
+        flushTimer = null;
+        void flushNow();
+    }, FLUSH_DEBOUNCE_MS);
+}
+
+async function flushNow() {
+    if (flushInFlight) return;
+    // Wait until history has loaded so we don't overwrite it with just the
+    // current session.
+    if (!historyLoaded) {
+        await loadHistory();
+    }
+    flushInFlight = true;
+    try {
+        const merged = [
+            ...history.filter(s => s.id !== currentSession.id),
+            currentSession
+        ].slice(-HISTORY_WINDOW);
+        await DataStore.set(DB_KEY_HISTORY, merged);
+        history = merged;
+    } catch (err) {
+        console.warn("[PluginHealth] Failed to persist history:", err);
+    } finally {
+        flushInFlight = false;
+    }
+}
+
+function computeStability(plugin: string): StabilityScore {
+    let sessionsSeen = 0;
+    let sessionsBroken = 0;
+
+    // Include the current session too, but only if the plugin is in
+    // enabledPlugins (otherwise "seen" is not meaningful).
+    const sessions = [...history, currentSession];
+    for (const session of sessions) {
+        if (!session.enabledPlugins.includes(plugin)) continue;
+        sessionsSeen++;
+        const counts = session.plugins[plugin];
+        if (counts && (counts.patchFailures > 0 || counts.runtimeErrors > 0)) {
+            sessionsBroken++;
+        }
+    }
+
+    const ratio = sessionsSeen === 0 ? NaN : sessionsBroken / sessionsSeen;
+
+    let badge: StabilityBadge;
+    if (sessionsSeen < MIN_SESSIONS_FOR_BADGE) {
+        badge = "unknown";
+    } else if (sessionsBroken === 0) {
+        badge = "stable";
+    } else if (ratio >= UNSTABLE_RATIO) {
+        badge = "unstable";
+    } else {
+        badge = "flaky";
+    }
+
+    return { badge, sessionsSeen, sessionsBroken, ratio };
+}
+
+if (typeof window !== "undefined") {
+    // Best-effort flush on page unload. Kept in a closure so it can be
+    // registered synchronously without waiting for anything to load.
+    window.addEventListener("beforeunload", () => {
+        // Cancel the debounced timer and fire immediately. We deliberately
+        // fire and forget — the browser will kill this frame before the
+        // promise resolves, but DataStore/IndexedDB will typically flush
+        // its pending transaction to disk.
+        if (flushTimer) clearTimeout(flushTimer);
+        void flushNow();
+    });
 }
 
 export const PluginHealth = {
@@ -117,6 +286,7 @@ export const PluginHealth = {
                 // Track the most recent module id we saw the failure on.
                 duplicate.moduleId = failure.moduleId;
             }
+            bumpSessionCounter(plugin, "patchFailures");
             notify();
             return;
         }
@@ -126,6 +296,7 @@ export const PluginHealth = {
             error: failure.error ? truncate(failure.error) : undefined,
             at: Date.now()
         });
+        bumpSessionCounter(plugin, "patchFailures");
         notify();
     },
 
@@ -143,7 +314,22 @@ export const PluginHealth = {
             error: truncate(message),
             at: Date.now()
         });
+        bumpSessionCounter(plugin, "runtimeErrors");
         notify();
+    },
+
+    /**
+     * Register the set of plugins currently enabled in this session. This
+     * lets us compute "sessions seen" for the stability score — a plugin
+     * that was disabled during a session cannot have "broken" that session.
+     *
+     * Called by `PluginManager.startAllPlugins` once startup is complete.
+     */
+    registerEnabledPlugins(plugins: readonly string[]) {
+        currentSession.enabledPlugins = Array.from(new Set(plugins));
+        currentSession.endedAt = Date.now();
+        scheduleFlush();
+        // No notify() needed — this doesn't change the visible failure list.
     },
 
     /** Get a snapshot of a plugin's health entry, or `undefined` if the plugin is healthy. */
@@ -191,11 +377,57 @@ export const PluginHealth = {
         if (registry.delete(plugin)) notify();
     },
 
-    /** Clear everything. */
+    /**
+     * Clear everything in memory. Does NOT wipe persisted history — call
+     * `clearHistory()` for that.
+     */
     clearAll() {
         if (registry.size === 0) return;
         registry.clear();
         notify();
+    },
+
+    /**
+     * Compute the stability score for a plugin across the rolling session
+     * window (including the current session).
+     */
+    getStability(plugin: string): StabilityScore {
+        return computeStability(plugin);
+    },
+
+    /** Snapshot of the recorded session history (oldest first). */
+    getHistory(): readonly SessionRecord[] {
+        return [...history];
+    },
+
+    /** Snapshot of the current (in-progress) session. */
+    getCurrentSession(): SessionRecord {
+        return {
+            ...currentSession,
+            enabledPlugins: [...currentSession.enabledPlugins],
+            plugins: { ...currentSession.plugins }
+        };
+    },
+
+    /** Wipe persisted session history. */
+    async clearHistory() {
+        history = [];
+        currentSession = createSession();
+        try {
+            await DataStore.set(DB_KEY_HISTORY, []);
+        } catch (err) {
+            console.warn("[PluginHealth] Failed to wipe history:", err);
+        }
+        notify();
+    },
+
+    /**
+     * Ensure historical data has been loaded from disk. Automatically invoked
+     * on first flush; the settings UI calls this eagerly on mount so the
+     * stability badges have real data before the user looks at them.
+     */
+    async loadHistory() {
+        await loadHistory();
     },
 
     /** Subscribe to changes. Returns an unsubscribe function. */
