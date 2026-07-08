@@ -1,18 +1,154 @@
-.vc-plugin-health-empty {
-    padding: 1.25em;
+/* ─── Animations ─────────────────────────────────────────────── */
+
+@keyframes vc-health-card-enter {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
-.vc-plugin-health-card {
-    padding: 1em 1.25em;
+@keyframes vc-health-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 var(--status-danger-text, #f04747);
+    }
+
+    50% {
+        box-shadow: 0 0 0 4px transparent;
+    }
+}
+
+@keyframes vc-health-bar-fill {
+    from {
+        width: 0;
+    }
+}
+
+@keyframes vc-health-fade-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* ─── Reduced motion ─────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+    .vc-plugin-health-card,
+    .vc-plugin-health-card-body,
+    .vc-plugin-health-summary-fill,
+    .vc-plugin-health-session-broken,
+    .vc-plugin-health-stability[data-badge="unstable"] {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+/* ─── Health summary bar ─────────────────────────────────────── */
+
+.vc-plugin-health-summary {
     margin-bottom: 1em;
 }
+
+.vc-plugin-health-summary-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85em;
+    font-weight: 600;
+    margin-bottom: 0.4em;
+    color: var(--text-normal);
+}
+
+.vc-plugin-health-summary-pct {
+    color: var(--text-subtle);
+}
+
+.vc-plugin-health-summary-track {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--background-base-low, #1e1f22);
+    overflow: hidden;
+}
+
+.vc-plugin-health-summary-fill {
+    height: 100%;
+    border-radius: 999px;
+    animation: vc-health-bar-fill 0.6s ease-out;
+    transition: width 0.4s ease;
+}
+
+.vc-plugin-health-summary[data-color="positive"] .vc-plugin-health-summary-fill {
+    background: var(--status-positive-text, #23a55a);
+}
+
+.vc-plugin-health-summary[data-color="idle"] .vc-plugin-health-summary-fill {
+    background: var(--text-status-idle, #f0b232);
+}
+
+.vc-plugin-health-summary[data-color="danger"] .vc-plugin-health-summary-fill {
+    background: var(--status-danger-text, #f04747);
+}
+
+/* ─── Empty state ────────────────────────────────────────────── */
+
+.vc-plugin-health-empty {
+    padding: 1.25em;
+    animation: vc-health-fade-in 0.3s ease-out;
+}
+
+/* ─── Plugin health cards ────────────────────────────────────── */
+
+.vc-plugin-health-card {
+    padding: 0;
+    margin-bottom: 1em;
+    overflow: hidden;
+    animation: vc-health-card-enter 0.25s ease-out;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.vc-plugin-health-card:hover {
+    border-color: var(--border-strong, var(--background-modifier-accent));
+}
+
+.vc-plugin-health-card-dismissing {
+    animation: vc-health-card-enter 0.25s ease-out reverse forwards;
+    pointer-events: none;
+}
+
+/* ─── Card header (clickable) ────────────────────────────────── */
 
 .vc-plugin-health-card-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 1em;
-    margin-bottom: 1em;
+    padding: 1em 1.25em;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s ease;
+}
+
+.vc-plugin-health-card-header:hover {
+    background: var(--background-modifier-hover, rgb(255 255 255 / 3%));
+}
+
+.vc-plugin-health-card-header:focus-visible {
+    outline: 2px solid var(--text-link, #00a8fc);
+    outline-offset: -2px;
+}
+
+.vc-plugin-health-card-title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5em;
+    min-width: 0;
 }
 
 .vc-plugin-health-card-title {
@@ -24,9 +160,36 @@
 
 .vc-plugin-health-card-actions {
     display: flex;
-    gap: 0.5em;
+    gap: 0.4em;
     flex-wrap: wrap;
     justify-content: flex-end;
+    flex-shrink: 0;
+}
+
+/* ─── Chevron ────────────────────────────────────────────────── */
+
+.vc-plugin-health-chevron {
+    display: inline-block;
+    transition: transform 0.2s ease;
+    color: var(--text-subtle);
+    font-size: 0.8em;
+    line-height: 1.4;
+    flex-shrink: 0;
+}
+
+.vc-plugin-health-chevron-sm {
+    font-size: 0.7em;
+}
+
+.vc-plugin-health-chevron-open {
+    transform: rotate(90deg);
+}
+
+/* ─── Card body (collapsible) ────────────────────────────────── */
+
+.vc-plugin-health-card-body {
+    padding: 0 1.25em 1em;
+    animation: vc-health-fade-in 0.2s ease-out;
 }
 
 .vc-plugin-health-section-heading {
@@ -43,6 +206,8 @@
     margin-bottom: 0.5em;
 }
 
+/* ─── Failure list ───────────────────────────────────────────── */
+
 .vc-plugin-health-list {
     list-style: none;
     padding: 0;
@@ -53,14 +218,22 @@
     display: grid;
     grid-template-columns: 130px 1fr;
     gap: 0.75em;
-    padding: 0.5em 0;
+    padding: 0.5em;
     border-bottom: 1px solid var(--border-subtle);
     align-items: start;
+    border-radius: 4px;
+    transition: background 0.12s ease;
+}
+
+.vc-plugin-health-list > li:hover {
+    background: var(--background-modifier-hover, rgb(255 255 255 / 2%));
 }
 
 .vc-plugin-health-list > li:last-child {
     border-bottom: none;
 }
+
+/* ─── Kind badge ─────────────────────────────────────────────── */
 
 .vc-plugin-health-kind {
     font-size: 0.75em;
@@ -75,6 +248,11 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: filter 0.15s ease;
+}
+
+.vc-plugin-health-list > li:hover .vc-plugin-health-kind {
+    filter: brightness(1.15);
 }
 
 .vc-plugin-health-kind[data-kind="errored"],
@@ -87,6 +265,8 @@
     background: var(--background-feedback-warning);
     color: var(--text-status-idle);
 }
+
+/* ─── Detail block ───────────────────────────────────────────── */
 
 .vc-plugin-health-detail {
     font-size: 0.85em;
@@ -102,6 +282,8 @@
     font-family: var(--font-code, monospace);
 }
 
+/* ─── Expandable error ───────────────────────────────────────── */
+
 .vc-plugin-health-error {
     background: var(--background-base-lowest);
     padding: 0.5em 0.75em;
@@ -113,7 +295,18 @@
     font-size: 0.85em;
     max-height: 200px;
     overflow: auto;
+    transition: max-height 0.25s ease, background 0.15s ease;
 }
+
+.vc-plugin-health-error[data-clickable] {
+    cursor: pointer;
+}
+
+.vc-plugin-health-error[data-clickable]:hover {
+    background: var(--background-base-low, #18191c);
+}
+
+/* ─── Timestamp ──────────────────────────────────────────────── */
 
 .vc-plugin-health-timestamp {
     color: var(--text-subtle);
@@ -121,7 +314,7 @@
     margin-top: 0.4em;
 }
 
-/* Stability badge */
+/* ─── Stability badge ────────────────────────────────────────── */
 
 .vc-plugin-health-stability {
     display: inline-flex;
@@ -135,6 +328,11 @@
     line-height: 1;
     background: var(--background-modifier-accent);
     color: var(--text-normal);
+    transition: filter 0.15s ease;
+}
+
+.vc-plugin-health-card-header:hover .vc-plugin-health-stability {
+    filter: brightness(1.1);
 }
 
 .vc-plugin-health-stability[data-badge="stable"] {
@@ -150,6 +348,7 @@
 .vc-plugin-health-stability[data-badge="unstable"] {
     background: var(--status-danger-background, rgb(240 71 71 / 15%));
     color: var(--status-danger-text, #f04747);
+    animation: vc-health-pulse 2s ease-in-out infinite;
 }
 
 .vc-plugin-health-stability[data-badge="unknown"] {
@@ -157,11 +356,12 @@
     color: var(--text-subtle);
 }
 
-/* Session history */
+/* ─── Session history ────────────────────────────────────────── */
 
 .vc-plugin-health-history {
     padding: 1em 1.25em;
     margin-top: 0.5em;
+    animation: vc-health-fade-in 0.3s ease-out;
 }
 
 .vc-plugin-health-history-header {
@@ -180,12 +380,18 @@
 
 /* stylelint-disable-next-line no-descending-specificity */
 .vc-plugin-health-session-list > li {
-    padding: 0.6em 0;
+    padding: 0.6em 0.5em;
     border-bottom: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    transition: background 0.12s ease;
 }
 
 .vc-plugin-health-session-list > li:last-child {
     border-bottom: none;
+}
+
+.vc-plugin-health-session-list > li:hover {
+    background: var(--background-modifier-hover, rgb(255 255 255 / 2%));
 }
 
 .vc-plugin-health-session-meta {
@@ -195,6 +401,11 @@
     gap: 1em;
     flex-wrap: wrap;
     font-size: 0.9em;
+}
+
+.vc-plugin-health-session-meta[role="button"] {
+    cursor: pointer;
+    user-select: none;
 }
 
 .vc-plugin-health-session-current {
@@ -211,7 +422,9 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.35em;
-    margin-top: 0.4em;
+    margin-top: 0.5em;
+    padding-left: 1em;
+    animation: vc-health-fade-in 0.2s ease-out;
 }
 
 .vc-plugin-health-session-broken-item {
@@ -221,4 +434,9 @@
     background: var(--status-danger-background, rgb(240 71 71 / 15%));
     color: var(--status-danger-text, #f04747);
     font-family: var(--font-code, monospace);
+    transition: filter 0.12s ease;
+}
+
+.vc-plugin-health-session-broken-item:hover {
+    filter: brightness(1.2);
 }
