@@ -3,12 +3,42 @@
 @keyframes vc-health-card-enter {
     from {
         opacity: 0;
-        transform: translateY(-8px) scale(0.98);
+        transform: translateY(-12px) scale(0.97);
     }
 
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes vc-health-card-exit {
+    from {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+        max-height: 500px;
+    }
+
+    to {
+        opacity: 0;
+        transform: translateX(40px) scale(0.95);
+        max-height: 0;
+        margin-bottom: 0;
+        padding: 0;
+    }
+}
+
+@keyframes vc-health-slide-down {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+        max-height: 0;
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 2000px;
     }
 }
 
@@ -31,10 +61,60 @@
 @keyframes vc-health-fade-in {
     from {
         opacity: 0;
+        transform: translateY(4px);
     }
 
     to {
         opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes vc-health-glow {
+    0%, 100% {
+        box-shadow: 0 0 6px 0 rgb(0 168 252 / 0%);
+    }
+
+    50% {
+        box-shadow: 0 0 12px 2px rgb(0 168 252 / 15%);
+    }
+}
+
+@keyframes vc-health-shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+@keyframes vc-health-bounce-in {
+    0% {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+
+    60% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes vc-health-slide-in-right {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
     }
 }
 
@@ -45,7 +125,12 @@
     .vc-plugin-health-card-body,
     .vc-plugin-health-summary-fill,
     .vc-plugin-health-session-broken,
-    .vc-plugin-health-stability[data-badge="unstable"] {
+    .vc-plugin-health-stability[data-badge="unstable"],
+    .vc-plugin-health-toolbar,
+    .vc-plugin-health-notice-settings,
+    .vc-patch-viewer-body,
+    .vc-plugin-health-toggle-slider,
+    .vc-plugin-health-toggle-slider::before {
         animation: none !important;
         transition: none !important;
     }
@@ -81,7 +166,23 @@
     height: 100%;
     border-radius: 999px;
     animation: vc-health-bar-fill 0.6s ease-out;
-    transition: width 0.4s ease;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.vc-plugin-health-summary-fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgb(255 255 255 / 15%) 50%,
+        transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: vc-health-shimmer 3s ease-in-out infinite;
 }
 
 .vc-plugin-health-summary[data-color="positive"] .vc-plugin-health-summary-fill {
@@ -100,7 +201,72 @@
 
 .vc-plugin-health-empty {
     padding: 1.25em;
+    animation: vc-health-bounce-in 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ─── Toolbar (search + actions) ─────────────────────────────── */
+
+.vc-plugin-health-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75em;
+    margin-bottom: 1em;
+    flex-wrap: wrap;
     animation: vc-health-fade-in 0.3s ease-out;
+}
+
+.vc-plugin-health-search {
+    flex: 1;
+    min-width: 180px;
+}
+
+.vc-plugin-health-search:focus-within {
+    filter: brightness(1.05);
+}
+
+.vc-plugin-health-toolbar-actions {
+    display: flex;
+    gap: 0.4em;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.vc-plugin-health-filter-select,
+.vc-plugin-health-sort-select {
+    min-width: 160px;
+    position: relative;
+    z-index: 1;
+}
+
+.vc-plugin-health-filter-select > div,
+.vc-plugin-health-sort-select > div {
+    width: 100%;
+}
+
+/* ─── Button interactivity ───────────────────────────────────── */
+
+.vc-plugin-health-toolbar .vc-btn-base,
+.vc-plugin-health-card-actions .vc-btn-base,
+.vc-plugin-health-history-header .vc-btn-base,
+.vc-plugin-health-network-actions .vc-btn-base,
+.vc-plugin-health-update-banner-header .vc-btn-base,
+.vc-patch-viewer-footer .vc-btn-base,
+.vc-plugin-health-detail .vc-btn-base {
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+}
+
+.vc-plugin-health-toolbar .vc-btn-base:hover,
+.vc-plugin-health-card-actions .vc-btn-base:hover,
+.vc-plugin-health-detail .vc-btn-base:hover {
+    filter: brightness(1.15);
+}
+
+.vc-plugin-health-toolbar .vc-btn-base:active,
+.vc-plugin-health-card-actions .vc-btn-base:active,
+.vc-plugin-health-detail .vc-btn-base:active {
+    transform: scale(0.96);
+    filter: brightness(0.9);
 }
 
 /* ─── Plugin health cards ────────────────────────────────────── */
@@ -109,16 +275,18 @@
     padding: 0;
     margin-bottom: 1em;
     overflow: hidden;
-    animation: vc-health-card-enter 0.25s ease-out;
-    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    animation: vc-health-card-enter 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: box-shadow 0.25s ease, border-color 0.25s ease, transform 0.25s ease;
 }
 
 .vc-plugin-health-card:hover {
     border-color: var(--border-strong, var(--background-modifier-accent));
+    box-shadow: 0 4px 16px 0 rgb(0 0 0 / 20%);
+    transform: translateY(-1px);
 }
 
 .vc-plugin-health-card-dismissing {
-    animation: vc-health-card-enter 0.25s ease-out reverse forwards;
+    animation: vc-health-card-exit 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     pointer-events: none;
 }
 
@@ -132,11 +300,15 @@
     padding: 1em 1.25em;
     cursor: pointer;
     user-select: none;
-    transition: background 0.15s ease;
+    transition: background 0.2s ease;
 }
 
 .vc-plugin-health-card-header:hover {
     background: var(--background-modifier-hover, rgb(255 255 255 / 3%));
+}
+
+.vc-plugin-health-card-header:active {
+    background: var(--background-modifier-active, rgb(255 255 255 / 5%));
 }
 
 .vc-plugin-health-card-header:focus-visible {
@@ -170,7 +342,7 @@
 
 .vc-plugin-health-chevron {
     display: inline-block;
-    transition: transform 0.2s ease;
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     color: var(--text-subtle);
     font-size: 0.8em;
     line-height: 1.4;
@@ -189,7 +361,8 @@
 
 .vc-plugin-health-card-body {
     padding: 0 1.25em 1em;
-    animation: vc-health-fade-in 0.2s ease-out;
+    animation: vc-health-slide-down 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
 }
 
 .vc-plugin-health-section-heading {
@@ -222,11 +395,13 @@
     border-bottom: 1px solid var(--border-subtle);
     align-items: start;
     border-radius: 4px;
-    transition: background 0.12s ease;
+    transition: background 0.2s ease, transform 0.2s ease;
+    animation: vc-health-fade-in 0.25s ease-out;
 }
 
 .vc-plugin-health-list > li:hover {
     background: var(--background-modifier-hover, rgb(255 255 255 / 2%));
+    transform: translateX(2px);
 }
 
 .vc-plugin-health-list > li:last-child {
@@ -248,11 +423,12 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    transition: filter 0.15s ease;
+    transition: filter 0.2s ease, transform 0.2s ease;
 }
 
 .vc-plugin-health-list > li:hover .vc-plugin-health-kind {
-    filter: brightness(1.15);
+    filter: brightness(1.2);
+    transform: scale(1.05);
 }
 
 .vc-plugin-health-kind[data-kind="errored"],
@@ -264,6 +440,16 @@
 .vc-plugin-health-kind[data-kind="noModule"] {
     background: var(--background-feedback-warning);
     color: var(--text-status-idle);
+}
+
+.vc-plugin-health-kind[data-kind="conflict"] {
+    background: var(--background-feedback-warning, rgb(240 178 50 / 20%));
+    color: var(--text-status-idle, #f0b232);
+}
+
+.vc-plugin-health-kind[data-kind="codeChanged"] {
+    background: var(--background-modifier-accent);
+    color: var(--text-normal);
 }
 
 /* ─── Detail block ───────────────────────────────────────────── */
@@ -295,7 +481,8 @@
     font-size: 0.85em;
     max-height: 200px;
     overflow: auto;
-    transition: max-height 0.25s ease, background 0.15s ease;
+    transition: max-height 0.3s ease, background 0.2s ease, border-color 0.2s ease;
+    border-left: 3px solid transparent;
 }
 
 .vc-plugin-health-error[data-clickable] {
@@ -304,6 +491,7 @@
 
 .vc-plugin-health-error[data-clickable]:hover {
     background: var(--background-base-low, #18191c);
+    border-left-color: var(--text-link, #00a8fc);
 }
 
 /* ─── Timestamp ──────────────────────────────────────────────── */
@@ -328,11 +516,12 @@
     line-height: 1;
     background: var(--background-modifier-accent);
     color: var(--text-normal);
-    transition: filter 0.15s ease;
+    transition: filter 0.2s ease, transform 0.2s ease;
 }
 
 .vc-plugin-health-card-header:hover .vc-plugin-health-stability {
-    filter: brightness(1.1);
+    filter: brightness(1.15);
+    transform: scale(1.05);
 }
 
 .vc-plugin-health-stability[data-badge="stable"] {
@@ -383,7 +572,8 @@
     padding: 0.6em 0.5em;
     border-bottom: 1px solid var(--border-subtle);
     border-radius: 4px;
-    transition: background 0.12s ease;
+    transition: background 0.2s ease, transform 0.2s ease;
+    animation: vc-health-fade-in 0.25s ease-out;
 }
 
 .vc-plugin-health-session-list > li:last-child {
@@ -392,6 +582,7 @@
 
 .vc-plugin-health-session-list > li:hover {
     background: var(--background-modifier-hover, rgb(255 255 255 / 2%));
+    transform: translateX(2px);
 }
 
 .vc-plugin-health-session-meta {
@@ -434,9 +625,375 @@
     background: var(--status-danger-background, rgb(240 71 71 / 15%));
     color: var(--status-danger-text, #f04747);
     font-family: var(--font-code, monospace);
-    transition: filter 0.12s ease;
+    transition: filter 0.2s ease, transform 0.2s ease;
 }
 
 .vc-plugin-health-session-broken-item:hover {
-    filter: brightness(1.2);
+    filter: brightness(1.25);
+    transform: scale(1.05);
+}
+
+/* ─── Discord update banner ──────────────────────────────────── */
+
+.vc-plugin-health-update-banner {
+    padding: 1em 1.25em;
+    margin-bottom: 1em;
+    animation: vc-health-slide-down 0.3s ease-out;
+}
+
+/* ─── Network activity panel ─────────────────────────────────── */
+
+.vc-plugin-health-network {
+    padding: 1em 1.25em;
+    margin-top: 0.5em;
+    animation: vc-health-fade-in 0.3s ease-out;
+}
+
+.vc-plugin-health-network-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1em;
+    margin-bottom: 0.5em;
+}
+
+.vc-plugin-health-network-actions {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+}
+
+.vc-plugin-health-network-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+.vc-plugin-health-network-list > li {
+    padding: 0.5em;
+    border-bottom: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    transition: background 0.2s ease, transform 0.2s ease;
+    animation: vc-health-fade-in 0.25s ease-out;
+}
+
+.vc-plugin-health-network-list > li:last-child {
+    border-bottom: none;
+}
+
+.vc-plugin-health-network-list > li:hover {
+    background: var(--background-modifier-hover, rgb(255 255 255 / 2%));
+    transform: translateX(2px);
+}
+
+.vc-plugin-health-network-domain {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1em;
+}
+
+.vc-plugin-health-network-count {
+    font-size: 0.8em;
+    color: var(--text-subtle);
+    font-weight: 600;
+}
+
+.vc-plugin-health-network-meta {
+    font-size: 0.75em;
+    color: var(--text-subtle);
+    margin-top: 0.2em;
+    font-family: var(--font-code, monospace);
+}
+
+/* ─── Toolbar filter/sort selects ────────────────────────────── */
+
+.vc-plugin-health-filter-select,
+.vc-plugin-health-sort-select {
+    min-width: 180px;
+}
+
+/* ─── Discord update banner header ───────────────────────────── */
+
+.vc-plugin-health-update-banner-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1em;
+    margin-bottom: 0.5em;
+}
+
+/* ─── Notice settings card ───────────────────────────────────── */
+
+.vc-plugin-health-notice-settings {
+    padding: 1em 1.25em;
+    margin-bottom: 1em;
+    animation: vc-health-fade-in 0.3s ease-out;
+}
+
+.vc-plugin-health-notice-settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1.5em;
+}
+
+.vc-plugin-health-notice-settings-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 1em 0;
+}
+
+/* ─── Toggle switch ──────────────────────────────────────────── */
+
+.vc-plugin-health-toggle {
+    position: relative;
+    display: inline-block;
+    width: 42px;
+    height: 24px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.vc-plugin-health-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.vc-plugin-health-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--background-modifier-accent, #4e5058);
+    border-radius: 999px;
+    transition: background 0.2s ease;
+}
+
+.vc-plugin-health-toggle-slider::before {
+    content: "";
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    left: 3px;
+    top: 3px;
+    background: var(--text-normal, #fff);
+    border-radius: 50%;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.vc-plugin-health-toggle input:checked + .vc-plugin-health-toggle-slider {
+    background: var(--status-positive-text, #23a55a);
+}
+
+.vc-plugin-health-toggle input:checked + .vc-plugin-health-toggle-slider::before {
+    transform: translateX(18px);
+}
+
+.vc-plugin-health-toggle input:focus-visible + .vc-plugin-health-toggle-slider {
+    outline: 2px solid var(--text-link, #00a8fc);
+    outline-offset: 2px;
+}
+
+/* ─── Patch viewer modal ─────────────────────────────────────── */
+
+.vc-patch-viewer-sources {
+    margin-top: 1em;
+}
+
+.vc-patch-viewer-meta {
+    margin-bottom: 1em;
+}
+
+.vc-patch-viewer-raw-section {
+    margin-bottom: 1em;
+}
+
+.vc-patch-viewer-code {
+    background: var(--background-base-lowest);
+    padding: 0.75em;
+    border-radius: 4px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: var(--font-code, monospace);
+    font-size: 0.8em;
+    max-height: 400px;
+    overflow: auto;
+    margin: 0;
+}
+
+.vc-patch-viewer-diff-code {
+    display: block;
+}
+
+.vc-patch-viewer-diff-line {
+    display: block;
+}
+
+.vc-patch-viewer-diff-added {
+    background: var(--background-feedback-positive, rgb(35 165 90 / 10%));
+    color: var(--status-positive-text, #23a55a);
+}
+
+.vc-patch-viewer-diff-removed {
+    background: var(--background-feedback-danger, rgb(240 71 71 / 10%));
+    color: var(--status-danger-text, #f04747);
+    text-decoration: line-through;
+}
+
+.vc-patch-viewer-diff-same {
+    color: var(--text-subtle);
+}
+
+.vc-patch-viewer-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5em;
+    margin-top: 1em;
+}
+
+/* ─── Discord update banner header ────────────────────────────── */
+
+.vc-plugin-health-update-banner-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1em;
+    margin-bottom: 0.5em;
+}
+
+/* ─── Patch viewer modal ─────────────────────────────────────── */
+
+.vc-patch-viewer-title {
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+.vc-patch-viewer-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+    padding: 1em 0;
+    animation: vc-health-fade-in 0.3s ease-out;
+}
+
+.vc-patch-viewer-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    font-size: 0.85em;
+    animation: vc-health-slide-in-right 0.3s ease-out;
+}
+
+.vc-patch-viewer-meta code {
+    background: var(--background-secondary-alt);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-family: var(--font-code, monospace);
+    overflow-wrap: anywhere;
+}
+
+.vc-patch-viewer-sources {
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    overflow: hidden;
+    animation: vc-health-slide-down 0.3s ease-out;
+}
+
+.vc-patch-viewer-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.vc-patch-viewer-tab {
+    padding: 0.5em 1em;
+    background: none;
+    border: none;
+    color: var(--text-subtle);
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: 600;
+    transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+    border-bottom: 2px solid transparent;
+}
+
+.vc-patch-viewer-tab:hover {
+    color: var(--text-normal);
+    background: var(--background-modifier-hover, rgb(255 255 255 / 3%));
+}
+
+.vc-patch-viewer-tab-active {
+    color: var(--text-normal);
+    border-bottom-color: var(--text-link, #00a8fc);
+}
+
+.vc-patch-viewer-raw {
+    padding: 0.75em;
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+    max-height: 400px;
+    overflow: auto;
+}
+
+.vc-patch-viewer-raw-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.vc-patch-viewer-diff {
+    padding: 0.75em;
+    max-height: 400px;
+    overflow: auto;
+}
+
+.vc-patch-viewer-code {
+    background: var(--background-base-lowest);
+    padding: 0.75em;
+    border-radius: 4px;
+    font-family: var(--font-code, monospace);
+    font-size: 0.8em;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin: 0;
+    max-height: 300px;
+    overflow: auto;
+    line-height: 1.5;
+}
+
+.vc-patch-viewer-diff-code {
+    padding: 0;
+    background: var(--background-base-lowest);
+}
+
+.vc-patch-viewer-diff-line {
+    display: block;
+    padding: 0 0.5em;
+    min-height: 1.5em;
+    transition: background 0.15s ease;
+}
+
+.vc-patch-viewer-diff-line:hover {
+    background: var(--background-modifier-hover, rgb(255 255 255 / 5%));
+}
+
+.vc-patch-viewer-diff-added {
+    background: rgb(35 165 90 / 12%);
+    color: var(--status-positive-text, #23a55a);
+}
+
+.vc-patch-viewer-diff-removed {
+    background: rgb(240 71 71 / 12%);
+    color: var(--status-danger-text, #f04747);
+}
+
+.vc-patch-viewer-diff-same {
+    color: var(--text-subtle);
+}
+
+.vc-patch-viewer-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5em;
 }

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { PatchVersioning } from "@api/PatchVersioning";
 import { PluginHealth } from "@api/PluginHealth";
 import { Settings } from "@api/Settings";
 import { reporterData } from "@debug/reporterData";
@@ -665,6 +666,31 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
                 patchedFactory = (0, eval)(patchedSource);
 
                 if (!patchedBy.has(patch.plugin)) {
+                    // Conflict detection: if another plugin already patched this
+                    // module, record a warning. This doesn't mean the patches are
+                    // incompatible — many plugins intentionally patch the same
+                    // module — but it's useful for the user to know.
+                    const otherPlugins = [...patchedBy].filter(p => p !== patch.plugin);
+                    if (otherPlugins.length > 0) {
+                        const otherList = otherPlugins.sort().join(", ");
+                        PluginHealth.recordPatchFailure(patch.plugin, {
+                            kind: "conflict",
+                            find: String(patch.find),
+                            match: String(replacement.match),
+                            moduleId: String(moduleId),
+                            error: `Also patched by: ${otherList}`
+                        });
+                        for (const other of otherPlugins) {
+                            PluginHealth.recordPatchFailure(other, {
+                                kind: "conflict",
+                                find: String(patch.find),
+                                match: String(replacement.match),
+                                moduleId: String(moduleId),
+                                error: `Also patched by: ${[patch.plugin, ...otherPlugins.filter(p => p !== other)].sort().join(", ")}`
+                            });
+                        }
+                    }
+
                     patchedBy.add(patch.plugin);
                     markedAsPatched = true;
                 }
@@ -723,6 +749,17 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
 
         if (!patch.all) {
             patches.splice(i--, 1);
+        }
+
+        // Patch versioning: if this patch was successfully applied, check
+        // whether the underlying Discord code changed since last session.
+        if (patchedBy.has(patch.plugin)) {
+            PatchVersioning.checkAndStore(
+                patch.plugin,
+                String(patch.find),
+                originalFactoryCode,
+                shouldCheckBuildNumber ? buildNumber : -1
+            );
         }
     }
 

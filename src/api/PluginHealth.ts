@@ -35,7 +35,7 @@
 
 import * as DataStore from "@api/DataStore";
 
-export type PatchFailureKind = "noModule" | "noEffect" | "errored" | "undoingGroup";
+export type PatchFailureKind = "noModule" | "noEffect" | "errored" | "undoingGroup" | "conflict" | "codeChanged";
 
 export interface PatchFailure {
     kind: PatchFailureKind;
@@ -275,16 +275,32 @@ export const PluginHealth = {
 
         // Collapse duplicate failures: patches can fail across many modules and
         // we do not want to blow up the ring buffer with the same message.
+        // For conflicts, collapse by find+moduleId+kind (ignore match/error
+        // since multiple replacements on the same module produce redundant entries).
+        const isConflict = failure.kind === "conflict";
         const duplicate = entry.patchFailures.find(f =>
             f.kind === failure.kind
             && f.find === failure.find
-            && f.match === failure.match
+            && (isConflict
+                ? f.moduleId === failure.moduleId
+                : f.match === failure.match)
         );
         if (duplicate) {
             duplicate.at = Date.now();
             if (failure.moduleId && duplicate.moduleId !== failure.moduleId) {
                 // Track the most recent module id we saw the failure on.
                 duplicate.moduleId = failure.moduleId;
+            }
+            // For conflicts, accumulate plugin names in the error field rather
+            // than overwriting with each new conflicting plugin.
+            if (isConflict && failure.error) {
+                const existingPlugins = duplicate.error ?? "";
+                const newPlugin = failure.error.replace("Also patched by: ", "");
+                if (!existingPlugins.includes(newPlugin)) {
+                    duplicate.error = existingPlugins
+                        ? `${existingPlugins}, ${newPlugin}`
+                        : failure.error;
+                }
             }
             bumpSessionCounter(plugin, "patchFailures");
             notify();
@@ -378,6 +394,23 @@ export const PluginHealth = {
     },
 
     /**
+     * Remove patch failures for a plugin that match the given predicate.
+     * Used to clear false positives (e.g. a module flagged as "noModule"
+     * that was actually lazy-loaded later).
+     */
+    clearPatchFailures(plugin: string, predicate: (f: PatchFailure) => boolean) {
+        const entry = registry.get(plugin);
+        if (!entry) return;
+        const before = entry.patchFailures.length;
+        entry.patchFailures = entry.patchFailures.filter(f => !predicate(f));
+        if (entry.patchFailures.length === before) return;
+        if (!entry.patchFailures.length && !entry.runtimeErrors.length) {
+            registry.delete(plugin);
+        }
+        notify();
+    },
+
+    /**
      * Clear everything in memory. Does NOT wipe persisted history — call
      * `clearHistory()` for that.
      */
@@ -409,10 +442,9 @@ export const PluginHealth = {
         };
     },
 
-    /** Wipe persisted session history. */
+    /** Wipe persisted session history. Preserves the current session. */
     async clearHistory() {
         history = [];
-        currentSession = createSession();
         try {
             await DataStore.set(DB_KEY_HISTORY, []);
         } catch (err) {
