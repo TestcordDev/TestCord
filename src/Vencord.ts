@@ -41,13 +41,14 @@ import { SettingsRouter } from "@webpack/common";
 import { get as dsGet } from "./api/DataStore";
 import { popNotice, showNotice } from "./api/Notices";
 import { NotificationData, showNotification } from "./api/Notifications";
+import { PatchVersioning } from "./api/PatchVersioning";
 import { PluginHealth } from "./api/PluginHealth";
 import { initPluginManager, PMLogger, startAllPlugins } from "./api/PluginManager";
 import { PlainSettings, Settings, SettingsStore } from "./api/Settings";
 import { areLocalSettingsDirty, getCloudSettings, getCloudSyncDirection, markLocalSettingsDirty, putCloudSettings, shouldCloudSync } from "./api/SettingsSync/cloudSync";
 import { relaunch } from "./utils/native";
 import { changes, checkForUpdates, isOutdated as getIsOutdated, update, UpdateLogger } from "./utils/updater";
-import { onceReady } from "./webpack";
+import { onceReady, wreq, addFactoryListener } from "./webpack";
 import { patches } from "./webpack/patchWebpack";
 
 if (IS_REPORTER) {
@@ -236,15 +237,139 @@ async function init() {
             );
     }
 
-    // Delayed scan for patches that never matched any module.
-    // Deferred so lazy-loaded chunks have a chance to arrive before we flag anything.
+    // Initialise patch versioning so that codeChanged entries are recorded
+    // when Discord updates the underlying code for a patched module.
+    void PatchVersioning.init();
+
+    // Delayed scan for patches that never matched any loaded module.
+    //
+    // Instead of blindly flagging every unresolved patch as "broken", we
+    // search Discord's complete factory map (wreq.m) — which contains the
+    // source code of EVERY module, loaded or not — to distinguish:
+    //
+    //   1. "lazy" — the find string IS in some factory's source, so the
+    //      module exists in the bundle but hasn't been instantiated yet.
+    //      This is normal: Discord lazy-loads emoji picker, settings panels,
+    //      voice UI, etc. We do NOT flag these.
+    //
+    //   2. "missing" — the find string is NOT in any factory's source, so
+    //      Discord removed or renamed the module. This is a genuine breakage
+    //      that the user should know about. We flag these as "noModule".
     setTimeout(() => {
+        if (!wreq?.m) return;
+
+        // Build a single concatenated source string once, rather than calling
+        // .toString() on each factory individually per patch (which would be
+        // O(patches × factories) string operations).
+        // The bundle is typically 5–15 MB of source — this is fine for a
+        // one-time deferred scan.
+        let allFactorySource: string | null = null;
+        const getFactorySource = () => {
+            if (allFactorySource !== null) return allFactorySource;
+            const parts: string[] = [];
+            for (const id in wreq.m) {
+                try {
+                    parts.push(String(wreq.m[id]));
+                } catch {
+                    // Some factories may throw on toString — skip them.
+                }
+            }
+            allFactorySource = parts.join("\n");
+            return allFactorySource;
+        };
+
+        let noModuleCount = 0;
+
+        // Track which patches were flagged as noModule so we can re-check
+        // them when Discord lazy-loads additional chunks later.
+        const noModulePatches: Array<{ plugin: string; find: string | RegExp; findStr: string; }> = [];
+
         for (const patch of patches) {
             if (patch.all) continue;
             if (patch.predicate && patch.predicate() === false) continue;
+
+            const findStr = String(patch.find);
+
+            // Check whether the find string exists anywhere in the bundle's
+            // factory source code. If it does, the module is lazy-loaded and
+            // will be patched when the user opens the relevant UI — not a
+            // real failure.
+            const source = getFactorySource();
+            let isInBundle = false;
+            if (patch.find instanceof RegExp) {
+                isInBundle = patch.find.test(source);
+            } else {
+                isInBundle = source.includes(findStr);
+            }
+
+            if (isInBundle) continue;
+
             PluginHealth.recordPatchFailure(patch.plugin, {
                 kind: "noModule",
-                find: String(patch.find)
+                find: findStr
+            });
+            noModuleCount++;
+            noModulePatches.push({
+                plugin: patch.plugin,
+                find: patch.find,
+                findStr
+            });
+        }
+
+        // Register a factory listener that checks newly loaded factories
+        // against the noModule entries. When Discord lazy-loads a chunk
+        // that contains a previously "missing" module, the false positive
+        // is automatically cleared.
+        if (noModulePatches.length > 0) {
+            const removeListener = addFactoryListener((factory) => {
+                let factorySource: string;
+                try {
+                    factorySource = String(factory);
+                } catch {
+                    return;
+                }
+
+                for (let i = noModulePatches.length - 1; i >= 0; i--) {
+                    const { plugin, find, findStr } = noModulePatches[i];
+                    let matches = false;
+                    if (find instanceof RegExp) {
+                        if (find.global) find.lastIndex = 0;
+                        matches = find.test(factorySource);
+                    } else {
+                        matches = factorySource.includes(findStr);
+                    }
+
+                    if (matches) {
+                        PluginHealth.clearPatchFailures(
+                            plugin,
+                            f => f.kind === "noModule" && f.find === findStr
+                        );
+                        noModulePatches.splice(i, 1);
+                        noModuleCount = Math.max(0, noModuleCount - 1);
+                    }
+                }
+
+                if (noModulePatches.length === 0) {
+                    removeListener();
+                }
+            });
+        }
+
+        // Discord update detection: if 3+ plugins have missing modules,
+        // it's very likely Discord shipped an update that broke things.
+        // Show a one-time notice pointing the user to the Health tab.
+        // Check if the user has dismissed this notice permanently.
+        if (noModuleCount >= 3) {
+            void dsGet<boolean>("PluginHealthNoticeDismissed_v1").then(dismissed => {
+                if (!dismissed) {
+                    showNotice(
+                        `Discord may have updated — ${noModuleCount} plugins have missing modules. Check the Plugin Health tab for details.`,
+                        "View Health",
+                        () => {
+                            SettingsRouter.openUserSettings("testcord_health_panel");
+                        }
+                    );
+                }
             });
         }
     }, 60_000);

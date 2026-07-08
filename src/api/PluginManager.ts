@@ -148,6 +148,14 @@ export const startAllPlugins = traceFunction("startAllPlugins", function startAl
     for (const start of pending) {
         try { start(); } catch (e) { logger.error("Failed to start plugin", e); }
     }
+
+    // After the final "WebpackReady" start pass, publish the set of enabled
+    // plugins to PluginHealth so the stability tracker can score sessions
+    // against a stable reference of "was actually enabled this session".
+    if (target === StartAt.WebpackReady) {
+        const enabled = Object.keys(Plugins).filter(isPluginEnabled);
+        PluginHealth.registerEnabledPlugins(enabled);
+    }
 });
 
 export function startDependenciesRecursive(p: Plugin) {

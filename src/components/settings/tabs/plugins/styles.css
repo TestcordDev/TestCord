@@ -392,6 +392,28 @@
     white-space: nowrap;
 }
 
+.vc-plugins-card-stability {
+    flex: 0 0 auto;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.vc-plugins-card-stability[data-badge="flaky"] {
+    background-color: var(--background-feedback-warning, rgb(240 178 50 / 15%));
+    color: var(--text-status-idle, #f0b232);
+}
+
+.vc-plugins-card-stability[data-badge="unstable"] {
+    background-color: var(--status-danger-background, rgb(240 71 71 / 15%));
+    color: var(--status-danger-text, #f04747);
+}
+
 .vc-plugins-grid .vc-addon-card-disabled {
     opacity: 0.68;
 }

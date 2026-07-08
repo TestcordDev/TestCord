@@ -5,6 +5,7 @@
  */
 
 import { showNotice } from "@api/Notices";
+import { PluginHealth } from "@api/PluginHealth";
 import { hasAnyVisibleSettings, isPluginEnabled, pluginRequiresRestart, startDependenciesRecursive, startPlugin, stopPlugin } from "@api/PluginManager";
 import { Settings } from "@api/Settings";
 import { CogWheel, InfoIcon } from "@components/Icons";
@@ -38,6 +39,20 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
     const isUserPlugin = pluginMeta?.userPlugin ?? false;
     const isModifiedPlugin = plugin.isModified ?? false;
     const isBDPlugin = pluginMeta.folderName?.startsWith("src/Betterdiscordplugins/") || plugin.tags?.includes("betterdiscord");
+
+    // Re-render when the stability score for *this* plugin changes (e.g. when
+    // history finishes loading from IndexedDB after the Plugins tab opens).
+    const [stabilityTick, setStabilityTick] = React.useState(0);
+    React.useEffect(() => {
+        let lastBadge = PluginHealth.getStability(plugin.name).badge;
+        return PluginHealth.subscribe(() => {
+            const next = PluginHealth.getStability(plugin.name).badge;
+            if (next !== lastBadge) {
+                lastBadge = next;
+                setStabilityTick(t => t + 1);
+            }
+        });
+    }, [plugin.name]);
 
     const isEnabled = () => isPluginEnabled(plugin.name);
 
@@ -145,6 +160,17 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
     const pluginDetails = pluginInfo.find(p => p.condition);
 
     const tooltip = pluginDetails?.title || "Unknown Plugin";
+    // stabilityTick is referenced so the card re-renders when the badge
+    // transitions (e.g. from "unknown" to "stable" after history loads).
+    const stability = React.useMemo(
+        () => PluginHealth.getStability(plugin.name),
+        [plugin.name, stabilityTick]
+    );
+    const showStabilityBadge = stability.badge === "flaky" || stability.badge === "unstable";
+    const stabilityTooltip = showStabilityBadge
+        ? `Broken in ${stability.sessionsBroken} of the last ${stability.sessionsSeen} sessions (${Math.round(stability.ratio * 100)}%).`
+        : undefined;
+
     const footer = (
         <div className={cl("card-meta")}>
             <span className={cl("card-source")}>
@@ -157,6 +183,15 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
                 )}
                 {tooltip}
             </span>
+            {showStabilityBadge && (
+                <span
+                    className={cl("card-stability")}
+                    data-badge={stability.badge}
+                    title={stabilityTooltip}
+                >
+                    {stability.badge === "unstable" ? "Unstable" : "Flaky"}
+                </span>
+            )}
             {!!plugin.tags?.length && (
                 <div className={cl("card-tags")}>
                     {plugin.tags.slice(0, 2).map(tag => (
