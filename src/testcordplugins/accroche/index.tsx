@@ -555,17 +555,10 @@ const UserContextMenuPatch: NavContextMenuPatchCallback = (
     children,
     { user }: { user: any; }
 ) => {
-    console.log(
-        "🔍🔍🔍 HOOK CONTEXT MENU CALLED 🔍🔍🔍",
-        user?.username || "unknown user"
-    );
+    // Keep this path quiet: it runs on every user right-click when the plugin is enabled.
     verboseLog(`🔍 Context menu called for ${user?.username || "unknown user"}`);
 
     if (!settings.store.enabled || !user) {
-        console.log("❌❌❌ PLUGIN DISABLED OR USER MISSING ❌❌❌", {
-            enabled: settings.store.enabled,
-            user: !!user,
-        });
         verboseLog(
             `❌ Plugin disabled or user missing - enabled: ${settings.store.enabled
             }, user: ${!!user}`

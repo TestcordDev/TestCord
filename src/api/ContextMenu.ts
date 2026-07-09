@@ -43,22 +43,103 @@ interface MenuCacheEntry {
 }
 
 const menuCache = new Map<string, MenuCacheEntry>();
-const CACHE_TTL = 3000;
-const CACHE_MAX = 10;
+/** How long a patched menu stays reusable for the same target. */
+const CACHE_TTL = 8_000;
+/** Cap shared cache entries so right-clicking many different targets still helps. */
+const CACHE_MAX = 64;
+/** Log individual patches slower than this (ms). Only when IS_DEV. */
+const SLOW_PATCH_MS = 2;
+/** Log total patch pass slower than this (ms). Only when IS_DEV. */
+const SLOW_TOTAL_MS = 8;
 
-function getArgsSignature(args: Array<any>): string {
+interface ArgsSignature {
+    /** Cache key segment for this menu open. */
+    key: string;
+    /** False when args lack stable ids — skip shared menuCache (mount memo still applies). */
+    cacheable: boolean;
+}
+
+function extractStableId(a: any): string | null {
+    if (a == null) return null;
+    if (typeof a !== "object") return String(a);
+
+    const id =
+        a.id ??
+        a.user?.id ??
+        a.userId ??
+        a.message?.id ??
+        a.messageId ??
+        a.channel?.id ??
+        a.channelId ??
+        a.guild?.id ??
+        a.guildId ??
+        a.role?.id ??
+        a.roleId ??
+        a.emoji?.id ??
+        a.sticker?.id ??
+        a.target?.id ??
+        a.item?.id ??
+        a.attachment?.id ??
+        a.sound?.soundId ??
+        a.soundId;
+
+    return id != null ? String(id) : null;
+}
+
+function getArgsSignature(args: Array<any>): ArgsSignature {
     const parts: string[] = [];
-    for (const a of args) {
-        if (a == null) { parts.push("n"); continue; }
-        if (typeof a !== "object") { parts.push(String(a)); continue; }
-        const id = a.id ?? a.user?.id ?? a.userId ?? a.message?.id ?? a.channel?.id ?? a.guild?.id ?? a.guildId ?? a.channelId;
-        if (id != null) {
-            parts.push(String(id));
-        } else {
-            return "\u0000" + Math.random().toString(36).slice(2);
+    let cacheable = true;
+
+    for (let i = 0; i < args.length; i++) {
+        const a = args[i];
+        if (a == null) {
+            parts.push("n");
+            continue;
         }
+        if (typeof a !== "object") {
+            parts.push(String(a));
+            continue;
+        }
+
+        const id = extractStableId(a);
+        if (id != null) {
+            parts.push(id);
+            continue;
+        }
+
+        // No stable id: don't poison the shared cache with random keys.
+        // Mount-level memoization still avoids re-patching on re-renders.
+        cacheable = false;
+        const keys = Object.keys(a).slice(0, 6).join(".");
+        parts.push(`o${i}:${a.constructor?.name ?? "Object"}:${keys}`);
     }
-    return parts.join(",");
+
+    return { key: parts.join(","), cacheable };
+}
+
+function readMenuCache(fullKey: string): Array<ReactElement<any> | null> | null {
+    const entry = menuCache.get(fullKey);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > CACHE_TTL) {
+        menuCache.delete(fullKey);
+        return null;
+    }
+    return entry.children;
+}
+
+function writeMenuCache(fullKey: string, children: Array<ReactElement<any> | null>) {
+    if (menuCache.size >= CACHE_MAX) {
+        let oldestKey: string | null = null;
+        let oldestTime = Infinity;
+        for (const [k, v] of menuCache) {
+            if (v.timestamp < oldestTime) {
+                oldestTime = v.timestamp;
+                oldestKey = k;
+            }
+        }
+        if (oldestKey) menuCache.delete(oldestKey);
+    }
+    menuCache.set(fullKey, { children, timestamp: Date.now() });
 }
 
 /**
@@ -170,58 +251,71 @@ interface ContextMenuProps {
     onClose: (callback: (...args: Array<any>) => any) => void;
 }
 
-export function _usePatchContextMenu(props: ContextMenuProps) {
-    const mountState = React.useRef<{ decided: boolean; cachedChildren: Array<ReactElement<any> | null> | null }>({ decided: false, cachedChildren: null });
+interface MountPatchState {
+    fullKey: string;
+    patchedChildren: Array<ReactElement<any> | null> | null;
+    /** True once deferred work for fullKey has been scheduled or completed. */
+    scheduled: boolean;
+}
 
-    if (!Menu.MenuItem) return props; // Prevent crashes in case we fail to acquire menu items for some reason
+function normalizeChildren(children: ContextMenuProps["children"]): Array<ReactElement<any> | null> {
+    return Array.isArray(children) ? children : [children];
+}
 
-    if (!mountState.current.decided) {
-        mountState.current.decided = true;
-        props.contextMenuAPIArguments ??= [];
-        const key = props.navId + ":" + getArgsSignature(props.contextMenuAPIArguments);
-        const entry = menuCache.get(key);
-        if (entry && Date.now() - entry.timestamp <= CACHE_TTL) {
-            mountState.current.cachedChildren = entry.children;
-            return { ...props, children: entry.children };
-        }
-    } else if (mountState.current.cachedChildren) {
-        return { ...props, children: mountState.current.cachedChildren };
-    }
-
-    props.contextMenuAPIArguments ??= [];
-    const args = props.contextMenuAPIArguments;
-    const contextMenuPatches = navPatches.get(props.navId);
-
+function applyAllPatches(
+    navId: string,
+    sourceChildren: ContextMenuProps["children"],
+    args: Array<any>
+): Array<ReactElement<any> | null> {
+    const contextMenuPatches = navPatches.get(navId);
     const hasPatches = (contextMenuPatches?.size ?? 0) > 0 || globalPatches.size > 0;
-    if (hasPatches) {
-        props = {
-            ...props,
-            children: cloneMenuChildren(props.children),
-        };
-    }
 
-    if (!Array.isArray(props.children)) props.children = [props.children];
+    let children = hasPatches
+        ? cloneMenuChildren(sourceChildren)
+        : sourceChildren;
 
-    findCacheChildren = props.children;
+    if (!Array.isArray(children)) children = [children];
+
+    if (!hasPatches) return children;
+
+    const timed = typeof IS_DEV !== "undefined" && IS_DEV;
+    const totalStart = timed ? performance.now() : 0;
+    const slowPatches: string[] = [];
+
+    findCacheChildren = children;
     findCache = new Map();
     try {
         if (contextMenuPatches?.size) {
+            let i = 0;
             for (const patch of contextMenuPatches) {
+                const t0 = timed ? performance.now() : 0;
                 try {
-                    patch(props.children, ...args);
+                    patch(children, ...args);
                 } catch (err) {
-                    ContextMenuLogger.error(`Patch for ${props.navId} errored,`, err);
+                    ContextMenuLogger.error(`Patch for ${navId} errored,`, err);
                 }
+                if (timed) {
+                    const dt = performance.now() - t0;
+                    if (dt >= SLOW_PATCH_MS) slowPatches.push(`nav#${i}=${dt.toFixed(1)}ms`);
+                }
+                i++;
             }
         }
 
         if (globalPatches.size) {
+            let i = 0;
             for (const patch of globalPatches) {
+                const t0 = timed ? performance.now() : 0;
                 try {
-                    patch(props.navId, props.children, ...args);
+                    patch(navId, children, ...args);
                 } catch (err) {
                     ContextMenuLogger.error("Global patch errored,", err);
                 }
+                if (timed) {
+                    const dt = performance.now() - t0;
+                    if (dt >= SLOW_PATCH_MS) slowPatches.push(`global#${i}=${dt.toFixed(1)}ms`);
+                }
+                i++;
             }
         }
     } finally {
@@ -229,18 +323,117 @@ export function _usePatchContextMenu(props: ContextMenuProps) {
         findCacheChildren = null;
     }
 
-    const cacheKey = props.navId + ":" + getArgsSignature(args);
-    if (menuCache.size >= CACHE_MAX) {
-        let oldestKey: string | null = null;
-        let oldestTime = Infinity;
-        for (const [k, v] of menuCache) {
-            if (v.timestamp < oldestTime) { oldestTime = v.timestamp; oldestKey = k; }
+    if (timed) {
+        const total = performance.now() - totalStart;
+        if (total >= SLOW_TOTAL_MS || slowPatches.length) {
+            ContextMenuLogger.debug(
+                `Patched ${navId} in ${total.toFixed(1)}ms` +
+                (slowPatches.length ? ` [${slowPatches.join(", ")}]` : "") +
+                ` (nav=${contextMenuPatches?.size ?? 0}, global=${globalPatches.size})`
+            );
         }
-        if (oldestKey) menuCache.delete(oldestKey);
     }
-    menuCache.set(cacheKey, { children: props.children, timestamp: Date.now() });
 
-    return props;
+    return children;
+}
+
+/**
+ * Patches context menu children for plugin items.
+ *
+ * Fast path: shared cache hit or already-computed mount result → return immediately.
+ * Slow path: paint Discord's stock menu first, then apply plugin patches after paint
+ * (useEffect) so right-click feels instant even with dozens of enabled menu plugins.
+ */
+export function _usePatchContextMenu(props: ContextMenuProps) {
+    // Hooks must run unconditionally (before any early return).
+    const mountRef = React.useRef<MountPatchState>({
+        fullKey: "",
+        patchedChildren: null,
+        scheduled: false,
+    });
+    const [, forceRender] = React.useReducer((n: number) => n + 1, 0);
+
+    props.contextMenuAPIArguments ??= [];
+    const args = props.contextMenuAPIArguments;
+    const { key: argsKey, cacheable } = getArgsSignature(args);
+    const fullKey = props.navId + ":" + argsKey;
+
+    const contextMenuPatches = navPatches.get(props.navId);
+    const hasPatches = (contextMenuPatches?.size ?? 0) > 0 || globalPatches.size > 0;
+
+    // Reset mount memo when Discord opens a different menu target in the same component instance.
+    if (mountRef.current.fullKey !== fullKey) {
+        mountRef.current = { fullKey, patchedChildren: null, scheduled: false };
+    }
+
+    // Defer plugin patches until after first paint when work is needed.
+    // useEffect runs after paint, so the stock Discord menu appears immediately.
+    React.useEffect(() => {
+        if (!Menu.MenuItem) return;
+        if (!hasPatches) return;
+        if (mountRef.current.fullKey === fullKey && mountRef.current.patchedChildren) return;
+        if (mountRef.current.fullKey === fullKey && mountRef.current.scheduled) return;
+
+        mountRef.current.scheduled = true;
+        let cancelled = false;
+
+        try {
+            const patched = applyAllPatches(props.navId, props.children, args);
+            if (cancelled) {
+                // Effect was cleaned up (Strict Mode / unmount); allow a later effect to retry.
+                if (mountRef.current.fullKey === fullKey) {
+                    mountRef.current.scheduled = false;
+                }
+                return;
+            }
+
+            mountRef.current = {
+                fullKey,
+                patchedChildren: patched,
+                scheduled: true,
+            };
+
+            if (cacheable) writeMenuCache(fullKey, patched);
+            forceRender();
+        } catch (err) {
+            if (mountRef.current.fullKey === fullKey) {
+                mountRef.current.scheduled = false;
+            }
+            ContextMenuLogger.error(`Deferred patch for ${props.navId} failed,`, err);
+        }
+
+        return () => {
+            cancelled = true;
+        };
+        // fullKey captures navId + stable args identity. Children/args come from this open's render.
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: re-run only when menu identity changes
+    }, [fullKey, hasPatches]);
+
+    if (!Menu.MenuItem) return props; // Prevent crashes if menu items failed to resolve
+
+    // Already patched on this mount (after deferred pass or sync path).
+    if (mountRef.current.patchedChildren && mountRef.current.fullKey === fullKey) {
+        return { ...props, children: mountRef.current.patchedChildren };
+    }
+
+    // Shared cache hit — show full plugin menu immediately, no flash.
+    if (hasPatches && cacheable) {
+        const cached = readMenuCache(fullKey);
+        if (cached) {
+            mountRef.current = { fullKey, patchedChildren: cached, scheduled: true };
+            return { ...props, children: cached };
+        }
+    }
+
+    // No plugin patches: normalize and return.
+    if (!hasPatches) {
+        const children = normalizeChildren(props.children);
+        mountRef.current = { fullKey, patchedChildren: children, scheduled: true };
+        return { ...props, children };
+    }
+
+    // First paint: stock Discord menu only. Plugin rows appear on the next frame.
+    return { ...props, children: normalizeChildren(props.children) };
 }
 
 function cloneMenuChildren(obj: ReactElement<any> | Array<ReactElement<any> | null> | null) {
