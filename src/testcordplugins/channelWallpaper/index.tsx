@@ -274,17 +274,17 @@ function applyWallpaper(channelId?: string) {
     };
 
     if (!tryInject()) {
-        const observer = new MutationObserver((_, obs) => {
-            if (tryInject()) {
-                obs.disconnect();
-                activeObservers.delete(observer);
+        let pollCount = 0;
+        const pollInterval = setInterval(() => {
+            if (tryInject() || ++pollCount > 30) {
+                clearInterval(pollInterval);
+                activeObservers.delete(pollInterval);
             }
-        });
-        activeObservers.add(observer);
-        observer.observe(document.body, { childList: true, subtree: true });
+        }, 100);
+        activeObservers.add(pollInterval);
         trackedTimeout(() => {
-            observer.disconnect();
-            activeObservers.delete(observer);
+            clearInterval(pollInterval);
+            activeObservers.delete(pollInterval);
         }, 3000);
     }
 }
@@ -378,7 +378,7 @@ let vpsSocket: WebSocket | null = null;
 let vpsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let stopping = false;
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>();
-const activeObservers = new Set<MutationObserver>();
+const activeObservers = new Set<ReturnType<typeof setInterval>>();
 
 function trackedTimeout(fn: () => void, ms: number) {
     const timer = setTimeout(() => {
@@ -519,7 +519,7 @@ export default definePlugin({
         }
         for (const timer of pendingTimers) clearTimeout(timer);
         pendingTimers.clear();
-        for (const observer of activeObservers) observer.disconnect();
+        for (const observer of activeObservers) clearInterval(observer);
         activeObservers.clear();
         removeWallpaperElements();
         if (vpsSocket) {

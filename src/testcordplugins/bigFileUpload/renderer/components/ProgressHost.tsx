@@ -17,39 +17,25 @@ import { UploadProgressBar } from "./UploadProgressBar";
 let progressBarRoot: Root | null = null;
 let progressBarContainer: HTMLElement | null = null;
 let resizeObserver: ResizeObserver | null = null;
-let mutationObserver: MutationObserver | null = null;
+let reinjectInterval: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Initialize the progress bar by injecting it into the DOM above the chat input
  */
 export function initProgressBar() {
-    // Start polling for progress updates
     startProgressPolling();
 
-    // Run on DOM ready
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", injectProgressBar);
     } else {
         injectProgressBar();
     }
 
-    // Also watch for navigation changes (channel switching) with debounce
-    // Only observe the chat area parent rather than the entire document body
-    let mutationTimer: ReturnType<typeof setTimeout> | null = null;
-    mutationObserver = new MutationObserver(() => {
-        if (mutationTimer) return;
-        mutationTimer = setTimeout(() => {
-            mutationTimer = null;
-            if (!progressBarContainer || !document.contains(progressBarContainer)) {
-                injectProgressBar();
-            }
-        }, 500);
-    });
-
-    mutationObserver.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
+    reinjectInterval = setInterval(() => {
+        if (!progressBarContainer || !document.contains(progressBarContainer)) {
+            injectProgressBar();
+        }
+    }, 2000);
 }
 
 /**
@@ -178,10 +164,9 @@ export function cleanupProgressBar() {
         resizeObserver = null;
     }
 
-    // Disconnect mutation observer to prevent memory leak
-    if (mutationObserver) {
-        mutationObserver.disconnect();
-        mutationObserver = null;
+    if (reinjectInterval) {
+        clearInterval(reinjectInterval);
+        reinjectInterval = null;
     }
 
     // Remove window resize listener

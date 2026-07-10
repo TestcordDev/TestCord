@@ -450,6 +450,7 @@ export default definePlugin({
             const merged = { ...MLMessage, ...(latestMessage ?? {}) };
             mergedMessageCache.set(messageId, merged);
             mergedEditTimestamps.set(messageId, latestMessage?.editedTimestamp?.valueOf?.() ?? 0);
+            invalidateMessageClassCache(messageId);
             return messageJsonToMessageClass({ message: merged });
         };
 

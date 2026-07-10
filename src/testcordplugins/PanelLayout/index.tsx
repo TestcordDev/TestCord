@@ -240,7 +240,7 @@ function onGlobalKeydown(e: KeyboardEvent) {
 
 // ─── DOM Attribute Injection ──────────────────────────────────────────────────
 
-let observer: MutationObserver | null = null;
+let observer: ReturnType<typeof setInterval> | null = null;
 let updateQueued = false;
 let updateFrame = 0;
 
@@ -258,7 +258,7 @@ function updateDomAttributes() {
 
 function startObserver() {
     if (observer) return;
-    observer = new MutationObserver(() => {
+    observer = setInterval(() => {
         if (updateQueued) return;
         updateQueued = true;
         updateFrame = requestAnimationFrame(() => {
@@ -266,17 +266,13 @@ function startObserver() {
             updateFrame = 0;
             updateDomAttributes();
         });
-    });
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-    });
+    }, 1000);
     updateDomAttributes();
 }
 
 function stopObserver() {
     if (observer) {
-        observer.disconnect();
+        clearInterval(observer);
         observer = null;
     }
     if (updateFrame) {

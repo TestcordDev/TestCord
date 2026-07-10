@@ -891,15 +891,13 @@ export default definePlugin({
             this._debounceTimer = debounceTimer;
         };
 
-        this._observer = new MutationObserver(scheduleInject);
-        this._observer.observe(document.body, { childList: true, subtree: true });
+        this._observer = setInterval(scheduleInject, 1000);
         const ric = (cb: () => void) => (typeof requestIdleCallback === "function" ? requestIdleCallback(cb, { timeout: 2000 }) : setTimeout(cb, 100));
         ric(inject);
     },
 
     stop() {
-        this._observer?.disconnect();
-        this._observer = null;
+        if (this._observer) { clearInterval(this._observer); this._observer = null; }
         if (this._debounceTimer) {
             clearTimeout(this._debounceTimer);
             this._debounceTimer = null;

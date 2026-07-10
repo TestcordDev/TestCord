@@ -188,7 +188,7 @@ export default definePlugin({
     start() {
         active = true;
         FluxDispatcher.subscribe("SPOTIFY_PLAYER_STATE", onSpotifyPlayerState as any);
-        intervalId = setInterval(tick, 500);
+        intervalId = setInterval(tick, 2000);
     },
 
     stop() {

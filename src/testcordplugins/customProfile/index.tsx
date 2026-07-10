@@ -175,7 +175,7 @@ const LS_ALL_ENABLED = "NightcordCP_allEnabled";
 
 let storedData: CustomProfileData = {};
 let isEnabled = false;
-let domObserver: MutationObserver | null = null;
+let domObserver: ReturnType<typeof setInterval> | null = null;
 
 let cachedOriginalUser: any = null;
 let cachedFakeUser: any = null;
@@ -629,11 +629,6 @@ function updateCachedRealData() {
     try { const myId = AuthenticationStore?.getId?.(); if (myId) _cachedMyId = myId; } catch { }
 }
 
-let _domQueued = false;
-let _domMutations: MutationRecord[] = [];
-let _domBatchTimeout: ReturnType<typeof setTimeout> | null = null;
-let _domBatchFrame: number | null = null;
-
 function scanTextNode(node: Text) {
     if (!isEnabled || !node.nodeValue) return;
     const val = (node as any).__cp_orig || node.nodeValue;
@@ -663,43 +658,17 @@ function scanNode(node: Node) {
     while ((n = walker.nextNode())) scanTextNode(n as Text);
 }
 
-function processDomBatch() {
-    try {
-        if (!isEnabled) { _domMutations = []; return; }
-        const batch = _domMutations; _domMutations = [];
-        for (const m of batch) for (const n of m.addedNodes) scanNode(n);
-    } finally {
-        _domQueued = false;
-    }
-}
-
 function startDomObserver() {
     stopDomObserver(); if (!isEnabled) return;
     scanNode(document.body);
-    domObserver = new MutationObserver(mutations => {
-        if (!isEnabled || !mutations.length) return;
-        _domMutations.push(...mutations);
-        if (_domMutations.length > 5000) _domMutations = _domMutations.slice(-5000);
-        if (!_domQueued) {
-            _domQueued = true;
-            _domBatchTimeout = setTimeout(() => {
-                _domBatchTimeout = null;
-                _domBatchFrame = requestAnimationFrame(() => {
-                    _domBatchFrame = null;
-                    processDomBatch();
-                });
-            }, 10);
-        }
-    });
-    domObserver.observe(document.body, { childList: true, subtree: true });
+    domObserver = setInterval(() => {
+        if (!isEnabled) return;
+        scanNode(document.body);
+    }, 2000);
 }
 
 function stopDomObserver() {
-    domObserver?.disconnect(); domObserver = null;
-    if (_domBatchTimeout !== null) { clearTimeout(_domBatchTimeout); _domBatchTimeout = null; }
-    if (_domBatchFrame !== null) { cancelAnimationFrame(_domBatchFrame); _domBatchFrame = null; }
-    _domMutations = [];
-    _domQueued = false;
+    if (domObserver) { clearInterval(domObserver); domObserver = null; }
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     let n: Node | null;
     while ((n = walker.nextNode())) { if ((n as any).__cp_orig !== undefined) { n.nodeValue = (n as any).__cp_orig; delete (n as any).__cp_orig; } }

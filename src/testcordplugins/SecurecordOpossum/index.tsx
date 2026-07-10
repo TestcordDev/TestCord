@@ -532,7 +532,6 @@ export default definePlugin({
                     if (settings.store.enableLogging) {
                         console.log("Securecord BlazingOpossum: Extracted encrypted part:", encryptedPart);
                         console.log("Securecord BlazingOpossum: Encrypted part length:", encryptedPart.length);
-                        console.log("Securecord BlazingOpossum: Password used:", password);
                     }
 
                     // Decode message using BlazingOpossum cipher

@@ -205,8 +205,11 @@ export function getCurrentProgress(): UploadProgress | null {
     return activeUploads.get(currentUploadId) || null;
 }
 
+const EMPTY_UPLOADS: UploadProgress[] = [];
+
 // Get all active uploads
 export function getAllUploads(): UploadProgress[] {
+    if (activeUploads.size === 0) return EMPTY_UPLOADS;
     return Array.from(activeUploads.values());
 }
 

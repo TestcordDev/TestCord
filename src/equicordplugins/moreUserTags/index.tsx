@@ -179,7 +179,7 @@ export default definePlugin({
                 continue;
 
             if ("permissions" in tag ?
-                tag.permissions.some(perm => perms.includes(perm)) :
+                tag.permissions.some(perm => (perms & PermissionsBits[perm as keyof typeof PermissionsBits]) !== 0n) :
                 tag.condition(message!, user, channel)) {
 
                 return this.localTags[tag.name];
@@ -188,15 +188,10 @@ export default definePlugin({
 
         return null;
     },
-    getPermissions(user: User, channel: Channel): string[] {
+    getPermissions(user: User, channel: Channel): bigint {
         const guild = GuildStore.getGuild(channel?.guild_id);
-        if (!guild) return [];
+        if (!guild) return 0n;
 
-        const permissions = computePermissions({ user, context: guild, overwrites: channel.permissionOverwrites });
-        return Object.entries(PermissionsBits)
-            .map(([perm, permInt]) =>
-                permissions & permInt ? perm : ""
-            )
-            .filter(Boolean);
+        return computePermissions({ user, context: guild, overwrites: channel.permissionOverwrites });
     },
 });

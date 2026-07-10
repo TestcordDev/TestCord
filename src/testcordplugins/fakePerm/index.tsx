@@ -15,24 +15,22 @@ import { Button, GuildChannelStore, GuildMemberStore, GuildRoleStore, GuildStore
 // Context menu patches are always registered, they check isEnabled at runtime
 let isEnabled = false;
 
-let domObserver: MutationObserver | null = null;
+let domInterval: ReturnType<typeof setInterval> | null = null;
 let domTimer: ReturnType<typeof setTimeout> | null = null;
 let pluginSelf: { applyDomOverrides: () => void; } | null = null;
 
 function ensureDomObserver() {
-    if (domObserver || !isEnabled || typeof document === "undefined") return;
-    domObserver = new MutationObserver(() => {
+    if (domInterval || !isEnabled || typeof document === "undefined") return;
+    domInterval = setInterval(() => {
         if (!isEnabled) return;
         if (fakeNicks.size === 0 && disconnectedUsers.size === 0 && kickedUsers.size === 0) return;
         if (domTimer) return;
         domTimer = setTimeout(() => { domTimer = null; if (isEnabled) pluginSelf?.applyDomOverrides(); }, 150);
-    });
-    domObserver.observe(document.body, { childList: true, subtree: true });
+    }, 1000);
 }
 
 function destroyDomObserver() {
-    domObserver?.disconnect();
-    domObserver = null;
+    if (domInterval) { clearInterval(domInterval); domInterval = null; }
     if (domTimer) { clearTimeout(domTimer); domTimer = null; }
 }
 

@@ -254,7 +254,7 @@ export default definePlugin({
     },
 
     _borderScanQueued: false,
-    _borderObserver: null as MutationObserver | null,
+    _borderObserver: null as ReturnType<typeof setInterval> | null,
     _startupTimer: null as ReturnType<typeof setTimeout> | null,
 
     start() {
@@ -268,15 +268,14 @@ export default definePlugin({
             this.applyBorders();
         }, 1000);
 
-        const observer = new MutationObserver(() => {
+        const observer = setInterval(() => {
             if (this._borderScanQueued) return;
             this._borderScanQueued = true;
             requestAnimationFrame(() => {
                 this._borderScanQueued = false;
                 this.applyBorders();
             });
-        });
-        observer.observe(document.body, { childList: true, subtree: true });
+        }, 1000);
         this._borderObserver = observer;
     },
 
@@ -292,7 +291,7 @@ export default definePlugin({
         }
         this._borderScanQueued = false;
         if (this._borderObserver) {
-            this._borderObserver.disconnect();
+            clearInterval(this._borderObserver);
             this._borderObserver = null;
         }
     },

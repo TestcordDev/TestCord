@@ -23,8 +23,10 @@ import type * as TSPattern from "ts-pattern";
 export let FluxDispatcher: t.FluxDispatcher;
 waitFor(["dispatch", "subscribe"], m => {
     FluxDispatcher = m;
-    // Non import access to avoid circular dependency
-    Vencord.Plugins.subscribeAllPluginsFluxEvents(m);
+    // Non import access to avoid circular dependency.
+    // Deferred because the Vencord global may not be assigned yet when
+    // this waitFor fires during webpack patching (before the IIFE returns).
+    queueMicrotask(() => Vencord?.Plugins?.subscribeAllPluginsFluxEvents?.(m));
 
     const cb = () => {
         m.unsubscribe("CONNECTION_OPEN", cb);

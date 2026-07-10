@@ -457,7 +457,7 @@ const SWITCHER_DROPDOWN_SELECTORS = [
 ];
 
 let switcherDropdownOpen = false;
-let switcherDropdownObserver: MutationObserver | null = null;
+let switcherDropdownObserver: ReturnType<typeof setInterval> | null = null;
 let switcherDropdownCheckQueued = false;
 let accountSwitcherRenderUntil = 0;
 
@@ -479,26 +479,18 @@ function startSwitcherDropdownObserver() {
     }
 
     switcherDropdownOpen = readSwitcherDropdownOpen();
-    switcherDropdownObserver = new MutationObserver(() => {
-        // Coalesce: body mutations fire continuously (hover, typing, animations,
-        // context menu open/close). Schedule at most one querySelector scan per
-        // frame instead of running it on every mutation record.
+    switcherDropdownObserver = setInterval(() => {
         if (switcherDropdownCheckQueued) return;
         switcherDropdownCheckQueued = true;
         requestAnimationFrame(() => {
             switcherDropdownCheckQueued = false;
             switcherDropdownOpen = readSwitcherDropdownOpen();
         });
-    });
-    switcherDropdownObserver.observe(body, {
-        childList: true,
-        subtree: true,
-    });
+    }, 500);
 }
 
 function stopSwitcherDropdownObserver() {
-    switcherDropdownObserver?.disconnect();
-    switcherDropdownObserver = null;
+    if (switcherDropdownObserver) { clearInterval(switcherDropdownObserver); switcherDropdownObserver = null; }
     switcherDropdownOpen = false;
     switcherDropdownCheckQueued = false;
     accountSwitcherRenderUntil = 0;

@@ -125,15 +125,16 @@ function CheckBadge({ badge, author }: { badge: string; author: User; }): JSX.El
 }
 
 function ChatBadges({ author }: { author: User; }) {
+    const { showEquicordDonor, showEquicordContributor, showVencordDonor, showVencordContributor, showDiscordProfile, showDiscordNitro } = settings.store;
 
     return (
         <span className="vc-sbic-badge-row" style={{ margin: "2px" }}>
-            {settings.store.showEquicordDonor && <CheckBadge badge={"EquicordDonor"} author={author} />}
-            {settings.store.showEquicordContributor && <CheckBadge badge={"EquicordContributer"} author={author} />}
-            {settings.store.showVencordDonor && <CheckBadge badge={"VencordDonor"} author={author} />}
-            {settings.store.showVencordContributor && <CheckBadge badge={"VencordContributer"} author={author} />}
-            {settings.store.showDiscordProfile && <CheckBadge badge={"DiscordProfile"} author={author} />}
-            {settings.store.showDiscordNitro && <CheckBadge badge={"DiscordNitro"} author={author} />}
+            {showEquicordDonor && <CheckBadge badge={"EquicordDonor"} author={author} />}
+            {showEquicordContributor && <CheckBadge badge={"EquicordContributer"} author={author} />}
+            {showVencordDonor && <CheckBadge badge={"VencordDonor"} author={author} />}
+            {showVencordContributor && <CheckBadge badge={"VencordContributer"} author={author} />}
+            {showDiscordProfile && <CheckBadge badge={"DiscordProfile"} author={author} />}
+            {showDiscordNitro && <CheckBadge badge={"DiscordNitro"} author={author} />}
         </span>
     );
 }
@@ -146,6 +147,9 @@ export default definePlugin({
     tags: ["Appearance", "Chat"],
     settings,
     renderMessageDecoration(props) {
-        return props.message?.author ? <ChatBadges author={props.message.author} /> : null;
+        if (!props.message?.author) return null;
+        const { showEquicordDonor, showEquicordContributor, showVencordDonor, showVencordContributor, showDiscordProfile, showDiscordNitro } = settings.store;
+        if (!showEquicordDonor && !showEquicordContributor && !showVencordDonor && !showVencordContributor && !showDiscordProfile && !showDiscordNitro) return null;
+        return <ChatBadges author={props.message.author} />;
     }
 });

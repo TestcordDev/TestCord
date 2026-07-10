@@ -42,7 +42,7 @@ export default definePlugin({
     description: "Add a tooltip to the joined date showing the exact time and how many days ago it was",
     tags: ["Utility", "Appearance"],
     patches: [{
-        find: ".USER_PROFILE_MEMBER_SINCE",
+        find: "#{intl::USER_PROFILE_MEMBER_SINCE}",
         replacement: [{
             match: /children:(\(.*?(\i\.\i\.extractTimestamp\(\i\)).*?)\}/,
             replace: "children:$self.discord($1, $2)}"

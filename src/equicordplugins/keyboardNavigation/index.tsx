@@ -15,6 +15,7 @@ import { openCommandPalette } from "./components/CommandPalette";
 
 const cl = classNameFactory("vc-command-palette-");
 let isRecordingGlobal: boolean = false;
+let paletteRoot: Element | null = null;
 
 export const settings = definePluginSettings({
     hotkey: {
@@ -31,8 +32,11 @@ export const settings = definePluginSettings({
                 setIsRecording(true);
                 isRecordingGlobal = true;
 
+                let recorderButton: Element | null = document.querySelector(`.${cl("key-recorder-button")}`);
+
                 const updateKeys = () => {
-                    if (keys.size === 0 || !document.querySelector(`.${cl("key-recorder-button")}`)) {
+                    if (recorderButton && !document.contains(recorderButton)) recorderButton = null;
+                    if (keys.size === 0 || !recorderButton) {
                         const longestArray = keyLists.reduce((a, b) => a.length > b.length ? a : b);
                         if (longestArray.length > 0) {
                             settings.store.hotkey = longestArray.map(key => key.toLowerCase());
@@ -135,7 +139,9 @@ export default definePlugin({
 
         closeAllModals();
 
-        if (document.querySelector(`.${cl("root")}`)) return;
+        if (paletteRoot && !document.contains(paletteRoot)) paletteRoot = null;
+        if (!paletteRoot) paletteRoot = document.querySelector(`.${cl("root")}`);
+        if (paletteRoot) return;
 
         openCommandPalette();
     }

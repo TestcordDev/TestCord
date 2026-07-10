@@ -803,8 +803,8 @@ export default definePlugin({
                     replace: (_m, p) => `this.__open=${p},this.setState({shouldShowTooltip:${p}})`
                 },
                 {
-                    match: /if\(this\.state\.shouldShowTooltip!==(\i)\)/,
-                    replace: "if(this.__open!==$1)"
+                    match: /this\.state\.shouldShowTooltip!==(\i)/,
+                    replace: "this.__open!==$1"
                 }
             ]
         },
@@ -813,10 +813,10 @@ export default definePlugin({
             predicate: () => settings.store.optimizeEmojiCache,
             replacement: [
                 {
-                    match: /(\i)=>\{let \i=(\i)\[null==\i\?(\i)\.kod:\i\];null!=\i&&\((\i)\(\)\.each\(\i\.usableEmojis,(\i)\),\i\(\)\.each\(\i\.emoticons,(\i)\)\)\};/,
-                    replace: (_m, e, q, k, a, n, r) =>
+                    match: /(\i)=>\{let \i=(\i)\[null==\i\?(\i)\.(\i):\i\];null!=\i&&\((\i)\(\)\.each\(\i\.usableEmojis,(\i)\),\i\(\)\.each\(\i\.emoticons,(\i)\)\)\};/,
+                    replace: (_m, e, q, k, kodProp, a, n, r) =>
                         `${e}=>{` +
-                        `const t=${q}[null==${e}?${k}.kod:${e}];` +
+                        `const t=${q}[null==${e}?${k}.${kodProp}:${e}];` +
                         "const usableEmojis=t?.usableEmojis;" +
                         "const emoticons=t?.emoticons;" +
                         `null!=t&&(${a}().each(usableEmojis,${n}),${a}().each(emoticons,${r}))` +
@@ -828,7 +828,7 @@ export default definePlugin({
             find: /\i\.\i\.getAppSpinnerSources\(\)/,
             predicate: () => settings.store.killLoadingSpinner,
             replacement: {
-                match: /let \i=\i\.\i\.getAppSpinnerSources\(\).+?;(\i\.\i).+?\)\}/,
+                match: /(?:let|const) \i=\i\.\i\.getAppSpinnerSources\(\).{0,200}?;(\i\.\i).{0,200}?\)\}/,
                 replace: "$1=()=>null;"
             }
         },
@@ -844,17 +844,18 @@ export default definePlugin({
             find: "getDispatchHandler needs to be passed in first!",
             predicate: () => settings.store.killGatewayAnalytics,
             replacement: {
-                match: /let \i=Date\.now\(\),(\i=\i\.Z\.flush\(\i,\i\));\i\.\i\.showPerformanceTelemetry\?.+?Telemetry\(.+?,\i\)/,
+                match: /let \i=Date\.now\(\),(\i=\i\.\i\.flush\(\i,\i\));.{0,100}?showPerformanceTelemetry\?.{0,100}?Telemetry\(.{0,100}?,\i\)/,
                 replace: "$1"
             }
         },
         {
-            find: /reactionAnimations/,
+            find: /reactionPop|reactionBurst/,
             predicate: () => settings.store.suppressReactionAnimations,
             replacement: {
                 match: /reactionAnimations:\i,/,
                 replace: "reactionAnimations:{reactionPop:{},reactionBurst:{}},",
-            }
+            },
+            noWarn: true
         },
         {
             // Kill Sentry init — patch the DSN to empty so the SDK never boots
@@ -955,9 +956,7 @@ export default definePlugin({
     start() {
         if (settings.store.verboseLogging) logger.info("Starting optimizer suite");
 
-        if (settings.store.domThrottle || settings.store.pauseOffscreenMedia || (settings.store.freezeGifsUntilHover && settings.store.gifFreezeMethod !== "css") || settings.store.lazyEmbedImages || settings.store.lazyIframes || settings.store.optimizeImageDecoding || settings.store.disableAnimatedEmoji || settings.store.suppressGifAutoplay || settings.store.freezeAnimatedAvatars || settings.store.reduceAvatarQuality || settings.store.disableSpellcheck) {
-            try { this.installConsolidatedObserver(); } catch (e) { logger.warn("installConsolidatedObserver failed", e); }
-        }
+        try { this.installConsolidatedObserver(); } catch (e) { logger.warn("installConsolidatedObserver failed", e); }
         try { if (settings.store.domThrottle) this.installDomThrottle(); } catch (e) { logger.warn("installDomThrottle failed", e); }
         try { if (settings.store.fastNetwork || settings.store.networkCache || settings.store.forceLowImageQuality) this.installNetworkLayer(); } catch (e) { logger.warn("installNetworkLayer failed", e); }
         try { if (settings.store.disableSpringAnimations) this.installSpringSkip(); } catch (e) { logger.warn("installSpringSkip failed", e); }

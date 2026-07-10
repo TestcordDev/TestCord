@@ -26,8 +26,7 @@ export default definePlugin({
     tags: ["Accessibility", "Chat", "Shortcuts", "Utility"],
     patches: [
         {
-            find: ".removeObscurity,",
-            noWarn: true,
+            find: "removeObscurity",
             replacement: {
                 match: /(?<=removeObscurity(?:",|=)(\i)=>{)/,
                 replace: (_, event) => `$self.reveal(${event});`

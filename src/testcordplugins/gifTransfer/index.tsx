@@ -456,18 +456,13 @@ function tryInject(): void {
     }
 }
 
-let observer: MutationObserver | null = null;
 let injectTimer: ReturnType<typeof setTimeout> | null = null;
+let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 function startObserver(): void {
-    observer = new MutationObserver(() => {
-        if (injectTimer) return;
-        injectTimer = setTimeout(() => {
-            injectTimer = null;
-            tryInject();
-        }, 300);
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+    pollInterval = setInterval(() => {
+        tryInject();
+    }, 1000);
     tryInject();
 }
 
@@ -476,8 +471,10 @@ function stopObserver(): void {
         clearTimeout(injectTimer);
         injectTimer = null;
     }
-    observer?.disconnect();
-    observer = null;
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
     document.querySelectorAll(`#${BUTTONS_ID}`).forEach(el => el.remove());
 }
 
@@ -492,17 +489,10 @@ export default definePlugin({
 
     patches: [
         {
-            find: "toBinary(t).length>762880",
+            find: "toBinary(t).length>",
             noWarn: true,
             replacement: {
-                match: /\.toBinary\(t\)\.length>762880/,
-                replace: ".toBinary(t).length>Number.MAX_SAFE_INTEGER",
-            }
-        },
-        {
-            find: "toBinary(t).length>",
-            replacement: {
-                match: /\.toBinary\(t\)\.length>\d+/,
+                match: /\.toBinary\(\i\)\.length>\d+/,
                 replace: ".toBinary(t).length>Number.MAX_SAFE_INTEGER",
             }
         },
