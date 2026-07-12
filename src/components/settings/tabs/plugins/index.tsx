@@ -51,7 +51,7 @@ export const cl = classNameFactory("vc-plugins-");
 export const logger = new Logger("PluginSettings", "#a6d189");
 
 const PluginSearchPrefixes = ["tcp:", "testcordplugin:"];
-const PluginLoadBatchSize = 144;
+const PluginLoadBatchSize = 36;
 
 function showErrorToast(message: string) {
     Toasts.show({

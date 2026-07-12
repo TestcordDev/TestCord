@@ -84,6 +84,10 @@ function formatPluginHealth(pluginName: string, entry: PluginHealthEntry): strin
             if (f.error) {
                 lines.push("  " + f.error.split("\n").join("\n  "));
             }
+            if (f.sourceContext) {
+                lines.push("  Source context:");
+                lines.push("  " + f.sourceContext.split("\n").join("\n  "));
+            }
         }
     }
     if (entry.runtimeErrors.length) {

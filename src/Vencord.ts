@@ -278,7 +278,7 @@ async function init() {
             return allFactorySource;
         };
 
-        let noModuleCount = 0;
+        const noModulePlugins = new Set<string>();
 
         // Track which patches were flagged as noModule so we can re-check
         // them when Discord lazy-loads additional chunks later.
@@ -309,7 +309,7 @@ async function init() {
                 kind: "noModule",
                 find: findStr
             });
-            noModuleCount++;
+            noModulePlugins.add(patch.plugin);
             noModulePatches.push({
                 plugin: patch.plugin,
                 find: patch.find,
@@ -346,7 +346,9 @@ async function init() {
                             f => f.kind === "noModule" && f.find === findStr
                         );
                         noModulePatches.splice(i, 1);
-                        noModuleCount = Math.max(0, noModuleCount - 1);
+                        if (!noModulePatches.some(patch => patch.plugin === plugin)) {
+                            noModulePlugins.delete(plugin);
+                        }
                     }
                 }
 
@@ -360,11 +362,11 @@ async function init() {
         // it's very likely Discord shipped an update that broke things.
         // Show a one-time notice pointing the user to the Health tab.
         // Check if the user has dismissed this notice permanently.
-        if (noModuleCount >= 3) {
+        if (noModulePlugins.size >= 3) {
             void dsGet<boolean>("PluginHealthNoticeDismissed_v1").then(dismissed => {
                 if (!dismissed) {
                     showNotice(
-                        `Discord may have updated — ${noModuleCount} plugins have missing modules. Check the Plugin Health tab for details.`,
+                        `Discord may have updated — ${noModulePlugins.size} plugins have missing modules. Check the Plugin Health tab for details.`,
                         "View Health",
                         () => {
                             SettingsRouter.openUserSettings("testcord_health_panel");
