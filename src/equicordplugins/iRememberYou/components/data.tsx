@@ -47,7 +47,7 @@ export class Data {
             return GuildStore.getGuild(channel.guild_id) || undefined;
         })();
 
-        if (replyOptions.messageReference) {
+        if (replyOptions?.messageReference) {
             const { channel_id, message_id } = replyOptions.messageReference;
             const message = MessageStore.getMessage(channel_id, message_id);
             if (!message) {

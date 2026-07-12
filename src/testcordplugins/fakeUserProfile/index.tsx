@@ -219,13 +219,11 @@ function mergeUser(base: any, overrides: Record<string, unknown>): any {
 }
 
 function useUserAvatarDecoration(user: User) {
-    logger.info("[DECO] useUserAvatarDecoration called", { userId: user?.id, isActive: isActive(), isCurrent: isCurrentUser(user?.id) });
     if (!isActive()) return undefined;
     if (!isCurrentUser(user?.id)) return undefined;
     const t = getTargetUser() as any;
     const manual = getCachedTarget()?.manualProfile;
     const decoAsset = t?.avatarDecorationData?.asset || manual?.avatarDecoration || manual?.decorationAsset;
-    logger.info("[DECO] useUserAvatarDecoration resolved", { targetAsset: t?.avatarDecorationData?.asset, manualDeco: manual?.avatarDecoration, manualDecoAsset: manual?.decorationAsset, resolved: decoAsset });
     if (!decoAsset) return undefined;
     return {
         asset: decoAsset,
@@ -866,7 +864,7 @@ export default definePlugin({
             noWarn: true,
             replacement: {
                 match: /(?<=getUserProfile\(\i\){return )(.+?)(?=})/,
-                replace: "($self.logProfileCall(arguments[0]),$self.profileHook(arguments[0],$1))"
+                replace: "$self.profileHook(arguments[0],$1)"
             }
         },
         {
@@ -1003,32 +1001,23 @@ export default definePlugin({
     },
 
     getAvatarDecorationURL(args: { user?: User; avatarDecoration?: any; canAnimate?: boolean; }) {
-        logger.info("[DECO] getAvatarDecorationURL called", args);
-        if (!isActive()) { logger.info("[DECO] inactive, bail"); return undefined; }
+        if (!isActive()) return undefined;
         const { user, avatarDecoration, canAnimate } = args ?? {};
         const t = getTargetUser() as any;
         const manual = getCachedTarget()?.manualProfile;
         const spoofedAsset = t?.avatarDecorationData?.asset || manual?.avatarDecoration || manual?.decorationAsset;
-        logger.info("[DECO] resolved", { userId: user?.id, callerAsset: avatarDecoration?.asset, spoofedAsset, canAnimate });
-        if (!spoofedAsset) { logger.info("[DECO] no spoofed asset, bail"); return undefined; }
+        if (!spoofedAsset) return undefined;
         const callerAsset: string | undefined = avatarDecoration?.asset;
         const isOurUser = user?.id != null && isCurrentUser(user.id);
         const isOurDecoration = callerAsset === spoofedAsset;
-        logger.info("[DECO] match", { isOurUser, isOurDecoration });
-        if (!isOurUser && !isOurDecoration) { logger.info("[DECO] not ours, bail"); return undefined; }
+        if (!isOurUser && !isOurDecoration) return undefined;
         const asset = canAnimate && spoofedAsset.startsWith("a_") ? spoofedAsset : spoofedAsset.replace(/^a_/, "");
         const passthrough = canAnimate && spoofedAsset.startsWith("a_") ? "" : "?passthrough=false";
         const url = `https://cdn.discordapp.com/avatar-decoration-presets/${asset}.png${passthrough}`;
-        logger.info("[DECO] returning URL", url);
         return url;
     },
 
-    logProfileCall(userId: string) {
-        logger.info("[DECO] getUserProfile patched call", { userId, isActive: isActive(), isCurrent: isCurrentUser(userId) });
-    },
-
     profileHook(userId: string, original: any) {
-        logger.info("[DECO] profileHook entry", { userId, isActive: isActive(), isCurrent: isCurrentUser(userId) });
         if (!isActive() || !isCurrentUser(userId)) return original;
         const targetProfile = getTargetProfile();
         const target = getTargetUser();

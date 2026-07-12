@@ -14,10 +14,10 @@ export default definePlugin({
     patches: [
         // message and member list popouts
         {
-            find: '"UserProfilePopout");',
+            find: "profileViewedAnalytics:",
             replacement: {
-                match: /user:\i,widgets:.{0,100}?\}\),/,
-                replace: "$&Vencord.Api.ProfileCollections.renderProfileCollections(arguments[0]),",
+                match: /(?<=profileViewedAnalytics:\i}\),)/,
+                replace: "Vencord.Api.ProfileCollections.renderProfileCollections(arguments[0]),",
             }
         },
         // user panel popout
@@ -32,8 +32,8 @@ export default definePlugin({
         {
             find: ".SIDEBAR,disableToolbar:",
             replacement: {
-                match: /user:\i,widgets:.{0,100}?\}\),(?=.{0,100}unownedWishlistItems:\i,wishlistId:\i)/,
-                replace: "$&Vencord.Api.ProfileCollections.renderProfileCollections({...arguments[0],isSideBar:true}),"
+                match: /(#{intl::USER_PROFILE_MEMBER_SINCE}\),.{0,100}userId:(\i\.id)\}\)\}\))(?=.{0,100}unownedWishlistItems:\i,wishlistId:\i)/,
+                replace: "$1,Vencord.Api.ProfileCollections.renderProfileCollectionsForUser($2,true)"
             }
         }
     ]

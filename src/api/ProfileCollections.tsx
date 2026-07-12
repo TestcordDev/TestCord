@@ -7,7 +7,7 @@
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Logger } from "@utils/Logger";
 import { User } from "@vencord/discord-types";
-import { useEffect, useState } from "@webpack/common";
+import { useEffect, UserStore, useState } from "@webpack/common";
 import type { ReactNode } from "react";
 
 const logger = new Logger("ProfileCollectionAPI");
@@ -70,4 +70,10 @@ function ProfileCollections({ props }: { props: any; }) {
 /** @internal Injected by ProfileCollectionAPI patch (do NOT call directly) */
 export function renderProfileCollections(props: any) {
     return <ProfileCollections props={props} />;
+}
+
+/** @internal Injected where Discord only exposes a user ID. */
+export function renderProfileCollectionsForUser(userId: string, isSideBar = false) {
+    const user = UserStore.getUser(userId);
+    return user ? <ProfileCollections props={{ user, isSideBar }} /> : null;
 }

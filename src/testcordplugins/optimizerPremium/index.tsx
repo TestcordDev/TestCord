@@ -956,7 +956,21 @@ export default definePlugin({
     start() {
         if (settings.store.verboseLogging) logger.info("Starting optimizer suite");
 
-        try { this.installConsolidatedObserver(); } catch (e) { logger.warn("installConsolidatedObserver failed", e); }
+        if (
+            settings.store.domThrottle
+            || settings.store.pauseOffscreenMedia
+            || settings.store.freezeGifsUntilHover && settings.store.gifFreezeMethod !== "css"
+            || settings.store.lazyEmbedImages
+            || settings.store.lazyIframes
+            || settings.store.optimizeImageDecoding
+            || settings.store.disableAnimatedEmoji
+            || settings.store.suppressGifAutoplay
+            || settings.store.freezeAnimatedAvatars
+            || settings.store.reduceAvatarQuality
+            || settings.store.disableSpellcheck
+        ) {
+            try { this.installConsolidatedObserver(); } catch (e) { logger.warn("installConsolidatedObserver failed", e); }
+        }
         try { if (settings.store.domThrottle) this.installDomThrottle(); } catch (e) { logger.warn("installDomThrottle failed", e); }
         try { if (settings.store.fastNetwork || settings.store.networkCache || settings.store.forceLowImageQuality) this.installNetworkLayer(); } catch (e) { logger.warn("installNetworkLayer failed", e); }
         try { if (settings.store.disableSpringAnimations) this.installSpringSkip(); } catch (e) { logger.warn("installSpringSkip failed", e); }

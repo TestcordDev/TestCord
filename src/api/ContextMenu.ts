@@ -37,30 +37,6 @@ const ContextMenuLogger = new Logger("ContextMenu");
 export const navPatches = new Map<string, Set<NavContextMenuPatchCallback>>();
 export const globalPatches = new Set<GlobalContextMenuPatchCallback>();
 
-interface MenuCacheEntry {
-    children: Array<ReactElement<any> | null>;
-    timestamp: number;
-}
-
-const menuCache = new Map<string, MenuCacheEntry>();
-const CACHE_TTL = 3000;
-const CACHE_MAX = 10;
-
-function getArgsSignature(args: Array<any>): string {
-    const parts: string[] = [];
-    for (const a of args) {
-        if (a == null) { parts.push("n"); continue; }
-        if (typeof a !== "object") { parts.push(String(a)); continue; }
-        const id = a.id ?? a.user?.id ?? a.userId ?? a.message?.id ?? a.channel?.id ?? a.guild?.id ?? a.guildId ?? a.channelId;
-        if (id != null) {
-            parts.push(String(id));
-        } else {
-            return "\u0000" + Math.random().toString(36).slice(2);
-        }
-    }
-    return parts.join(",");
-}
-
 /**
  * Add a context menu patch
  * @param navId The navId(s) for the context menu(s) to patch
@@ -171,22 +147,7 @@ interface ContextMenuProps {
 }
 
 export function _usePatchContextMenu(props: ContextMenuProps) {
-    const mountState = React.useRef<{ decided: boolean; cachedChildren: Array<ReactElement<any> | null> | null }>({ decided: false, cachedChildren: null });
-
     if (!Menu.MenuItem) return props; // Prevent crashes in case we fail to acquire menu items for some reason
-
-    if (!mountState.current.decided) {
-        mountState.current.decided = true;
-        props.contextMenuAPIArguments ??= [];
-        const key = props.navId + ":" + getArgsSignature(props.contextMenuAPIArguments);
-        const entry = menuCache.get(key);
-        if (entry && Date.now() - entry.timestamp <= CACHE_TTL) {
-            mountState.current.cachedChildren = entry.children;
-            return { ...props, children: entry.children };
-        }
-    } else if (mountState.current.cachedChildren) {
-        return { ...props, children: mountState.current.cachedChildren };
-    }
 
     props.contextMenuAPIArguments ??= [];
     const args = props.contextMenuAPIArguments;
@@ -228,17 +189,6 @@ export function _usePatchContextMenu(props: ContextMenuProps) {
         findCache = null;
         findCacheChildren = null;
     }
-
-    const cacheKey = props.navId + ":" + getArgsSignature(args);
-    if (menuCache.size >= CACHE_MAX) {
-        let oldestKey: string | null = null;
-        let oldestTime = Infinity;
-        for (const [k, v] of menuCache) {
-            if (v.timestamp < oldestTime) { oldestTime = v.timestamp; oldestKey = k; }
-        }
-        if (oldestKey) menuCache.delete(oldestKey);
-    }
-    menuCache.set(cacheKey, { children: props.children, timestamp: Date.now() });
 
     return props;
 }

@@ -11,7 +11,10 @@
     gap: 12px;
     margin: 12px 0 4px;
     color: var(--vc-dsa-warnings-title);
-    width: 100%;
+    align-self: stretch;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
     overflow: visible;
 }
 
@@ -25,7 +28,8 @@
 }
 
 .vc-dsa-warnings-sidebar {
-    width: 100%;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .vc-dsa-warnings-header {
@@ -74,6 +78,8 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .vc-dsa-warnings-toggle {
@@ -279,20 +285,23 @@
 
 .vc-dsa-warnings-detail-row {
     display: flex;
-    gap: 8px;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
     font-size: 13px;
     line-height: 1.35;
 }
 
 .vc-dsa-warnings-detail-label {
-    color: var(--vc-dsa-warnings-muted);
-    min-width: 90px;
-    flex-shrink: 0;
+    color: var(--vc-dsa-warnings-title);
     font-size: 12px;
+    font-weight: 700;
 }
 
 .vc-dsa-warnings-detail-value {
     color: var(--vc-dsa-warnings-body);
+    width: 100%;
+    min-width: 0;
     font-size: 12px;
     word-break: normal;
     overflow-wrap: break-word;

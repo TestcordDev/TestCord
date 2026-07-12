@@ -51,6 +51,7 @@ import { addUserAreaButton, removeUserAreaButton } from "./UserArea";
 const logger = new Logger("PluginManager", "#a6d189");
 
 export const PMLogger = logger;
+export const pluginStartTimings = new Map<string, { duration: number; success: boolean; }>();
 
 /** Whether we have subscribed to flux events of all the enabled plugins when FluxDispatcher was ready */
 let enabledPluginsSubscribedFlux = false;
@@ -235,6 +236,11 @@ export function subscribeAllPluginsFluxEvents(fluxDispatcher: typeof FluxDispatc
 }
 
 export const startPlugin = traceFunction("startPlugin", function startPlugin(p: Plugin) {
+    const startedAt = performance.now();
+    const finish = (success: boolean) => {
+        pluginStartTimings.set(p.name, { duration: performance.now() - startedAt, success });
+        return success;
+    };
     const {
         name, commands, contextMenus, managedStyle, userProfileBadges,
         onBeforeMessageEdit, onBeforeMessageSend, onMessageClick,
@@ -249,14 +255,14 @@ export const startPlugin = traceFunction("startPlugin", function startPlugin(p: 
         logger.info("Starting plugin", name);
         if (p.started) {
             logger.warn(`${name} already started`);
-            return false;
+            return finish(false);
         }
         try {
             p.start();
         } catch (e) {
             logger.error(`Failed to start ${name}\n`, e);
             PluginHealth.recordRuntimeError(name, "start", e);
-            return false;
+            return finish(false);
         }
     }
 
@@ -269,7 +275,7 @@ export const startPlugin = traceFunction("startPlugin", function startPlugin(p: 
                 registerCommand(cmd, name);
             } catch (e) {
                 logger.error(`Failed to register command ${cmd.name}\n`, e);
-                return false;
+                return finish(false);
             }
         }
     }
@@ -316,7 +322,7 @@ export const startPlugin = traceFunction("startPlugin", function startPlugin(p: 
     if (renderProfileSection) addProfileSection(name, renderProfileSection.render, renderProfileSection.priority);
     if (gifPickerContextMenu) addGifPickerContextMenuPatch(name, gifPickerContextMenu);
 
-    return true;
+    return finish(true);
 }, p => `startPlugin ${p.name}`);
 
 export const stopPlugin = traceFunction("stopPlugin", function stopPlugin(p: Plugin) {

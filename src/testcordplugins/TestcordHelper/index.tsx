@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { sendBotMessage } from "@api/Commands";
+import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
 import { PluginHealth } from "@api/PluginHealth";
-import { isPluginEnabled, isPluginRequired, plugins as Plugins, startPlugin, stopPlugin } from "@api/PluginManager";
+import { isPluginEnabled, isPluginRequired, plugins as Plugins, pluginStartTimings, startPlugin, stopPlugin } from "@api/PluginManager";
 import { definePluginSettings, Settings, useSettings } from "@api/Settings";
 import { getUserSettingLazy } from "@api/UserSettings";
 import { BaseText } from "@components/BaseText";
@@ -24,7 +24,7 @@ import { makeCodeblock } from "@utils/text";
 import definePlugin, { OptionType } from "@utils/types";
 import { Message, User } from "@vencord/discord-types";
 import { Avatar, Button, ChannelStore, ColorPicker, FluxDispatcher, MessageActions, SelectedChannelStore, showToast, TextInput, Toasts, Tooltip, useEffect, useMemo, UserProfileStore, UserStore, useStateFromStores } from "@webpack/common";
-import { patches as allPatches,patchTimings } from "@webpack/patcher";
+import { patches as allPatches, patchTimings } from "@webpack/patcher";
 import { JSX } from "react";
 
 import plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
@@ -80,6 +80,7 @@ function dumpPatchDiagnostics() {
                 if (f.moduleId !== undefined) parts.push(`moduleId: ${String(f.moduleId)}`);
                 if (f.error) parts.push(`error: ${f.error}`);
                 console.log(parts.join(" | "));
+                if (f.sourceContext) console.log(`sourceContext: ${f.sourceContext}`);
             }
             for (const e of entry.runtimeErrors) {
                 console.log(`[runtime:${e.source}] ${e.error}`);
@@ -89,6 +90,23 @@ function dumpPatchDiagnostics() {
         console.log(`%cTotal: ${all.size} unhealthy plugins, ${totalFailures} patch failures`, "color: #ff4f4f; font-weight: bold;");
     }
     console.log(`Total patches registered: ${allPatches.length}`);
+    if (allPatches.length) {
+        console.group("Pending patches / missing modules");
+        for (const patch of allPatches) {
+            console.log(`${patch.plugin} | find: ${String(patch.find)} | replacements: ${(patch.replacement as Array<{ match: string | RegExp; }>).map(r => String(r.match)).join(" ; ")}`);
+        }
+        console.groupEnd();
+    }
+    console.groupEnd();
+}
+
+function dumpPluginStartTimings() {
+    console.group("%cPlugin Startup Timings", "color: #ff4f4f; font-weight: bold;");
+    const sorted = [...pluginStartTimings].sort((a, b) => b[1].duration - a[1].duration);
+    for (const [plugin, timing] of sorted) {
+        console.log(`${plugin}: ${timing.duration.toFixed(2)}ms${timing.success ? "" : " | FAILED"}`);
+    }
+    console.log(`${sorted.length} plugins | ${sorted.reduce((total, [, timing]) => total + timing.duration, 0).toFixed(2)}ms total`);
     console.groupEnd();
 }
 
@@ -121,8 +139,28 @@ function dumpDispatchStats() {
 }
 
 function dumpFullReport() {
+    const health = [...PluginHealth.getAll()].map(([plugin, entry]) => ({
+        plugin,
+        patchFailures: entry.patchFailures,
+        runtimeErrors: entry.runtimeErrors
+    }));
+    const snapshot = {
+        generatedAt: new Date().toISOString(),
+        pluginStartTimings: [...pluginStartTimings].map(([plugin, timing]) => ({ plugin, ...timing })),
+        dispatchStats: [...dispatchStats].map(([type, stat]) => ({ type, ...stat, averageMs: stat.totalMs / stat.count })),
+        patchTimings: patchTimings.map(([plugin, moduleId, match, duration]) => ({ plugin, moduleId: String(moduleId), match: String(match), duration })),
+        pendingPatches: allPatches.map(patch => ({
+            plugin: patch.plugin,
+            find: String(patch.find),
+            matches: (patch.replacement as Array<{ match: string | RegExp; }>).map(replacement => String(replacement.match))
+        })),
+        health,
+        memory: getMemoryUsage()
+    };
+    console.log("[TestcordHelper] DEBUG_SNAPSHOT " + JSON.stringify(snapshot));
     console.group("%c[TestcordHelper] Full Debug Report", "color: #5865f2; font-weight: bold; font-size: 16px;");
     dumpPatchDiagnostics();
+    dumpPluginStartTimings();
     dumpDispatchStats();
     dumpPatchTimings();
     console.group("%cMemory", "color: #ff4f4f; font-weight: bold;");
@@ -164,7 +202,7 @@ function installDebugInstrumentation() {
         return result;
     };
 
-    logger.info("Debug instrumentation installed. Slow dispatches (>16ms) will be logged. Use /tdebug command to dump full report.");
+    logger.info("Debug instrumentation installed. Tracking dispatches and patch diagnostics. Use /tdebug to dump the full report.");
     showToast("Debug mode enabled. Check console for diagnostics.", Toasts.Type.MESSAGE);
 }
 
@@ -382,7 +420,7 @@ const settings = definePluginSettings({
     },
     debugMode: {
         type: OptionType.BOOLEAN,
-        description: "Log all broken patches and slow Flux dispatches (>16ms) to the browser console. Use the /tdebug command to dump a full report. Applies live.",
+        description: "Log broken patches and slow Flux dispatches. This can reduce performance and should only be enabled temporarily.",
         default: false,
         onChange(value) {
             if (value) installDebugInstrumentation();
@@ -963,7 +1001,8 @@ export default definePlugin({
 
     commands: [{
         name: "tdebug",
-        description: "Dump debug diagnostics to the browser console (patch failures, flux timings, patch timings, memory).",
+        description: "Dump complete performance and patch diagnostics to the browser console.",
+        inputType: ApplicationCommandInputType.BUILT_IN,
         execute(_, ctx) {
             dumpFullReport();
             sendBotMessage(ctx.channel.id, { content: "Debug report dumped to console. Open DevTools (F12) to view." });
@@ -995,7 +1034,7 @@ export default definePlugin({
 
     start() {
         if (settings.store.preventCrashes) installCrashGuards();
-        if (settings.store.debugMode) installDebugInstrumentation();
+        if (settings.store.debugMode) settings.store.debugMode = false;
         hotkeyHandler = (e: KeyboardEvent) => {
             if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "h") {
                 e.preventDefault();

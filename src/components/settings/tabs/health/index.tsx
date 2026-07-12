@@ -20,21 +20,20 @@ import "./styles.css";
 
 import * as DataStore from "@api/DataStore";
 import { type NetworkDomainSummary, NetworkMonitor } from "@api/NetworkMonitor";
-import { PluginHealth, type PatchFailure, type PluginHealthEntry, type SessionRecord, type StabilityScore } from "@api/PluginHealth";
+import { type PatchFailure, PluginHealth, type PluginHealthEntry, type SessionRecord, type StabilityScore } from "@api/PluginHealth";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { Divider } from "@components/Divider";
 import { Heading, HeadingSecondary } from "@components/Heading";
 import { Link } from "@components/Link";
 import { Paragraph } from "@components/Paragraph";
-import { isPluginEnabled } from "@api/PluginManager";
 import { openPluginModal, SettingsTab, wrapTab } from "@components/settings";
 import { buildIssueUrl, generateGitHubIssueBody } from "@utils/debugReport";
 import { Margins } from "@utils/margins";
-import { SYM_ORIGINAL_FACTORY, getFactoryPatchedSource } from "@webpack/patcher";
-import { Modal, openModal, React, Select, TextInput, Toasts } from "@webpack/common";
-import { wreq } from "@webpack";
 import { RenderModalProps } from "@vencord/discord-types";
+import { wreq } from "@webpack";
+import { Modal, openModal, React, Select, TextInput, Toasts } from "@webpack/common";
+import { getFactoryPatchedSource,SYM_ORIGINAL_FACTORY } from "@webpack/patcher";
 
 import Plugins from "~plugins";
 
@@ -777,7 +776,7 @@ function HealthTab() {
         const out: Array<[string, PluginHealthEntry]> = [];
         for (const [name, rawEntry] of PluginHealth.getAll()) {
             // Skip internal API plugins — they're dependencies, not user-facing
-            if (Plugins[name]?.required || Plugins[name]?.isDependency) continue;
+            if (Plugins[name]?.required) continue;
             // When conflicts are hidden, strip them from the entry
             const entry = conflictsHidden
                 ? {
@@ -801,21 +800,15 @@ function HealthTab() {
     }, [snapshot, searchQuery, filter, sort]);
 
     const totalEnabled = React.useMemo(() => {
-        let count = 0;
-        for (const name in Plugins) {
-            if (Plugins[name]?.required || Plugins[name]?.isDependency) continue;
-            if (!isPluginEnabled(name)) continue;
-            count++;
-        }
-        return count;
-    }, []);
+        return new Set(PluginHealth.getCurrentSession().enabledPlugins.filter(name => !Plugins[name]?.required)).size;
+    }, [tick]);
 
     const noModuleCount = React.useMemo(() => {
-        let count = 0;
-        for (const [, entry] of snapshot) {
-            if (entry.patchFailures.some(f => f.kind === "noModule")) count++;
+        const plugins = new Set<string>();
+        for (const [name, entry] of snapshot) {
+            if (entry.patchFailures.some(failure => failure.kind === "noModule")) plugins.add(name);
         }
-        return count;
+        return plugins.size;
     }, [snapshot]);
 
     const allCollapsed = filtered.length > 0 && filtered.every(([name]) => collapsed.has(name));

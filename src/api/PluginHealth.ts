@@ -47,6 +47,7 @@ export interface PatchFailure {
     moduleId?: string;
     /** Truncated error message when kind === "errored" */
     error?: string;
+    sourceContext?: string;
     /** ms since epoch when the failure was recorded */
     at: number;
 }
@@ -302,7 +303,6 @@ export const PluginHealth = {
                         : failure.error;
                 }
             }
-            bumpSessionCounter(plugin, "patchFailures");
             notify();
             return;
         }

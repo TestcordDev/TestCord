@@ -621,7 +621,8 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
                             kind: "noEffect",
                             find: String(patch.find),
                             match: String(replacement.match),
-                            moduleId: String(moduleId)
+                            moduleId: String(moduleId),
+                            sourceContext: getPatchContext(code, patch.find)
                         });
                     }
 
@@ -754,6 +755,7 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
         // Patch versioning: if this patch was successfully applied, check
         // whether the underlying Discord code changed since last session.
         if (patchedBy.has(patch.plugin)) {
+            PluginHealth.clearPatchFailures(patch.plugin, failure => failure.kind === "noModule" && failure.find === String(patch.find));
             PatchVersioning.checkAndStore(
                 patch.plugin,
                 String(patch.find),
@@ -807,4 +809,10 @@ function diffErroredPatch(code: string, lastCode: string, match: RegExpMatchArra
     logger.errorCustomFmt(...Logger.makeTitle("white", "After"), patchedContext);
     const [titleFmt, ...titleElements] = Logger.makeTitle("white", "Diff");
     logger.errorCustomFmt(titleFmt + fmt, ...titleElements, ...elements);
+}
+
+function getPatchContext(code: string, find: string | RegExp) {
+    let index = typeof find === "string" ? code.indexOf(find) : code.search(find);
+    if (index < 0) index = 0;
+    return code.slice(Math.max(0, index - 300), Math.min(code.length, index + 700));
 }

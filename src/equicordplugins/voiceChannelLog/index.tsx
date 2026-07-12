@@ -20,6 +20,7 @@ import { EmbeddedActivityEvent, PreviousVoiceState, SoundEvent, VoiceChannelLogE
 const { fetchApplication } = findByPropsLazy("fetchApplication");
 
 const loggedActivities = new Set<string>();
+const attemptedApplications = new Set<string>();
 const previousStates = new Map<string, PreviousVoiceState>();
 const existingUsers = new Set<string>();
 
@@ -220,7 +221,10 @@ export default definePlugin({
 
             if (app) {
                 logWithName(app.name);
+            } else if (attemptedApplications.has(appId)) {
+                logWithName("Unknown activity");
             } else {
+                attemptedApplications.add(appId);
                 fetchApplication(appId).then(fetched => logWithName(fetched?.name ?? "Unknown activity")).catch(() => logWithName("Unknown activity"));
             }
         },
@@ -266,6 +270,7 @@ export default definePlugin({
     stop() {
         previousStates.clear();
         loggedActivities.clear();
+        attemptedApplications.clear();
         existingUsers.clear();
         setCallStartTime(null);
     }
