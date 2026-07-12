@@ -111,6 +111,7 @@
     color: var(--vc-dsa-warnings-title);
     box-shadow: inset 0 1px 0 color-mix(in srgb, var(--white-500, #fff) 4%, transparent);
     width: 100%;
+    max-width: 100%;
     box-sizing: border-box;
     overflow: hidden;
 }
@@ -167,16 +168,17 @@
 
 .vc-dsa-warnings-card-meta {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
-    margin-left: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
     flex-shrink: 0;
-    text-align: right;
+    padding-top: 4px;
+    border-top: 1px solid color-mix(in srgb, var(--white-500, #fff) 6%, transparent);
 }
 
 .vc-dsa-warnings-date {
-    color: var(--vc-dsa-warnings-title);
+    color: var(--vc-dsa-warnings-muted);
     font-size: 11px;
     line-height: 1.15;
     font-weight: 700;
@@ -362,12 +364,6 @@
 @media (width <= 700px) {
     .vc-dsa-warnings-card-top {
         flex-direction: column;
-    }
-
-    .vc-dsa-warnings-card-meta {
-        align-items: flex-start;
-        margin-left: 0;
-        text-align: left;
     }
 
     .vc-dsa-warnings-category {

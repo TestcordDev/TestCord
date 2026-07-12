@@ -377,16 +377,16 @@ const DsaWarningsCollection = ErrorBoundary.wrap(function DsaWarningsCollection(
                                         )}
                                     </div>
                                 </div>
-                                <div className={cl("card-meta")}>
-                                    <BaseText className={cl("date")} size="xs" weight="bold" defaultColor={false}>
-                                        {formatDate(action.applicationDate)}
+                            </div>
+                            <div className={cl("card-meta")}>
+                                <BaseText className={cl("date")} size="xs" weight="bold" defaultColor={false}>
+                                    {formatDate(action.applicationDate)}
+                                </BaseText>
+                                {action.createdAt && action.createdAt !== action.applicationDate && (
+                                    <BaseText className={cl("date")} size="xs" weight="medium" defaultColor={false}>
+                                        Created {formatDate(action.createdAt)}
                                     </BaseText>
-                                    {action.createdAt && action.createdAt !== action.applicationDate && (
-                                        <BaseText className={cl("date")} size="xs" weight="medium" defaultColor={false}>
-                                            Created {formatDate(action.createdAt)}
-                                        </BaseText>
-                                    )}
-                                </div>
+                                )}
                             </div>
                         </Clickable>
                     );
@@ -437,11 +437,11 @@ const DsaWarningsCollection = ErrorBoundary.wrap(function DsaWarningsCollection(
                                         )}
                                     </div>
                                 </div>
-                                <div className={cl("card-meta")}>
-                                    <BaseText className={cl("date")} size="xs" weight="bold" defaultColor={false}>
-                                        {breach.date ? formatDate(breach.date) : "Unknown date"}
-                                    </BaseText>
-                                </div>
+                            </div>
+                            <div className={cl("card-meta")}>
+                                <BaseText className={cl("date")} size="xs" weight="bold" defaultColor={false}>
+                                    {breach.date ? formatDate(breach.date) : "Unknown date"}
+                                </BaseText>
                             </div>
                         </Clickable>
                     );

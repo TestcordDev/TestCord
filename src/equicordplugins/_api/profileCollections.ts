@@ -12,27 +12,24 @@ export default definePlugin({
     description: "API to add collections to the user profile panel like discords game collection.",
     authors: [Devs.thororen],
     patches: [
-        // message and member list popouts
         {
-            find: '"UserProfilePopout");',
+            find: '"UserProfilePopout"',
             replacement: {
-                match: /user:\i,widgets:.{0,100}?\}\),/,
+                match: /user:\i,widgets:.{0,200}?\}\),/,
                 replace: "$&Vencord.Api.ProfileCollections.renderProfileCollections(arguments[0]),",
             }
         },
-        // user panel popout
         {
             find: '"UserProfileAccountPopout"',
             replacement: {
-                match: /user:\i,widgets:.{0,100}}\),/,
+                match: /user:\i,widgets:.{0,200}}\),/,
                 replace: "$&Vencord.Api.ProfileCollections.renderProfileCollections(arguments[0]),",
             },
         },
-        // dm sidebar
         {
-            find: ".SIDEBAR,disableToolbar:",
+            find: "disableToolbar:",
             replacement: {
-                match: /user:\i,widgets:.{0,100}?\}\),(?=.{0,200}#{intl::USER_PROFILE_WISHLIST})/,
+                match: /user:\i,widgets:.{0,200}?\}\),(?=.{0,300}#{intl::USER_PROFILE_WISHLIST})/,
                 replace: "$&Vencord.Api.ProfileCollections.renderProfileCollections({...arguments[0],isSideBar:true}),"
             }
         }
