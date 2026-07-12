@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { sendBotMessage } from "@api/Commands";
+import { PluginHealth } from "@api/PluginHealth";
 import { isPluginEnabled, isPluginRequired, plugins as Plugins, startPlugin, stopPlugin } from "@api/PluginManager";
 import { definePluginSettings, Settings, useSettings } from "@api/Settings";
 import { getUserSettingLazy } from "@api/UserSettings";
@@ -21,7 +23,8 @@ import { sleep, tryOrElse } from "@utils/misc";
 import { makeCodeblock } from "@utils/text";
 import definePlugin, { OptionType } from "@utils/types";
 import { Message, User } from "@vencord/discord-types";
-import { Avatar, Button, ChannelStore, ColorPicker, MessageActions, SelectedChannelStore, showToast, TextInput, Toasts, Tooltip, useEffect, useMemo, UserProfileStore, UserStore, useStateFromStores } from "@webpack/common";
+import { Avatar, Button, ChannelStore, ColorPicker, FluxDispatcher, MessageActions, SelectedChannelStore, showToast, TextInput, Toasts, Tooltip, useEffect, useMemo, UserProfileStore, UserStore, useStateFromStores } from "@webpack/common";
+import { patches as allPatches,patchTimings } from "@webpack/patcher";
 import { JSX } from "react";
 
 import plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
@@ -55,6 +58,124 @@ function uninstallCrashGuards() {
     window.onerror = prevOnerror;
     prevOnerror = null;
     window.removeEventListener("unhandledrejection", crashRejectionHandler);
+}
+
+let origDispatch: ((payload: any) => void) | null = null;
+const dispatchStats = new Map<string, { count: number; totalMs: number; maxMs: number; }>();
+let channelSwitchStart = 0;
+
+function dumpPatchDiagnostics() {
+    const all = PluginHealth.getAll();
+    console.group("%c[TestcordHelper] Patch Diagnostics", "color: #ff4f4f; font-weight: bold; font-size: 14px;");
+    if (all.size === 0) {
+        console.log("%cNo patch failures detected.", "color: #4fff4f;");
+    } else {
+        let totalFailures = 0;
+        for (const [plugin, entry] of all) {
+            totalFailures += entry.patchFailures.length;
+            console.group(`%c${plugin} (${entry.patchFailures.length} patch failures, ${entry.runtimeErrors.length} runtime errors)`, "color: #ffaa00; font-weight: bold;");
+            for (const f of entry.patchFailures) {
+                const parts = [`[${f.kind}]`, `find: ${f.find}`];
+                if (f.match) parts.push(`match: ${f.match}`);
+                if (f.moduleId !== undefined) parts.push(`moduleId: ${String(f.moduleId)}`);
+                if (f.error) parts.push(`error: ${f.error}`);
+                console.log(parts.join(" | "));
+            }
+            for (const e of entry.runtimeErrors) {
+                console.log(`[runtime:${e.source}] ${e.error}`);
+            }
+            console.groupEnd();
+        }
+        console.log(`%cTotal: ${all.size} unhealthy plugins, ${totalFailures} patch failures`, "color: #ff4f4f; font-weight: bold;");
+    }
+    console.log(`Total patches registered: ${allPatches.length}`);
+    console.groupEnd();
+}
+
+function dumpPatchTimings() {
+    if (patchTimings.length === 0) {
+        console.log("%cNo patch timing data.", "color: #888;");
+        return;
+    }
+    console.group("%cPatch Timings (top 30 slowest)", "color: #ff4f4f; font-weight: bold;");
+    const sorted = [...patchTimings].sort((a, b) => b[3] - a[3]).slice(0, 30);
+    for (const [plugin, moduleId, match, totalTime] of sorted) {
+        console.log(`${plugin} | moduleId ${String(moduleId)} | ${String(match).slice(0, 80)} | ${totalTime.toFixed(2)}ms`);
+    }
+    console.groupEnd();
+}
+
+function dumpDispatchStats() {
+    console.group("%cFlux Dispatch Timings", "color: #ff4f4f; font-weight: bold;");
+    if (dispatchStats.size === 0) {
+        console.log("No dispatch data. Enable debug mode and interact with Discord first.");
+    } else {
+        const sorted = [...dispatchStats.entries()].sort((a, b) => b[1].totalMs - a[1].totalMs);
+        for (const [type, stat] of sorted) {
+            const avg = stat.totalMs / stat.count;
+            const flag = stat.maxMs > 16 ? " !! SLOW" : "";
+            console.log(`${type}: ${stat.count}x | avg ${avg.toFixed(1)}ms | max ${stat.maxMs.toFixed(1)}ms | total ${stat.totalMs.toFixed(1)}ms${flag}`);
+        }
+    }
+    console.groupEnd();
+}
+
+function dumpFullReport() {
+    console.group("%c[TestcordHelper] Full Debug Report", "color: #5865f2; font-weight: bold; font-size: 16px;");
+    dumpPatchDiagnostics();
+    dumpDispatchStats();
+    dumpPatchTimings();
+    console.group("%cMemory", "color: #ff4f4f; font-weight: bold;");
+    console.log(getMemoryUsage());
+    console.groupEnd();
+    console.groupEnd();
+}
+
+function installDebugInstrumentation() {
+    if (origDispatch) return;
+
+    dumpPatchDiagnostics();
+    dumpPatchTimings();
+
+    origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher) as (payload: any) => void;
+    FluxDispatcher.dispatch = function (payload: any) {
+        const t0 = performance.now();
+        const result = (origDispatch as any).call(FluxDispatcher, payload);
+        const dt = performance.now() - t0;
+
+        const stat = dispatchStats.get(payload.type) ?? { count: 0, totalMs: 0, maxMs: 0 };
+        stat.count++;
+        stat.totalMs += dt;
+        stat.maxMs = Math.max(stat.maxMs, dt);
+        dispatchStats.set(payload.type, stat);
+
+        if (dt > 16) {
+            console.warn(`%c[TestcordHelper] Slow dispatch: %c${payload.type}%c took ${dt.toFixed(1)}ms`, "color: #ff4f4f;", "color: #ffaa00; font-weight: bold;", "color: inherit;");
+        }
+
+        if (payload.type === "CHANNEL_SELECT") {
+            channelSwitchStart = t0;
+        } else if (channelSwitchStart && (payload.type === "MESSAGE_CREATE" || payload.type === "LOAD_MESSAGES_SUCCESS" || payload.type === "CHANNEL_PRELOAD")) {
+            const elapsed = t0 - channelSwitchStart;
+            logger.info(`Channel switch to ${payload.type} took ${elapsed.toFixed(1)}ms`);
+            channelSwitchStart = 0;
+        }
+
+        return result;
+    };
+
+    logger.info("Debug instrumentation installed. Slow dispatches (>16ms) will be logged. Use /tdebug command to dump full report.");
+    showToast("Debug mode enabled. Check console for diagnostics.", Toasts.Type.MESSAGE);
+}
+
+function uninstallDebugInstrumentation() {
+    if (origDispatch) {
+        FluxDispatcher.dispatch = origDispatch as any;
+        origDispatch = null;
+    }
+    dispatchStats.clear();
+    channelSwitchStart = 0;
+    logger.info("Debug instrumentation removed.");
 }
 
 interface ProfileTheme {
@@ -257,6 +378,15 @@ const settings = definePluginSettings({
         onChange(value) {
             if (value) installCrashGuards();
             else uninstallCrashGuards();
+        }
+    },
+    debugMode: {
+        type: OptionType.BOOLEAN,
+        description: "Log all broken patches and slow Flux dispatches (>16ms) to the browser console. Use the /tdebug command to dump a full report. Applies live.",
+        default: false,
+        onChange(value) {
+            if (value) installDebugInstrumentation();
+            else uninstallDebugInstrumentation();
         }
     }
 });
@@ -831,6 +961,15 @@ export default definePlugin({
     settings,
     dependencies: ["MessageAccessoriesAPI", "MessageEventsAPI"],
 
+    commands: [{
+        name: "tdebug",
+        description: "Dump debug diagnostics to the browser console (patch failures, flux timings, patch timings, memory).",
+        execute(_, ctx) {
+            dumpFullReport();
+            sendBotMessage(ctx.channel.id, { content: "Debug report dumped to console. Open DevTools (F12) to view." });
+        }
+    }],
+
     onBeforeMessageSend(_, msg) {
         msg.content = replaceAliases(msg.content);
     },
@@ -856,6 +995,7 @@ export default definePlugin({
 
     start() {
         if (settings.store.preventCrashes) installCrashGuards();
+        if (settings.store.debugMode) installDebugInstrumentation();
         hotkeyHandler = (e: KeyboardEvent) => {
             if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "h") {
                 e.preventDefault();
@@ -872,6 +1012,7 @@ export default definePlugin({
 
     stop() {
         uninstallCrashGuards();
+        uninstallDebugInstrumentation();
         if (hotkeyHandler) {
             document.removeEventListener("keydown", hotkeyHandler, true);
             hotkeyHandler = null;
