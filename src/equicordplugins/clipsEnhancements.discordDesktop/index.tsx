@@ -62,15 +62,15 @@ export default definePlugin({
         {
             find: ".CLIPS_FRAME_RATE,{",
             replacement: {
-                match: /(return|[=,(:?])(\[\{.{0,25}\i.\i.FPS_15.{0,500}\}\])/,
-                replace: "$1 $self.patchFramerates($2)"
+                match: /\[\{.{0,25}\i.\i.FPS_15.{0,500}\}\]/,
+                replace: " $self.patchFramerates($&)"
             }
         },
         {
             find: ".CLIPS_LENGTH,{",
             replacement: {
-                match: /(return|[=,(:?])(\[\{.{0,25}\i.\i.SECONDS_30.{0,500}\}\])/,
-                replace: "$1 $self.patchTimeslots($2)"
+                match: /\[\{.{0,25}\i.\i.SECONDS_30.{0,500}\}\]/,
+                replace: " $self.patchTimeslots($&)"
             }
         },
     ],

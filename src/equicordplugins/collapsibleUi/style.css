@@ -23,10 +23,22 @@
 
 [data-vc-collapsible-ui-base-channel-list-collapsed] {
     /* stylelint-disable-next-line value-keyword-case */
-    grid-template-columns: [start] min-content [guildsEnd] min-content [sidebarEnd] var(--vc-cui-peek-size) [channelsEnd] 1fr [end] !important;
+    grid-template-columns: [start] min-content [guildsEnd] var(--vc-cui-peek-size) [channelsEnd] 1fr [end] !important;
 }
 
 [data-vc-collapsible-ui-base-channel-list-collapsed][data-vc-collapsible-ui-base-channel-list-interaction-expanded] {
+    /* stylelint-disable-next-line value-keyword-case */
+    grid-template-columns: [start] min-content [guildsEnd] var(--custom-guild-sidebar-width, 312px) [channelsEnd] 1fr [end] !important;
+}
+
+/* BetterFolders redefines the base grid with an extra folder column, so the
+   collapsed templates must keep its [sidebarEnd] track to stay in sync. */
+[data-vc-collapsible-ui-base-channel-list-collapsed].vc-betterFolders-sidebar-grid {
+    /* stylelint-disable-next-line value-keyword-case */
+    grid-template-columns: [start] min-content [guildsEnd] min-content [sidebarEnd] var(--vc-cui-peek-size) [channelsEnd] 1fr [end] !important;
+}
+
+[data-vc-collapsible-ui-base-channel-list-collapsed][data-vc-collapsible-ui-base-channel-list-interaction-expanded].vc-betterFolders-sidebar-grid {
     /* stylelint-disable-next-line value-keyword-case */
     grid-template-columns: [start] min-content [guildsEnd] min-content [sidebarEnd] var(--custom-guild-sidebar-width, 312px) [channelsEnd] 1fr [end] !important;
 }
@@ -54,7 +66,7 @@
     overflow: visible !important;
 }
 
-[data-vc-collapsible-ui-guild-bar-collapsed],
+[data-vc-collapsible-ui-guild-bar-collapsed]:not(.vc-betterFolders-sidebar *),
 [data-vc-collapsible-ui-channel-list-collapsed],
 [data-vc-collapsible-ui-members-list-collapsed] {
     width: var(--vc-cui-peek-size) !important;
@@ -67,11 +79,31 @@
     transition-delay: var(--vc-cui-fade-delay);
 }
 
-[data-vc-collapsible-ui-guild-bar-collapsed]:is(:hover, :focus-within) {
+[data-vc-collapsible-ui-guild-bar-collapsed]:not(.vc-betterFolders-sidebar *):hover,
+[data-vc-collapsible-ui-guild-bar-collapsed][data-vc-collapsible-ui-guild-bar-interaction-expanded]:not(.vc-betterFolders-sidebar *) {
     width: var(--vc-cui-guild-bar-expanded-width) !important;
     min-width: var(--vc-cui-guild-bar-expanded-width) !important;
     max-width: var(--vc-cui-guild-bar-expanded-width) !important;
     flex-basis: var(--vc-cui-guild-bar-expanded-width) !important;
+    opacity: 1;
+    transition-delay: 0ms;
+}
+
+/* BetterFolders renders a duplicate guilds nav inside its folder sidebar.
+   The collapse rules above exempt that duplicate; collapse the sidebar
+   wrapper in sync with the real guild bar instead. */
+[data-vc-collapsible-ui-sidebar-guild-bar-collapsed] .vc-betterFolders-sidebar {
+    width: 0 !important;
+    min-width: 0 !important;
+    opacity: 0.01;
+    overflow: hidden;
+    transition: opacity var(--vc-cui-transition);
+    transition-delay: var(--vc-cui-fade-delay);
+}
+
+[data-vc-collapsible-ui-guild-bar-collapsed]:hover ~ .vc-betterFolders-sidebar,
+[data-vc-collapsible-ui-sidebar-guild-bar-collapsed] .vc-betterFolders-sidebar:hover {
+    width: auto !important;
     opacity: 1;
     transition-delay: 0ms;
 }
@@ -188,10 +220,6 @@
     pointer-events: auto;
 }
 
-[data-vc-collapsible-ui-user-area] {
-    background: var(--background-secondary-alt) !important;
-}
-
 [data-vc-collapsible-ui-user-area-collapsed] {
     height: var(--vc-cui-peek-size) !important;
     min-height: var(--vc-cui-peek-size) !important;
@@ -209,6 +237,14 @@
 [data-vc-collapsible-ui-user-area-collapsed]:is(:hover, :focus-within) > * {
     opacity: 1;
     pointer-events: auto;
+}
+
+/* Solid background only where the panel floats over other content;
+   docked states keep the theme's own panel background. */
+[data-vc-collapsible-ui-user-area-detached],
+[data-vc-collapsible-ui-user-area-collapsed]:is(:hover, :focus-within),
+[data-vc-collapsible-ui-sidebar-channel-list-collapsed]:not([data-vc-collapsible-ui-sidebar-user-area-detached]) [data-vc-collapsible-ui-user-area] {
+    background: var(--background-secondary-alt) !important;
 }
 
 [data-vc-collapsible-ui-sidebar-channel-list-collapsed]:not([data-vc-collapsible-ui-sidebar-user-area-detached]) [data-vc-collapsible-ui-user-area] {
@@ -255,10 +291,21 @@
     max-width: var(--vc-cui-peek-size) !important;
 }
 
-[data-vc-collapsible-ui-sidebar-channel-list-expanded]:not([data-vc-collapsible-ui-sidebar-user-area-detached]) [data-vc-collapsible-ui-user-area] {
+[data-vc-collapsible-ui-sidebar-channel-list-collapsed]:not([data-vc-collapsible-ui-sidebar-user-area-detached]) [data-vc-collapsible-ui-user-area-collapsed]:is(:hover, :focus-within) {
     width: var(--custom-guild-sidebar-width, 312px) !important;
     min-width: var(--vc-cui-channel-list-min-width) !important;
     max-width: var(--vc-cui-channel-list-max-width) !important;
+}
+
+[data-vc-collapsible-ui-sidebar-channel-list-expanded]:not([data-vc-collapsible-ui-sidebar-user-area-detached]) [data-vc-collapsible-ui-user-area] {
+    /* Anchor both edges instead of forcing a width: the guild bar column is
+       min-content and theme-dependent, so a fixed width leaves a right-side
+       gap whenever the guild bar is expanded. */
+    left: 0 !important;
+    right: 0 !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
 }
 
 [data-vc-collapsible-ui-user-area-detached] {
