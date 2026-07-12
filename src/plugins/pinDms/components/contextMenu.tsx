@@ -14,14 +14,23 @@ import { openCategoryModal } from "./CreateCategoryModal";
 function createPinMenuItem(channelId: string) {
     const pinned = isPinned(channelId);
 
-    const showSeparator = pinned || currentUserCategories.length > 0;
-
     return (
         <Menu.MenuItem
             id="vc-pin-dm"
             label="Pin DMs"
-        >
+            renderSubmenu={() => (
+                <Menu.Menu navId="vc-pin-dm-menu" onClose={() => { }}>
+                    <PinSubmenu channelId={channelId} pinned={pinned} />
+                </Menu.Menu>
+            )}
+        />
+    );
+}
 
+function PinSubmenu({ channelId, pinned }: { channelId: string; pinned: boolean; }) {
+    const showSeparator = pinned || currentUserCategories.length > 0;
+
+    return <>
             {!pinned && (
                 <>
                     <Menu.MenuItem
@@ -76,8 +85,7 @@ function createPinMenuItem(channelId: string) {
                 </>
             )}
 
-        </Menu.MenuItem>
-    );
+    </>;
 }
 
 const GroupDMContext: NavContextMenuPatchCallback = (children, props) => {

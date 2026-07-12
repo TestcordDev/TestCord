@@ -918,17 +918,10 @@ function insertSetAliasMenuItem(children: Array<React.ReactElement<any> | null>,
         />
     );
 
-    const favoriteGroup = findGroupChildrenByChildId(
-        ["favorite-emoji", "favourite-emoji", "unfavorite-emoji", "unfavourite-emoji"],
-        children,
-        true
-    );
-    if (favoriteGroup) {
-        favoriteGroup.push(menuItem);
-        return;
-    }
-
-    const group = findGroupChildrenByChildId(["copy-link", "copy-text", "copy-message-link"], children, true);
+    const group = findGroupChildrenByChildId([
+        "favorite-emoji", "favourite-emoji", "unfavorite-emoji", "unfavourite-emoji",
+        "copy-link", "copy-text", "copy-message-link"
+    ], children, true);
     if (group) {
         group.push(menuItem);
         return;

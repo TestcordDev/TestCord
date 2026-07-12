@@ -96,12 +96,12 @@ let findCache: Map<string, Array<ReactElement<any> | null | undefined> | null> |
  * @param matchSubstring Whether to check if the id is a substring of the child id
  */
 export function findGroupChildrenByChildId(id: string | string[], children: Array<ReactElement<any> | null | undefined>, matchSubstring = false): Array<ReactElement<any> | null | undefined> | null {
-    if (findCache && !matchSubstring && children === findCacheChildren) {
-        const key = Array.isArray(id) ? id.join("\0") : id;
+    if (findCache && children === findCacheChildren) {
+        const key = `${matchSubstring ? "substring" : "exact"}\0${Array.isArray(id) ? id.join("\0") : id}`;
         if (findCache.has(key)) {
             return findCache.get(key) ?? null;
         }
-        const result = findGroupChildrenByChildIdImpl(id, children, false);
+        const result = findGroupChildrenByChildIdImpl(id, children, matchSubstring);
         findCache.set(key, result);
         return result;
     }

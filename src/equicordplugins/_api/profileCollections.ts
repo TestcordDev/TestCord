@@ -12,14 +12,6 @@ export default definePlugin({
     description: "API to add collections to the user profile panel like discords game collection.",
     authors: [Devs.thororen],
     patches: [
-        // message and member list popouts
-        {
-            find: "profileViewedAnalytics:",
-            replacement: {
-                match: /(?<=profileViewedAnalytics:\i}\),)/,
-                replace: "Vencord.Api.ProfileCollections.renderProfileCollections(arguments[0]),",
-            }
-        },
         // user panel popout
         {
             find: '"UserProfileAccountPopout"',
@@ -28,12 +20,28 @@ export default definePlugin({
                 replace: "$&Vencord.Api.ProfileCollections.renderProfileCollections(arguments[0]),",
             },
         },
+        // message popouts
+        {
+            find: "user-profile-sidebar-heading-",
+            replacement: {
+                match: /(\(0,\i\.jsx\)\(\i(?:\.\i)?,\{user:(\i),currentUser:\i,onOpenUserProfileModal:\i\}\))(?=,)/,
+                replace: "$1,Vencord.Api.ProfileCollections.renderProfileCollectionsForUser($2.id)"
+            }
+        },
         // dm sidebar
         {
             find: ".SIDEBAR,disableToolbar:",
             replacement: {
-                match: /(#{intl::USER_PROFILE_MEMBER_SINCE}\),.{0,100}userId:(\i\.id)\}\)\}\))(?=.{0,100}unownedWishlistItems:\i,wishlistId:\i)/,
-                replace: "$1,Vencord.Api.ProfileCollections.renderProfileCollectionsForUser($2,true)"
+                match: /(!\i&&\i&&\(0,\i\.jsx\)\("div",\{className:\i\.\i,children:\(0,\i\.jsx\)\(\i(?:\.\i)?,\{user:(\i),widgets:\i\.widgets,onOpenUserProfileModal:\i\}\)\}\))(?=,)/,
+                replace: "$1,Vencord.Api.ProfileCollections.renderProfileCollectionsForUser($2.id,true)"
+            }
+        },
+        // member-list profile popouts
+        {
+            find: '"UserProfilePopout"',
+            replacement: {
+                match: /null!=(\i)&&\(0,\i\.jsx\)\(em\.A,\{userId:(\i)\.id,guild:\i\}\)/,
+                replace: "Vencord.Api.ProfileCollections.renderProfileCollectionsForUser($2.id),$&"
             }
         }
     ]

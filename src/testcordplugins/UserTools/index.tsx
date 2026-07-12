@@ -133,6 +133,14 @@ function getUserActions(userId: string): UserActions {
     }
 }
 
+function getAllUserActions(): Record<string, UserActions> {
+    try {
+        return JSON.parse(settings.store.userActions || "{}");
+    } catch {
+        return {};
+    }
+}
+
 function setUserActions(userId: string, actions: UserActions) {
     try {
         const allActions = JSON.parse(settings.store.userActions || "{}");
@@ -437,9 +445,9 @@ const UserContext: NavContextMenuPatchCallback = (children, { user, guildId }: U
     if (!user || user.id === UserStore.getCurrentUser().id) return;
     if (!guildId) return; // Only work in guilds
 
-    const actions = getUserActions(user.id);
-    const hasAnyAction = actions.disconnect || actions.mute || actions.deafen;
-    const activeUsers = getActiveUsers();
+    const allActions = getAllUserActions();
+    const actions = allActions[user.id] ?? { disconnect: false, mute: false, deafen: false };
+    const hasActiveUsers = Object.values(allActions).some(actions => actions.disconnect || actions.mute || actions.deafen);
 
     children.splice(-1, 0, (
         <Menu.MenuGroup key="user-tools-group">
@@ -500,7 +508,7 @@ const UserContext: NavContextMenuPatchCallback = (children, { user, guildId }: U
                     }
                 }}
             />
-            {activeUsers.length > 0 && (
+            {hasActiveUsers && (
                 <Menu.MenuItem
                     id="user-tools-active-users"
                     label="Active Users"
