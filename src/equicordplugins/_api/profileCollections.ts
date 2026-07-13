@@ -20,14 +20,6 @@ export default definePlugin({
                 replace: "$&Vencord.Api.ProfileCollections.renderProfileCollections(arguments[0]),",
             },
         },
-        // message popouts
-        {
-            find: "user-profile-sidebar-heading-",
-            replacement: {
-                match: /(\(0,\i\.jsx\)\(\i(?:\.\i)?,\{user:(\i),currentUser:\i,onOpenUserProfileModal:\i\}\))(?=,)/,
-                replace: "$1,Vencord.Api.ProfileCollections.renderProfileCollectionsForUser($2.id)"
-            }
-        },
         // dm sidebar
         {
             find: ".SIDEBAR,disableToolbar:",
