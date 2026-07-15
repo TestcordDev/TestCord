@@ -22,18 +22,10 @@ export default definePlugin({
         },
         // dm sidebar
         {
-            find: ".SIDEBAR,disableToolbar:",
+            find: "SIDEBAR,disableToolbar:",
             replacement: {
                 match: /(!\i&&\i&&\(0,\i\.jsx\)\("div",\{className:\i\.\i,children:\(0,\i\.jsx\)\(\i(?:\.\i)?,\{user:(\i),widgets:\i\.widgets,onOpenUserProfileModal:\i\}\)\}\))(?=,)/,
                 replace: "$1,Vencord.Api.ProfileCollections.renderProfileCollectionsForUser($2.id,true)"
-            }
-        },
-        // member-list profile popouts
-        {
-            find: '"UserProfilePopout"',
-            replacement: {
-                match: /null!=(\i)&&\(0,\i\.jsx\)\(em\.A,\{userId:(\i)\.id,guild:\i\}\)/,
-                replace: "Vencord.Api.ProfileCollections.renderProfileCollectionsForUser($2.id),$&"
             }
         }
     ]

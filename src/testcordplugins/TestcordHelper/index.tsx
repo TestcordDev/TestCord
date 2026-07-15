@@ -21,11 +21,15 @@ import { fetchUserProfile, openUserProfile } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import { sleep, tryOrElse } from "@utils/misc";
 import { makeCodeblock } from "@utils/text";
-import definePlugin, { OptionType } from "@utils/types";
+import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { Message, User } from "@vencord/discord-types";
 import { Avatar, Button, ChannelStore, ColorPicker, FluxDispatcher, MessageActions, SelectedChannelStore, showToast, TextInput, Toasts, Tooltip, useEffect, useMemo, UserProfileStore, UserStore, useStateFromStores } from "@webpack/common";
 import { patches as allPatches, patchTimings } from "@webpack/patcher";
+import { find, filters, cache, wreq } from "@webpack";
 import { JSX } from "react";
+
+import type * as NativeModule from "./native";const NativeHelper = VencordNative.pluginHelpers.TestcordHelper as PluginNative<typeof import("./native")>;
+
 
 import plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
 
@@ -63,6 +67,30 @@ function uninstallCrashGuards() {
 let origDispatch: ((payload: any) => void) | null = null;
 const dispatchStats = new Map<string, { count: number; totalMs: number; maxMs: number; }>();
 let channelSwitchStart = 0;
+
+const SLOW_DISPATCH_MS = 16;
+const RECENT_EVENTS_LIMIT = 200;
+const recentSlowEvents: Array<{ at: number; type: string; ms: number; plugins: string[]; }> = [];
+let pluginFluxMap: Map<string, string[]> | undefined;
+
+function getPluginFluxMap() {
+    if (pluginFluxMap) return pluginFluxMap;
+    pluginFluxMap = new Map();
+    for (const name in plugins) {
+        const flux = plugins[name].flux;
+        if (!flux) continue;
+        for (const eventType in flux) {
+            const list = pluginFluxMap.get(eventType) ?? [];
+            list.push(name);
+            pluginFluxMap.set(eventType, list);
+        }
+    }
+    return pluginFluxMap;
+}
+
+function getPluginsForEvent(type: string): string[] {
+    return getPluginFluxMap().get(type) ?? [];
+}
 
 function dumpPatchDiagnostics() {
     const all = PluginHealth.getAll();
@@ -187,8 +215,12 @@ function installDebugInstrumentation() {
         stat.maxMs = Math.max(stat.maxMs, dt);
         dispatchStats.set(payload.type, stat);
 
-        if (dt > 16) {
-            console.warn(`%c[TestcordHelper] Slow dispatch: %c${payload.type}%c took ${dt.toFixed(1)}ms`, "color: #ff4f4f;", "color: #ffaa00; font-weight: bold;", "color: inherit;");
+        if (dt > SLOW_DISPATCH_MS) {
+            const culprits = getPluginsForEvent(payload.type);
+            recentSlowEvents.push({ at: Date.now(), type: payload.type, ms: Math.round(dt * 10) / 10, plugins: culprits });
+            if (recentSlowEvents.length > RECENT_EVENTS_LIMIT) recentSlowEvents.shift();
+            const blame = culprits.length ? ` — subscribed plugins: ${culprits.join(", ")}` : "";
+            console.warn(`%c[TestcordHelper] Slow dispatch: %c${payload.type}%c took ${dt.toFixed(1)}ms${blame}`, "color: #ff4f4f;", "color: #ffaa00; font-weight: bold;", "color: inherit;");
         }
 
         if (payload.type === "CHANNEL_SELECT") {
@@ -425,6 +457,15 @@ const settings = definePluginSettings({
         onChange(value) {
             if (value) installDebugInstrumentation();
             else uninstallDebugInstrumentation();
+        }
+    },
+    liveFix: {
+        type: OptionType.BOOLEAN,
+        description: "Start a local WebSocket server (port 18963) for opencode to search webpack modules, read source code, and test patch patterns in real time.",
+        default: false,
+        onChange(value) {
+            if (value) startLiveFixServer();
+            else stopLiveFixServer();
         }
     }
 });
@@ -988,6 +1029,215 @@ const ProfileCards = ErrorBoundary.wrap(function ProfileCards({ message }: { mes
     );
 }, { noop: true });
 
+let liveFixInterval: ReturnType<typeof setInterval> | null = null;
+
+interface LiveFixRequest {
+    id: string;
+    action: "search" | "readModule" | "eval" | "testPattern" | "listPending" | "patchHealth"
+    | "dispatchStats" | "slowEvents" | "pluginTimings" | "patchTimings" | "memory" | "profile" | "reset";
+    query?: string;
+    moduleId?: number;
+    code?: string;
+    pattern?: string;
+    flags?: string;
+    limit?: number;
+}
+
+function handleLiveFixRequest(req: LiveFixRequest): any {
+    const { id, action } = req;
+
+    try {
+        switch (action) {
+            case "search": {
+                if (!req.query) return { id, error: "Missing query" };
+                const results: Array<{ id: number; snippet: string }> = [];
+                const query = req.query.toLowerCase();
+                const modules = cache ?? wreq?.c;
+                if (!modules) return { id, error: "Webpack cache not available" };
+
+                for (const moduleId in modules) {
+                    const mod = modules[moduleId];
+                    if (!mod?.exports) continue;
+                    const src = String(mod.exports);
+                    if (src.toLowerCase().includes(query)) {
+                        results.push({ id: Number(moduleId), snippet: src.slice(0, 300) });
+                        if (results.length >= 20) break;
+                    }
+                }
+                return { id, results };
+            }
+
+            case "readModule": {
+                if (req.moduleId === undefined) return { id, error: "Missing moduleId" };
+                const modules = cache ?? wreq?.c;
+                if (!modules) return { id, error: "Webpack cache not available" };
+                const mod = modules[req.moduleId];
+                if (!mod?.exports) return { id, error: `Module ${req.moduleId} not found` };
+                const src = String(mod.exports);
+                return { id, source: src };
+            }
+
+            case "eval": {
+                if (!req.code) return { id, error: "Missing code" };
+                const result = eval(req.code);
+                return { id, result: typeof result === "object" ? JSON.stringify(result, null, 2) : String(result) };
+            }
+
+            case "testPattern": {
+                if (!req.pattern || !req.code) return { id, error: "Missing pattern or code" };
+                const flags = req.flags ?? "";
+                const regex = new RegExp(req.pattern, flags);
+                const match = regex.exec(req.code);
+                if (match) {
+                    return {
+                        id,
+                        matched: true,
+                        match: match[0],
+                        groups: match.slice(1),
+                        index: match.index,
+                        input: match.input?.slice(Math.max(0, match.index - 50), match.index + match[0].length + 50)
+                    };
+                }
+                return { id, matched: false };
+            }
+
+            case "listPending": {
+                const pending = allPatches.map(patch => ({
+                    plugin: patch.plugin,
+                    find: String(patch.find),
+                    matches: (patch.replacement as Array<{ match: string | RegExp }>).map(r => String(r.match))
+                }));
+                return { id, pending };
+            }
+
+            case "patchHealth": {
+                const health = [...PluginHealth.getAll()].map(([plugin, entry]) => ({
+                    plugin,
+                    patchFailures: entry.patchFailures,
+                    runtimeErrors: entry.runtimeErrors
+                }));
+                return { id, health };
+            }
+
+            case "dispatchStats": {
+                if (!origDispatch) return { id, error: "Dispatch profiling is off. Send {action:'profile'} first, then interact with the client." };
+                const stats = [...dispatchStats.entries()]
+                    .map(([type, s]) => ({
+                        type,
+                        count: s.count,
+                        avgMs: +(s.totalMs / s.count).toFixed(2),
+                        maxMs: +s.maxMs.toFixed(2),
+                        totalMs: +s.totalMs.toFixed(2),
+                        plugins: getPluginsForEvent(type)
+                    }))
+                    .sort((a, b) => b.totalMs - a.totalMs)
+                    .slice(0, req.limit ?? 50);
+                return { id, profiling: true, stats };
+            }
+
+            case "slowEvents": {
+                if (!origDispatch) return { id, error: "Dispatch profiling is off. Send {action:'profile'} first." };
+                const events = recentSlowEvents.slice(-(req.limit ?? 50)).reverse();
+                return { id, profiling: true, slowThresholdMs: SLOW_DISPATCH_MS, events };
+            }
+
+            case "pluginTimings": {
+                const timings = [...pluginStartTimings]
+                    .map(([plugin, t]) => ({ plugin, durationMs: +t.duration.toFixed(2), success: t.success }))
+                    .sort((a, b) => b.durationMs - a.durationMs)
+                    .slice(0, req.limit ?? 100);
+                const totalMs = +timings.reduce((sum, t) => sum + t.durationMs, 0).toFixed(2);
+                return { id, timings, totalMs };
+            }
+
+            case "patchTimings": {
+                const timings = patchTimings
+                    .map(([plugin, moduleId, match, duration]) => ({
+                        plugin,
+                        moduleId: String(moduleId),
+                        match: String(match).slice(0, 120),
+                        durationMs: +duration.toFixed(2)
+                    }))
+                    .sort((a, b) => b.durationMs - a.durationMs)
+                    .slice(0, req.limit ?? 50);
+                return { id, timings };
+            }
+
+            case "memory": {
+                const mem = (window as any).performance?.memory;
+                if (!mem) return { id, memory: null, note: "performance.memory unavailable" };
+                return {
+                    id,
+                    memory: {
+                        usedMB: round2(mem.usedJSHeapSize / MB),
+                        totalMB: round2(mem.totalJSHeapSize / MB),
+                        limitMB: round2(mem.jsHeapSizeLimit / MB)
+                    }
+                };
+            }
+
+            case "profile": {
+                if (origDispatch) return { id, profiling: true, note: "Already profiling." };
+                installDebugInstrumentation();
+                return { id, profiling: true, note: "Dispatch profiling started. Interact with the client, then query dispatchStats/slowEvents." };
+            }
+
+            case "reset": {
+                dispatchStats.clear();
+                recentSlowEvents.length = 0;
+                channelSwitchStart = 0;
+                return { id, ok: true };
+            }
+
+            default:
+                return { id, error: `Unknown action: ${action}` };
+        }
+    } catch (e) {
+        return { id, error: String(e) };
+    }
+}
+
+async function startLiveFixServer() {
+    if (liveFixInterval) return;
+
+    try {
+        await NativeHelper.startLiveFixServer();
+
+        liveFixInterval = setInterval(async () => {
+            try {
+                const cmd = await NativeHelper.getCommand();
+                if (!cmd) return;
+
+                const req: LiveFixRequest = JSON.parse(cmd);
+                const response = handleLiveFixRequest(req);
+                await NativeHelper.writeResponse(JSON.stringify(response));
+            } catch {
+                // no command or parse error, ignore
+            }
+        }, 100);
+
+        logger.info("LiveFix integration started — HTTP server on port 18963");
+        showToast("LiveFix server started on port 18963", Toasts.Type.SUCCESS);
+    } catch (e) {
+        logger.error("Failed to start LiveFix server:", e);
+        showToast(`LiveFix failed: ${e}`, Toasts.Type.FAILURE);
+    }
+}
+
+async function stopLiveFixServer() {
+    if (liveFixInterval) {
+        clearInterval(liveFixInterval);
+        liveFixInterval = null;
+    }
+
+    try {
+        await NativeHelper.stopLiveFixServer();
+        logger.info("LiveFix integration stopped");
+    } catch {
+        // ignore
+    }
+}
+
 let hotkeyHandler: ((e: KeyboardEvent) => void) | null = null;
 
 export default definePlugin({
@@ -1035,6 +1285,7 @@ export default definePlugin({
     start() {
         if (settings.store.preventCrashes) installCrashGuards();
         if (settings.store.debugMode) settings.store.debugMode = false;
+        if (settings.store.liveFix) startLiveFixServer();
         hotkeyHandler = (e: KeyboardEvent) => {
             if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "h") {
                 e.preventDefault();
@@ -1052,6 +1303,7 @@ export default definePlugin({
     stop() {
         uninstallCrashGuards();
         uninstallDebugInstrumentation();
+        stopLiveFixServer();
         if (hotkeyHandler) {
             document.removeEventListener("keydown", hotkeyHandler, true);
             hotkeyHandler = null;

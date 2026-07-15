@@ -1143,13 +1143,6 @@ export default definePlugin({
         // VIEW_CHANNEL and other permissions. virtualMerge with premiumType:2 corrupted
         // these calculations even with isMe() guard. DomObserver + fakeCurrentUser are enough.
         {
-            find: ".WIDGETS_RTC_UPSELL_COACHMARK)",
-            replacement: {
-                match: /currentUser:(\i)(?=.{0,200}voiceDb)/,
-                replace: "currentUser:$self.fakeCurrentUser($1)"
-            }
-        },
-        {
             find: "DISPLAY_NAME",
             noWarn: true,
             replacement: {
@@ -1158,61 +1151,12 @@ export default definePlugin({
             }
         },
         {
-            find: "obfuscatedEmail",
-            noWarn: true,
-            replacement: [
-                {
-                    match: /obfuscatedEmail:(\i)/,
-                    replace: "obfuscatedEmail:$self.fakeObfuscatedEmail($1)"
-                },
-                {
-                    match: /obfuscatedPhone:(\i)/,
-                    replace: "obfuscatedPhone:$self.fakeObfuscatedPhone($1)"
-                }
-            ]
-        },
-        {
             find: "isHoveringOrFocusing",
             replacement: [
                 {
                     noWarn: true,
                     match: /user:([A-Za-z_$][\w$]*),displayProfile:([A-Za-z_$][\w$]*),themeType/,
                     replace: "user:$self.fakeCurrentUser($1),displayProfile:$2,themeType"
-                }
-            ]
-        },
-        {
-            find: "AccountPanel",
-            replacement: [
-                {
-                    match: /user:([a-zA-Z0-9_]+),/,
-                    replace: "user:$self.fakeCurrentUser($1),"
-                }
-            ]
-        },
-        {
-            find: "UserAccountSettings",
-            replacement: [
-                {
-                    match: /user:([a-zA-Z0-9_]+),/,
-                    replace: "user:$self.fakeCurrentUser($1),"
-                },
-                {
-                    match: /email:([^,}]+),/,
-                    replace: "email:$self.fakeObfuscatedEmail($1),"
-                }
-            ]
-        },
-        {
-            find: "getObfuscatedEmail",
-            replacement: [
-                {
-                    match: /obfuscatedEmail:([^,}]+)/g,
-                    replace: "obfuscatedEmail:$self.fakeObfuscatedEmail($1)"
-                },
-                {
-                    match: /obfuscatedPhone:([^,}]+)/g,
-                    replace: "obfuscatedPhone:$self.fakeObfuscatedPhone($1)"
                 }
             ]
         }

@@ -49,19 +49,6 @@ export default definePlugin({
                 },
             ]
         },
-        {
-            find: "getCurrentUser(),multiAccountUsers",
-            replacement: [
-                {
-                    match: /(maxNumAccounts:)5/,
-                    replace: "$1$self.getMaxAccounts()",
-                },
-                {
-                    match: /(\i.length(?:<|>=))5/g,
-                    replace: "$1$self.getMaxAccounts()",
-                },
-            ]
-        },
     ],
     getMaxAccounts() { return settings.store.maxAccounts === 0 ? Infinity : settings.store.maxAccounts; },
 });

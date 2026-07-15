@@ -80,17 +80,6 @@ export default definePlugin({
     settings,
     patches: [
         {
-            predicate: () => {
-                return settings.store.replaceRegularNotes;
-            },
-            find: ".Messages.NOTE_PLACEHOLDER,",
-            noWarn: true,
-            replacement: {
-                match: /componentDidMount\(\)\{if.{0,250}\}render\(\)\{.{0,300}\.Messages\.LOADING_NOTE.{0,300}\}constructor/,
-                replace: "componentDidMount(){}render(){return $self.notesSectionRender(this.props.userId)}constructor"
-            }
-        },
-        {
             find: "toolbar:function",
             predicate: () => settings.store.addNotesDataToolBar,
             noWarn: true,

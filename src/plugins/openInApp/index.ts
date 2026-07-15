@@ -121,7 +121,7 @@ export default definePlugin({
         },
 
         // User Profile Modal & User Profile Modal v2
-        ...[".__invalid_connectedAccountOpenIconContainer", ".BLUESKY||"].map(find => ({
+        ...[".BLUESKY||"].map(find => ({
             find,
             replacement: {
                 match: /(?<=onClick:(\i)=>\{)(?=.{0,100}\.CONNECTED_ACCOUNT_VIEWED)(?<==(\i)\.metadata.+?)/,

@@ -868,14 +868,6 @@ export default definePlugin({
             }
         },
         {
-            find: ".banner)==null",
-            noWarn: true,
-            replacement: {
-                match: /(?<=void 0:)\i\.getPreviewBanner\(\i,\i,\i\)/,
-                replace: "($self.bannerHook(arguments[0])??($&))"
-            }
-        },
-        {
             find: ":\"SHOULD_LOAD\");",
             noWarn: true,
             replacement: {
@@ -911,17 +903,7 @@ export default definePlugin({
                 }
             ]
         },
-        {
-            find: "\"ProfileEffectStore\"",
-            noWarn: true,
-            replacement: {
-                match: /getProfileEffectById\((\i)\){return null!=\i\?(\i)\[\i\]:void 0/,
-                replace: "getProfileEffectById($1){return $self.getProfileEffectById($1,$2)??(null!=$2?$2[$1]:void 0)"
-            }
-        },
         ...[
-            '"Message Username"',
-            ".nameplatePreview,{",
             "#{intl::ayozFl::raw}",
         ].map(find => ({
             find,
@@ -933,20 +915,6 @@ export default definePlugin({
                 }
             ]
         })),
-        {
-            find: "80,onlyAnimateOnHoverOrFocus:!",
-            noWarn: true,
-            replacement: [
-                {
-                    match: /(?<==)\i=>{let{children.{20,200}isSelected:\i.{0,5}\}=\i/,
-                    replace: "$self.DecorationGridItem=$&",
-                },
-                {
-                    match: /(?<==)\i=>{let{user:\i,avatarDecoration/,
-                    replace: "$self.DecorationGridDecoration=$&",
-                },
-            ]
-        },
         {
             find: "#{intl::PREMIUM_UPSELL_PROFILE_AVATAR_DECO_INLINE_UPSELL_DESCRIPTION}",
             replacement: [
@@ -966,14 +934,6 @@ export default definePlugin({
     },
 
     useUserAvatarDecoration,
-
-    getProfileEffectById(skuId: string, effects: Record<string, any>) {
-        if (!isActive() || !settings.store.spoofProfileEffect) return null;
-        const targetProfile = getTargetProfile();
-        const eff = targetProfile?.profileEffect;
-        if (eff && (eff.skuId === skuId || (eff as any).id === skuId)) return eff;
-        return (effects && effects[skuId]) || null;
-    },
 
     set DecorationGridItem(e: any) {
         DecorationGridItem = e;

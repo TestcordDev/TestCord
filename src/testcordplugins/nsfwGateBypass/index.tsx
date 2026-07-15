@@ -39,13 +39,6 @@ export default definePlugin({
             },
         },
         {
-            find: "useAgeGateVerifyContentForGuild",
-            replacement: {
-                match: /null==(\i)\.nsfwAllowed/g,
-                replace: " false",
-            },
-        },
-        {
             find: "#{intl::AGE_GATE_NSFW_BODY}",
             replacement: {
                 match: /(\i)\.nsfwLevel\s*>=\s*(\i)\b/,
@@ -57,13 +50,6 @@ export default definePlugin({
             replacement: {
                 match: /(\i)\.isFamilyCenterEnabled\b/,
                 replace: "($1.isFamilyCenterEnabled,false)",
-            },
-        },
-        {
-            find: "useAgeGateVerifyContentForGuild",
-            replacement: {
-                match: /((?:\i\.)*\i)\.getCurrentUser\(\)\?\.nsfwAllowed===!1/g,
-                replace: "($1.getCurrentUser()?.nsfwAllowed,false)",
             },
         },
     ],

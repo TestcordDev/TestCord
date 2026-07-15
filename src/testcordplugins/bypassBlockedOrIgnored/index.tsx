@@ -34,20 +34,6 @@ export default definePlugin({
             }
         },
         {
-            find: "{handleBlockedOrIgnoredUserVoiceChannelJoin(",
-            replacement: {
-                match: /{handleBlockedOrIgnoredUserVoiceChannelJoin\((\i),(\i)\){/,
-                replace: "{handleBlockedOrIgnoredUserVoiceChannelJoin($1,$2){if($self.handleBlockedOrIgnoredUserVoiceChannelJoin($1,$2))return;"
-            }
-        },
-        {
-            find: "BLOCKED_PROFILE_POPOUT:",
-            replacement: {
-                match: /let (\i)=(\i)\?"VIEW_BLOCKED_PROFILE":"VIEW_IGNORED_PROFILE"/,
-                replace: "if($2&&$self.shouldShowBlockedProfiles())return $self.openBlockedProfile(arguments[0]);let $1=$2?\"VIEW_BLOCKED_PROFILE\":\"VIEW_IGNORED_PROFILE\""
-            }
-        },
-        {
             find: "user-profile-sidebar-heading-",
             replacement: {
                 match: /children:(\i)\?(?=\(0,\i\.jsx\)\(\i,\{user:(\i),currentUser:)/,
@@ -55,10 +41,10 @@ export default definePlugin({
             }
         },
         {
-            find: "parentComponent:\"RestrictedUserProfileModalV2\"",
+            find: "handleBlockedOrIgnoredUserVoiceChannelJoin",
             replacement: {
-                match: /return (\i)&&!(\i)\?/,
-                replace: "if($1&&!$2&&$self.shouldShowBlockedProfilesFor(n.id))return $self.closeRestrictedProfile(arguments[0]);return $1&&!$2?"
+                match: /handleBlockedOrIgnoredUserVoiceChannelJoin\(\i,\i\)\{/,
+                replace: "$&if($self.handleBlockedOrIgnoredUserVoiceChannelJoin(arguments[0],arguments[1]))return;"
             }
         }
     ],

@@ -79,18 +79,16 @@ function applyRuntimePatch() {
             const patched = src.replace(/\.toBinary\(t\)\.length>\d+/, ".toBinary(t).length>Number.MAX_SAFE_INTEGER");
             if (patched === src) continue;
 
-            // Re-evaluate the module with the patch applied
             const newFn = new Function("e", "t", "n", patched.slice(patched.indexOf("{") + 1, -1));
             wreq.m[key] = newFn;
 
-            // Re-execute the module so exports are updated
             delete wreq.c[key];
             wreq(key);
 
             log("Runtime patch applied to module", key);
             return true;
         }
-        log("Module not found for runtime patch");
+        log("Module not found for runtime patch, relying on webpack patch");
         return false;
     } catch (e) {
         warn("Runtime patch failed:", e);
@@ -143,12 +141,7 @@ export default definePlugin({
     async start() {
         log("Plugin started.");
         log(`Local favs in DataStore: ${(await getLocalFavs()).length}`);
-        const patched = applyRuntimePatch();
-        if (patched) {
-            log("Runtime patch successful!");
-        } else {
-            warn("Runtime patch failed, relying on webpack patch only.");
-        }
+        applyRuntimePatch();
     },
 
     stop() {

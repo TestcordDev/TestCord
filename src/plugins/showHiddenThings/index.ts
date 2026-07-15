@@ -76,15 +76,6 @@ export default definePlugin({
                 match: /(#{intl::GUILD_MEMBER_MOD_VIEW_HIGHEST_ROLE}.{0,80})role:\i(?<=\[\i\.roles,\i\.highestRoleId,(\i)\].+?)/,
                 replace: (_, rest, roles) => `${rest}role:$self.getHighestRole(arguments[0],${roles})`,
             }
-        },
-        // allows you to open mod view on yourself
-        {
-            find: 'action:"PRESS_MOD_VIEW",icon:',
-            predicate: () => settings.store.showModView,
-            replacement: {
-                match: /\i(?=\?null)/,
-                replace: "false"
-            }
         }
     ],
 

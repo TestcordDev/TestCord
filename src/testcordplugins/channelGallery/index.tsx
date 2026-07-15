@@ -153,25 +153,7 @@ export default definePlugin({
 
     // Patch the built-in media viewer so clicking left/right halves navigates.
     // This complements the existing arrow-key navigation in Discord's viewer.
-    patches: [
-        {
-            find: ".dimensionlessImage,",
-            replacement: [
-                // If another plugin already wrapped the media with a stopPropagation onClick, replace it.
-                {
-                    match: /onClick:e=>e\.stopPropagation\(\)/,
-                    replace: "onClick:e=>$self.handleMediaViewerClick(e)",
-                    noWarn: true
-                },
-                // Otherwise, wrap the media content in our own onClick handler.
-                {
-                    match: /(?<=null!=(\i)\?.{0,20})\i\.\i,{children:\1/,
-                    replace: "'div',{onClick:e=>$self.handleMediaViewerClick(e),children:$1",
-                    noWarn: true
-                }
-            ]
-        }
-    ],
+    patches: [],
 
     handleMediaViewerClick(e: any) {
         if (!e || e.button !== 0) return;

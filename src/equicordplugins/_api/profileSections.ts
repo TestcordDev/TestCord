@@ -14,26 +14,18 @@ export default definePlugin({
     patches: [
         // dm user sidebar
         {
-            find: ".SIDEBAR,disableToolbar:",
+            find: "SIDEBAR,disableToolbar:",
             replacement: {
-                match: /(#{intl::USER_PROFILE_MEMBER_SINCE}\),.{0,100}userId:(\i\.id)\}\)\}\))(?=.{0,100}unownedWishlistItems:\i,wishlistId:\i)/,
-                replace: "$1,Vencord.Api.ProfileSections.renderProfileSections({userId:$2,isSideBar:true})",
-            }
-        },
-        // user profile modal
-        {
-            find: ",applicationRoleConnection:",
-            replacement: {
-                match: /(#{intl::USER_PROFILE_MEMBER_SINCE}\),.{0,100}userId:(\i\.id),.{0,100}}\)}\)),/,
-                replace: "$1,Vencord.Api.ProfileSections.renderProfileSections({userId:$2,isSideBar:false}),",
+                match: /(a6XYD9\),headingColor:"text-strong",children:\(0,\i\.jsx\)\(\i\.A,\{userId:(\i\.id)\}\)\}\))/,
+                replace: "$1,Vencord.Api.ProfileSections.renderProfileSections({userId:$2,isSideBar:true})"
             }
         },
         // user profile modal v2
         {
-            find: ".MODAL_V2,onClose:",
+            find: "MODAL_V2,onClose:",
             replacement: {
-                match: /(#{intl::USER_PROFILE_MEMBER_SINCE}\),.{0,100}userId:(\i\.id),.{0,100}}\)}\)),/,
-                replace: "$1,Vencord.Api.ProfileSections.renderProfileSections({userId:$2,isSideBar:false}),",
+                match: /(a6XYD9\),children:\(0,\i\.jsx\)\(\i\.\i,\{userId:(\i\.id),guildId:\i\?\.guildId,tooltipDelay:\i\.\i\}\)\})/,
+                replace: "$1,Vencord.Api.ProfileSections.renderProfileSections({userId:$2,isSideBar:false})"
             }
         }
     ]

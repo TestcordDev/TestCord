@@ -82,14 +82,6 @@ export default definePlugin({
     settings,
     patches: [
         {
-            // Popout
-            find: /\.BITE_SIZE,onOpenProfile:\i,usernameIcon:/,
-            replacement: {
-                match: /currentUser:\i,guild:\i,onOpenProfile:.+?}\)(?=])(?<=user:(\i),bio:null==(\i)\?.+?)/,
-                replace: "$&,$self.NotesSection({ user: $1, ...vencordNotesHook })"
-            }
-        },
-        {
             // DM Sidebar
             find: /getRelationshipType.{0,800}\.Overlay.{0,200}Messages\.USER_POPOUT_ABOUT_ME/,
             replacement: {

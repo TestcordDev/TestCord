@@ -89,9 +89,9 @@ export default definePlugin({
     },
     patches: [
         {
-            find: "originLabel,\"  •  \"",
+            find: "originLabel:e.name,originIconUrl",
             replacement: {
-                match: /(let{message:\i,snapshot:\i,index:\i}=(\i))(.{0,400})return .+TEXT_LOW_CONTRAST}\)]}\)/,
+                match: /(let\{message:\i,snapshot:\i,index:\i\}=(\i))(.{0,400})return .+?\)}\)/,
                 replace: "$1$3return $self.ForwardFooter($2)"
             }
         }

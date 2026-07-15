@@ -55,19 +55,6 @@ export default definePlugin({
             }
         },
         {
-            find: '"stream-option-notify"',
-            replacement: [
-                {
-                    match: /(?<=#{intl::IG5n0X::raw}\),children:).{0,150}checked:(\i)===.{0,80}action:\(\)=>(\(function.{0,150}resolution:\i\}\)\}\)).{0,5}\i\)\}\)/,
-                    replace: "[...$self.OptionsRange($2,$1,true)]"
-                },
-                {
-                    match: /(?<=#{intl::SkkeIt::raw}\),children:).{0,90}checked:(\i)===.{0,200}action:\(\)=>(\(function.{0,500}fps:\i\}\)\}\)).{0,5}\i\)\)/,
-                    replace: "[...$self.OptionsRange($2,$1,false)]"
-                },
-            ]
-        },
-        {
             find: '"stream-settings-audio-enable"',
             replacement: [
                 {

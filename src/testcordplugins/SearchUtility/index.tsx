@@ -939,7 +939,6 @@ function openQuickSearchResults(options: QuickSearchModalOptions) {
 }
 
 const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, props) => {
-    const [queryObject, setQueryObject] = useState<Record<string, boolean>>({});
     if (!props) return;
     if (props.channel && !PermissionStore.can(PermissionsBits.VIEW_CHANNEL, props.channel)) return;
 
@@ -949,6 +948,10 @@ const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, prop
 
     const userId = props.message?.author?.id || props.user?.id;
     const content = props.message?.content;
+
+    if (children.some(child => child?.props?.id === "quick-search")) return;
+
+    const [queryObject, setQueryObject] = useState<Record<string, boolean>>({});
     const quickSearchItems: QuickSearchItem[] = [
         {
             name: "quick-search-channel",
@@ -980,14 +983,11 @@ const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, prop
         }
     ];
 
-    if (children.some(child => child?.props?.id === "quick-search")) return;
-
     children.push(
         <Menu.MenuSeparator />,
         <Menu.MenuItem id="quick-search" label="Quick Search">
             {quickSearchItems.map(item => {
                 if (!item.present) return null;
-
                 return (
                     <Menu.MenuCheckboxItem
                         key={item.name}

@@ -167,11 +167,10 @@ export default definePlugin({
 
     patches: [
         {
-            // Same find as ReviewDB
-            find: '"UserProfilePopout");',
+            find: "UserProfileAccountPopout",
             replacement: {
-                match: /userId:\i\.id,guild:\i\}\)(?=])/,
-                replace: "$&,$self.profilePopoutComponent(arguments[0])"
+                match: /\(0,\i\.jsx\)\(\i\.A,\{user:(\i),widgets:(\i)\?\.widgets,onOpenUserProfileModal:\i\}\)/,
+                replace: "$&,$self.profilePopoutComponent({user:$1,displayProfile:$2})"
             }
         }
     ],

@@ -12,15 +12,7 @@ export default definePlugin({
     description: "Ignore Discord's new terms of service",
     tags: ["Utility", "Privacy"],
     authors: [TestcordDevs.x2b],
-    patches: [
-        {
-            find: "Messages.NEW_TERMS_TITLE",
-            replacement: {
-                match: /function (\i)\((\i)\)\{let\{transitionState:(\i)\}=(\i)/g,
-                replace: "function $1($2){return $self.closeModal($2);let{transitionState:$3}=$4"
-            }
-        }
-    ],
+    patches: [],
 
     closeModal(event) {
         event.transitionState = null;

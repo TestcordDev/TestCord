@@ -14,15 +14,7 @@ export default definePlugin({
     description: "Generate FriendCodes to easily add friends",
     tags: ["Friends", "Utility"],
     authors: [TestcordDevs.x2b, TestcordDevs.nnenaza],
-    patches: [
-        {
-            find: ".Messages.ADD_FRIEND}),(",
-            replacement: {
-                match: /\.Fragment[^]*?children:\[[^]*?}\)/,
-                replace: "$&,$self.FriendCodesPanel"
-            }
-        }
-    ],
+    patches: [],
 
     get FriendCodesPanel() {
         return <FriendCodesPanel />;

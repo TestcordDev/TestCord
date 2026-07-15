@@ -305,29 +305,13 @@ export default definePlugin({
             ]
         },
         {
-            find: "QUEST_HOME)},[]),",
-            group: true,
+            find: "QUEST_HOME_TILE_HEADER_WATCH_VIDEO})},",
             predicate: () => !getQuestifySettings().disableQuestsEverything,
             replacement: [
                 {
                     // Subscribes the Quest page sort/filter state to Questify rerenders.
-                    match: /(let \i,\i,\i,\i,\i=\i\.useRef\(null\),)/,
-                    replace: "$1questRerenderTrigger=$self.useQuestRerender(),"
-                },
-                {
-                    // Set the initial sort method.
-                    match: /(\i.\i.SUGGESTED)/,
-                    replace: "$self.getLastSortChoice()??$1"
-                },
-                {
-                    // Set the initial filters and update the filters and sort method when they change.
-                    match: /(get\(\i\)\)\?\?)(\i,\[)(\i)(\]\),\i=\i.useCallback\((\i)=>{)(.{0,60}?useCallback\((\i)=>{)/,
-                    replace: "$1$self.getLastFilterChoices()??$2$3,questRerenderTrigger$4$self.setLastSortChoice($5);$6$self.setLastFilterChoices($7);$self.rerenderQuests();"
-                },
-                {
-                    // Update the last used sort and filter choices when the toggle setting for either is changed.
-                    match: /(?<=ALL,\i.useMemo\(\(\)=>\()({sortMethod:(\i),filters:(\i))/,
-                    replace: "$self.setLastSortChoice($2),$self.setLastFilterChoices($3),$1"
+                    match: /(?<=\i\.useRef\(null\);)(?=return\(0,\i\.jsxs\)\("div")/,
+                    replace: "let questRerenderTrigger=$self.useQuestRerender();"
                 }
             ]
         },
@@ -365,54 +349,6 @@ export default definePlugin({
                 match: /(?<=isLoading:\i}=\(0,\i.\i\)\(\),\i=\i\.useContext\(\i\.\i\)\|\|\i&&)(\i)/,
                 replace: "($1||$self.shouldForceQuestPanelVisible(arguments[0].quest))"
             }
-        },
-        {
-            find: "QUEST_HOME_TILE_HEADER_WATCH_VIDEO})},",
-            group: true,
-            predicate: () => !getQuestifySettings().disableQuestsEverything,
-            replacement: [
-                {
-                    // Alias the selected platform dropdown state before exposing CTA buttons.
-                    match: /(?<=var \i;)(?=let \i,\i,{quest:\i,questContent:)/,
-                    replace: "let questifySelectedPlatformDropdownVisible;"
-                },
-                {
-                    // Prevent the platform selector if the Quest is auto-completable.
-                    match: /(?<=ACCEPTED,\i=)(?=\i&&)/,
-                    replace: "!$self.canAutoCompleteQuest(arguments[0].quest)&&"
-                },
-                {
-                    // Prevent the platform selector if the Quest is auto-completable.
-                    match: /(?<=SELECT,\i=)(?=\i&&)/,
-                    replace: "questifySelectedPlatformDropdownVisible=!$self.canAutoCompleteQuest(arguments[0].quest)&&"
-                },
-                {
-                    // Always expose the CTA button when available instead of only for videos and activities,
-                    // unless the selected platform dropdown is already taking the secondary slot.
-                    match: /(?<=wrap:!1,children:\[)(\i&&[^?]+)/,
-                    replace: "((!!arguments[0].quest.config.ctaConfig&&!questifySelectedPlatformDropdownVisible)||($1))"
-                },
-                {
-                    // Let completed/claimed expired Quests with CTAs use the CTA-aware completed branch.
-                    match: /(return\()(?=\i.enabled&&\i===\i\.\i\.EXPIRED_CLAIMABLE&&\i\.\i\.has\(\i\))/,
-                    replace: "$1!arguments[0].quest.config.ctaConfig&&"
-                },
-                {
-                    // Let completed/claimed expired Quests with CTAs use the CTA-aware completed branch.
-                    match: /(?<=\):\i\?\i=)(\i)(?=\?\(0,\i\.jsx\)\(\i,\{quest:\i,sourceQuestContent:\i,onClick:\i,text:\i\}\):)/,
-                    replace: "(arguments[0].quest.config.ctaConfig||$1)"
-                },
-                {
-                    // Force the CTA-aware complete branch.
-                    match: /(?<=analyticsCtxQuestContentRowIndex:\i}\)}\):\i&&\i)(.{0,200}?fullWidth:!0}\)}\):)(\i.enabled.{0,50}?CLAIMED\)&&\i.\i.has\(\i\))(\?\i=)(\i)/,
-                    replace: "&&false$1((arguments[0].quest.config.ctaConfig&&arguments[0].quest.userStatus?.completedAt)||($2))$3(true||$4)"
-                },
-                {
-                    // Prefer the CTA + progress button branch when Questify can complete the Quest.
-                    match: /(?<="data-migration-pending":.{0,400}?enabledQuestStates.has\(\i\)\?)/,
-                    replace: "!$self.canAutoCompleteQuest(arguments[0].quest)&&"
-                }
-            ]
         },
         {
             find: 'STEP_2_CLICKED_INTERNAL,"quest_embed_card_footer',

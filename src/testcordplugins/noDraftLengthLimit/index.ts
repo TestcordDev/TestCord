@@ -14,10 +14,10 @@ export default definePlugin({
     authors: [TestcordDevs.x2b],
     patches: [
         {
-            find: "MAX_MESSAGE_LENGTH_PREMIUM+500",
+            find: "ApplicationLauncherCommand=3",
             replacement: {
-                match: /=[^=]{0,20}MAX_MESSAGE_LENGTH_PREMIUM\+500/,
-                replace: "=Infinity"
+                match: /let \i=\i\(\d+\)\.CS1\+500/,
+                replace: "let E=Number.MAX_SAFE_INTEGER"
             }
         }
     ]

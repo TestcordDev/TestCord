@@ -31,6 +31,7 @@ const settings = definePluginSettings({
     }
 });
 
+
 export default definePlugin({
     name: "NoTrack",
     description: "Disable Discord's tracking (analytics/'science'), metrics and Sentry crash reporting",
@@ -44,10 +45,16 @@ export default definePlugin({
         {
             find: "AnalyticsActionHandlers.handle",
             predicate: () => settings.store.disableAnalytics,
-            replacement: {
-                match: /\(0,\i\.analyticsTrackingStoreMaker\)/,
-                replace: "(()=>{})",
-            },
+            replacement: [
+                {
+                    match: /\(0,\i\.analyticsTrackingStoreMaker\)/,
+                    replace: "(()=>{})",
+                },
+                {
+                    match: /(\i)\.handleTrack=function(\i)\{let\{event:\i,properties:\i,flush:\i,fingerprint:\i,resolve:(\i)\}=\i;/,
+                    replace: "$1.handleTrack=function$2{let{resolve:$3}=$2;$3?.();return!1;"
+                }
+            ],
         },
         {
             find: ".METRICS_V2",
@@ -74,9 +81,10 @@ export default definePlugin({
 
     // The TRACK event takes an optional `resolve` property that is called when the tracking event was submitted to the server.
     // A few spots in Discord await this callback before continuing (most notably the Voice Debug Logging toggle).
-    // Since we NOOP the AnalyticsActionHandlers module, there is no handler for the TRACK event, so we have to handle it ourselves
+    // The handleTrack patch above NOOPs the handler so it never queues/sends events, but the flux handler
+    // is a fallback in case the store was already created during fast-connect before patches applied.
     flux: {
-        TRACK(event) {
+        TRACK(event: { resolve?: () => void }) {
             event?.resolve?.();
         }
     },

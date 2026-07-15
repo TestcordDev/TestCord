@@ -94,15 +94,7 @@ export default definePlugin({
     dependencies: ["CommandsAPI", "ChatInputButtonAPI", "HeaderBarAPI"],
     settings,
 
-    patches: [
-        {
-            find: ".NO_SEND_MESSAGES_PERMISSION_PLACEHOLDER:",
-            replacement: {
-                match: /(disableEnterToSubmit:)([^,]{0,100},)/g,
-                replace: "$1$self.settings.store.isEnabled||$2"
-            }
-        },
-    ],
+    patches: [],
 
     contextMenus: {
         "textarea-context": ContextMenuPatch

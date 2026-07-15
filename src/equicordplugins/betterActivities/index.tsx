@@ -11,7 +11,6 @@ import { Devs } from "@utils/constants";
 import definePlugin from "@utils/types";
 
 import { patchActivityList } from "./patch-helpers/activityList";
-import { showAllActivitiesComponent } from "./patch-helpers/popout";
 import { settings } from "./settings";
 
 migratePluginSettings("BetterActivities", "MemberListActivities");
@@ -23,7 +22,6 @@ export default definePlugin({
     tags: ["Activity"],
     settings,
     patchActivityList,
-    showAllActivitiesComponent,
     patches: [
         {
             // Patch activity icons
@@ -45,15 +43,6 @@ export default definePlugin({
                     predicate: () => settings.store.memberList,
                 }
             ],
-        },
-        {
-            // Show all activities in the user popout/sidebar
-            find: '"UserProfilePopout");',
-            replacement: {
-                match: /((\i)=.{0,10}(\i)\.id\).*?)\(0,\i\.jsxs?.{0,150}onClose:\i\}\)(?=.{0,30}userId:\i\.id)/,
-                replace: "$1$self.showAllActivitiesComponent({ activity: $2, user: $3 })"
-            },
-            predicate: () => settings.store.userPopout
         },
     ],
 });

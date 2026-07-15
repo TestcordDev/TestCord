@@ -809,27 +809,11 @@ export default definePlugin({
             ]
         },
         {
-            find: "this.rebuildFavoriteEmojisWithoutFetchingLatest()",
-            predicate: () => settings.store.optimizeEmojiCache,
-            replacement: [
-                {
-                    match: /(\i)=>\{let \i=(\i)\[null==\i\?(\i)\.(\i):\i\];null!=\i&&\((\i)\(\)\.each\(\i\.usableEmojis,(\i)\),\i\(\)\.each\(\i\.emoticons,(\i)\)\)\};/,
-                    replace: (_m, e, q, k, kodProp, a, n, r) =>
-                        `${e}=>{` +
-                        `const t=${q}[null==${e}?${k}.${kodProp}:${e}];` +
-                        "const usableEmojis=t?.usableEmojis;" +
-                        "const emoticons=t?.emoticons;" +
-                        `null!=t&&(${a}().each(usableEmojis,${n}),${a}().each(emoticons,${r}))` +
-                        "};"
-                }
-            ]
-        },
-        {
             find: /\i\.\i\.getAppSpinnerSources\(\)/,
             predicate: () => settings.store.killLoadingSpinner,
             replacement: {
-                match: /(?:let|const) \i=\i\.\i\.getAppSpinnerSources\(\).{0,200}?;(\i\.\i).{0,200}?\)\}/,
-                replace: "$1=()=>null;"
+                match: /(\i)=\i\.\i\.getAppSpinnerSources\(\)/,
+                replace: "$1=null"
             }
         },
         {
@@ -841,21 +825,12 @@ export default definePlugin({
             }
         },
         {
-            find: "getDispatchHandler needs to be passed in first!",
-            predicate: () => settings.store.killGatewayAnalytics,
-            replacement: {
-                match: /let \i=Date\.now\(\),(\i=\i\.\i\.flush\(\i,\i\));.{0,100}?showPerformanceTelemetry\?.{0,100}?Telemetry\(.{0,100}?,\i\)/,
-                replace: "$1"
-            }
-        },
-        {
-            find: /reactionPop|reactionBurst/,
+            find: "popAnimation=()=>{let{opacity",
             predicate: () => settings.store.suppressReactionAnimations,
             replacement: {
-                match: /reactionAnimations:\i,/,
-                replace: "reactionAnimations:{reactionPop:{},reactionBurst:{}},",
-            },
-            noWarn: true
+                match: /popAnimation=\(\)=>\{let\{opacity/,
+                replace: "popAnimation=()=>{return;let{opacity"
+            }
         },
         {
             // Kill Sentry init — patch the DSN to empty so the SDK never boots
