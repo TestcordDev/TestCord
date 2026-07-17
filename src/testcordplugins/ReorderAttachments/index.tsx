@@ -12,25 +12,22 @@ import { classes } from "@utils/misc";
 import { useForceUpdater } from "@utils/react";
 import definePlugin from "@utils/types";
 import { findComponentByCodeLazy } from "@webpack";
-import { React, useDrag, useDrop, useRef } from "@webpack/common";
+import { React, UploadManager, useDrag, useDrop } from "@webpack/common";
 
 const AttachmentItem = findComponentByCodeLazy(/channelId:\i,draftType:\i,upload:\i,/);
 const ItemType = "DND_ATTACHMENT";
 const cl = classNameFactory("vc-drag-att-");
 
 interface DragItem {
-    index: number;
+    id: string;
 }
 
-const DraggableItem = ({ uploadItem, index, moveItem, children }) => {
+const DraggableItem = ({ uploadItem, moveItem, children }) => {
     const [{ isDragging }, drag] = useDrag({
         type: ItemType,
-        item: { index },
+        item: { id: uploadItem.id },
         collect: monitor => ({ isDragging: monitor.isDragging() })
     });
-
-    const isComingFromRight = useRef(false);
-    const isComingFromLeft = useRef(false);
 
     const [{ isOver }, drop] = useDrop({
         accept: ItemType,
@@ -38,11 +35,10 @@ const DraggableItem = ({ uploadItem, index, moveItem, children }) => {
             isOver: monitor.isOver()
         }),
         hover: (draggedItem: DragItem) => {
-            isComingFromRight.current = index < draggedItem.index;
-            isComingFromLeft.current = index > draggedItem.index;
+            moveItem(draggedItem.id, uploadItem.id);
         },
         drop: (draggedItem: DragItem) => {
-            moveItem(draggedItem.index, index);
+            moveItem(draggedItem.id, uploadItem.id);
         }
     });
 
@@ -56,9 +52,7 @@ const DraggableItem = ({ uploadItem, index, moveItem, children }) => {
                 classes(
                     cl("item"),
                     isDragging && cl("dragging"),
-                    isOver && cl("drop-target"),
-                    isOver && isComingFromRight.current && cl("drop-from-right"),
-                    isOver && isComingFromLeft.current && cl("drop-from-left")
+                    isOver && cl("drop-target")
                 )
             }
         >
@@ -72,20 +66,28 @@ const DraggableList = ({ channelId, draftType, keyboardModeEnabled, size, attach
 
     const items = attachments.filter(a => a.filename !== ignoredFilename);
 
-    const moveItem = (from, to) => {
-        if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) return;
-        const next = [...items];
-        next.splice(to, 0, ...next.splice(from, 1));
-        // Commit the new order back to the draft array Discord reads on send.
+    const moveItem = (fromId: string, toId: string) => {
+        const from = items.findIndex(item => item.id === fromId);
+        const to = items.findIndex(item => item.id === toId);
+        if (from === -1 || to === -1 || from === to) return;
+
+        const nextItems = [...items];
+        nextItems.splice(to, 0, ...nextItems.splice(from, 1));
+
+        // Keep Discord's non-rendered upload entries in their original slots.
+        let itemIndex = 0;
+        const next = attachments.map(attachment =>
+            attachment.filename === ignoredFilename ? attachment : nextItems[itemIndex++]
+        );
         attachments.splice(0, attachments.length, ...next);
+        UploadManager.setUploads({ uploads: next, channelId, draftType });
         forceUpdate();
     };
 
-    return items.map((uploadItem, index) => (
+    return items.map(uploadItem => (
         <DraggableItem
             key={uploadItem.id}
             uploadItem={uploadItem}
-            index={index}
             moveItem={moveItem}
         >
             <AttachmentItem
@@ -109,7 +111,7 @@ export default definePlugin({
             find: ')("attachments",',
             replacement: [
                 {
-                    match: /:(\i).map\(\i=>.{0,100}?(channelId:\i,.{0,150}?\i\.\i\.MEDIUM)},\i\.id\)\)(?<=\1=(\i).filter\(\i=>\i.filename!==(\i)\).{0,200})/,
+                    match: /:(\i).map\(\i=>[\s\S]*?(channelId:\i,[\s\S]*?\i\.\i\.MEDIUM)},\i\.id\)\)(?<=\1=(\i)\.filter\(\i=>\i\.filename!==(\i)[\s\S]*?)/,
                     replace: ":$self.DraggableList({$2,attachments:$3,ignoredFilename:$4})"
                 }
             ]
