@@ -23,13 +23,12 @@ import { sleep, tryOrElse } from "@utils/misc";
 import { makeCodeblock } from "@utils/text";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { Message, User } from "@vencord/discord-types";
+import { cache, wreq } from "@webpack";
 import { Avatar, Button, ChannelStore, ColorPicker, FluxDispatcher, MessageActions, SelectedChannelStore, showToast, TextInput, Toasts, Tooltip, useEffect, useMemo, UserProfileStore, UserStore, useStateFromStores } from "@webpack/common";
 import { patches as allPatches, patchTimings } from "@webpack/patcher";
-import { find, filters, cache, wreq } from "@webpack";
 import { JSX } from "react";
 
-import type * as NativeModule from "./native";const NativeHelper = VencordNative.pluginHelpers.TestcordHelper as PluginNative<typeof import("./native")>;
-
+const NativeHelper = VencordNative.pluginHelpers.TestcordHelper as PluginNative<typeof import("./native")>;
 
 import plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
 
@@ -77,7 +76,7 @@ function getPluginFluxMap() {
     if (pluginFluxMap) return pluginFluxMap;
     pluginFluxMap = new Map();
     for (const name in plugins) {
-        const flux = plugins[name].flux;
+        const { flux } = plugins[name];
         if (!flux) continue;
         for (const eventType in flux) {
             const list = pluginFluxMap.get(eventType) ?? [];
@@ -1050,7 +1049,7 @@ function handleLiveFixRequest(req: LiveFixRequest): any {
         switch (action) {
             case "search": {
                 if (!req.query) return { id, error: "Missing query" };
-                const results: Array<{ id: number; snippet: string }> = [];
+                const results: Array<{ id: number; snippet: string; }> = [];
                 const query = req.query.toLowerCase();
                 const modules = cache ?? wreq?.c;
                 if (!modules) return { id, error: "Webpack cache not available" };
@@ -1105,7 +1104,7 @@ function handleLiveFixRequest(req: LiveFixRequest): any {
                 const pending = allPatches.map(patch => ({
                     plugin: patch.plugin,
                     find: String(patch.find),
-                    matches: (patch.replacement as Array<{ match: string | RegExp }>).map(r => String(r.match))
+                    matches: (patch.replacement as Array<{ match: string | RegExp; }>).map(r => String(r.match))
                 }));
                 return { id, pending };
             }
