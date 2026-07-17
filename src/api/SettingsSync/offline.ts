@@ -119,70 +119,36 @@ export async function importSettings(data: string | object, type: BackupType = "
 export async function exportSettings({ syncDataStore = true, type = "all", minify }: { syncDataStore?: boolean; type?: BackupType; minify?: boolean; }) {
     const settings = VencordNative.settings.get();
     const quickCss = await VencordNative.quickCss.get();
-    let dataStore: any;
 
-    if (syncDataStore) {
-        try {
-            dataStore = await DataStore.entries();
-        } catch (err) {
-            logger.error("Failed to read DataStore entries:", err);
-
-            if (type === "all") {
-                logger.warn("Skipping DataStore in backup due to size. Export DataStore separately if needed.");
-                toast(Toasts.Type.MESSAGE, "DataStore too large - exported without it. Use 'Export DataStore' separately if needed.");
-                dataStore = undefined;
-            } else if (type === "datastore") {
-                throw new Error("DataStore is too large to export. Please clear some plugin data and try again.");
+    if (!syncDataStore) {
+        switch (type) {
+            case "all":
+            case "plugins": {
+                return JSON.stringify({ settings }, null, minify ? undefined : 4);
+            }
+            case "css": {
+                return JSON.stringify({ quickCss }, null, minify ? undefined : 4);
+            }
+            case "datastore": {
+                return "{}";
             }
         }
     }
 
-    switch (type) {
-        case "all": {
-            try {
-                return JSON.stringify({ settings, quickCss, ...(dataStore && { dataStore }) }, null, minify ? undefined : 4);
-            } catch (e) {
-                if (dataStore && e instanceof RangeError) {
-                    logger.warn("DataStore too large to stringify - exporting without it");
-                    toast(Toasts.Type.MESSAGE, "DataStore too large - exported without it. Export DataStore separately if needed.");
-                    return JSON.stringify({ settings, quickCss }, null, minify ? undefined : 4);
-                }
-                throw e;
-            }
-        }
-        case "plugins": {
-            return JSON.stringify({ settings }, null, minify ? undefined : 4);
-        }
-        case "css": {
-            return JSON.stringify({ quickCss }, null, minify ? undefined : 4);
-        }
-        case "datastore": {
-            try {
-                return JSON.stringify({ dataStore }, null, minify ? undefined : 4);
-            } catch (e) {
-                throw new Error("DataStore is too large to export. Please clear some plugin data and try again.");
-            }
-        }
-    }
-}
-
-async function buildExportBlob(type: BackupType, minify?: boolean): Promise<Blob> {
     const nl = minify ? "" : "\n";
     const ind = minify ? "" : "  ";
     const col = minify ? ":" : ": ";
     const arrSep = minify ? "," : ", ";
     const [hasSettings, hasCss, hasDs] = [type === "all" || type === "plugins", type === "all" || type === "css", type === "all" || type === "datastore"];
 
-    const parts: BlobPart[] = [`{${nl}`];
+    const parts: string[] = [`{${nl}`];
 
     if (hasSettings) {
-        const settings = VencordNative.settings.get();
         parts.push(`${ind}"settings"${col}${JSON.stringify(settings)}`);
     }
 
     if (hasCss) {
         if (hasSettings) parts.push(`,${nl}`);
-        const quickCss = await VencordNative.quickCss.get();
         parts.push(`${ind}"quickCss"${col}${JSON.stringify(quickCss)}`);
     }
 
@@ -212,7 +178,7 @@ async function buildExportBlob(type: BackupType, minify?: boolean): Promise<Blob
     }
 
     parts.push(`${nl}}`);
-    return new Blob(parts, { type: "application/json" });
+    return parts.join("");
 }
 
 export async function downloadSettingsBackup(type: BackupType = "all", { minify }: { minify?: boolean; } = {}) {
@@ -220,21 +186,12 @@ export async function downloadSettingsBackup(type: BackupType = "all", { minify 
         const filename = `testcord-${type}-backup-${moment().format("YYYY-MM-DD")}.json`;
         const syncDataStore = type === "all" || type === "datastore";
 
-        if (syncDataStore) {
-            const blob = await buildExportBlob(type, minify);
-            if (IS_DISCORD_DESKTOP) {
-                DiscordNative.fileManager.saveWithDialog(new Uint8Array(await blob.arrayBuffer()), filename);
-            } else {
-                saveFile(new File([blob], filename, { type: "application/json" }));
-            }
+        const backup = await exportSettings({ minify, type, syncDataStore });
+        const data = new TextEncoder().encode(backup);
+        if (IS_DISCORD_DESKTOP) {
+            DiscordNative.fileManager.saveWithDialog(data, filename);
         } else {
-            const backup = await exportSettings({ minify, type, syncDataStore: false });
-            const data = new TextEncoder().encode(backup);
-            if (IS_DISCORD_DESKTOP) {
-                DiscordNative.fileManager.saveWithDialog(data, filename);
-            } else {
-                saveFile(new File([data], filename, { type: "application/json" }));
-            }
+            saveFile(new File([data], filename, { type: "application/json" }));
         }
     } catch (err) {
         logger.error("Failed to export settings:", err);
