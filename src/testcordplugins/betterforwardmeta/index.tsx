@@ -91,8 +91,8 @@ export default definePlugin({
         {
             find: "originLabel:e.name,originIconUrl",
             replacement: {
-                match: /(let\{message:\i,snapshot:\i,index:\i\}=(\i))(.{0,400})return .+?\)}\)/,
-                replace: "$1$3return $self.ForwardFooter($2)"
+                match: /let\{message:\i,snapshot:\i,index:\i\}=(\i)/,
+                replace: "return $self.ForwardFooter($1);$&"
             }
         }
     ]
