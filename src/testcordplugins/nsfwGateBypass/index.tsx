@@ -26,6 +26,7 @@ export default definePlugin({
     patches: [
         {
             find: "#{intl::AGE_GATE_AGE_VERIFIED}",
+            noWarn: true,
             replacement: {
                 match: /return (\i)\.ageVerified\b/,
                 replace: "return ($1.ageVerified,true)",
@@ -33,6 +34,7 @@ export default definePlugin({
         },
         {
             find: "#{intl::AGE_GATE_NSFW_BODY}",
+            noWarn: true,
             replacement: {
                 match: /if\s*\((\i\.isNSFW\b[^)]{0,60})\)/,
                 replace: "if(($1,false))",
@@ -40,6 +42,7 @@ export default definePlugin({
         },
         {
             find: "#{intl::AGE_GATE_NSFW_BODY}",
+            noWarn: true,
             replacement: {
                 match: /(\i)\.nsfwLevel\s*>=\s*(\i)\b/,
                 replace: "$1.nsfwLevel>=($2,Infinity)",
@@ -47,6 +50,7 @@ export default definePlugin({
         },
         {
             find: "#{intl::AGE_GATE_FAMILY_CENTER_BODY}",
+            noWarn: true,
             replacement: {
                 match: /(\i)\.isFamilyCenterEnabled\b/,
                 replace: "($1.isFamilyCenterEnabled,false)",

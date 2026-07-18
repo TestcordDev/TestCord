@@ -33,14 +33,14 @@ export default definePlugin({
 
     patches: [
         {
-            find: ']="BADGES"',
+            find: ',"data-text":"',
             replacement: {
                 match: /(?<=onContextMenu:\i,children:)(.{0,300}?)(?=,"data-text":)/,
                 replace: "$self.wrapMessageAuthor(arguments[0],$&)"
             }
         },
         {
-            find: "#{intl::FORUM_POST_AUTHOR_A11Y_LABEL}",
+            find: "#{intl::FORUM_POST_AUTHOR_A11Y_LABEL::raw}",
             replacement: {
                 match: /(?<=\}=(\i),\{(user:\i,author:\i)\}=.{0,400}?\(\i\.Fragment,{children:)\i(?=}\),)/,
                 replace: "$self.wrapForumAuthor({...$1,$2},$&)"

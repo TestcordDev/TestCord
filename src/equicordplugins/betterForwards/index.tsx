@@ -99,11 +99,11 @@ export default definePlugin({
     managedStyle,
     patches: [
         {
-            find: "#{intl::MESSAGE_FORWARDING_NSFW_NOT_ALLOWED}",
+            find: "forwardTo",
             predicate: () => settings.store.resendOnFail,
             replacement: {
-                match: /(\{if\().{0,50}(\)return.{0,25}#{intl::MESSAGE_FORWARDING_NSFW_NOT_ALLOWED})/,
-                replace: "$1false$2"
+                match: /if\(\i\.isNSFW\(\)\).{0,100}return/,
+                replace: "if(false)return"
             }
         },
         {
@@ -144,9 +144,10 @@ export default definePlugin({
         },
         {
             find: 'location:"ForwardFooter"',
+            noWarn: true,
             replacement: {
-                match: /let{message:\i,snapshot:\i,index:\i}=(\i)/,
-                replace: "return $self.renderForwardFooter($1);$&"
+                match: /return\s+\(0,\i\.jsx\)\(\i,\{message:(\i),snapshot:(\i),index:(\i)\}\)/,
+                replace: "return $self.renderForwardFooter({message:$1,snapshot:$2,index:$3})"
             }
         },
         {

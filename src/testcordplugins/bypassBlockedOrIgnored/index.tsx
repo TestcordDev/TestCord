@@ -36,8 +36,8 @@ export default definePlugin({
         {
             find: "user-profile-sidebar-heading-",
             replacement: {
-                match: /children:(\i)\?(?=\(0,\i\.jsx\)\(\i,\{user:(\i),currentUser:)/,
-                replace: "children:$1&&!$self.shouldShowBlockedProfilesFor($2.id)?"
+                match: /:null:(\i)\?(?=\(0,\i\.jsx\)\i,\{user:(\i),currentUser:)/,
+                replace: ":null:$1&&!$self.shouldShowBlockedProfilesFor($2.id)?"
             }
         },
         {
