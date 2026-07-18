@@ -555,9 +555,8 @@ export default definePlugin({
     patches: [
         {
             find: "#{intl::STREAM_FPS_OPTION}",
-            predicate: () => true,
             replacement: {
-                match: /guildPremiumTier:\i\.\i\.TIER_\d,?/g,
+                match: /guildPremiumTier:\i\.\i\.TIER_\d,?/,
                 replace: "",
             },
         },

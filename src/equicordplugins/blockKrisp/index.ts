@@ -18,7 +18,7 @@ export default definePlugin({
             find: "Failed to load Krisp module",
             replacement: {
                 match: /await \i.\i.ensureModule\("discord_krisp"\)/,
-                replace: "throw new Error();$&"
+                replace: "await Promise.resolve()"
             }
         },
         // Block loading modules on Web

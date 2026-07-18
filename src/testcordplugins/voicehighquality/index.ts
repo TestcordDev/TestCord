@@ -74,6 +74,7 @@ export default definePlugin({
         },
         {
             find: "noiseSuppression:",
+            noWarn: true,
             replacement: {
                 match: /noiseSuppression:!?\d/,
                 replace: "noiseSuppression:$self.getNoiseSuppression()"
@@ -81,6 +82,7 @@ export default definePlugin({
         },
         {
             find: "echoCancellation:",
+            noWarn: true,
             replacement: {
                 match: /echoCancellation:!?\d/,
                 replace: "echoCancellation:$self.getEchoCancellation()"
@@ -88,6 +90,7 @@ export default definePlugin({
         },
         {
             find: "autoGainControl:",
+            noWarn: true,
             replacement: {
                 match: /autoGainControl:!?\d/,
                 replace: "autoGainControl:$self.getAutoGainControl()"
@@ -95,6 +98,7 @@ export default definePlugin({
         },
         {
             find: "x-google-max-bitrate",
+            noWarn: true,
             replacement: {
                 match: /"x-google-max-bitrate=".concat\(\i\)/,
                 replace: '"x-google-max-bitrate=".concat($self.getAudioBitrate()*1000)'
@@ -102,6 +106,7 @@ export default definePlugin({
         },
         {
             find: "b=AS:",
+            noWarn: true,
             replacement: {
                 match: /b=AS:\d+/,
                 replace: "b=AS:$self.getAudioBitrate()*1000"
@@ -109,6 +114,7 @@ export default definePlugin({
         },
         {
             find: "priority:",
+            noWarn: true,
             replacement: {
                 match: /priority:"low"/,
                 replace: "priority:$self.getAudioPriority()"
@@ -116,6 +122,7 @@ export default definePlugin({
         },
         {
             find: "googHighStartBitrate",
+            noWarn: true,
             replacement: {
                 match: /googHighStartBitrate:\i/,
                 replace: "googHighStartBitrate:$self.getPrioritizeAudioQuality()"
