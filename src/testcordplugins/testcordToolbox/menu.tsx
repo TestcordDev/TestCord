@@ -188,7 +188,8 @@ export function buildPluginMenuEntries(includeEmpty = false) {
 }
 
 function buildLiveFixToggle() {
-    const helper = useSettings(["plugins.TestcordHelper.enabled", "plugins.TestcordHelper.liveFix"]).plugins.TestcordHelper as { enabled?: boolean; liveFix?: boolean; } | undefined;
+    const { plugins } = useSettings();
+    const helper = plugins.TestcordHelper;
     if (!helper?.enabled) return null;
 
     const liveFix = Boolean(helper.liveFix);
@@ -196,11 +197,12 @@ function buildLiveFixToggle() {
     return (
         <Menu.MenuCheckboxItem
             id="livefix-toggle"
+            key={`livefix-${liveFix}`}
             label="LiveFix Debug Server"
-            checked={liveFix ?? false}
+            checked={liveFix}
             action={() => {
-                Settings.plugins.TestcordHelper.liveFix = !liveFix;
-                showToast(liveFix ? "LiveFix disabled" : "LiveFix enabled on port 18963");
+                helper.liveFix = !liveFix;
+                showToast(!liveFix ? "LiveFix enabled" : "LiveFix disabled");
             }}
         />
     );

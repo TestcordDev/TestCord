@@ -14,6 +14,14 @@ import { SignedUrlsStore } from "./stores";
 import managedStyle from "./style.css?managed";
 import { AttachmentContextProviderProps, EmbedComponent, ExpressionPickerTabProps, ExpressionPickerView, FavouriteItem, FavouriteItemFormat } from "./types";
 import { getThumbnailUrl } from "./utils";
+import { UserSettingsProtoStore } from "@webpack/common";
+
+function hasFavourites() {
+    try {
+        const gifs = UserSettingsProtoStore.frecencyWithoutFetchingLatest.favoriteGifs?.gifs;
+        return !!gifs && Object.keys(gifs).length > 0;
+    } catch { return false; }
+}
 
 export default definePlugin({
     name: "FavouriteAnything",
@@ -135,19 +143,26 @@ export default definePlugin({
         return activeView === ExpressionPickerView.FILES ? <FilePicker onSelectItem={onSelectGIF} /> : null;
     },
     renderAttachment(children: ReactNode, { item }: { item: AttachmentContextProviderProps["attachment"] }) {
+        if (!hasFavourites()) return children;
         return <AttachmentContextProvider attachment={item}>{children}</AttachmentContextProvider>;
     },
     renderCV2File(children: ReactNode, key: React.Key, component: AttachmentContextProviderProps["component"]) {
+        if (!hasFavourites()) return children;
         return <AttachmentContextProvider component={component} key={key}>{children}</AttachmentContextProvider>;
     },
     renderEmbed(this: EmbedComponent) {
+        if (!hasFavourites()) return this.__render();
         return <EmbedContext.Provider value={this.props.embed}>{this.__render()}</EmbedContext.Provider>;
     },
     renderEmbedMosaicItem(children: ReactNode, index: number) {
         return <EmbedMosaicContext.Provider value={index}>{children}</EmbedMosaicContext.Provider>;
     },
-    renderAttachmentAccessory: () => <AttachmentAccessory />,
-    renderEmbedAccessory: () => <EmbedAccessory />,
+    renderAttachmentAccessory() {
+        return hasFavourites() ? <AttachmentAccessory /> : null;
+    },
+    renderEmbedAccessory() {
+        return hasFavourites() ? <EmbedAccessory /> : null;
+    },
     filterGifs: (item: FavouriteItem) => item.format !== FavouriteItemFormat.NONE,
     interceptAddToFavourites: async (item: FavouriteItem & { url: string; }) => {
         if (item.format !== FavouriteItemFormat.NONE) return item;

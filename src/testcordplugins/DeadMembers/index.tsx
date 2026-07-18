@@ -33,7 +33,7 @@ export default definePlugin({
 
     patches: [
         {
-            find: ',"data-text":"',
+            find: '"data-username-has-gradient"',
             replacement: {
                 match: /(?<=onContextMenu:\i,children:)(.{0,300}?)(?=,"data-text":)/,
                 replace: "$self.wrapMessageAuthor(arguments[0],$&)"

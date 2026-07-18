@@ -74,7 +74,6 @@ export default definePlugin({
         },
         {
             find: "noiseSuppression:",
-            noWarn: true,
             replacement: {
                 match: /noiseSuppression:!?\d/,
                 replace: "noiseSuppression:$self.getNoiseSuppression()"
@@ -82,7 +81,6 @@ export default definePlugin({
         },
         {
             find: "echoCancellation:",
-            noWarn: true,
             replacement: {
                 match: /echoCancellation:!?\d/,
                 replace: "echoCancellation:$self.getEchoCancellation()"
@@ -90,7 +88,6 @@ export default definePlugin({
         },
         {
             find: "autoGainControl:",
-            noWarn: true,
             replacement: {
                 match: /autoGainControl:!?\d/,
                 replace: "autoGainControl:$self.getAutoGainControl()"
@@ -98,23 +95,20 @@ export default definePlugin({
         },
         {
             find: "x-google-max-bitrate",
-            noWarn: true,
             replacement: {
-                match: /"x-google-max-bitrate=".concat\(\i\)/,
-                replace: '"x-google-max-bitrate=".concat($self.getAudioBitrate()*1000)'
+                match: /x-google-max-bitrate=\$\{(\i)\}/,
+                replace: (_, varName) => `x-google-max-bitrate=\${$self.getAudioBitrate()*1000}`
             }
         },
         {
-            find: "b=AS:",
-            noWarn: true,
+            find: "b=AS:${",
             replacement: {
-                match: /b=AS:\d+/,
-                replace: "b=AS:$self.getAudioBitrate()*1000"
+                match: /b=AS:\$\{Math\.floor\(this\.bitrate\/1e3\)\}/,
+                replace: `b=AS:\${$self.getAudioBitrate()}`
             }
         },
         {
-            find: "priority:",
-            noWarn: true,
+            find: 'priority:"low"',
             replacement: {
                 match: /priority:"low"/,
                 replace: "priority:$self.getAudioPriority()"
@@ -122,7 +116,6 @@ export default definePlugin({
         },
         {
             find: "googHighStartBitrate",
-            noWarn: true,
             replacement: {
                 match: /googHighStartBitrate:\i/,
                 replace: "googHighStartBitrate:$self.getPrioritizeAudioQuality()"
