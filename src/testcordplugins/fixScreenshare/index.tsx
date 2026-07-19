@@ -11,8 +11,8 @@ let origReload: (() => void) | undefined;
 let origAssign: ((url: string) => void) | undefined;
 let origReplace: ((url: string) => void) | undefined;
 let origHrefDescriptor: PropertyDescriptor | undefined;
-let oldOnError: OnErrorEventHandler | null = null;
-let oldOnUnhandledRejection: ((event: PromiseRejectionEvent) => void) | null = null;
+let origGo: ((delta?: number) => void) | undefined;
+let preventMediaError: ((event: ErrorEvent) => void) | null = null;
 let preventMediaRejection: ((event: PromiseRejectionEvent) => void) | null = null;
 let suppressTimer: ReturnType<typeof setTimeout> | undefined;
 let suppressReload = false;
@@ -45,10 +45,10 @@ function isMediaErrorMsg(msg: string) {
 
 export default definePlugin({
     name: "FixScreenshare",
-    description: "Prevents Discord from crashing and reloading when screensharing by stabilizing the media engine and intercepting media-related errors.",
+    description: "Prevents Discord from crashing and reloading when screensharing by intercepting media-related errors and blocking reloads.",
     tags: ["Performance", "Voice"],
-    authors: [{ name: "Nightcord", id: 0n }, { name: "x2b", id: 0n }],
-    required: false,
+    authors: [{ name: "x2b", id: 0n }],
+    required: true,
 
     start() {
         FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", () => {
@@ -65,25 +65,23 @@ export default definePlugin({
             armSuppress(10000);
         });
 
-        oldOnError = window.onerror;
-        window.onerror = function (event, source, lineno, colno, error) {
-            const msg = typeof event === "string" ? event : "";
-            if (isMediaErrorMsg(msg) || error?.message && isMediaErrorMsg(error.message)) {
+        // Use addEventListener so Discord's own window.onerror still runs.
+        // event.preventDefault() prevents window.onerror from firing,
+        // so we can intercept media errors before Discord's handler sees them.
+        preventMediaError = function (event) {
+            const msg = event.message ?? "";
+            if (isMediaErrorMsg(msg) || event.error?.message && isMediaErrorMsg(event.error.message)) {
+                event.preventDefault();
                 if (suppressReload) armSuppress(3000);
-                return true;
             }
-            if (oldOnError) return oldOnError(event, source, lineno, colno, error);
-            return false;
         };
+        window.addEventListener("error", preventMediaError);
 
-        oldOnUnhandledRejection = window.onunhandledrejection;
         preventMediaRejection = function (event) {
             const msg = event.reason?.message ?? String(event.reason);
             if (isMediaErrorMsg(msg)) {
                 event.preventDefault();
-                return;
             }
-            if (oldOnUnhandledRejection) oldOnUnhandledRejection(event);
         };
         window.addEventListener("unhandledrejection", preventMediaRejection);
 
@@ -120,18 +118,28 @@ export default definePlugin({
                 });
             }
         } catch { }
+
+        // history.go(0) is an alternate way to reload
+        try {
+            origGo = history.go.bind(history);
+            history.go = function (delta?: number) {
+                if (suppressReload && (delta === undefined || delta === 0)) return;
+                return origGo!(delta);
+            };
+        } catch { }
     },
 
     stop() {
         clearTimeout(suppressTimer);
         suppressReload = false;
-        window.onerror = oldOnError;
-        oldOnError = null;
+        if (preventMediaError) {
+            window.removeEventListener("error", preventMediaError);
+            preventMediaError = null;
+        }
         if (preventMediaRejection) {
             window.removeEventListener("unhandledrejection", preventMediaRejection);
             preventMediaRejection = null;
         }
-        oldOnUnhandledRejection = null;
         try {
             const proto = Object.getPrototypeOf(window.location) as any;
             if (origReload) { proto.reload = origReload; origReload = undefined; }
@@ -141,6 +149,9 @@ export default definePlugin({
                 Object.defineProperty(proto, "href", origHrefDescriptor);
                 origHrefDescriptor = undefined;
             }
+        } catch { }
+        try {
+            if (origGo) { history.go = origGo; origGo = undefined; }
         } catch { }
     }
 });
