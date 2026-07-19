@@ -280,7 +280,6 @@ export default definePlugin({
     tags: ["Voice", "Privacy"],
     authors: [TestcordDevs.x2b, TestcordDevs.dot, TestcordDevs.sirphantom89, TestcordDevs.hyyven],
     dependencies: ["CommandsAPI"],
-    enabledByDefault: true,
     settings,
 
     start() {

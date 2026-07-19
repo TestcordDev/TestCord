@@ -5,10 +5,7 @@
  */
 
 import definePlugin from "@utils/types";
-import { findByPropsLazy } from "@webpack";
 import { FluxDispatcher } from "@webpack/common";
-
-const MediaEngineStore = findByPropsLazy("getMediaEngine");
 
 let origReload: (() => void) | undefined;
 let origAssign: ((url: string) => void) | undefined;
@@ -19,31 +16,11 @@ let oldOnUnhandledRejection: ((event: PromiseRejectionEvent) => void) | null = n
 let preventMediaRejection: ((event: PromiseRejectionEvent) => void) | null = null;
 let suppressTimer: ReturnType<typeof setTimeout> | undefined;
 let suppressReload = false;
-const pendingTimers = new Set<ReturnType<typeof setTimeout>>();
-
-function trackedTimeout(fn: () => void, ms: number) {
-    const timer = setTimeout(() => {
-        pendingTimers.delete(timer);
-        fn();
-    }, ms);
-    pendingTimers.add(timer);
-    return timer;
-}
 
 function armSuppress(ms = 6000) {
     suppressReload = true;
     clearTimeout(suppressTimer);
     suppressTimer = setTimeout(() => suppressReload = false, ms);
-}
-
-function fixEngine() {
-    try {
-        const engine = MediaEngineStore?.getMediaEngine?.();
-        if (engine) {
-            if (typeof engine.reconfigure === "function")
-                engine.reconfigure();
-        }
-    } catch { }
 }
 
 function isMediaErrorMsg(msg: string) {
@@ -71,27 +48,18 @@ export default definePlugin({
     description: "Prevents Discord from crashing and reloading when screensharing by stabilizing the media engine and intercepting media-related errors.",
     tags: ["Performance", "Voice"],
     authors: [{ name: "Nightcord", id: 0n }, { name: "x2b", id: 0n }],
-    required: true,
+    required: false,
 
     start() {
-        fixEngine();
-        trackedTimeout(fixEngine, 5000);
-        trackedTimeout(fixEngine, 15000);
-
         FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", () => {
             armSuppress(10000);
-            trackedTimeout(fixEngine, 1000);
         });
         FluxDispatcher.subscribe("STREAM_START", () => {
             armSuppress(10000);
-            trackedTimeout(fixEngine, 500);
         });
-        FluxDispatcher.subscribe("STREAM_STOP", () => {
-            trackedTimeout(fixEngine, 500);
-        });
+        FluxDispatcher.subscribe("STREAM_STOP", () => { });
         FluxDispatcher.subscribe("RTC_CONNECTION_STATE", () => {
             armSuppress(10000);
-            trackedTimeout(fixEngine, 300);
         });
         FluxDispatcher.subscribe("STREAM_VIEWER_COUNT_UPDATE", () => {
             armSuppress(10000);
@@ -155,8 +123,6 @@ export default definePlugin({
     },
 
     stop() {
-        for (const timer of pendingTimers) clearTimeout(timer);
-        pendingTimers.clear();
         clearTimeout(suppressTimer);
         suppressReload = false;
         window.onerror = oldOnError;
