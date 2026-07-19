@@ -52,6 +52,8 @@ function processQueue() {
 export function startLiveFixServer(_: unknown) {
     ensureDir();
 
+    if (server) return;
+
     server = createServer((req, res) => {
         if (req.method === "POST") {
             let body = "";
@@ -66,7 +68,22 @@ export function startLiveFixServer(_: unknown) {
         }
     });
 
-    server.listen(18963, "127.0.0.1");
+    return new Promise<void>((resolve, reject) => {
+        server!.once("error", (err: unknown) => {
+            if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "EADDRINUSE") {
+                console.warn("[TestcordHelper] LiveFix port 18963 already in use — skipping");
+                server?.close();
+                server = null;
+                resolve();
+                return;
+            }
+            reject(err instanceof Error ? err : new Error(String(err)));
+        });
+
+        server!.listen(18963, "127.0.0.1", () => {
+            resolve();
+        });
+    });
 }
 
 export function stopLiveFixServerCleanup(_: unknown) {
