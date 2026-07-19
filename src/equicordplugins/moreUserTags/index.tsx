@@ -20,6 +20,13 @@ import { TagSettings } from "./types";
 
 const cl = classNameFactory("vc-mut-");
 
+const permCache = new Map<string, bigint>();
+const MAX_CACHE = 500;
+
+function cacheKey(userId: string, guildId: string): string {
+    return `${userId}:${guildId}`;
+}
+
 const genTagTypes = () => {
     let i = 100;
     const obj = {};
@@ -103,7 +110,7 @@ export default definePlugin({
     renderMessageDecoration(props) {
         const tagId = this.getTag({
             message: props.message,
-            user: UserStore.getUser(props.message.author.id),
+            user: props.message.author,
             channelId: props.message.channel_id,
             isChat: true
         });
@@ -191,7 +198,15 @@ export default definePlugin({
     getPermissions(user: User, channel: Channel): bigint {
         const guild = GuildStore.getGuild(channel?.guild_id);
         if (!guild) return 0n;
-
-        return computePermissions({ user, context: guild, overwrites: channel.permissionOverwrites });
+        const key = cacheKey(user.id, guild.id);
+        const cached = permCache.get(key);
+        if (cached !== undefined) return cached;
+        const perms = computePermissions({ user, context: guild, overwrites: channel.permissionOverwrites });
+        if (permCache.size >= MAX_CACHE) {
+            const first = permCache.keys().next().value;
+            if (first !== undefined) permCache.delete(first);
+        }
+        permCache.set(key, perms);
+        return perms;
     },
 });

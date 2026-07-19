@@ -52,9 +52,25 @@ async function removeKeywordEntry(idx: number, forceUpdate: () => void) {
     forceUpdate();
 }
 
-function safeMatchesRegex(str: string, regex: string, flags: string) {
+const regexCache = new Map<string, RegExp>();
+function getCachedRegex(regex: string, flags: string): RegExp | null {
+    const key = `${regex}:${flags}`;
+    let r = regexCache.get(key);
+    if (r) return r;
     try {
-        return str.match(new RegExp(regex, flags));
+        r = new RegExp(regex, flags);
+        regexCache.set(key, r);
+        return r;
+    } catch {
+        return null;
+    }
+}
+
+function safeMatchesRegex(str: string, regex: string, flags: string) {
+    const r = getCachedRegex(regex, flags);
+    if (!r) return false;
+    try {
+        return r.test(str);
     } catch {
         return false;
     }
@@ -380,6 +396,21 @@ export default definePlugin({
         }
     },
 
+    checkEmbeds(embeds: any[], regex: string, flags: string): boolean {
+        if (!embeds?.length) return false;
+        for (const embed of embeds) {
+            if (safeMatchesRegex(embed.description, regex, flags) || safeMatchesRegex(embed.title, regex, flags))
+                return true;
+            if (embed.fields?.length) {
+                for (const field of embed.fields) {
+                    if (safeMatchesRegex(field.value, regex, flags) || safeMatchesRegex(field.name, regex, flags))
+                        return true;
+                }
+            }
+        }
+        return false;
+    },
+
     applyKeywordEntries(m: Message) {
         let matches = false;
 
@@ -410,22 +441,9 @@ export default definePlugin({
             }
 
             const flags = entry.ignoreCase ? "i" : "";
-            if (safeMatchesRegex(m.content, entry.regex, flags)) {
+            if (safeMatchesRegex(m.content, entry.regex, flags) || this.checkEmbeds(m.embeds, entry.regex, flags)) {
                 matches = true;
-            } else {
-                for (const embed of m.embeds as any) {
-                    if (safeMatchesRegex(embed.description, entry.regex, flags) || safeMatchesRegex(embed.title, entry.regex, flags)) {
-                        matches = true;
-                        break;
-                    } else if (embed.fields != null) {
-                        for (const field of embed.fields as Array<{ name: string, value: string; }>) {
-                            if (safeMatchesRegex(field.value, entry.regex, flags) || safeMatchesRegex(field.name, entry.regex, flags)) {
-                                matches = true;
-                                break;
-                            }
-                        }
-                    }
-                }
+                break;
             }
         }
 

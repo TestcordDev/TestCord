@@ -40,7 +40,7 @@ const fluxSubscribers = new Map<string, Set<FluxHandler>>();
 const fluxFans = new Map<string, FluxHandler>();
 let fluxBusActive = false;
 
-const COALESCE_MS = 100;
+const COALESCE_MS = 50;
 const pendingCoalesce = new Map<string, { event: any; timer: ReturnType<typeof setTimeout> }>();
 
 function dispatchCoalesced(actionType: string, event: any) {

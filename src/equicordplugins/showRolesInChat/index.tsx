@@ -22,6 +22,13 @@ const cl = classNameFactory("vc-sric-");
 
 const SETTINGS_KEYS: (keyof typeof settings.store)[] = ["showBots", "useRoleColor", "excludedRoles"];
 
+const roleCache = new Map<string, { roleId: string; name: string; colorString: string | null; } | null>();
+const MAX_ROLE_CACHE = 1000;
+
+function cacheRoleKey(guildId: string, userId: string, excludedRoles?: string[]): string {
+    return `${guildId}:${userId}:${excludedRoles?.join(",") ?? ""}`;
+}
+
 const settings = definePluginSettings({
     showBots: {
         type: OptionType.BOOLEAN,
@@ -36,10 +43,26 @@ const settings = definePluginSettings({
 }).withPrivateSettings<{ excludedRoles?: string[]; }>();
 
 function getHighestRole(guildId: string, userId: string, excludedRoles?: string[]) {
+    const key = cacheRoleKey(guildId, userId, excludedRoles);
+    const cached = roleCache.get(key);
+    if (cached !== undefined) return cached;
     const roles = GuildMemberStore.getMember(guildId, userId)?.roles;
-    if (!roles?.length) return null;
-
-    return GuildRoleStore.getSortedRoles(guildId).find(r => roles.includes(r.id) && !excludedRoles?.includes(r.id));
+    if (!roles?.length) {
+        roleCache.set(key, null);
+        if (roleCache.size > MAX_ROLE_CACHE) {
+            const first = roleCache.keys().next().value;
+            if (first) roleCache.delete(first);
+        }
+        return null;
+    }
+    const role = GuildRoleStore.getSortedRoles(guildId).find(r => roles.includes(r.id) && !excludedRoles?.includes(r.id));
+    const result = role ? { roleId: role.id, name: role.name, colorString: role.colorString ?? null } : null;
+    roleCache.set(key, result);
+    if (roleCache.size > MAX_ROLE_CACHE) {
+        const first = roleCache.keys().next().value;
+        if (first) roleCache.delete(first);
+    }
+    return result;
 }
 
 function toggleRole(roleId: string) {
@@ -81,9 +104,9 @@ const HighestRoleIndicator = ErrorBoundary.wrap(({ user, channelId, isCompact }:
     const { showBots, useRoleColor, excludedRoles } = settings.use(SETTINGS_KEYS);
 
     const guildId = (!user.bot || showBots) ? ChannelStore.getChannel(channelId)?.guild_id : null;
-    const role = useStateFromStores([GuildMemberStore, GuildRoleStore], () => guildId ? getHighestRole(guildId, user.id, excludedRoles) : null, [guildId, user.id, excludedRoles]);
+    const cached = useStateFromStores([GuildMemberStore, GuildRoleStore], () => guildId ? getHighestRole(guildId, user.id, excludedRoles) : null, [guildId, user.id, excludedRoles]);
 
-    if (!guildId || !role) return null;
+    if (!guildId || !cached) return null;
 
     const handleContextMenu = (e: React.MouseEvent) => {
         ContextMenuApi.openContextMenu(e, () => {
@@ -94,7 +117,7 @@ const HighestRoleIndicator = ErrorBoundary.wrap(({ user, channelId, isCompact }:
             return (
                 <Menu.Menu navId="vc-sric-context" onClose={ContextMenuApi.closeContextMenu} aria-label="Chat Role Actions">
                     <Menu.MenuGroup>
-                        {makeToggleRoleItem(role.id)}
+                        {makeToggleRoleItem(cached.roleId)}
 
                         {hiddenRoles.length > 0 && (
                             <Menu.MenuItem id="unhide-menu" label="Unhide Roles in Chat">
@@ -115,16 +138,16 @@ const HighestRoleIndicator = ErrorBoundary.wrap(({ user, channelId, isCompact }:
     };
 
     return (
-        <Tooltip text={role.name}>
+        <Tooltip text={cached.name}>
             {tooltipProps => (
                 <span
                     {...tooltipProps}
                     className={classes(cl("indicator"), isCompact && cl("indicator-compact"))}
                     onContextMenu={handleContextMenu}
                 >
-                    <ShieldUserIcon color={(useRoleColor && role.colorString) || "currentColor"} />
+                    <ShieldUserIcon color={(useRoleColor && cached.colorString) || "currentColor"} />
                     <span className={cl("name")}>
-                        {role.name}
+                        {cached.name}
                     </span>
                 </span>
             )}

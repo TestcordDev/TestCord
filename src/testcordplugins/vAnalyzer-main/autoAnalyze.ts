@@ -164,7 +164,13 @@ function walkMessageValue(value: unknown, urls: Set<string>, seen: WeakSet<objec
     }
 }
 
+const urlExtractCache = new Map<string, string[]>();
+const MAX_URL_CACHE = 2000;
+
 export function extractUrlsFromMessage(message: Message): string[] {
+    const cached = urlExtractCache.get(message.id);
+    if (cached) return cached;
+
     const urls = new Set<string>(extractUrls(message.content ?? ""));
 
     if (settings.store.checkEmbeds) {
@@ -179,7 +185,17 @@ export function extractUrlsFromMessage(message: Message): string[] {
         walkMessageValue(component, urls, new WeakSet<object>());
     }
 
-    return [...urls].slice(0, MAX_URLS_PER_MESSAGE);
+    const result = [...urls].slice(0, MAX_URLS_PER_MESSAGE);
+    urlExtractCache.set(message.id, result);
+    if (urlExtractCache.size > MAX_URL_CACHE) {
+        const first = urlExtractCache.keys().next().value;
+        if (first) urlExtractCache.delete(first);
+    }
+    return result;
+}
+
+export function clearUrlExtractCache() {
+    urlExtractCache.clear();
 }
 
 export function extractUrlsFromEmbeds(message: Message): string[] {

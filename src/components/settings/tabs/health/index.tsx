@@ -775,20 +775,12 @@ function HealthTab() {
     const snapshot = React.useMemo(() => {
         const out: Array<[string, PluginHealthEntry]> = [];
         for (const [name, rawEntry] of PluginHealth.getAll()) {
-            // Skip internal API plugins — they're dependencies, not user-facing
             if (Plugins[name]?.required) continue;
-            // When conflicts are hidden, strip them from the entry
-            // noModule entries are also hidden — they're false positives for
-            // lazy-loaded modules that will resolve when the relevant UI opens.
-            const entry = conflictsHidden
-                ? {
-                    patchFailures: rawEntry.patchFailures.filter(f => f.kind !== "conflict" && f.kind !== "noModule"),
-                    runtimeErrors: rawEntry.runtimeErrors
-                }
-                : rawEntry;
-            // Skip plugins that have no remaining issues after filtering
-            if (!entry.patchFailures.length && !entry.runtimeErrors.length) continue;
-            out.push([name, entry]);
+            const patchFailures = conflictsHidden
+                ? rawEntry.patchFailures.filter(f => f.kind !== "conflict")
+                : rawEntry.patchFailures;
+            if (!patchFailures.length && !rawEntry.runtimeErrors.length) continue;
+            out.push([name, { patchFailures, runtimeErrors: rawEntry.runtimeErrors }]);
         }
         return out;
     }, [tick, conflictsHidden]);
@@ -806,10 +798,6 @@ function HealthTab() {
     }, [tick]);
 
     const noModuleCount = React.useMemo(() => {
-        // noModule entries for CSS class hashes (starts with `.` or `["`)
-        // and intl keys are false positives from lazy-loaded modules that
-        // will auto-resolve via the factory listener. Only count "real"
-        // code-level find strings (e.g. function names, method calls).
         const plugins = new Set<string>();
         for (const [name, rawEntry] of PluginHealth.getAll()) {
             const hasRealNoModule = rawEntry.patchFailures.some(f =>

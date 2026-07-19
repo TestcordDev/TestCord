@@ -10,6 +10,12 @@ import { FluxDispatcher } from "@webpack/common";
 
 const MediaEngineStore = findByPropsLazy("getMediaEngine");
 
+let origReload: (() => void) | undefined;
+let oldOnError: OnErrorEventHandler | null = null;
+let oldOnUnhandledRejection: ((event: PromiseRejectionEvent) => void) | null = null;
+let preventMediaRejection: ((event: PromiseRejectionEvent) => void) | null = null;
+let suppressTimer: ReturnType<typeof setTimeout> | undefined;
+let suppressReload = false;
 const pendingTimers = new Set<ReturnType<typeof setTimeout>>();
 
 function trackedTimeout(fn: () => void, ms: number) {
@@ -21,69 +27,11 @@ function trackedTimeout(fn: () => void, ms: number) {
     return timer;
 }
 
-// Install at module eval time, before any Discord modules finish loading.
-// This catches reload triggers from errors during VencordRenderer init.
-
-// Layer 1: Block location.reload()
-try {
-    const proto = Object.getPrototypeOf(window.location) as { reload: () => void };
-    const origReload = proto.reload.bind(window.location);
-    proto.reload = function () {
-        // silently block
-    };
-} catch { }
-
-// Layer 2: Block location.href assignment (location = x / location.href = x)
-try {
-    const desc = Object.getOwnPropertyDescriptor(window, "location");
-    if (desc && desc.configurable) {
-        Object.defineProperty(window, "location", {
-            get() { return desc.get?.call(window) ?? window.location; },
-            set(v: string | Location) {
-                if (typeof v === "string") {
-                    const current = window.location.href;
-                    if (v === current || v === "about:blank") return;
-                }
-                // Allow navigation only if it's a real navigation, not a reload
-            }
-        });
-    }
-} catch { }
-
-// Layer 3: Block all navigation via beforeunload (captures Ctrl+R, webContents.reload(), etc.)
-try {
-    window.addEventListener("beforeunload", (event) => {
-        event.preventDefault();
-        event.returnValue = "";
-    }, { capture: true });
-} catch { }
-
-// Layer 4: Block error-triggered reloads
-try {
-    window.addEventListener("unhandledrejection", (event) => {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-    }, { capture: true });
-} catch { }
-
-// Layer 5: Override window.onerror to prevent Discord's crash-reload
-try {
-    window.onerror = function () {
-        return true;
-    };
-} catch { }
-
-// Layer 6: Prevent history-based navigation (history.go/back/forward can trigger unload)
-try {
-    const histProto = Object.getPrototypeOf(window.history) as {
-        go: (delta?: number) => void;
-        back: () => void;
-        forward: () => void;
-    };
-    histProto.back = function () { };
-    histProto.forward = function () { };
-    histProto.go = function () { };
-} catch { }
+function armSuppress(ms = 6000) {
+    suppressReload = true;
+    clearTimeout(suppressTimer);
+    suppressTimer = setTimeout(() => suppressReload = false, ms);
+}
 
 function fixEngine() {
     try {
@@ -91,24 +39,33 @@ function fixEngine() {
         if (engine) {
             if (typeof engine.reconfigure === "function")
                 engine.reconfigure();
-            if (typeof engine.setVideoCapturerSource === "function")
-                engine.setVideoCapturerSource();
         }
     } catch { }
 }
 
-function forceStopScreenshare() {
-    try {
-        const engine = MediaEngineStore?.getMediaEngine?.();
-        const streamManager = engine?.getStreamManager?.() ?? engine?.streamManager ?? null;
-        if (streamManager && typeof streamManager.stopScreenCapture === "function")
-            streamManager.stopScreenCapture();
-    } catch { }
+function isMediaErrorMsg(msg: string) {
+    return msg.includes("RTCPeerConnection")
+        || msg.includes("getUserMedia")
+        || msg.includes("getDisplayMedia")
+        || msg.includes("MediaStream")
+        || msg.includes("setVideoCapturerSource")
+        || msg.includes("reconfigure")
+        || msg.includes("ICE")
+        || msg.includes("AVError")
+        || msg.includes("NoiseCanceller")
+        || msg.includes("screenshare")
+        || msg.includes("screen share")
+        || msg.includes("ScreenShare")
+        || msg.includes("Request has been terminated")
+        || msg.includes("crossDomainError")
+        || msg.includes("Krisp")
+        || msg.includes("krisp")
+        || msg.includes("NoiseCancellation");
 }
 
 export default definePlugin({
     name: "FixScreenshare",
-    description: "Prevents Discord from reloading during streaming/voice by blocking all error-triggered unloads at module level.",
+    description: "Prevents Discord from crashing and reloading when screensharing by stabilizing the media engine and intercepting media-related errors.",
     tags: ["Performance", "Voice"],
     authors: [{ name: "Nightcord", id: 0n }, { name: "x2b", id: 0n }],
     required: true,
@@ -118,20 +75,79 @@ export default definePlugin({
         trackedTimeout(fixEngine, 5000);
         trackedTimeout(fixEngine, 15000);
 
-        FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", () => trackedTimeout(fixEngine, 1000));
-        FluxDispatcher.subscribe("STREAM_START", () => trackedTimeout(fixEngine, 500));
-        FluxDispatcher.subscribe("STREAM_STOP", () => trackedTimeout(fixEngine, 500));
-        FluxDispatcher.subscribe("RTC_CONNECTION_STATE", () => trackedTimeout(fixEngine, 300));
-        // When someone starts watching, the stream may trigger an error — pre-empt it
+        FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", () => {
+            armSuppress(10000);
+            trackedTimeout(fixEngine, 1000);
+        });
+        FluxDispatcher.subscribe("STREAM_START", () => {
+            armSuppress(10000);
+            trackedTimeout(fixEngine, 500);
+        });
+        FluxDispatcher.subscribe("STREAM_STOP", () => {
+            trackedTimeout(fixEngine, 500);
+        });
+        FluxDispatcher.subscribe("RTC_CONNECTION_STATE", (e: any) => {
+            armSuppress(10000);
+            trackedTimeout(fixEngine, 300);
+            if (e?.state === "RTC_CONNECTED") {
+                clearTimeout(suppressTimer);
+                suppressReload = false;
+            }
+        });
         FluxDispatcher.subscribe("STREAM_VIEWER_COUNT_UPDATE", () => {
             fixEngine();
-            trackedTimeout(forceStopScreenshare, 2000);
-            trackedTimeout(fixEngine, 3000);
         });
+
+        oldOnError = window.onerror;
+        window.onerror = function (event, source, lineno, colno, error) {
+            const msg = typeof event === "string" ? event : "";
+            if (isMediaErrorMsg(msg) || error?.message && isMediaErrorMsg(error.message)) {
+                if (suppressReload) armSuppress(3000);
+                return true;
+            }
+            if (oldOnError) return oldOnError(event, source, lineno, colno, error);
+            return false;
+        };
+
+        oldOnUnhandledRejection = window.onunhandledrejection;
+        preventMediaRejection = function (event) {
+            const msg = event.reason?.message ?? String(event.reason);
+            if (isMediaErrorMsg(msg)) {
+                event.preventDefault();
+                return;
+            }
+            if (oldOnUnhandledRejection) oldOnUnhandledRejection(event);
+        };
+        window.addEventListener("unhandledrejection", preventMediaRejection);
+
+        try {
+            const proto = Object.getPrototypeOf(window.location) as { reload: () => void };
+            origReload = proto.reload.bind(window.location);
+            proto.reload = function () {
+                if (suppressReload) return;
+                return origReload!();
+            };
+        } catch { }
     },
 
     stop() {
         for (const timer of pendingTimers) clearTimeout(timer);
         pendingTimers.clear();
+        clearTimeout(suppressTimer);
+        suppressReload = false;
+        window.onerror = oldOnError;
+        oldOnError = null;
+        if (preventMediaRejection) {
+            window.removeEventListener("unhandledrejection", preventMediaRejection);
+            preventMediaRejection = null;
+        }
+        oldOnUnhandledRejection = null;
+        if (origReload) {
+            try {
+                const proto = Object.getPrototypeOf(window.location) as { reload: () => void };
+                proto.reload = origReload;
+            } catch { }
+            origReload = undefined;
+        }
     }
 });
