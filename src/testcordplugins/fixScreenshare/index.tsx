@@ -20,11 +20,15 @@ let preventMediaRejection: ((event: PromiseRejectionEvent) => void) | null = nul
 let origConsoleError: typeof console.error | null = null;
 let suppressTimer: ReturnType<typeof setTimeout> | undefined;
 let suppressReload = false;
+let streaming = false;
+let inVoiceChannel = false;
 
 function armSuppress(ms = 6000) {
     suppressReload = true;
     clearTimeout(suppressTimer);
-    suppressTimer = setTimeout(() => suppressReload = false, ms);
+    if (!streaming && !inVoiceChannel) {
+        suppressTimer = setTimeout(() => suppressReload = false, ms);
+    }
 }
 
 function isMediaErrorMsg(msg: string) {
@@ -108,18 +112,34 @@ export default definePlugin({
             }
         } catch { }
 
-        FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", () => {
-            armSuppress(10000);
+        FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", ({ channelId }) => {
+            if (channelId) {
+                inVoiceChannel = true;
+                armSuppress();
+            } else {
+                inVoiceChannel = false;
+                if (!streaming) {
+                    clearTimeout(suppressTimer);
+                    suppressTimer = setTimeout(() => suppressReload = false, 5000);
+                }
+            }
         });
         FluxDispatcher.subscribe("STREAM_START", () => {
-            armSuppress(10000);
+            streaming = true;
+            armSuppress();
         });
-        FluxDispatcher.subscribe("STREAM_STOP", () => { });
+        FluxDispatcher.subscribe("STREAM_STOP", () => {
+            streaming = false;
+            if (!inVoiceChannel) {
+                clearTimeout(suppressTimer);
+                suppressTimer = setTimeout(() => suppressReload = false, 5000);
+            }
+        });
         FluxDispatcher.subscribe("RTC_CONNECTION_STATE", () => {
-            armSuppress(10000);
+            armSuppress();
         });
         FluxDispatcher.subscribe("STREAM_VIEWER_COUNT_UPDATE", () => {
-            armSuppress(10000);
+            armSuppress();
         });
 
         // Use addEventListener so Discord's own window.onerror still runs.
@@ -205,6 +225,8 @@ export default definePlugin({
     stop() {
         clearTimeout(suppressTimer);
         suppressReload = false;
+        streaming = false;
+        inVoiceChannel = false;
         if (preventMediaError) {
             window.removeEventListener("error", preventMediaError);
             preventMediaError = null;
