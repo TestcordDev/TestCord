@@ -13,7 +13,7 @@ import definePlugin, { OptionType } from "@utils/types";
 import { filters, find, findAll, mapMangledCssClasses, proxyLazyWebpack } from "@webpack";
 import { FluxDispatcher, MessageStore, SelectedChannelStore } from "@webpack/common";
 
-const logger = new Logger("OptimizerPremium");
+const logger = new Logger("TestcordOptimizer");
 
 function findCssClassesLazy<S extends string>(...classes: S[]): Record<S, string | undefined> {
     return proxyLazyWebpack(() => {
@@ -340,7 +340,7 @@ const settings = definePluginSettings({
     messageContentVisibility: {
         type: OptionType.BOOLEAN,
         description: "Apply extra paint containment to message list items without changing virtualized row sizing.",
-        default: false
+        default: true
     },
     suppressEmbedPreviews: {
         type: OptionType.BOOLEAN,
@@ -638,7 +638,7 @@ const settings = definePluginSettings({
     containChannelList: {
         type: OptionType.BOOLEAN,
         description: "Apply content-visibility to channel list items. Offscreen channel rows skip paint entirely.",
-        default: false
+        default: true
     },
     containSearchResults: {
         type: OptionType.BOOLEAN,
@@ -787,8 +787,8 @@ type WebkitWindow = Window & typeof globalThis & {
 };
 
 export default definePlugin({
-    name: "optimizerPremium",
-    description: "All-in-one performance suite: webpack patches (tooltip, emoji, spinner, confetti, analytics, reactions, Sentry), bounded image cache, react-spring skip, offscreen media pause, MutationObserver DOM throttle, CSS containment (messages, members, DMs, embeds, servers, channels, forum, guild list, search), backdrop-blur/sticker/effect/upsell/spoiler/box-shadow/text-shadow/filter/backdrop suppression, lazy images/iframes, rAF reduction, passive listeners, console suppression (log/debug/info/warn/group/count/assert/dir/timers), ResizeObserver throttle, memory manager, GIF freeze (canvas/css), concurrency limit, message cache trimmer, animated avatar freeze, avatar quality reducer, cache limits, idle callback optimizer, drag-and-drop suppression, spellcheck opt-out, overscroll contain, link preview suppress, canvas effects hide, chat input containment (typing lag), large text attachment containment, attachment image grid containment.",
+    name: "TestcordOptimizer",
+    description: "Performance optimizations: webpack patches, fetch blocking, image cache, CSS containment, animation suppression, console suppression, memory management, and layout optimizations.",
     tags: ["Utility", "Developers"],
     authors: [TestcordDevs.x2b, TestcordDevs.SirPhantom89],
     settings,
@@ -828,9 +828,10 @@ export default definePlugin({
             find: "popAnimation=()=>{let{opacity",
             predicate: () => settings.store.suppressReactionAnimations,
             replacement: {
-                match: /popAnimation=\(\)=>\{let\{opacity/,
-                replace: "popAnimation=()=>{return;let{opacity"
-            }
+                match: /popAnimation=\(\)=>\{/,
+                replace: "popAnimation=()=>{return;"
+            },
+            noWarn: true
         },
         {
             find: "Sentry.init({dsn:",
@@ -2009,6 +2010,9 @@ export default definePlugin({
             push(ruleFor(`canvas${sel(EffectsCanvasClasses.effectsCanvas)}`, "display: none !important"));
         }
 
+        if (settings.store.suppressReactionAnimations) {
+            push(ruleFor(`${orSel(ReactionClasses.reaction, ReactionClasses.reactionBtn, ReactionClasses.reactionCount)}`, "animation: none !important; transition: none !important"));
+        }
         if (settings.store.containDmList) {
             push(ruleFor(`${sel(DmClasses.privateChannels)} ${sel(DmChannelClasses.channel)}`, "contain: style paint"));
         }
@@ -2482,7 +2486,7 @@ export default definePlugin({
             window.fetch = orig;
             (this as any).__origFetchLimited = undefined;
         }
-        for (const item of this.fetchQueue) item.reject(new Error("optimizerPremium stopped"));
+        for (const item of this.fetchQueue) item.reject(new Error("TestcordOptimizer stopped"));
         this.fetchQueue = [];
     },
 

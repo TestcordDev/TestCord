@@ -55,9 +55,22 @@ function forceStopScreenshare() {
 
 let oldOnError: OnErrorEventHandler | null = null;
 let oldOnUnhandledRejection: ((event: PromiseRejectionEvent) => void) | null = null;
-let origReload: typeof window.location.reload;
+let origReload: (() => void) | undefined;
+let reloadInterceptor: (() => void) | undefined;
+let suppressTimer: ReturnType<typeof setTimeout> | undefined;
 
 let suppressReload = false;
+
+function armSuppress(ms = 6000) {
+    suppressReload = true;
+    clearTimeout(suppressTimer);
+    suppressTimer = setTimeout(() => suppressReload = false, ms);
+}
+
+function disarmSuppress() {
+    suppressReload = false;
+    clearTimeout(suppressTimer);
+}
 
 function preventReloadOnError(event: Event | string, source?: string, lineno?: number, colno?: number, error?: Error) {
     const msg = typeof event === "string" ? event : "";
@@ -118,43 +131,72 @@ export default definePlugin({
     required: true,
 
     start() {
+        armSuppress(15000);
+
         fixEngine();
         trackedTimeout(fixEngine, 5000);
         trackedTimeout(fixEngine, 15000);
 
         const handler = () => trackedTimeout(fixEngine, 1000);
-        FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", handler);
-        FluxDispatcher.subscribe("STREAM_START", () => trackedTimeout(fixEngine, 500));
-        FluxDispatcher.subscribe("STREAM_STOP", () => trackedTimeout(fixEngine, 500));
-        FluxDispatcher.subscribe("RTC_CONNECTION_STATE", () => trackedTimeout(fixEngine, 300));
+        FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", () => {
+            armSuppress(10000);
+            handler();
+        });
+        FluxDispatcher.subscribe("STREAM_START", () => {
+            armSuppress(10000);
+            trackedTimeout(fixEngine, 500);
+        });
+        FluxDispatcher.subscribe("STREAM_STOP", () => {
+            disarmSuppress();
+            trackedTimeout(fixEngine, 500);
+        });
+        FluxDispatcher.subscribe("RTC_CONNECTION_STATE", (e: any) => {
+            armSuppress(10000);
+            trackedTimeout(fixEngine, 300);
+            if (e?.state === "RTC_CONNECTED") disarmSuppress();
+        });
 
         oldOnError = window.onerror;
         window.onerror = preventReloadOnError;
         oldOnUnhandledRejection = window.onunhandledrejection;
         window.addEventListener("unhandledrejection", preventUnhandledRejection);
 
-        origReload = window.location.reload.bind(window.location);
-        window.location.reload = function (...args) {
-            if (suppressReload) {
-                suppressReload = false;
-                return;
-            }
-            return origReload(...args);
-        };
+        try {
+            origReload = window.location.reload.bind(window.location);
+        } catch {
+            origReload = undefined;
+        }
+        try {
+            const proto = Object.getPrototypeOf(window.location) as { reload: () => void };
+            reloadInterceptor = function (this: any) {
+                if (suppressReload) {
+                    suppressReload = false;
+                    return;
+                }
+                return proto.reload.call(this);
+            };
+            proto.reload = reloadInterceptor;
+        } catch { }
     },
 
     stop() {
         for (const timer of pendingTimers) clearTimeout(timer);
         pendingTimers.clear();
+        clearTimeout(suppressTimer);
+        disarmSuppress();
         window.onerror = oldOnError;
         oldOnError = null;
         if (oldOnUnhandledRejection) {
             window.removeEventListener("unhandledrejection", preventUnhandledRejection);
             oldOnUnhandledRejection = null;
         }
-        if (origReload) {
-            window.location.reload = origReload;
-            origReload = undefined as any;
+        if (reloadInterceptor) {
+            try {
+                const proto = Object.getPrototypeOf(window.location) as { reload: () => void };
+                if (origReload) proto.reload = origReload;
+            } catch { }
+            reloadInterceptor = undefined;
+            origReload = undefined;
         }
     }
 });
