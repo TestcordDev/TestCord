@@ -8,7 +8,7 @@ import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { EquicordDevs, TestcordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
 import { Guild } from "@vencord/discord-types";
-import { Forms, GuildStore, Menu, PermissionStore, React } from "@webpack/common";
+import { Forms, GuildStore, Menu, PermissionStore } from "@webpack/common";
 
 // Constants for Permission bitmasks
 const ADMINISTRATOR_PERMISSION = 8n;
@@ -47,7 +47,7 @@ function getGuildIdFromArgs(args: any[]): string | null {
 }
 
 const ContextMenuPatch: NavContextMenuPatchCallback = (children, { guild }: { guild: Guild; }) => {
-    const [checked, setChecked] = React.useState(godModeEnabledGuilds.has(guild.id));
+    const checked = godModeEnabledGuilds.has(guild.id);
 
     children.push(
         <Menu.MenuSeparator />,
@@ -58,7 +58,6 @@ const ContextMenuPatch: NavContextMenuPatchCallback = (children, { guild }: { gu
             action={() => {
                 if (checked) godModeEnabledGuilds.delete(guild.id);
                 else godModeEnabledGuilds.add(guild.id);
-                setChecked(!checked);
             }}
         />
     );

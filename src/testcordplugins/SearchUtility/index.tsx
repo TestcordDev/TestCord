@@ -938,6 +938,8 @@ function openQuickSearchResults(options: QuickSearchModalOptions) {
     }));
 }
 
+let queryObject: Record<string, boolean> = {};
+
 const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, props) => {
     if (!props) return;
     if (props.channel && !PermissionStore.can(PermissionsBits.VIEW_CHANNEL, props.channel)) return;
@@ -951,7 +953,8 @@ const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, prop
 
     if (children.some(child => child?.props?.id === "quick-search")) return;
 
-    const [queryObject, setQueryObject] = useState<Record<string, boolean>>({});
+    queryObject = {};
+
     const quickSearchItems: QuickSearchItem[] = [
         {
             name: "quick-search-channel",
@@ -994,7 +997,7 @@ const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, prop
                         id={item.name}
                         label={item.label}
                         checked={Boolean(queryObject[item.name])}
-                        action={() => setQueryObject(current => ({ ...current, [item.name]: !current[item.name] }))}
+                        action={() => { queryObject[item.name] = !queryObject[item.name]; }}
                     />
                 );
             })}
