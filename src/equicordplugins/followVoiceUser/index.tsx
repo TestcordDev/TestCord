@@ -46,7 +46,7 @@ const settings = definePluginSettings({
 const UserContextMenuPatch: NavContextMenuPatchCallback = (children, { channel, user }: UserContextProps) => {
     if (UserStore.getCurrentUser().id === user.id || !RelationshipStore.getFriendIDs().includes(user.id)) return;
 
-    const [checked, setChecked] = React.useState(followedUserInfo?.userId === user.id);
+    const checked = followedUserInfo?.userId === user.id;
 
     children.push(
         <Menu.MenuSeparator />,
@@ -57,17 +57,14 @@ const UserContextMenuPatch: NavContextMenuPatchCallback = (children, { channel, 
             action={() => {
                 if (followedUserInfo?.userId === user.id) {
                     followedUserInfo = null;
-                    setChecked(false);
-                    return;
+                } else {
+                    followedUserInfo = {
+                        lastChannelId: UserStore.getCurrentUser().id,
+                        userId: user.id
+                    };
                 }
-
-                followedUserInfo = {
-                    lastChannelId: UserStore.getCurrentUser().id,
-                    userId: user.id
-                };
-                setChecked(true);
             }}
-        ></Menu.MenuCheckboxItem>
+        />
     );
 };
 

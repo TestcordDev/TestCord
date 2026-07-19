@@ -22,6 +22,11 @@ const settings = definePluginSettings({
         description: "Coalesce duplicate Flux event subscriptions into a single dispatch. Reduces event-loop overhead when many plugins listen to the same events.",
         default: true,
     },
+    messageCoalesce: {
+        type: OptionType.BOOLEAN,
+        description: "Batch rapid MESSAGE_CREATE events per-channel: only dispatch the latest message from each channel within a 100ms window. Drastically cuts React re-render storms in busy channels. Safe because intermediate messages settle into the store anyway via bulk fetch.",
+        default: false,
+    },
     contextMenuHardening: {
         type: OptionType.BOOLEAN,
         description: "Wrap context menu patches so a patch that repeatedly throws is auto-disabled instead of taxing every menu open.",
@@ -35,8 +40,47 @@ const fluxSubscribers = new Map<string, Set<FluxHandler>>();
 const fluxFans = new Map<string, FluxHandler>();
 let fluxBusActive = false;
 
+const COALESCE_MS = 100;
+const pendingCoalesce = new Map<string, { event: any; timer: ReturnType<typeof setTimeout> }>();
+
+function dispatchCoalesced(actionType: string, event: any) {
+    const set = fluxSubscribers.get(actionType);
+    if (!set) return;
+    for (const handler of set) {
+        try { handler(event); } catch (e) { logger.error(`Flux handler for ${actionType} errored,`, e); }
+    }
+}
+
+function maybeCoalesce(actionType: string, event: any): boolean {
+    if (actionType !== "MESSAGE_CREATE" || !settings.store.messageCoalesce) return false;
+    const channelId = event.message?.channel_id;
+    if (!channelId) return false;
+    const pending = pendingCoalesce.get(channelId);
+    if (pending) {
+        clearTimeout(pending.timer);
+        pending.event = event;
+        pending.timer = setTimeout(() => {
+            pendingCoalesce.delete(channelId);
+            dispatchCoalesced(actionType, pending.event);
+        }, COALESCE_MS);
+        return true;
+    }
+    const timer = setTimeout(() => {
+        pendingCoalesce.delete(channelId);
+        dispatchCoalesced(actionType, event);
+    }, COALESCE_MS);
+    pendingCoalesce.set(channelId, { event, timer });
+    return false;
+}
+
+function clearAllCoalesce() {
+    for (const { timer } of pendingCoalesce.values()) clearTimeout(timer);
+    pendingCoalesce.clear();
+}
+
 function fluxFan(actionType: string): FluxHandler {
     return event => {
+        if (maybeCoalesce(actionType, event)) return;
         const set = fluxSubscribers.get(actionType);
         if (!set) return;
         for (const handler of set) {
@@ -109,6 +153,16 @@ function startFluxBus() {
     }
 }
 
+export function wrapFluxHandlers(wrapper: (handler: FluxHandler) => FluxHandler) {
+    for (const [actionType, set] of fluxSubscribers) {
+        const newSet = new Set<FluxHandler>();
+        for (const handler of set) {
+            newSet.add(wrapper(handler));
+        }
+        fluxSubscribers.set(actionType, newSet);
+    }
+}
+
 function stopFluxBus() {
     if (!fluxBusActive || !originalSubscribe || !originalUnsubscribe) return;
     fluxBusActive = false;
@@ -132,6 +186,7 @@ function stopFluxBus() {
     }
     fluxSubscribers.clear();
     fluxFans.clear();
+    clearAllCoalesce();
     originalSubscribe = null;
     originalUnsubscribe = null;
 }
@@ -243,6 +298,9 @@ export default definePlugin({
             if (settings.store.contextMenuHardening) startContextMenuHardening();
         } catch (e) {
             logger.error("Failed to start ContextMenuHardening,", e);
+        }
+        if (settings.store.messageCoalesce) {
+            logger.info("MESSAGE_CREATE coalescing active (window:", COALESCE_MS, "ms)");
         }
     },
 

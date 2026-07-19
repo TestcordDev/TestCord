@@ -358,15 +358,24 @@ async function init() {
             });
         }
 
-        // Discord update detection: if 3+ plugins have missing modules,
-        // it's very likely Discord shipped an update that broke things.
+        // Discord update detection: if 3+ plugins have missing modules
+        // with real code-level find strings (not CSS class hashes or intl
+        // keys from lazy-loaded chunks), it's very likely Discord shipped
+        // an update that broke things.
         // Show a one-time notice pointing the user to the Health tab.
         // Check if the user has dismissed this notice permanently.
-        if (noModulePlugins.size >= 3) {
+        const realNoModulePlugins = [...noModulePlugins].filter(p =>
+            noModulePatches.some(patch =>
+                patch.plugin === p
+                && !patch.findStr.startsWith(".")
+                && !patch.findStr.startsWith("[\"")
+            )
+        );
+        if (realNoModulePlugins.length >= 3) {
             void dsGet<boolean>("PluginHealthNoticeDismissed_v1").then(dismissed => {
                 if (!dismissed) {
                     showNotice(
-                        `Discord may have updated — ${noModulePlugins.size} plugins have missing modules. Check the Plugin Health tab for details.`,
+                        `Discord may have updated — ${realNoModulePlugins.length} plugins have missing modules. Check the Plugin Health tab for details.`,
                         "View Health",
                         () => {
                             SettingsRouter.openUserSettings("testcord_health_panel");

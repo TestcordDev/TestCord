@@ -384,12 +384,13 @@ const UserContext: NavContextMenuPatchCallback = (children, props) => {
     if (!currentUser || user.id === currentUser.id) return;
 
     const channelId = props?.channel?.id ?? ChannelStore.getDMFromUserId(user.id) ?? getCurrentChannelId();
-    const mimicItem = MimicMenuItem(user.id, user.username, channelId);
 
-    children.splice(-1, 0, <Menu.MenuGroup>{mimicItem}</Menu.MenuGroup>);
+    children.splice(-1, 0, <Menu.MenuGroup>
+        <MimicMenuItem userId={user.id} username={user.username} channelId={channelId} />
+    </Menu.MenuGroup>);
 };
 
-function MimicMenuItem(userId: string, username: string, channelId: string) {
+function MimicMenuItem({ userId, username, channelId }: { userId: string; username: string; channelId: string; }) {
     const [isChecked, setIsChecked] = React.useState(mimicManager.isTargetActive(userId));
 
     return (

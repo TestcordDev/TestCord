@@ -41,8 +41,8 @@ const ContextMenuPatch: NavContextMenuPatchCallback = (children, { channel }: { 
     if (!channel) return;
     const permanentlyIgnoredUsers = settings.store.permanentlyIgnoredUsers.split(",").map(s => s.trim()).filter(Boolean);
 
-    const [tempChecked, setTempChecked] = React.useState(ignoredChannelIds.has(channel.id));
-    const [permChecked, setPermChecked] = React.useState(permanentlyIgnoredUsers.includes(channel.id));
+    const tempChecked = ignoredChannelIds.has(channel.id);
+    const permChecked = permanentlyIgnoredUsers.includes(channel.id);
 
     children.push(
         <>
@@ -52,12 +52,10 @@ const ContextMenuPatch: NavContextMenuPatchCallback = (children, { channel }: { 
                 label="Temporarily Ignore Calls"
                 checked={tempChecked}
                 action={() => {
-                    if (tempChecked)
+                    if (ignoredChannelIds.has(channel.id))
                         ignoredChannelIds.delete(channel.id);
                     else
                         ignoredChannelIds.add(channel.id);
-
-                    setTempChecked(!tempChecked);
                 }}
             />
             <Menu.MenuCheckboxItem
@@ -66,14 +64,12 @@ const ContextMenuPatch: NavContextMenuPatchCallback = (children, { channel }: { 
                 checked={permChecked}
                 action={() => {
                     let updated = permanentlyIgnoredUsers.slice();
-                    if (permChecked) {
+                    if (permanentlyIgnoredUsers.includes(channel.id)) {
                         updated = updated.filter(id => id !== channel.id);
                     } else {
                         updated.push(channel.id);
                     }
                     settings.store.permanentlyIgnoredUsers = updated.join(", ");
-
-                    setPermChecked(!permChecked);
                 }}
             />
         </>

@@ -80,7 +80,7 @@ export function ChatPluginCard({ url, description }: { url: string, description:
 
     if (required) {
         const tooltipText = p.required || !dependents.length
-            ? "This plugin is required for Equicord to function."
+            ? "This plugin is required for Testcord to function."
             : <PluginDependencyList deps={dependents} />;
 
         return (

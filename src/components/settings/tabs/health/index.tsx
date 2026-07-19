@@ -778,9 +778,11 @@ function HealthTab() {
             // Skip internal API plugins — they're dependencies, not user-facing
             if (Plugins[name]?.required) continue;
             // When conflicts are hidden, strip them from the entry
+            // noModule entries are also hidden — they're false positives for
+            // lazy-loaded modules that will resolve when the relevant UI opens.
             const entry = conflictsHidden
                 ? {
-                    patchFailures: rawEntry.patchFailures.filter(f => f.kind !== "conflict"),
+                    patchFailures: rawEntry.patchFailures.filter(f => f.kind !== "conflict" && f.kind !== "noModule"),
                     runtimeErrors: rawEntry.runtimeErrors
                 }
                 : rawEntry;
@@ -804,12 +806,21 @@ function HealthTab() {
     }, [tick]);
 
     const noModuleCount = React.useMemo(() => {
+        // noModule entries for CSS class hashes (starts with `.` or `["`)
+        // and intl keys are false positives from lazy-loaded modules that
+        // will auto-resolve via the factory listener. Only count "real"
+        // code-level find strings (e.g. function names, method calls).
         const plugins = new Set<string>();
-        for (const [name, entry] of snapshot) {
-            if (entry.patchFailures.some(failure => failure.kind === "noModule")) plugins.add(name);
+        for (const [name, rawEntry] of PluginHealth.getAll()) {
+            const hasRealNoModule = rawEntry.patchFailures.some(f =>
+                f.kind === "noModule"
+                && !f.find.startsWith(".")
+                && !f.find.startsWith("[\"")
+            );
+            if (hasRealNoModule) plugins.add(name);
         }
         return plugins.size;
-    }, [snapshot]);
+    }, [tick]);
 
     const allCollapsed = filtered.length > 0 && filtered.every(([name]) => collapsed.has(name));
 

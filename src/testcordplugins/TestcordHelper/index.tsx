@@ -12,6 +12,7 @@ import { getUserSettingLazy } from "@api/UserSettings";
 import { BaseText } from "@components/BaseText";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { WarningIcon } from "@components/Icons";
+import { wrapFluxHandlers } from "../orchestratorAPI";
 import { AddonCard } from "@components/settings";
 import { ExcludedReasons, PluginDependencyList } from "@components/settings/tabs/plugins";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
@@ -64,13 +65,17 @@ function uninstallCrashGuards() {
 }
 
 let origDispatch: ((payload: any) => void) | null = null;
+let origSubscribe: ((event: string, handler: (...args: any[]) => void) => void) | null = null;
 const dispatchStats = new Map<string, { count: number; totalMs: number; maxMs: number; }>();
+const pluginDispatchStats = new Map<string, { count: number; totalMs: number; maxMs: number; }>();
 let channelSwitchStart = 0;
 
 const SLOW_DISPATCH_MS = 16;
 const RECENT_EVENTS_LIMIT = 200;
 const recentSlowEvents: Array<{ at: number; type: string; ms: number; plugins: string[]; }> = [];
 let pluginFluxMap: Map<string, string[]> | undefined;
+const handlerPluginMap = new Map<(...args: any[]) => void, string>();
+const handlerWrappers = new Map<(...args: any[]) => void, (...args: any[]) => void>();
 
 function getPluginFluxMap() {
     if (pluginFluxMap) return pluginFluxMap;
@@ -89,6 +94,35 @@ function getPluginFluxMap() {
 
 function getPluginsForEvent(type: string): string[] {
     return getPluginFluxMap().get(type) ?? [];
+}
+
+function buildHandlerPluginMap() {
+    handlerPluginMap.clear();
+    for (const name in plugins) {
+        const flux = plugins[name].flux;
+        if (!flux) continue;
+        for (const eventType in flux) {
+            const handler = flux[eventType];
+            if (typeof handler !== "function") continue;
+            handlerPluginMap.set(handler as (...args: any[]) => void, name);
+        }
+    }
+}
+
+function wrapHandlerTiming(handler: (...args: any[]) => void): (...args: any[]) => void {
+    const wrapped = function (this: any, ...args: any[]) {
+        const t0 = performance.now();
+        handler.apply(this, args);
+        const dt = performance.now() - t0;
+        const plugin = handlerPluginMap.get(handler) ?? "unknown";
+        const stat = pluginDispatchStats.get(plugin) ?? { count: 0, totalMs: 0, maxMs: 0 };
+        stat.count++;
+        stat.totalMs += dt;
+        stat.maxMs = Math.max(stat.maxMs, dt);
+        pluginDispatchStats.set(plugin, stat);
+    };
+    handlerWrappers.set(handler, wrapped);
+    return wrapped;
 }
 
 function dumpPatchDiagnostics() {
@@ -151,18 +185,28 @@ function dumpPatchTimings() {
 }
 
 function dumpDispatchStats() {
-    console.group("%cFlux Dispatch Timings", "color: #ff4f4f; font-weight: bold;");
+    console.warn("%cFlux Dispatch Timings", "color: #ff4f4f; font-weight: bold;");
     if (dispatchStats.size === 0) {
-        console.log("No dispatch data. Enable debug mode and interact with Discord first.");
+        console.warn("No dispatch data. Enable debug mode and interact with Discord first.");
     } else {
         const sorted = [...dispatchStats.entries()].sort((a, b) => b[1].totalMs - a[1].totalMs);
         for (const [type, stat] of sorted) {
             const avg = stat.totalMs / stat.count;
             const flag = stat.maxMs > 16 ? " !! SLOW" : "";
-            console.log(`${type}: ${stat.count}x | avg ${avg.toFixed(1)}ms | max ${stat.maxMs.toFixed(1)}ms | total ${stat.totalMs.toFixed(1)}ms${flag}`);
+            console.warn(`${type}: ${stat.count}x | avg ${avg.toFixed(1)}ms | max ${stat.maxMs.toFixed(1)}ms | total ${stat.totalMs.toFixed(1)}ms${flag}`);
         }
     }
-    console.groupEnd();
+    console.warn("%cPer-Plugin Dispatch Timings", "color: #ff4f4f; font-weight: bold;");
+    if (pluginDispatchStats.size === 0) {
+        console.warn("No per-plugin dispatch data. Enable debug mode and interact with Discord first.");
+    } else {
+        const sorted = [...pluginDispatchStats.entries()].sort((a, b) => b[1].totalMs - a[1].totalMs);
+        for (const [plugin, stat] of sorted) {
+            const avg = stat.totalMs / stat.count;
+            const flag = stat.maxMs > 16 ? " !! SLOW" : "";
+            console.warn(`${plugin}: ${stat.count}x | avg ${avg.toFixed(1)}ms | max ${stat.maxMs.toFixed(1)}ms | total ${stat.totalMs.toFixed(1)}ms${flag}`);
+        }
+    }
 }
 
 function dumpFullReport() {
@@ -188,8 +232,17 @@ function dumpFullReport() {
     console.group("%c[TestcordHelper] Full Debug Report", "color: #5865f2; font-weight: bold; font-size: 16px;");
     dumpPatchDiagnostics();
     dumpPluginStartTimings();
-    dumpDispatchStats();
-    dumpPatchTimings();
+    console.warn(`[TestcordHelper] === DISPATCH STATS: ${dispatchStats.size} types, ${pluginDispatchStats.size} plugins ===`);
+    try {
+        dumpDispatchStats();
+    } catch (e) {
+        console.warn(`[TestcordHelper ERROR] dumpDispatchStats threw:`, e);
+    }
+    try {
+        dumpPatchTimings();
+    } catch (e) {
+        console.warn(`[TestcordHelper ERROR] dumpPatchTimings threw:`, e);
+    }
     console.group("%cMemory", "color: #ff4f4f; font-weight: bold;");
     console.log(getMemoryUsage());
     console.groupEnd();
@@ -199,8 +252,11 @@ function dumpFullReport() {
 function installDebugInstrumentation() {
     if (origDispatch) return;
 
+    pluginDispatchStats.clear();
+    dispatchStats.clear();
     dumpPatchDiagnostics();
     dumpPatchTimings();
+    buildHandlerPluginMap();
 
     origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher) as (payload: any) => void;
     FluxDispatcher.dispatch = function (payload: any) {
@@ -233,6 +289,45 @@ function installDebugInstrumentation() {
         return result;
     };
 
+    origSubscribe = FluxDispatcher.subscribe.bind(FluxDispatcher) as (event: string, handler: (...args: any[]) => void) => void;
+    FluxDispatcher.subscribe = function (event: string, handler: (...args: any[]) => void) {
+        const name = handlerPluginMap.get(handler);
+        if (name && !handlerWrappers.has(handler)) {
+            handler = wrapHandlerTiming(handler);
+        }
+        return (origSubscribe as any).call(FluxDispatcher, event, handler);
+    };
+
+    if ((FluxDispatcher as any)._subscriptions) {
+        for (const eventType in (FluxDispatcher as any)._subscriptions) {
+            const handlers = (FluxDispatcher as any)._subscriptions[eventType];
+            if (!Array.isArray(handlers)) continue;
+            for (let i = 0; i < handlers.length; i++) {
+                const name = handlerPluginMap.get(handlers[i]);
+                if (name && !handlerWrappers.has(handlers[i])) {
+                    handlers[i] = wrapHandlerTiming(handlers[i]);
+                }
+            }
+        }
+    }
+
+    let wrappedCount = 0;
+    try {
+        wrapFluxHandlers(handler => {
+            const name = handlerPluginMap.get(handler);
+            if (name && !handlerWrappers.has(handler)) {
+                const wrapped = wrapHandlerTiming(handler);
+                handlerWrappers.set(handler, wrapped);
+                wrappedCount++;
+                return wrapped;
+            }
+            return handler;
+        });
+        logger.info(`Wrapped ${wrappedCount} flux handlers via orchestrator API.`);
+    } catch (e) {
+        logger.error("Failed to wrap orchestrator flux handlers:", e);
+    }
+
     logger.info("Debug instrumentation installed. Tracking dispatches and patch diagnostics. Use /tdebug to dump the full report.");
     showToast("Debug mode enabled. Check console for diagnostics.", Toasts.Type.MESSAGE);
 }
@@ -242,7 +337,14 @@ function uninstallDebugInstrumentation() {
         FluxDispatcher.dispatch = origDispatch as any;
         origDispatch = null;
     }
+    if (origSubscribe) {
+        FluxDispatcher.subscribe = origSubscribe as any;
+        origSubscribe = null;
+    }
     dispatchStats.clear();
+    pluginDispatchStats.clear();
+    handlerPluginMap.clear();
+    handlerWrappers.clear();
     channelSwitchStart = 0;
     logger.info("Debug instrumentation removed.");
 }
@@ -427,7 +529,7 @@ const settings = definePluginSettings({
     orchestrator: {
         type: OptionType.BOOLEAN,
         description: "Enable the performance orchestrator. Coalesces duplicate Flux event subscriptions into a single dispatch and hardens context menu patches so a throwing patch is auto-disabled instead of lagging every right-click. Applies live, no restart needed.",
-        default: false,
+        default: true,
         onChange(value) {
             const p = Plugins.OrchestratorAPI;
             if (!p) return;
@@ -437,6 +539,46 @@ const settings = definePluginSettings({
             } else {
                 if (p.started) stopPlugin(p);
                 Settings.plugins.OrchestratorAPI.enabled = false;
+            }
+        }
+    },
+    messageCoalesce: {
+        type: OptionType.BOOLEAN,
+        description: "Batch rapid MESSAGE_CREATE events per-channel: only dispatch the latest message from each channel within a 100ms window. Drastically cuts React re-render storms in busy channels. Applies live, no restart needed.",
+        default: true,
+        onChange(value) {
+            const p = Plugins.OrchestratorAPI;
+            if (!p) return;
+            if (value) {
+                Settings.plugins.OrchestratorAPI.enabled = true;
+                Settings.plugins.OrchestratorAPI.messageCoalesce = true;
+                if (!p.started) {
+                    Settings.plugins.OrchestratorAPI.fluxBus = true;
+                    startPlugin(p);
+                }
+            } else {
+                Settings.plugins.OrchestratorAPI.messageCoalesce = false;
+            }
+        }
+    },
+    bigChatMode: {
+        type: OptionType.BOOLEAN,
+        description: "Enable a bundle of aggressive optimizations for large busy servers: freeze member list, force passive scroll listeners, disable unread badge DOM updates, optimize chat input, apply paint containment to message attachments, and skip react-spring animations. Reload recommended.",
+        default: false,
+        onChange(value) {
+            const p = Plugins.optimizerPremium;
+            const op = Settings.plugins.optimizerPremium;
+            if (!op) return;
+            op.freezeMemberList = value;
+            op.forcePassiveListeners = value;
+            op.disableUnreadBadges = value;
+            op.optimizeChatInput = value;
+            op.optimizeLargeAttachments = value;
+            op.containAttachmentImages = value;
+            op.disableSpringAnimations = value;
+            if (value && p && !p.started) {
+                Settings.plugins.optimizerPremium.enabled = true;
+                startPlugin(p);
             }
         }
     },
@@ -1131,13 +1273,33 @@ function handleLiveFixRequest(req: LiveFixRequest): any {
                     }))
                     .sort((a, b) => b.totalMs - a.totalMs)
                     .slice(0, req.limit ?? 50);
-                return { id, profiling: true, stats };
+                const pluginStats = [...pluginDispatchStats.entries()]
+                    .map(([plugin, s]) => ({
+                        plugin,
+                        count: s.count,
+                        avgMs: +(s.totalMs / s.count).toFixed(2),
+                        maxMs: +s.maxMs.toFixed(2),
+                        totalMs: +s.totalMs.toFixed(2),
+                    }))
+                    .sort((a, b) => b.totalMs - a.totalMs)
+                    .slice(0, req.pluginLimit ?? 50);
+                return { id, profiling: true, stats, pluginStats };
             }
 
             case "slowEvents": {
                 if (!origDispatch) return { id, error: "Dispatch profiling is off. Send {action:'profile'} first." };
                 const events = recentSlowEvents.slice(-(req.limit ?? 50)).reverse();
-                return { id, profiling: true, slowThresholdMs: SLOW_DISPATCH_MS, events };
+                const pluginStats = [...pluginDispatchStats.entries()]
+                    .map(([plugin, s]) => ({
+                        plugin,
+                        count: s.count,
+                        avgMs: +(s.totalMs / s.count).toFixed(2),
+                        maxMs: +s.maxMs.toFixed(2),
+                        totalMs: +s.totalMs.toFixed(2),
+                    }))
+                    .sort((a, b) => b.totalMs - a.totalMs)
+                    .slice(0, req.pluginLimit ?? 50);
+                return { id, profiling: true, slowThresholdMs: SLOW_DISPATCH_MS, events, pluginStats };
             }
 
             case "pluginTimings": {
@@ -1258,7 +1420,11 @@ export default definePlugin({
         inputType: ApplicationCommandInputType.BUILT_IN,
         execute(_, ctx) {
             dumpFullReport();
-            sendBotMessage(ctx.channel.id, { content: "Debug report dumped to console. Open DevTools (F12) to view." });
+            const dSize = dispatchStats.size;
+            const pSize = pluginDispatchStats.size;
+            const toastMsg = `Debug report → console. Dispatch events tracked: ${dSize} types, per-plugin: ${pSize} plugins${dSize === 0 ? " ⚠️ Enable Debug Mode in settings first!" : ""}`;
+            showToast(toastMsg, Toasts.Type.SUCCESS);
+            sendBotMessage(ctx.channel.id, { content: `Debug report dumped to console (F12). ${dSize} dispatch types, ${pSize} plugins tracked.` });
         }
     }],
 
@@ -1272,6 +1438,7 @@ export default definePlugin({
 
     renderMessageAccessory(props) {
         const { content } = props.message;
+        if (content.length < 12) return null;
         const showPluginCards = !(isPerformanceEnabled() && settings.store.performanceDisablePluginCards) && PLUGIN_CARD_MARKER_PATTERN.test(content);
         const showProfileCards = !settings.store.disableProfilePopoutEmbeds && USER_CARD_MARKER_PATTERN.test(content);
 
@@ -1289,6 +1456,30 @@ export default definePlugin({
         if (settings.store.preventCrashes) installCrashGuards();
         if (settings.store.debugMode) settings.store.debugMode = false;
         if (settings.store.liveFix) startLiveFixServer();
+        if (settings.store.orchestrator || settings.store.messageCoalesce) {
+            const p = Plugins.OrchestratorAPI;
+            if (p && !p.started) {
+                Settings.plugins.OrchestratorAPI.enabled = true;
+                if (settings.store.messageCoalesce) {
+                    Settings.plugins.OrchestratorAPI.messageCoalesce = true;
+                }
+                startPlugin(p);
+            }
+        }
+        if (settings.store.bigChatMode) {
+            const p = Plugins.optimizerPremium;
+            if (p && !p.started) {
+                Settings.plugins.optimizerPremium.enabled = true;
+                Settings.plugins.optimizerPremium.freezeMemberList = true;
+                Settings.plugins.optimizerPremium.forcePassiveListeners = true;
+                Settings.plugins.optimizerPremium.disableUnreadBadges = true;
+                Settings.plugins.optimizerPremium.optimizeChatInput = true;
+                Settings.plugins.optimizerPremium.optimizeLargeAttachments = true;
+                Settings.plugins.optimizerPremium.containAttachmentImages = true;
+                Settings.plugins.optimizerPremium.disableSpringAnimations = true;
+                startPlugin(p);
+            }
+        }
         hotkeyHandler = (e: KeyboardEvent) => {
             if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "h") {
                 e.preventDefault();

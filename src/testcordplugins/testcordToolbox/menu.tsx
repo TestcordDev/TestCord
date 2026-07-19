@@ -188,7 +188,7 @@ export function buildPluginMenuEntries(includeEmpty = false) {
 }
 
 function buildLiveFixToggle() {
-    const { plugins } = useSettings();
+    const { plugins } = useSettings(["plugins.TestcordHelper.liveFix", "plugins.TestcordHelper.enabled"]);
     const helper = plugins.TestcordHelper;
     if (!helper?.enabled) return null;
 
@@ -201,7 +201,7 @@ function buildLiveFixToggle() {
             label="LiveFix Debug Server"
             checked={liveFix}
             action={() => {
-                helper.liveFix = !liveFix;
+                Settings.plugins.TestcordHelper.liveFix = !liveFix;
                 showToast(!liveFix ? "LiveFix enabled" : "LiveFix disabled");
             }}
         />
