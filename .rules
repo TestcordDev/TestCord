@@ -472,3 +472,84 @@ From `@webpack`. `findByPropsLazy`, `findByCodeLazy`, `findComponentLazy`, `find
 ### `IconUtils`
 
 `getUserAvatarURL(user, canAnimate?, size?, format?)`, `getUserBannerURL({ id, banner, canAnimate?, size })`, `getGuildIconURL({ id, icon, size?, canAnimate? })`, `getGuildBannerURL(guild, canAnimate?)`, `getGuildSplashURL`, `getGuildDiscoverySplashURL`, `getGuildHomeHeaderURL`, `getChannelIconURL({ id, icon })`, `getResourceChannelIconURL`, `getEmojiURL({ id, animated, size })`, `getApplicationIconURL`, `getGameAssetURL`, `getVideoFilterAssetURL`, `getAvatarDecorationURL`, `getGuildMemberAvatarURL`, `getGuildMemberAvatarURLSimple`, `getGuildMemberBannerURL`, `getDefaultAvatarURL(id)`, `hasAnimatedGuildIcon`, `isAnimatedIconHash`.
+
+---
+
+## LiveFix Remote Debugging
+
+LiveFix is an HTTP server on port `18963` inside TestcordHelper. It lets you inspect and control the renderer process remotely.
+
+### Architecture
+
+```
+ POST /  (JSON)  →  [HTTP Server native.ts]  →  /tmp/opencode/livefix/command.json
+                     [Renderer poller]       ←  reads command, executes, writes response
+                     [HTTP Server]           ←  /tmp/opencode/livefix/response.json  →  HTTP 200
+```
+
+### Commands
+
+Send `POST http://127.0.0.1:18963` with `Content-Type: application/json`:
+
+| Action | Fields | Description |
+|--------|--------|-------------|
+| `search` | `query: string` | Search webpack modules for a string. Returns module IDs + 300-char snippets. |
+| `readModule` | `moduleId: number` | Get full source of a webpack module by ID. |
+| `eval` | `code: string` | Execute JS in renderer context. Returns stringified result. |
+| `consoleDump` | `limit?: number` | Get the last N (default: all) console.log/warn/error/info/debug entries from the circular buffer (500 max). Each entry has `level`, `msg`, `time`. |
+| `memory` | — | Get JS heap memory stats. |
+| `patchHealth` | — | Get patch failures and runtime errors per plugin. |
+| `listPending` | — | List all registered patches and their find/match patterns. |
+| `profile` | — | Start dispatch profiling. Then use `dispatchStats`/`slowEvents`. |
+| `dispatchStats` | `limit?, pluginLimit?` | Flux dispatch timing stats (avg, max, total per event type). |
+| `slowEvents` | `limit?, pluginLimit?` | Recent slow dispaches (>16ms). |
+| `pluginTimings` | `limit?` | Plugin startup timing data. |
+| `patchTimings` | `limit?` | Patch application timing data. |
+| `testPattern` | `pattern, code, flags?` | Test a regex against code. Returns match info. |
+| `reset` | — | Clear dispatch stats and slow events. |
+
+### Usage for crash debugging
+
+When user reports a crash (e.g. stream restart):
+
+1. **Dump the console** to see what errors preceded the crash:
+   ```
+   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"consoleDump","limit":100}'
+   ```
+   Look for `AVError`, `NoiseCancellerError`, `INIT_ERROR`, `Krisp`, `CRASH`, `reload` entries.
+
+2. **Check patch health** for plugins that failed to apply:
+   ```
+   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"patchHealth"}'
+   ```
+
+3. **Check plugin timing** for startup failures:
+   ```
+   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"pluginTimings"}'
+   ```
+
+4. **Search for error-related code** in webpack modules:
+   ```
+   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"search","query":"NoiseCancellerError"}'
+   ```
+
+5. **Read matching modules** to understand the code:
+   ```
+   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"readModule","moduleId":941426}'
+   ```
+
+6. **Eval quick checks**:
+   ```
+   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"eval","code":"JSON.stringify(Object.keys(window).filter(k=>k.includes(\"Krisp\")||k.includes(\"krisp\")))"}'
+   ```
+
+### Console Capture
+
+TestcordHelper's `start()` wraps all console methods (`log`, `warn`, `error`, `info`, `debug`) with a circular buffer of 500 entries. The buffer is accessible via the `consoleDump` LiveFix command. This captures errors that Discord's FluxDispatcher logs internally via `console.error` — errors that `window.onerror` never sees.
+
+### Troubleshooting
+
+- If LiveFix doesn't respond, check that TestcordHelper's `liveFix` setting is enabled.
+- Port 18963 only listens on `127.0.0.1` — safe from external access.
+- The command file uses a queue — only one request at a time with a 10s timeout.
+- If you get `"error": "Timeout waiting for renderer response"`, the renderer is either busy or crashed before responding. Use `consoleDump` to see what happened before.

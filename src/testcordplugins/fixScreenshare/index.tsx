@@ -71,6 +71,24 @@ export default definePlugin({
     authors: [{ name: "x2b", id: 0n }],
     required: true,
 
+    // Block Krisp native module from loading — it crashes during stream setup
+    patches: [
+        {
+            find: "discord_krisp",
+            replacement: {
+                match: /(\i\.\i\.ensureModule\()"discord_krisp"\)/,
+                replace: "Promise.reject(new Error('Krisp blocked'))"
+            }
+        },
+        {
+            find: "isNoiseCancellationSupported(){",
+            replacement: {
+                match: /isNoiseCancellationSupported\(\)\{/,
+                replace: "$&return false;"
+            }
+        }
+    ],
+
     start() {
         // Report any errors from the previous session
         try {

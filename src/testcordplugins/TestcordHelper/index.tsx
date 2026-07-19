@@ -1175,13 +1175,50 @@ let liveFixInterval: ReturnType<typeof setInterval> | null = null;
 interface LiveFixRequest {
     id: string;
     action: "search" | "readModule" | "eval" | "testPattern" | "listPending" | "patchHealth"
-    | "dispatchStats" | "slowEvents" | "pluginTimings" | "patchTimings" | "memory" | "profile" | "reset";
+    | "dispatchStats" | "slowEvents" | "pluginTimings" | "patchTimings" | "memory" | "profile" | "reset"
+    | "consoleDump";
     query?: string;
     moduleId?: number;
     code?: string;
     pattern?: string;
     flags?: string;
     limit?: number;
+    pluginLimit?: number;
+}
+
+// Circular console buffer — last 500 entries, each with level, text, and timestamp
+const CONSOLE_BUF_MAX = 500;
+const consoleBuf: Array<{ level: string; msg: string; time: number; }> = [];
+let origConsole: Record<string, (...args: any[]) => void> = {};
+let consoleOverridesInstalled = false;
+
+function installConsoleCapture() {
+    if (consoleOverridesInstalled) return;
+    consoleOverridesInstalled = true;
+
+    const levels = ["log", "warn", "error", "info", "debug"];
+    for (const level of levels) {
+        origConsole[level] = (console as any)[level].bind(console);
+        (console as any)[level] = function (...args: any[]) {
+            const msg = args.map(a => typeof a === "object" ? safeStringify(a) : String(a)).join(" ");
+            consoleBuf.push({ level, msg, time: Date.now() });
+            if (consoleBuf.length > CONSOLE_BUF_MAX) consoleBuf.shift();
+            return origConsole[level](...args);
+        };
+    }
+}
+
+function uninstallConsoleCapture() {
+    if (!consoleOverridesInstalled) return;
+    consoleOverridesInstalled = false;
+    for (const level of Object.keys(origConsole)) {
+        (console as any)[level] = origConsole[level];
+    }
+    origConsole = {};
+}
+
+function safeStringify(obj: any): string {
+    try { return JSON.stringify(obj); } catch { return String(obj); }
 }
 
 function handleLiveFixRequest(req: LiveFixRequest): any {
@@ -1343,6 +1380,11 @@ function handleLiveFixRequest(req: LiveFixRequest): any {
                 return { id, profiling: true, note: "Dispatch profiling started. Interact with the client, then query dispatchStats/slowEvents." };
             }
 
+            case "consoleDump": {
+                const count = req.limit ?? consoleBuf.length;
+                return { id, entries: consoleBuf.slice(-count) };
+            }
+
             case "reset": {
                 dispatchStats.clear();
                 recentSlowEvents.length = 0;
@@ -1454,6 +1496,7 @@ export default definePlugin({
 
     start() {
         if (settings.store.preventCrashes) installCrashGuards();
+        installConsoleCapture();
         if (settings.store.debugMode) settings.store.debugMode = false;
         if (settings.store.liveFix) startLiveFixServer();
         if (settings.store.orchestrator || settings.store.messageCoalesce) {
@@ -1497,6 +1540,7 @@ export default definePlugin({
     stop() {
         uninstallCrashGuards();
         uninstallDebugInstrumentation();
+        uninstallConsoleCapture();
         stopLiveFixServer();
         if (hotkeyHandler) {
             document.removeEventListener("keydown", hotkeyHandler, true);
