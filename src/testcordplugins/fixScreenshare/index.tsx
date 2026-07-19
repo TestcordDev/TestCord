@@ -4,8 +4,12 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { DataStore } from "@api/index";
+import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
 import { FluxDispatcher } from "@webpack/common";
+
+const logger = new Logger("FixScreenshare");
 
 let origReload: (() => void) | undefined;
 let origAssign: ((url: string) => void) | undefined;
@@ -14,6 +18,7 @@ let origHrefDescriptor: PropertyDescriptor | undefined;
 let origGo: ((delta?: number) => void) | undefined;
 let preventMediaError: ((event: ErrorEvent) => void) | null = null;
 let preventMediaRejection: ((event: PromiseRejectionEvent) => void) | null = null;
+let origConsoleError: typeof console.error | null = null;
 let suppressTimer: ReturnType<typeof setTimeout> | undefined;
 let suppressReload = false;
 
@@ -43,6 +48,22 @@ function isMediaErrorMsg(msg: string) {
         || msg.includes("NoiseCancellation");
 }
 
+const CRASH_LOG_KEY = "FixScreenshare_crashLog";
+
+async function logError(source: string, error: any) {
+    try {
+        const entry = {
+            source,
+            message: error?.message ?? String(error),
+            stack: error?.stack ?? "",
+            time: Date.now()
+        };
+        const existing = await DataStore.get(CRASH_LOG_KEY) as any[] | undefined;
+        const log = [...(existing ?? []).slice(-49), entry];
+        await DataStore.set(CRASH_LOG_KEY, log);
+    } catch { }
+}
+
 export default definePlugin({
     name: "FixScreenshare",
     description: "Prevents Discord from crashing and reloading when screensharing by intercepting media-related errors and blocking reloads.",
@@ -50,7 +71,18 @@ export default definePlugin({
     authors: [{ name: "x2b", id: 0n }],
     required: true,
 
-    start() {
+    async start() {
+        // Report any errors from the previous session
+        try {
+            const prevLog = await DataStore.get(CRASH_LOG_KEY) as any[] | undefined;
+            if (prevLog && prevLog.length > 0) {
+                const last = prevLog[prevLog.length - 1];
+                logger.warn(`Previous session error: [${last.source}] ${last.message}`);
+                logger.warn(`Stack: ${last.stack}`);
+                await DataStore.del(CRASH_LOG_KEY);
+            }
+        } catch { }
+
         FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", () => {
             armSuppress(10000);
         });
@@ -70,9 +102,14 @@ export default definePlugin({
         // so we can intercept media errors before Discord's handler sees them.
         preventMediaError = function (event) {
             const msg = event.message ?? "";
-            if (isMediaErrorMsg(msg) || event.error?.message && isMediaErrorMsg(event.error.message)) {
+            const err = event.error;
+            if (isMediaErrorMsg(msg) || err?.message && isMediaErrorMsg(err.message)) {
+                logError("error", err ?? msg);
                 event.preventDefault();
                 if (suppressReload) armSuppress(3000);
+            } else {
+                // Log non-media errors too for crash diagnostics
+                logError("error", err ?? msg);
             }
         };
         window.addEventListener("error", preventMediaError);
@@ -80,10 +117,24 @@ export default definePlugin({
         preventMediaRejection = function (event) {
             const msg = event.reason?.message ?? String(event.reason);
             if (isMediaErrorMsg(msg)) {
+                logError("unhandledRejection", event.reason);
                 event.preventDefault();
+            } else {
+                logError("unhandledRejection", event.reason);
             }
         };
         window.addEventListener("unhandledrejection", preventMediaRejection);
+
+        // Discord's FluxDispatcher catches exceptions in handlers and logs them
+        // via console.error. Intercept to capture those too.
+        origConsoleError = console.error;
+        console.error = function (...args: any[]) {
+            const msg = args.map(a => String(a)).join(" ");
+            if (isMediaErrorMsg(msg)) {
+                logError("console.error", args[0]);
+            }
+            return origConsoleError!.apply(console, args);
+        };
 
         try {
             const proto = Object.getPrototypeOf(window.location) as any;
@@ -139,6 +190,10 @@ export default definePlugin({
         if (preventMediaRejection) {
             window.removeEventListener("unhandledrejection", preventMediaRejection);
             preventMediaRejection = null;
+        }
+        if (origConsoleError) {
+            console.error = origConsoleError;
+            origConsoleError = null;
         }
         try {
             const proto = Object.getPrototypeOf(window.location) as any;
