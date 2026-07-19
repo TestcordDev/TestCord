@@ -55,9 +55,6 @@ function forceStopScreenshare() {
 
 let oldOnError: OnErrorEventHandler | null = null;
 let oldOnUnhandledRejection: ((event: PromiseRejectionEvent) => void) | null = null;
-let origReload: typeof window.location.reload;
-
-let suppressReload = false;
 
 function preventReloadOnError(event: Event | string, source?: string, lineno?: number, colno?: number, error?: Error) {
     const msg = typeof event === "string" ? event : "";
@@ -79,32 +76,23 @@ function preventReloadOnError(event: Event | string, source?: string, lineno?: n
     return false;
 }
 
-function isMediaErrorMsg(msg: string) {
-    return msg.includes("RTCPeerConnection") ||
+function preventUnhandledRejection(event: PromiseRejectionEvent) {
+    const msg = event.reason?.message ?? String(event.reason);
+    if (
+        msg.includes("RTCPeerConnection") ||
         msg.includes("getUserMedia") ||
         msg.includes("getDisplayMedia") ||
         msg.includes("MediaStream") ||
         msg.includes("setVideoCapturerSource") ||
         msg.includes("reconfigure") ||
         msg.includes("ICE") ||
-        msg.includes("AVError") ||
-        msg.includes("NoiseCanceller") ||
         msg.includes("screenshare") ||
         msg.includes("screen share") ||
         msg.includes("ScreenShare") ||
         msg.includes("Request has been terminated") ||
-        msg.includes("crossDomainError") ||
-        msg.includes("Krisp") ||
-        msg.includes("krisp") ||
-        msg.includes("NoiseCancellation");
-}
-
-function preventUnhandledRejection(event: PromiseRejectionEvent) {
-    const msg = event.reason?.message ?? String(event.reason);
-    if (isMediaErrorMsg(msg)) {
+        msg.includes("crossDomainError")
+    ) {
         event.preventDefault();
-        suppressReload = true;
-        setTimeout(() => suppressReload = false, 500);
         return;
     }
     if (oldOnUnhandledRejection) oldOnUnhandledRejection(event);
@@ -132,15 +120,6 @@ export default definePlugin({
         window.onerror = preventReloadOnError;
         oldOnUnhandledRejection = window.onunhandledrejection;
         window.addEventListener("unhandledrejection", preventUnhandledRejection);
-
-        origReload = window.location.reload.bind(window.location);
-        window.location.reload = function (...args) {
-            if (suppressReload) {
-                suppressReload = false;
-                return;
-            }
-            return origReload(...args);
-        };
     },
 
     stop() {
@@ -151,10 +130,6 @@ export default definePlugin({
         if (oldOnUnhandledRejection) {
             window.removeEventListener("unhandledrejection", preventUnhandledRejection);
             oldOnUnhandledRejection = null;
-        }
-        if (origReload) {
-            window.location.reload = origReload;
-            origReload = undefined as any;
         }
     }
 });

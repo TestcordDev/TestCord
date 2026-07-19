@@ -245,21 +245,21 @@ const settings = definePluginSettings({
         description: "Apply optimizeSpeed text-rendering on message content. Disabling kerning/ligatures changes line breaks, which changes message heights and can trigger scroll re-anchoring — off by default.",
         default: false
     },
-        killBackdropBlur: {
-            type: OptionType.BOOLEAN,
-            description: "Strip backdrop-filter blur effects (popouts, modals, overlays). Massive GPU win on integrated graphics.",
-            default: true
-        },
+    killBackdropBlur: {
+        type: OptionType.BOOLEAN,
+        description: "Strip backdrop-filter blur effects (popouts, modals, overlays). Massive GPU win on integrated graphics.",
+        default: false
+    },
     forcePassiveListeners: {
         type: OptionType.BOOLEAN,
         description: "Force wheel, touchstart, touchmove and mousewheel listeners to passive mode. Reduces scroll input lag.",
         default: false
     },
-        suppressConsoleSpam: {
-            type: OptionType.BOOLEAN,
-            description: "Suppress Discord's noisy console.log/debug output. Console.error and console.warn still pass through.",
-            default: true
-        },
+    suppressConsoleSpam: {
+        type: OptionType.BOOLEAN,
+        description: "Suppress Discord's noisy console.log/debug output. Console.error and console.warn still pass through.",
+        default: false
+    },
     freezeGifsUntilHover: {
         type: OptionType.BOOLEAN,
         description: "Freeze animated GIFs using canvas capture (shows first frame, plays on hover). More precise but uses per-image canvas overhead.",
@@ -305,21 +305,21 @@ const settings = definePluginSettings({
         description: "Log optimization activity to the console. Disable for production.",
         default: false
     },
-        cacheLimitsEnabled: {
-            type: OptionType.BOOLEAN,
-            description: "Cap internal plugin caches (diffs, translations, ZIP previews, logged messages, voice stats) to prevent unbounded memory growth. Disable if you have RAM to spare and want maximum cache hit rate.",
-            default: true
-        },
+    cacheLimitsEnabled: {
+        type: OptionType.BOOLEAN,
+        description: "Cap internal plugin caches (diffs, translations, ZIP previews, logged messages, voice stats) to prevent unbounded memory growth. Disable if you have RAM to spare and want maximum cache hit rate.",
+        default: false
+    },
     lazyIframes: {
         type: OptionType.BOOLEAN,
         description: "Defer iframe loading until they scroll into view. Reduces initial page load cost. hcaptcha iframes are excluded to prevent breaking verification.",
         default: false
     },
-        disableAnimatedHeaders: {
-            type: OptionType.BOOLEAN,
-            description: "Remove animated gradient effects in header areas. Pure cosmetic, big GPU savings.",
-            default: true
-        },
+    disableAnimatedHeaders: {
+        type: OptionType.BOOLEAN,
+        description: "Remove animated gradient effects in header areas. Pure cosmetic, big GPU savings.",
+        default: false
+    },
     optimizeImageDecoding: {
         type: OptionType.BOOLEAN,
         description: "Force images to decode asynchronously and preload critical images. Chat images are excluded to prevent late-resize scroll jumps.",
@@ -331,12 +331,12 @@ const settings = definePluginSettings({
         default: false,
         restartNeeded: true
     },
-        suppressReactionAnimations: {
-            type: OptionType.BOOLEAN,
-            description: "Strip entrance/exit animations from reaction buttons. Those pop/glow transitions cause layout on every reaction add.",
-            default: true,
-            restartNeeded: true
-        },
+    suppressReactionAnimations: {
+        type: OptionType.BOOLEAN,
+        description: "Strip entrance/exit animations from reaction buttons. Those pop/glow transitions cause layout on every reaction add.",
+        default: false,
+        restartNeeded: true
+    },
     messageContentVisibility: {
         type: OptionType.BOOLEAN,
         description: "Apply extra paint containment to message list items without changing virtualized row sizing.",
@@ -348,11 +348,11 @@ const settings = definePluginSettings({
         default: false,
         restartNeeded: true
     },
-        disableAnimatedEmoji: {
-            type: OptionType.BOOLEAN,
-            description: "Force all emoji to render as static. Cuts continuous re-decode of animated emoji in active channels.",
-            default: true
-        },
+    disableAnimatedEmoji: {
+        type: OptionType.BOOLEAN,
+        description: "Force all emoji to render as static. Cuts continuous re-decode of animated emoji in active channels.",
+        default: false
+    },
     limitConcurrentRequests: {
         type: OptionType.SLIDER,
         description: "Cap concurrent network requests. 0 = unlimited. Prevents browser connection throttling from saturating the limit.",
@@ -368,11 +368,11 @@ const settings = definePluginSettings({
     },
     // --- Advanced CSS optimizations ---
 
-        containMemberList: {
-            type: OptionType.BOOLEAN,
-            description: "Apply content-visibility and layout containment to the member list. Offscreen members skip layout and paint entirely. Best in large servers.",
-            default: true
-        },
+    containMemberList: {
+        type: OptionType.BOOLEAN,
+        description: "Apply content-visibility and layout containment to the member list. Offscreen members skip layout and paint entirely. Best in large servers.",
+        default: false
+    },
     containServerList: {
         type: OptionType.BOOLEAN,
         description: "Apply layout containment to the server/guild list. Reduces layout cost from avatar position changes.",
@@ -393,16 +393,16 @@ const settings = definePluginSettings({
         description: "Hide the server banner image at the top of the channel list. Saves image decode and paint cost.",
         default: false
     },
-        hideAvatarDecorations: {
-            type: OptionType.BOOLEAN,
-            description: "Hide avatar decorations (nitro profile customisation). Saves image decode for each decorated avatar in view.",
-            default: true
-        },
-        suppressProfileEffects: {
-            type: OptionType.BOOLEAN,
-            description: "Hide animated profile effects. Cuts GPU compositing cost from profile backgrounds.",
-            default: true
-        },
+    hideAvatarDecorations: {
+        type: OptionType.BOOLEAN,
+        description: "Hide avatar decorations (nitro profile customisation). Saves image decode for each decorated avatar in view.",
+        default: false
+    },
+    suppressProfileEffects: {
+        type: OptionType.BOOLEAN,
+        description: "Hide animated profile effects. Cuts GPU compositing cost from profile backgrounds.",
+        default: false
+    },
     hideServerBoosting: {
         type: OptionType.BOOLEAN,
         description: "Hide the server boost progress bar above the channel list.",
@@ -433,11 +433,11 @@ const settings = definePluginSettings({
         description: "Hide the gift button from the chat bar.",
         default: false
     },
-        suppressChannelAnimations: {
-            type: OptionType.BOOLEAN,
-            description: "Remove channel list entry, exit, and hover animation effects.",
-            default: true
-        },
+    suppressChannelAnimations: {
+        type: OptionType.BOOLEAN,
+        description: "Remove channel list entry, exit, and hover animation effects.",
+        default: false
+    },
     suppressUnreadBadgeAnimations: {
         type: OptionType.BOOLEAN,
         description: "Remove the pulsing animation on unread message badges.",
@@ -448,11 +448,11 @@ const settings = definePluginSettings({
         description: "Remove the bouncing animation on mention badges.",
         default: false
     },
-        suppressStickerAnimation: {
-            type: OptionType.BOOLEAN,
-            description: "Force all stickers to render as static images. Cuts decode cost for animated stickers in busy channels.",
-            default: true
-        },
+    suppressStickerAnimation: {
+        type: OptionType.BOOLEAN,
+        description: "Force all stickers to render as static images. Cuts decode cost for animated stickers in busy channels.",
+        default: false
+    },
     suppressEmbedAutoLoad: {
         type: OptionType.BOOLEAN,
         description: "Delay loading images inside link embeds. Saves network and decode cost for image-heavy embed chains. Images lazy-load as you scroll.",
@@ -473,19 +473,19 @@ const settings = definePluginSettings({
         description: "Hide the sticker picker button from the chat bar.",
         default: false
     },
-        killMessageEffects: {
-            type: OptionType.BOOLEAN,
-            description: "Hide per-message effect animations (fireworks, sparkles, etc). CSS-based, does not use webpack patches.",
-            default: true
-        },
+    killMessageEffects: {
+        type: OptionType.BOOLEAN,
+        description: "Hide per-message effect animations (fireworks, sparkles, etc). CSS-based, does not use webpack patches.",
+        default: false
+    },
 
     // --- New performance features ---
 
-        limitMessageCache: {
-            type: OptionType.BOOLEAN,
-            description: "Periodically trim Discord's MessageStore for channels not viewed recently. Frees memory from inactive channels.",
-            default: true
-        },
+    limitMessageCache: {
+        type: OptionType.BOOLEAN,
+        description: "Periodically trim Discord's MessageStore for channels not viewed recently. Frees memory from inactive channels.",
+        default: false
+    },
     limitMessageCacheMinutes: {
         type: OptionType.SLIDER,
         description: "Minutes of inactivity before a channel's message cache is trimmed.",
@@ -494,11 +494,11 @@ const settings = definePluginSettings({
         stickToMarkers: false,
         restartNeeded: true
     },
-        freezeAnimatedAvatars: {
-            type: OptionType.BOOLEAN,
-            description: "Show first frame of animated avatars, playing animation on hover. Reduces continuous decode cost.",
-            default: true
-        },
+    freezeAnimatedAvatars: {
+        type: OptionType.BOOLEAN,
+        description: "Show first frame of animated avatars, playing animation on hover. Reduces continuous decode cost.",
+        default: false
+    },
     reduceAvatarQuality: {
         type: OptionType.BOOLEAN,
         description: "Request smaller avatar images from Discord CDN. Reduces image decode time and memory. May appear slightly blurry on high-DPI screens.",
@@ -519,16 +519,16 @@ const settings = definePluginSettings({
         description: "Remove animations and apply containment to notification toasts. Smoother toast appearance.",
         default: false
     },
-        simplifySpoilers: {
-            type: OptionType.BOOLEAN,
-            description: "Replace blur overlay on spoiler content with simpler solid color. Reduces GPU compositing cost.",
-            default: true
-        },
-        suppressSkeletonAnimation: {
-            type: OptionType.BOOLEAN,
-            description: "Stop shimmer/skeleton loading animations. Pure cosmetic, reduces repaint during channel loading.",
-            default: true
-        },
+    simplifySpoilers: {
+        type: OptionType.BOOLEAN,
+        description: "Replace blur overlay on spoiler content with simpler solid color. Reduces GPU compositing cost.",
+        default: false
+    },
+    suppressSkeletonAnimation: {
+        type: OptionType.BOOLEAN,
+        description: "Stop shimmer/skeleton loading animations. Pure cosmetic, reduces repaint during channel loading.",
+        default: false
+    },
 
     // --- Very high performance features ---
 
@@ -538,11 +538,11 @@ const settings = definePluginSettings({
         default: false,
         restartNeeded: true
     },
-        killPerformanceMetrics: {
-            type: OptionType.BOOLEAN,
-            description: "Neutralize Discord's internal performance.mark and performance.measure calls. Reduces GC pressure from constant metric recording. Wrapped safely to not break scroll calculations.",
-            default: true
-        },
+    killPerformanceMetrics: {
+        type: OptionType.BOOLEAN,
+        description: "Neutralize Discord's internal performance.mark and performance.measure calls. Reduces GC pressure from constant metric recording. Wrapped safely to not break scroll calculations.",
+        default: false
+    },
     suppressConsoleTimers: {
         type: OptionType.BOOLEAN,
         description: "Block console.time and console.timeEnd calls. These create internal timer objects even when console output is suppressed.",
@@ -746,19 +746,19 @@ const settings = definePluginSettings({
         description: "Freeze member list DOM with paint/layout containment so presence changes, voice states, and status updates don't trigger repaints. Unfreezes briefly every 3 minutes to batch-refresh. Massive smoothness gain in large servers.",
         default: false
     },
-        freezeWhenUnfocused: {
-            type: OptionType.BOOLEAN,
-            description: "Pause all CSS animations and transitions while the window is hidden/backgrounded. Stops the client burning CPU+GPU on offscreen animation; everything resumes on refocus.",
-            default: true
-        },
+    freezeWhenUnfocused: {
+        type: OptionType.BOOLEAN,
+        description: "Pause all CSS animations and transitions while the window is hidden/backgrounded. Stops the client burning CPU+GPU on offscreen animation; everything resumes on refocus.",
+        default: false
+    },
 
     // --- Typing and attachment optimizations ---
 
-        optimizeChatInput: {
-            type: OptionType.BOOLEAN,
-            description: "Isolate the chat input with layout/paint containment, strip its transitions, and debounce per-keystroke draft saves so storage writes happen after you stop typing. Kills typing lag spikes.",
-            default: true
-        },
+    optimizeChatInput: {
+        type: OptionType.BOOLEAN,
+        description: "Isolate the chat input with layout/paint containment, strip its transitions, and debounce per-keystroke draft saves so storage writes happen after you stop typing. Kills typing lag spikes.",
+        default: false
+    },
     optimizeLargeAttachments: {
         type: OptionType.BOOLEAN,
         description: "Apply containment to text/code file previews so a large txt attachment doesn't repaint the entire message list.",
