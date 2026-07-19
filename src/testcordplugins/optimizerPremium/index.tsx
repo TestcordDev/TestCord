@@ -833,7 +833,8 @@ export default definePlugin({
             }
         },
         {
-            find: "Sentry.init({dsn:",
+            // Kill Sentry init — patch the DSN to empty so the SDK never boots
+            find: "Sentry.init",
             predicate: () => settings.store.killSentry,
             replacement: {
                 match: /Sentry\.init\(\{([^}]*?)dsn:[^,}]*/,

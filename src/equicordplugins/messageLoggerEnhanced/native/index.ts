@@ -40,28 +40,14 @@ export async function initDirs() {
 initDirs();
 
 export async function init(_event: IpcMainInvokeEvent) {
-    let imageDir = await getImageCacheDir();
-    try {
-        await ensureDirectoryExists(imageDir);
-    } catch {
-        try {
-            imageDir = await getDefaultNativeImageDir();
-            await ensureDirectoryExists(imageDir);
-            const settings = await getSettings();
-            settings.imageCacheDir = "";
-            await saveSettings(settings);
-            imageCacheDir = imageDir;
-        } catch {
-            return;
-        }
+    const imageDir = await getImageCacheDir();
+
+    await ensureDirectoryExists(imageDir);
+    const files = await readdir(imageDir);
+    for (const filename of files) {
+        const attachmentId = getAttachmentIdFromFilename(filename);
+        nativeSavedImages.set(attachmentId, path.join(imageDir, filename));
     }
-    try {
-        const files = await readdir(imageDir);
-        for (const filename of files) {
-            const attachmentId = getAttachmentIdFromFilename(filename);
-            nativeSavedImages.set(attachmentId, path.join(imageDir, filename));
-        }
-    } catch { }
 }
 
 export async function getImageNative(_event: IpcMainInvokeEvent, attachmentId: string): Promise<Uint8Array | Buffer | null> {
@@ -99,21 +85,9 @@ export async function deleteFileNative(_event: IpcMainInvokeEvent, attachmentId:
 }
 
 export async function writeLogs(_event: IpcMainInvokeEvent, contents: string) {
-    let logDir = await getLogsDir();
-    try {
-        await ensureDirectoryExists(logDir);
-    } catch {
-        logDir = await getDefaultNativeDataDir();
-        try {
-            await ensureDirectoryExists(logDir);
-        } catch { return; }
-        const settings = await getSettings();
-        settings.logsDir = "";
-        await saveSettings(settings);
-        logsDir = logDir;
-    }
+    const logsDir = await getLogsDir();
 
-    writeFile(path.join(logDir, LOGS_DATA_FILENAME), contents);
+    writeFile(path.join(logsDir, LOGS_DATA_FILENAME), contents);
 }
 
 export async function getDefaultNativeImageDir(): Promise<string> {
