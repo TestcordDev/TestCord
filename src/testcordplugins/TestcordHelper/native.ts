@@ -50,6 +50,8 @@ function processQueue() {
 }
 
 export function startLiveFixServer(_: unknown): Promise<void> {
+    if (server) return Promise.resolve();
+
     ensureDir();
 
     return new Promise((resolve, reject) => {
@@ -69,8 +71,9 @@ export function startLiveFixServer(_: unknown): Promise<void> {
 
         server.on("error", (err: NodeJS.ErrnoException) => {
             if (err.code === "EADDRINUSE") {
+                // Port in use means server from a prior renderer is alive — reuse it
                 server = null;
-                reject(new Error("Port 18963 already in use by another instance — LiveFix disabled"));
+                resolve();
             } else {
                 server = null;
                 reject(err);
