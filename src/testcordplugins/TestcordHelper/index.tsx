@@ -566,8 +566,8 @@ const settings = definePluginSettings({
         description: "Enable a bundle of aggressive optimizations for large busy servers: freeze member list, force passive scroll listeners, disable unread badge DOM updates, optimize chat input, apply paint containment to message attachments, and skip react-spring animations. Reload recommended.",
         default: false,
         onChange(value) {
-            const p = Plugins.optimizerPremium;
-            const op = Settings.plugins.optimizerPremium;
+            const p = Plugins.TestcordOptimizer;
+            const op = Settings.plugins.TestcordOptimizer;
             if (!op) return;
             op.freezeMemberList = value;
             op.forcePassiveListeners = value;
@@ -577,7 +577,7 @@ const settings = definePluginSettings({
             op.containAttachmentImages = value;
             op.disableSpringAnimations = value;
             if (value && p && !p.started) {
-                Settings.plugins.optimizerPremium.enabled = true;
+                Settings.plugins.TestcordOptimizer.enabled = true;
                 startPlugin(p);
             }
         }
@@ -1467,16 +1467,16 @@ export default definePlugin({
             }
         }
         if (settings.store.bigChatMode) {
-            const p = Plugins.optimizerPremium;
+            const p = Plugins.TestcordOptimizer;
             if (p && !p.started) {
-                Settings.plugins.optimizerPremium.enabled = true;
-                Settings.plugins.optimizerPremium.freezeMemberList = true;
-                Settings.plugins.optimizerPremium.forcePassiveListeners = true;
-                Settings.plugins.optimizerPremium.disableUnreadBadges = true;
-                Settings.plugins.optimizerPremium.optimizeChatInput = true;
-                Settings.plugins.optimizerPremium.optimizeLargeAttachments = true;
-                Settings.plugins.optimizerPremium.containAttachmentImages = true;
-                Settings.plugins.optimizerPremium.disableSpringAnimations = true;
+                Settings.plugins.TestcordOptimizer.enabled = true;
+                Settings.plugins.TestcordOptimizer.freezeMemberList = true;
+                Settings.plugins.TestcordOptimizer.forcePassiveListeners = true;
+                Settings.plugins.TestcordOptimizer.disableUnreadBadges = true;
+                Settings.plugins.TestcordOptimizer.optimizeChatInput = true;
+                Settings.plugins.TestcordOptimizer.optimizeLargeAttachments = true;
+                Settings.plugins.TestcordOptimizer.containAttachmentImages = true;
+                Settings.plugins.TestcordOptimizer.disableSpringAnimations = true;
                 startPlugin(p);
             }
         }

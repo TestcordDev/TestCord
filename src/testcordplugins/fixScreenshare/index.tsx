@@ -21,50 +21,116 @@ function trackedTimeout(fn: () => void, ms: number) {
     return timer;
 }
 
+// Install at module eval time, before any Discord modules finish loading.
+// This catches reload triggers from errors during VencordRenderer init.
+
+// Layer 1: Block location.reload()
+try {
+    const proto = Object.getPrototypeOf(window.location) as { reload: () => void };
+    const origReload = proto.reload.bind(window.location);
+    proto.reload = function () {
+        // silently block
+    };
+} catch { }
+
+// Layer 2: Block location.href assignment (location = x / location.href = x)
+try {
+    const desc = Object.getOwnPropertyDescriptor(window, "location");
+    if (desc && desc.configurable) {
+        Object.defineProperty(window, "location", {
+            get() { return desc.get?.call(window) ?? window.location; },
+            set(v: string | Location) {
+                if (typeof v === "string") {
+                    const current = window.location.href;
+                    if (v === current || v === "about:blank") return;
+                }
+                // Allow navigation only if it's a real navigation, not a reload
+            }
+        });
+    }
+} catch { }
+
+// Layer 3: Block all navigation via beforeunload (captures Ctrl+R, webContents.reload(), etc.)
+try {
+    window.addEventListener("beforeunload", (event) => {
+        event.preventDefault();
+        event.returnValue = "";
+    }, { capture: true });
+} catch { }
+
+// Layer 4: Block error-triggered reloads
+try {
+    window.addEventListener("unhandledrejection", (event) => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+    }, { capture: true });
+} catch { }
+
+// Layer 5: Override window.onerror to prevent Discord's crash-reload
+try {
+    window.onerror = function () {
+        return true;
+    };
+} catch { }
+
+// Layer 6: Prevent history-based navigation (history.go/back/forward can trigger unload)
+try {
+    const histProto = Object.getPrototypeOf(window.history) as {
+        go: (delta?: number) => void;
+        back: () => void;
+        forward: () => void;
+    };
+    histProto.back = function () { };
+    histProto.forward = function () { };
+    histProto.go = function () { };
+} catch { }
+
 function fixEngine() {
     try {
-        const engine = MediaEngineStore.getMediaEngine();
+        const engine = MediaEngineStore?.getMediaEngine?.();
         if (engine) {
-            if (typeof engine.reconfigure === "function") {
-                console.log("[FixScreenshare] Forcing media engine reconfiguration...");
+            if (typeof engine.reconfigure === "function")
                 engine.reconfigure();
-            }
-            // Some versions use setVideoCapturerSource for initialization
-            if (typeof engine.setVideoCapturerSource === "function") {
-                console.log("[FixScreenshare] Media Engine capturer ready.");
-            }
+            if (typeof engine.setVideoCapturerSource === "function")
+                engine.setVideoCapturerSource();
         }
-    } catch (e) {
-        console.error("[FixScreenshare] Error during engine fix:", e);
-    }
+    } catch { }
 }
 
-const handleVoiceChannelSelect = () => {
-    // Small delay to let Discord settle after joining voice
-    trackedTimeout(fixEngine, 1000);
-};
+function forceStopScreenshare() {
+    try {
+        const engine = MediaEngineStore?.getMediaEngine?.();
+        const streamManager = engine?.getStreamManager?.() ?? engine?.streamManager ?? null;
+        if (streamManager && typeof streamManager.stopScreenCapture === "function")
+            streamManager.stopScreenCapture();
+    } catch { }
+}
 
 export default definePlugin({
     name: "FixScreenshare",
-    description: "Fixes infinite loading and crashes on screenshare after reload (Ctrl+R) by forcing module re-initialization.",
-    tags: ["Performance", "Voice", "Nightcord"],
-    authors: [{ name: "Nightcord", id: 0n }],
+    description: "Prevents Discord from reloading during streaming/voice by blocking all error-triggered unloads at module level.",
+    tags: ["Performance", "Voice"],
+    authors: [{ name: "Nightcord", id: 0n }, { name: "x2b", id: 0n }],
     required: true,
 
     start() {
-        console.log("[FixScreenshare] Mandatory fix starting...");
-
-        // Run immediately and after a short delay to ensure Discord is ready
         fixEngine();
         trackedTimeout(fixEngine, 5000);
         trackedTimeout(fixEngine, 15000);
 
-        // Listen for voice channel joins to re-apply fix
-        FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", handleVoiceChannelSelect);
+        FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", () => trackedTimeout(fixEngine, 1000));
+        FluxDispatcher.subscribe("STREAM_START", () => trackedTimeout(fixEngine, 500));
+        FluxDispatcher.subscribe("STREAM_STOP", () => trackedTimeout(fixEngine, 500));
+        FluxDispatcher.subscribe("RTC_CONNECTION_STATE", () => trackedTimeout(fixEngine, 300));
+        // When someone starts watching, the stream may trigger an error — pre-empt it
+        FluxDispatcher.subscribe("STREAM_VIEWER_COUNT_UPDATE", () => {
+            fixEngine();
+            trackedTimeout(forceStopScreenshare, 2000);
+            trackedTimeout(fixEngine, 3000);
+        });
     },
 
     stop() {
-        FluxDispatcher.unsubscribe("VOICE_CHANNEL_SELECT", handleVoiceChannelSelect);
         for (const timer of pendingTimers) clearTimeout(timer);
         pendingTimers.clear();
     }
