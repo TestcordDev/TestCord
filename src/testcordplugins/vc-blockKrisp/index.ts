@@ -14,11 +14,11 @@ export default definePlugin({
     authors: [TestcordDevs.x2b],
     patches: [
         // Block loading Krisp module on Desktop
-        // Uses "discord_krisp" as anchor — that literal string won't change
+        // Uses the exact function call as anchor
         {
-            find: "discord_krisp",
+            find: "ensureModule(\"discord_krisp\")",
             replacement: {
-                match: /(\i\.\i\.ensureModule\()"discord_krisp"\)/,
+                match: /[\w$.]+\.ensureModule\("discord_krisp"\)/,
                 replace: "Promise.reject(new Error('Krisp blocked'))"
             }
         },

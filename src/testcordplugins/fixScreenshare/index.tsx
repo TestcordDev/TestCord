@@ -74,9 +74,9 @@ export default definePlugin({
     // Block Krisp native module from loading — it crashes during stream setup
     patches: [
         {
-            find: "discord_krisp",
+            find: "ensureModule(\"discord_krisp\")",
             replacement: {
-                match: /(\i\.\i\.ensureModule\()"discord_krisp"\)/,
+                match: /[\w$.]+\.ensureModule\("discord_krisp"\)/,
                 replace: "Promise.reject(new Error('Krisp blocked'))"
             }
         },

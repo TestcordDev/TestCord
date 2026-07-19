@@ -46,9 +46,11 @@ function Icon(props: React.SVGProps<SVGSVGElement>) {
 function VencordPopoutButton() {
     const buttonRef = useRef(null);
     const [show, setShow] = useState(false);
+    const [key, setKey] = useState(0);
 
     return (
         <Popout
+            key={key}
             position="bottom"
             align="center"
             spacing={0}
@@ -62,7 +64,12 @@ function VencordPopoutButton() {
                 <HeaderBarButton
                     ref={buttonRef}
                     className="vc-toolbox-btn"
-                    onClick={() => setShow(v => !v)}
+                    onClick={e => {
+                        e.stopPropagation();
+                        const next = !show;
+                        setShow(next);
+                        if (!next) setKey(k => k + 1);
+                    }}
                     tooltip={isShown ? null : "Testcord Toolbox"}
                     icon={Icon}
                     selected={isShown}
