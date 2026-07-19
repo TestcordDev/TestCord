@@ -16,7 +16,6 @@ export default definePlugin({
         // Block loading modules on Desktop
         {
             find: "Failed to load Krisp module",
-            noWarn: true,
             replacement: {
                 match: /await \i.\i.ensureModule\("discord_krisp"\)/,
                 replace: "await Promise.resolve()"
@@ -25,7 +24,6 @@ export default definePlugin({
         // Block loading modules on Web
         {
             find: "krisp_browser_models",
-            noWarn: true,
             replacement: {
                 match: /if\(this._noiseCancellation\)/,
                 replace: "if(false)"
@@ -34,28 +32,9 @@ export default definePlugin({
         // Set Krisp to not supported
         {
             find: "isNoiseCancellationSupported(){",
-            noWarn: true,
             replacement: {
                 match: /isNoiseCancellationSupported\(\)\{/,
                 replace: "$&return false;"
-            }
-        },
-        // Fallback: broader find for isNoiseCancellationSupported
-        {
-            find: "isNoiseCancellationSupported=function",
-            noWarn: true,
-            replacement: {
-                match: /isNoiseCancellationSupported=function\(\)\{/,
-                replace: "$&return false;"
-            }
-        },
-        // Fallback: catch NoiseCancellationManager usage
-        {
-            find: "#{intl::GUILD_AUDIO_DISABLED}",
-            noWarn: true,
-            replacement: {
-                match: /isNoiseCancellationSupported\(\)/,
-                replace: "false"
             }
         }
     ],
