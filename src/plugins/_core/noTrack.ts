@@ -130,12 +130,19 @@ export default definePlugin({
                     return;
                 }
 
-                new Logger("NoTrack", "#8caaee").info("Disabling Sentry by erroring its WebpackInstance");
+                new Logger("NoTrack", "#8caaee").info("Disabling Sentry by nooping its module definitions");
+
+                // Noop wreq.d to prevent Sentry modules from defining exports.
+                // This avoids the throw that triggered Discord's crash handler -> soft reload.
+                Object.defineProperty(this, "d", {
+                    value() { },
+                    configurable: true,
+                    enumerable: true,
+                    writable: true
+                });
 
                 Reflect.deleteProperty(Function.prototype, "d");
                 Reflect.deleteProperty(window, "DiscordSentry");
-
-                throw new Error("Sentry successfully disabled");
             }
         });
 

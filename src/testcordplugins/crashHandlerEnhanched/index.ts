@@ -508,6 +508,24 @@ export default definePlugin({
     },
 
     handleCrash(_this: any, errorState: any) {
+        const isMediaError = (errMsg: string) =>
+            errMsg.includes("RTCPeerConnection") ||
+            errMsg.includes("getUserMedia") ||
+            errMsg.includes("getDisplayMedia") ||
+            errMsg.includes("MediaStream") ||
+            errMsg.includes("media") ||
+            errMsg.includes("screenshare") ||
+            errMsg.includes("setVideoCapturerSource") ||
+            errMsg.includes("reconfigure") ||
+            errMsg.includes("ICE") ||
+            errMsg.includes("AVError") ||
+            errMsg.includes("NoiseCanceller");
+
+        if (isMediaError(errorState?.error?.message ?? "")) {
+            setTimeout(() => _this.setState({ error: null, info: null }), 50);
+            return;
+        }
+
         _this.setState(errorState);
 
         crashCount++;
