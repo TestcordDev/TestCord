@@ -86,13 +86,9 @@ export default definePlugin({
         FluxDispatcher.subscribe("STREAM_STOP", () => {
             trackedTimeout(fixEngine, 500);
         });
-        FluxDispatcher.subscribe("RTC_CONNECTION_STATE", (e: any) => {
+        FluxDispatcher.subscribe("RTC_CONNECTION_STATE", () => {
             armSuppress(10000);
             trackedTimeout(fixEngine, 300);
-            if (e?.state === "RTC_CONNECTED") {
-                clearTimeout(suppressTimer);
-                suppressReload = false;
-            }
         });
         FluxDispatcher.subscribe("STREAM_VIEWER_COUNT_UPDATE", () => {
             armSuppress(10000);
