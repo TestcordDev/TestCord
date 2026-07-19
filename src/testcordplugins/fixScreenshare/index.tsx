@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { DataStore } from "@api/index";
 import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
-import { FluxDispatcher } from "@webpack/common";
+import { FluxDispatcher, showToast, Toasts } from "@webpack/common";
 
 const logger = new Logger("FixScreenshare");
 
@@ -48,19 +47,20 @@ function isMediaErrorMsg(msg: string) {
         || msg.includes("NoiseCancellation");
 }
 
-const CRASH_LOG_KEY = "FixScreenshare_crashLog";
+const CRASH_LOG_KEY = "vc_fixScreenshare_log";
 
-async function logError(source: string, error: any) {
+function logErrorSync(source: string, error: any) {
     try {
-        const entry = {
+        const entry = JSON.stringify({
             source,
             message: error?.message ?? String(error),
             stack: error?.stack ?? "",
             time: Date.now()
-        };
-        const existing = await DataStore.get(CRASH_LOG_KEY) as any[] | undefined;
-        const log = [...(existing ?? []).slice(-49), entry];
-        await DataStore.set(CRASH_LOG_KEY, log);
+        });
+        const existing = localStorage.getItem(CRASH_LOG_KEY);
+        const log = existing ? JSON.parse(existing) : [];
+        log.push(entry);
+        localStorage.setItem(CRASH_LOG_KEY, JSON.stringify(log.slice(-10)));
     } catch { }
 }
 
@@ -71,15 +71,22 @@ export default definePlugin({
     authors: [{ name: "x2b", id: 0n }],
     required: true,
 
-    async start() {
+    start() {
         // Report any errors from the previous session
         try {
-            const prevLog = await DataStore.get(CRASH_LOG_KEY) as any[] | undefined;
-            if (prevLog && prevLog.length > 0) {
-                const last = prevLog[prevLog.length - 1];
-                logger.warn(`Previous session error: [${last.source}] ${last.message}`);
-                logger.warn(`Stack: ${last.stack}`);
-                await DataStore.del(CRASH_LOG_KEY);
+            const raw = localStorage.getItem(CRASH_LOG_KEY);
+            if (raw) {
+                localStorage.removeItem(CRASH_LOG_KEY);
+                const log = JSON.parse(raw);
+                if (log.length > 0) {
+                    const entries = log.map((e: string) => JSON.parse(e));
+                    for (const entry of entries) {
+                        logger.warn(`Previous crash: [${entry.source}] ${entry.message}`);
+                        if (entry.stack) logger.warn(`Stack: ${entry.stack}`);
+                    }
+                    const last = entries[entries.length - 1];
+                    showToast(`Stream crash cause: ${last.message}`, Toasts.Type.FAILURE);
+                }
             }
         } catch { }
 
@@ -104,23 +111,20 @@ export default definePlugin({
             const msg = event.message ?? "";
             const err = event.error;
             if (isMediaErrorMsg(msg) || err?.message && isMediaErrorMsg(err.message)) {
-                logError("error", err ?? msg);
+                logErrorSync("error", err ?? msg);
                 event.preventDefault();
                 if (suppressReload) armSuppress(3000);
             } else {
-                // Log non-media errors too for crash diagnostics
-                logError("error", err ?? msg);
+                logErrorSync("error", err ?? msg);
             }
         };
         window.addEventListener("error", preventMediaError);
 
         preventMediaRejection = function (event) {
             const msg = event.reason?.message ?? String(event.reason);
+            logErrorSync("unhandledRejection", event.reason);
             if (isMediaErrorMsg(msg)) {
-                logError("unhandledRejection", event.reason);
                 event.preventDefault();
-            } else {
-                logError("unhandledRejection", event.reason);
             }
         };
         window.addEventListener("unhandledrejection", preventMediaRejection);
@@ -131,7 +135,7 @@ export default definePlugin({
         console.error = function (...args: any[]) {
             const msg = args.map(a => String(a)).join(" ");
             if (isMediaErrorMsg(msg)) {
-                logError("console.error", args[0]);
+                logErrorSync("console.error", args[0]);
             }
             return origConsoleError!.apply(console, args);
         };
