@@ -76,25 +76,6 @@ export default definePlugin({
     ],
 
     handleCrash(_this: any, errorState: any) {
-        const errMsg = errorState?.error?.message ?? "";
-        const isMediaError =
-            errMsg.includes("RTCPeerConnection") ||
-            errMsg.includes("getUserMedia") ||
-            errMsg.includes("getDisplayMedia") ||
-            errMsg.includes("MediaStream") ||
-            errMsg.includes("media") ||
-            errMsg.includes("screenshare") ||
-            errMsg.includes("setVideoCapturerSource") ||
-            errMsg.includes("reconfigure") ||
-            errMsg.includes("ICE") ||
-            errMsg.includes("AVError") ||
-            errMsg.includes("NoiseCanceller");
-
-        if (isMediaError) {
-            setTimeout(() => _this.setState({ error: null, info: null }), 50);
-            return;
-        }
-
         DataStore.del("KeepCurrentChannel_previousData");
 
         if (IS_DEV) {

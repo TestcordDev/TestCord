@@ -106,7 +106,7 @@ export default definePlugin({
         if (!stream) return <div {...props}>{props.children}</div>;
 
         let missingUsers = 0;
-        const userIds = ApplicationStreamingStore.getViewerIds(stream) ?? [];
+        const userIds: string[] = ApplicationStreamingStore.getViewerIds(stream);
         const users = userIds.map(id => UserStore.getUser(id)).filter(user => Boolean(user) ? true : (missingUsers += 1, false));
         const guildId = stream?.guildId ?? "";
 
@@ -172,7 +172,7 @@ export default definePlugin({
             const stream = useStateFromStores([ApplicationStreamingStore], () => ApplicationStreamingStore.getCurrentUserActiveStream());
             if (!stream) return null;
 
-            const viewers = ApplicationStreamingStore.getViewerIds(stream) ?? [];
+            const viewers = ApplicationStreamingStore.getViewerIds(stream);
             const guildId = stream?.guildId ?? "";
 
             return <Tooltip text={<Watching userIds={viewers} guildId={guildId} />}>
