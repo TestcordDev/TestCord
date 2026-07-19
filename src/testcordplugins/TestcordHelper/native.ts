@@ -49,24 +49,36 @@ function processQueue() {
     }
 }
 
-export function startLiveFixServer(_: unknown) {
+export function startLiveFixServer(_: unknown): Promise<void> {
     ensureDir();
 
-    server = createServer((req, res) => {
-        if (req.method === "POST") {
-            let body = "";
-            req.on("data", chunk => body += chunk);
-            req.on("end", () => {
-                queue.push({ body, res });
-                processQueue();
-            });
-        } else {
-            res.writeHead(405);
-            res.end();
-        }
-    });
+    return new Promise((resolve, reject) => {
+        server = createServer((req, res) => {
+            if (req.method === "POST") {
+                let body = "";
+                req.on("data", chunk => body += chunk);
+                req.on("end", () => {
+                    queue.push({ body, res });
+                    processQueue();
+                });
+            } else {
+                res.writeHead(405);
+                res.end();
+            }
+        });
 
-    server.listen(18963, "127.0.0.1");
+        server.on("error", (err: NodeJS.ErrnoException) => {
+            if (err.code === "EADDRINUSE") {
+                server = null;
+                reject(new Error("Port 18963 already in use by another instance — LiveFix disabled"));
+            } else {
+                server = null;
+                reject(err);
+            }
+        });
+
+        server.listen(18963, "127.0.0.1", () => resolve());
+    });
 }
 
 export function stopLiveFixServerCleanup(_: unknown) {

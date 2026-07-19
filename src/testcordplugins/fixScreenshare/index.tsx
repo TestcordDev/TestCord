@@ -95,7 +95,7 @@ export default definePlugin({
             }
         });
         FluxDispatcher.subscribe("STREAM_VIEWER_COUNT_UPDATE", () => {
-            fixEngine();
+            armSuppress(10000);
         });
 
         oldOnError = window.onerror;
