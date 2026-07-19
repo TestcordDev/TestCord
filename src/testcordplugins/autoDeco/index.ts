@@ -37,24 +37,22 @@ const UserContextMenuPatch: NavContextMenuPatchCallback = (
 ) => {
     const currentUser = UserStore.getCurrentUser();
     if (!user || user.id === currentUser.id) return;
-    const [checked, setChecked] = React.useState(targetUserId === user.id);
+    const isTarget = targetUserId === user.id;
     children.push(
         React.createElement(Menu.MenuSeparator, {}),
         React.createElement(Menu.MenuCheckboxItem, {
             id: "autodeco-context",
-            label: checked ? "Disable AutoDeco" : "Enable AutoDeco",
-            checked,
+            label: isTarget ? "Disable AutoDeco" : "Enable AutoDeco",
+            checked: isTarget,
             action: () => {
-                if (checked) {
+                if (targetUserId === user.id) {
                     targetUserId = null;
-                    setChecked(false);
                     showNotification({
                         title: "AutoDeco",
                         body: `AutoDeco disabled for ${user.username}`,
                     });
                 } else {
                     targetUserId = user.id;
-                    setChecked(true);
                     showNotification({
                         title: "AutoDeco",
                         body: `AutoDeco enabled for ${user.username}`,

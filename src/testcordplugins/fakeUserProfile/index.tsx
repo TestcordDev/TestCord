@@ -895,7 +895,7 @@ export default definePlugin({
             ]
         },
         {
-            find: "#{intl::ACCOUNT_SPEAKING_WHILE_MUTED}",
+            find: "renderNameTag",
             replacement: [
                 {
                     match: /(?<=\i\)\({avatarDecoration:)\i(?=,)(?<=currentUser:(\i).+?)/,
@@ -916,7 +916,8 @@ export default definePlugin({
             ]
         })),
         {
-            find: "#{intl::PREMIUM_UPSELL_PROFILE_AVATAR_DECO_INLINE_UPSELL_DESCRIPTION}",
+            find: "avatarDecorationPreview",
+            noWarn: true,
             replacement: [
                 {
                     match: /(?<==)\i=>{let{user:\i,guildId:\i,avatarDecoration:/,

@@ -490,7 +490,6 @@ function ContextMenu() {
 const VoiceChannelContext: NavContextMenuPatchCallback = (children, { channel }: { channel: Channel; }) => {
     if (!settings.store.contextMenu) return;
     if (!channel || (channel.type !== 2 && channel.type !== 13)) return;
-    settings.use(CONTEXT_MENU_KEYS);
 
     children.splice(
         -1,

@@ -99,15 +99,7 @@ export default definePlugin({
     managedStyle,
     patches: [
         {
-            find: "forwardTo",
-            predicate: () => settings.store.resendOnFail,
-            replacement: {
-                match: /if\(\i\.isNSFW\(\)\).{0,100}return/,
-                replace: "if(false)return"
-            }
-        },
-        {
-            find: "#{intl::MESSAGE_ACTION_FORWARD_TO}",
+            find: "transitionToDestination",
             replacement: [
                 {
                     match: /(?<=hasContextMessage:null!=(\i)&&.{100,150}?let (\i)=.{0,25}rejected.{0,25}\);)(?=.{0,25}message:(\i))/,
@@ -122,10 +114,6 @@ export default definePlugin({
                 {
                     match: /\(0,\i\.jsx\)\(\i,\{message:\i,forwardOptions:\i,channel:\i\}\)/,
                     replace: "$self.renderWrapper(__state,$&)"
-                },
-                {
-                    match: /(?<=#{intl::CHECKPOINT_2025}.{50,100}?)\i>0&&\(.{200,250}?\}\)\]\}\)/,
-                    replace: "$self.renderForwardPicker()"
                 },
                 {
                     match: /(?<=transitionToDestination:)(1===\i\.length)(?=,|\})/,
@@ -273,26 +261,22 @@ export default definePlugin({
             <ErrorBoundary noop>
                 <ForwardOptionsContext.Provider value={state}>
                     {children}
-                    {message.embeds.length + message.attachments.length > 0 && (
-                        <Flex className={Margins.top16}>
-                            <Checkbox value={!hasOpts} onChange={() => setOpts(!hasOpts ? defaultOpts : {})} size={20}>
-                                <BaseText size="sm">Forward everything</BaseText>
-                            </Checkbox>
-                            <Tooltip text="Message text will not be forwarded when this option is disabled">
-                                {props => <InfoIcon {...props} color="var(--text-muted)" width={20} height={20} />}
-                            </Tooltip>
-                        </Flex>
+                    {(message.embeds.length + message.attachments.length > 0) && (
+                        <>
+                            <ForwardPicker />
+                            <Flex className={Margins.top16}>
+                                <Checkbox value={!hasOpts} onChange={() => setOpts(!hasOpts ? defaultOpts : {})} size={20}>
+                                    <BaseText size="sm">Forward everything</BaseText>
+                                </Checkbox>
+                                <Tooltip text="Message text will not be forwarded when this option is disabled">
+                                    {props => <InfoIcon {...props} color="var(--text-muted)" width={20} height={20} />}
+                                </Tooltip>
+                            </Flex>
+                        </>
                     )}
                 </ForwardOptionsContext.Provider>
             </ErrorBoundary>
         );
     },
 
-    renderForwardPicker() {
-        return (
-            <ErrorBoundary noop>
-                <ForwardPicker />
-            </ErrorBoundary>
-        );
-    }
 });

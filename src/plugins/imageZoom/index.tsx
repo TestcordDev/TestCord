@@ -85,7 +85,8 @@ const imageContextMenuPatch: NavContextMenuPatchCallback = (children, props) => 
     // emojis in user statuses
     if (props.target?.classList?.contains("emoji")) return;
 
-    const { square, nearestNeighbour } = settings.use(["square", "nearestNeighbour"]);
+    const square = settings.store.square;
+    const nearestNeighbour = settings.store.nearestNeighbour;
 
     children.push(
         <Menu.MenuGroup id="image-zoom">

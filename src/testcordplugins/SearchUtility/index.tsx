@@ -938,6 +938,8 @@ function openQuickSearchResults(options: QuickSearchModalOptions) {
     }));
 }
 
+const quickSearchState = { keys: {} as Record<string, boolean> };
+
 const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, props) => {
     if (!props) return;
     if (props.channel && !PermissionStore.can(PermissionsBits.VIEW_CHANNEL, props.channel)) return;
@@ -951,7 +953,8 @@ const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, prop
 
     if (children.some(child => child?.props?.id === "quick-search")) return;
 
-    const [queryObject, setQueryObject] = useState<Record<string, boolean>>({});
+    quickSearchState.keys = {};
+
     const quickSearchItems: QuickSearchItem[] = [
         {
             name: "quick-search-channel",
@@ -983,6 +986,37 @@ const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, prop
         }
     ];
 
+    const searchAction = () => {
+        const query: QueryOptions = { include_nsfw: true };
+        quickSearchItems.forEach(item => {
+            if (!quickSearchState.keys[item.name]) return;
+
+            if (item.queryKey === "mentions") {
+                query.mentions = Array.isArray(item.value) ? item.value : [item.value];
+                return;
+            }
+
+            if (item.queryKey === "author_id" || item.queryKey === "channel_id") {
+                if (typeof item.value === "string" && item.value) {
+                    query[item.queryKey] = [item.value];
+                }
+                return;
+            }
+
+            if (item.queryKey === "content" && typeof item.value === "string") {
+                query.content = item.value;
+            }
+        });
+
+        openQuickSearchResults({
+            channelId,
+            guildId,
+            query,
+            queryString: getQueryString(query),
+            title: "Quick Search Results"
+        });
+    };
+
     children.push(
         <Menu.MenuSeparator />,
         <Menu.MenuItem id="quick-search" label="Quick Search">
@@ -993,46 +1027,17 @@ const quickSearchContextMenuPatch: NavContextMenuPatchCallback = (children, prop
                         key={item.name}
                         id={item.name}
                         label={item.label}
-                        checked={Boolean(queryObject[item.name])}
-                        action={() => setQueryObject(current => ({ ...current, [item.name]: !current[item.name] }))}
+                        checked={false}
+                        action={() => {
+                            quickSearchState.keys[item.name] = !(quickSearchState.keys[item.name] ?? false);
+                        }}
                     />
                 );
             })}
             <Menu.MenuItem
                 id="quick-search-start"
                 label="Search"
-                disabled={!Object.values(queryObject).some(Boolean)}
-                action={() => {
-                    const query: QueryOptions = { include_nsfw: true };
-
-                    quickSearchItems.forEach(item => {
-                        if (!queryObject[item.name]) return;
-
-                        if (item.queryKey === "mentions") {
-                            query.mentions = Array.isArray(item.value) ? item.value : [item.value];
-                            return;
-                        }
-
-                        if (item.queryKey === "author_id" || item.queryKey === "channel_id") {
-                            if (typeof item.value === "string" && item.value) {
-                                query[item.queryKey] = [item.value];
-                            }
-                            return;
-                        }
-
-                        if (item.queryKey === "content" && typeof item.value === "string") {
-                            query.content = item.value;
-                        }
-                    });
-
-                    openQuickSearchResults({
-                        channelId,
-                        guildId,
-                        query,
-                        queryString: getQueryString(query),
-                        title: "Quick Search Results"
-                    });
-                }}
+                action={searchAction}
             />
         </Menu.MenuItem>
     );

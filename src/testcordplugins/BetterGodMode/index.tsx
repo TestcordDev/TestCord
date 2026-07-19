@@ -47,18 +47,15 @@ function getGuildIdFromArgs(args: any[]): string | null {
 }
 
 const ContextMenuPatch: NavContextMenuPatchCallback = (children, { guild }: { guild: Guild; }) => {
-    const [checked, setChecked] = React.useState(godModeEnabledGuilds.has(guild.id));
-
     children.push(
         <Menu.MenuSeparator />,
         <Menu.MenuCheckboxItem
             id="bgm-toggle-god-mode"
             label="God Mode"
-            checked={checked}
+            checked={godModeEnabledGuilds.has(guild.id)}
             action={() => {
-                if (checked) godModeEnabledGuilds.delete(guild.id);
+                if (godModeEnabledGuilds.has(guild.id)) godModeEnabledGuilds.delete(guild.id);
                 else godModeEnabledGuilds.add(guild.id);
-                setChecked(!checked);
             }}
         />
     );

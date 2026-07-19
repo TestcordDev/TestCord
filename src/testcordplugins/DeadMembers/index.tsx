@@ -39,13 +39,6 @@ export default definePlugin({
                 replace: "$self.wrapMessageAuthor(arguments[0],$&)"
             }
         },
-        {
-            find: "#{intl::FORUM_POST_AUTHOR_A11Y_LABEL::raw}",
-            replacement: {
-                match: /(?<=\}=(\i),\{(user:\i,author:\i)\}=.{0,400}?\(\i\.Fragment,{children:)\i(?=}\),)/,
-                replace: "$self.wrapForumAuthor({...$1,$2},$&)"
-            }
-        },
     ],
 
     wrapMessageAuthor({ message }: any, text: any) {
@@ -55,17 +48,6 @@ export default definePlugin({
             <DeadIndicator
                 channel={channel}
                 userId={message.author.id}
-                text={text}
-            />
-        );
-    },
-
-    wrapForumAuthor({ channel, user }: any, text: any) {
-        if (!user) return text;
-        return (
-            <DeadIndicator
-                channel={channel}
-                userId={user.id}
                 text={text}
             />
         );

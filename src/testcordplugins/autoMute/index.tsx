@@ -93,7 +93,9 @@ const settings = definePluginSettings({
 const AUTO_MUTE_KEYS = ["isEnabled", "timeout", "nonFriendJoinsChannel"];
 
 const AudioDeviceContextMenuPatch: NavContextMenuPatchCallback = (children, props: { renderInputVolume?: boolean; }) => {
-    const { isEnabled, timeout, nonFriendJoinsChannel } = settings.use(AUTO_MUTE_KEYS);
+    const isEnabled = settings.store.isEnabled;
+    const timeout = settings.store.timeout;
+    const nonFriendJoinsChannel = settings.store.nonFriendJoinsChannel;
 
     if ("renderInputVolume" in props) {
         children.splice(children.length - 1, 0,

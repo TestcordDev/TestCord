@@ -10,7 +10,7 @@ import { TestcordDevs } from "@utils/constants";
 import { sendMessage } from "@utils/discord";
 import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
-import { ChannelStore, FluxDispatcher, Menu, React, Toasts, UserStore } from "@webpack/common";
+import { ChannelStore, FluxDispatcher, Menu, Toasts, UserStore } from "@webpack/common";
 
 const settings = definePluginSettings({
     enabled: {
@@ -385,30 +385,23 @@ const UserContext: NavContextMenuPatchCallback = (children, props) => {
 
     const channelId = props?.channel?.id ?? ChannelStore.getDMFromUserId(user.id) ?? getCurrentChannelId();
 
+    const userId = user.id;
+    const isChecked = mimicManager.isTargetActive(userId);
+
     children.splice(-1, 0, <Menu.MenuGroup>
-        <MimicMenuItem userId={user.id} username={user.username} channelId={channelId} />
-    </Menu.MenuGroup>);
-};
-
-function MimicMenuItem({ userId, username, channelId }: { userId: string; username: string; channelId: string; }) {
-    const [isChecked, setIsChecked] = React.useState(mimicManager.isTargetActive(userId));
-
-    return (
         <Menu.MenuCheckboxItem
             id="mimic-user"
             label="Mimic (Filtered)"
             checked={isChecked}
             action={async () => {
                 const wasActive = mimicManager.isTargetActive(userId);
-                const success = mimicManager.toggleTarget(userId, username, channelId);
+                const success = mimicManager.toggleTarget(userId, user.username, channelId);
 
                 if (success) {
-                    setIsChecked(!isChecked);
-
                     if (settings.store.showMimicStatus) {
                         const statusMessage = wasActive
-                            ? `ℹ️ Stopped mimicking **${username}**`
-                            : `✅ Started mimicking **${username}** with content filtering`;
+                            ? `ℹ️ Stopped mimicking **${user.username}**`
+                            : `✅ Started mimicking **${user.username}** with content filtering`;
 
                         Toasts.show({
                             message: statusMessage,
@@ -431,8 +424,8 @@ function MimicMenuItem({ userId, username, channelId }: { userId: string; userna
                 }
             }}
         />
-    );
-}
+    </Menu.MenuGroup>);
+};
 
 // Handle message events for mimicking
 function handleMessageCreate(data: any) {

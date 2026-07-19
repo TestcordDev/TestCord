@@ -269,11 +269,39 @@ function banAllUsersInCurrentVc(): void {
 function makeUserContextMenuPatch(): NavContextMenuPatchCallback {
     return (children, props) => {
         if (!props) return;
+        const id = props.user.id;
+        if (UserStore.getCurrentUser().id === id) return;
 
-        const ban = MenuItem(props.user.id);
-        if (ban) {
-            children.splice(-1, 0, <Menu.MenuGroup>{ban}</Menu.MenuGroup>);
-        }
+        const isChecked = settings.store.users.split("/").filter(item => item !== "").includes(id);
+        children.splice(-1, 0,
+            <Menu.MenuGroup>
+                <Menu.MenuCheckboxItem
+                    id="auto-ban"
+                    label="Auto-Ban"
+                    checked={isChecked}
+                    action={async () => {
+                        openModal(props => <EncModals {...props} userId={id} />);
+                        const updatedList = [...settings.store.users.split("/").filter(item => item !== "")];
+                        const index = updatedList.indexOf(id);
+                        const wasAdded = index === -1;
+
+                        if (index === -1) updatedList.push(id);
+                        else updatedList.splice(index, 1);
+                        settings.store.users = updatedList.join("/");
+
+                        if (wasAdded) {
+                            banninguser(id);
+                        } else {
+                            Toasts.show({
+                                message: `Removed ${id} from Auto-Ban List`,
+                                type: Toasts.Type.MESSAGE,
+                                options: { position: Toasts.Position.BOTTOM }
+                            });
+                        }
+                    }}
+                />
+            </Menu.MenuGroup>
+        );
     };
 }
 
@@ -323,38 +351,7 @@ function BulkAutoBanSubmenu() {
     );
 }
 
-function MenuItem(id: string) {
-    if (UserStore.getCurrentUser().id === id) return;
-    const [isChecked, setIsChecked] = React.useState(settings.store.users.split("/").filter(item => item !== "").includes(id));
-    return (
-        <Menu.MenuCheckboxItem
-            id="auto-ban"
-            label="Auto-Ban"
-            checked={isChecked}
-            action={async () => {
-                openModal(props => <EncModals {...props} userId={id} />);
-                const updatedList = [...settings.store.users.split("/").filter(item => item !== "")];
-                const index = updatedList.indexOf(id);
-                const wasAdded = index === -1;
 
-                if (index === -1) updatedList.push(id);
-                else updatedList.splice(index, 1);
-                setIsChecked(!isChecked);
-                settings.store.users = updatedList.join("/");
-
-                if (wasAdded) {
-                    banninguser(id);
-                } else {
-                    Toasts.show({
-                        message: `Removed ${id} from Auto-Ban List`,
-                        type: Toasts.Type.MESSAGE,
-                        options: { position: Toasts.Position.BOTTOM }
-                    });
-                }
-            }}
-        />
-    );
-}
 
 function banninguser(id) {
     const currentUserId = UserStore.getCurrentUser().id;
