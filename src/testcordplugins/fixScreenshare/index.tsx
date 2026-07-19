@@ -11,6 +11,9 @@ import { FluxDispatcher } from "@webpack/common";
 const MediaEngineStore = findByPropsLazy("getMediaEngine");
 
 let origReload: (() => void) | undefined;
+let origAssign: ((url: string) => void) | undefined;
+let origReplace: ((url: string) => void) | undefined;
+let origHrefDescriptor: PropertyDescriptor | undefined;
 let oldOnError: OnErrorEventHandler | null = null;
 let oldOnUnhandledRejection: ((event: PromiseRejectionEvent) => void) | null = null;
 let preventMediaRejection: ((event: PromiseRejectionEvent) => void) | null = null;
@@ -117,12 +120,37 @@ export default definePlugin({
         window.addEventListener("unhandledrejection", preventMediaRejection);
 
         try {
-            const proto = Object.getPrototypeOf(window.location) as { reload: () => void };
+            const proto = Object.getPrototypeOf(window.location) as any;
+
             origReload = proto.reload.bind(window.location);
             proto.reload = function () {
                 if (suppressReload) return;
                 return origReload!();
             };
+
+            origAssign = proto.assign.bind(window.location);
+            proto.assign = function (url: string) {
+                if (suppressReload && (!url || url === window.location.href)) return;
+                return origAssign!(url);
+            };
+
+            origReplace = proto.replace.bind(window.location);
+            proto.replace = function (url: string) {
+                if (suppressReload && (!url || url === window.location.href)) return;
+                return origReplace!(url);
+            };
+
+            origHrefDescriptor = Object.getOwnPropertyDescriptor(proto, "href");
+            if (origHrefDescriptor?.set) {
+                Object.defineProperty(proto, "href", {
+                    get: origHrefDescriptor.get,
+                    set(url: string) {
+                        if (suppressReload && (!url || url === window.location.href)) return;
+                        origHrefDescriptor!.set!.call(this, url);
+                    },
+                    configurable: true
+                });
+            }
         } catch { }
     },
 
@@ -138,12 +166,15 @@ export default definePlugin({
             preventMediaRejection = null;
         }
         oldOnUnhandledRejection = null;
-        if (origReload) {
-            try {
-                const proto = Object.getPrototypeOf(window.location) as { reload: () => void };
-                proto.reload = origReload;
-            } catch { }
-            origReload = undefined;
-        }
+        try {
+            const proto = Object.getPrototypeOf(window.location) as any;
+            if (origReload) { proto.reload = origReload; origReload = undefined; }
+            if (origAssign) { proto.assign = origAssign; origAssign = undefined; }
+            if (origReplace) { proto.replace = origReplace; origReplace = undefined; }
+            if (origHrefDescriptor) {
+                Object.defineProperty(proto, "href", origHrefDescriptor);
+                origHrefDescriptor = undefined;
+            }
+        } catch { }
     }
 });
