@@ -778,14 +778,11 @@ function HealthTab() {
             // Skip internal API plugins — they're dependencies, not user-facing
             if (Plugins[name]?.required) continue;
             // When conflicts are hidden, strip them from the entry
-            // CSS/hash-prefixed noModule entries are also hidden — they're false
-            // positives for lazy-loaded modules that will resolve when the relevant UI opens.
+            // noModule entries are also hidden — they're false positives for
+            // lazy-loaded modules that will resolve when the relevant UI opens.
             const entry = conflictsHidden
                 ? {
-                    patchFailures: rawEntry.patchFailures.filter(f =>
-                        f.kind !== "conflict"
-                        && !(f.kind === "noModule" && (f.find.startsWith(".") || f.find.startsWith("[\"")))
-                    ),
+                    patchFailures: rawEntry.patchFailures.filter(f => f.kind !== "conflict" && f.kind !== "noModule"),
                     runtimeErrors: rawEntry.runtimeErrors
                 }
                 : rawEntry;

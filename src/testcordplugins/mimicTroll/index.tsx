@@ -386,19 +386,29 @@ const UserContext: NavContextMenuPatchCallback = (children, props) => {
     const channelId = props?.channel?.id ?? ChannelStore.getDMFromUserId(user.id) ?? getCurrentChannelId();
 
     children.splice(-1, 0, <Menu.MenuGroup>
+        <MimicMenuItem userId={user.id} username={user.username} channelId={channelId} />
+    </Menu.MenuGroup>);
+};
+
+function MimicMenuItem({ userId, username, channelId }: { userId: string; username: string; channelId: string; }) {
+    const [isChecked, setIsChecked] = React.useState(mimicManager.isTargetActive(userId));
+
+    return (
         <Menu.MenuCheckboxItem
             id="mimic-user"
             label="Mimic (Filtered)"
-            checked={mimicManager.isTargetActive(user.id)}
+            checked={isChecked}
             action={async () => {
-                const wasActive = mimicManager.isTargetActive(user.id);
-                const success = mimicManager.toggleTarget(user.id, user.username, channelId);
+                const wasActive = mimicManager.isTargetActive(userId);
+                const success = mimicManager.toggleTarget(userId, username, channelId);
 
                 if (success) {
+                    setIsChecked(!isChecked);
+
                     if (settings.store.showMimicStatus) {
                         const statusMessage = wasActive
-                            ? `ℹ️ Stopped mimicking **${user.username}**`
-                            : `✅ Started mimicking **${user.username}** with content filtering`;
+                            ? `ℹ️ Stopped mimicking **${username}**`
+                            : `✅ Started mimicking **${username}** with content filtering`;
 
                         Toasts.show({
                             message: statusMessage,
@@ -411,7 +421,7 @@ const UserContext: NavContextMenuPatchCallback = (children, props) => {
                     }
                 } else {
                     Toasts.show({
-                        message: "❌ Failed to mimic toggle",
+                        message: "❌ Failed to toggle mimic status",
                         id: "mimic-troll-error",
                         type: Toasts.Type.FAILURE,
                         options: {
@@ -421,7 +431,7 @@ const UserContext: NavContextMenuPatchCallback = (children, props) => {
                 }
             }}
         />
-    </Menu.MenuGroup>);
+    );
 }
 
 // Handle message events for mimicking
