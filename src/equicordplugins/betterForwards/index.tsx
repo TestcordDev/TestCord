@@ -99,7 +99,8 @@ export default definePlugin({
     managedStyle,
     patches: [
         {
-            find: "forwardTo",
+            find: "#{intl::MESSAGE_FORWARDING_NSFW_NOT_ALLOWED}",
+            noWarn: true,
             predicate: () => settings.store.resendOnFail,
             replacement: {
                 match: /if\(\i\.isNSFW\(\)\).{0,100}return/,
@@ -108,6 +109,7 @@ export default definePlugin({
         },
         {
             find: "#{intl::MESSAGE_ACTION_FORWARD_TO}",
+            noWarn: true,
             replacement: [
                 {
                     match: /(?<=hasContextMessage:null!=(\i)&&.{100,150}?let (\i)=.{0,25}rejected.{0,25}\);)(?=.{0,25}message:(\i))/,

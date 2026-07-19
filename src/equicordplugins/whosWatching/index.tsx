@@ -105,7 +105,6 @@ export default definePlugin({
         const stream = useStateFromStores([ApplicationStreamingStore], () => ApplicationStreamingStore.getCurrentUserActiveStream());
         if (!stream) return <div {...props}>{props.children}</div>;
 
-        let missingUsers = 0;
         const userIds = ApplicationStreamingStore.getViewerIds(stream) ?? [];
         const users = userIds.map(id => UserStore.getUser(id)).filter(user => Boolean(user) ? true : (missingUsers += 1, false));
         const guildId = stream?.guildId ?? "";
@@ -166,7 +165,7 @@ export default definePlugin({
                 </div>
             </div>
         );
-    }),
+    }, { noop: true }),
     component: function ({ OriginalComponent }) {
         return ErrorBoundary.wrap(props => {
             const stream = useStateFromStores([ApplicationStreamingStore], () => ApplicationStreamingStore.getCurrentUserActiveStream());
@@ -182,6 +181,6 @@ export default definePlugin({
                     </div>
                 )}
             </Tooltip>;
-        });
+        }, { noop: true });
     }
 });
