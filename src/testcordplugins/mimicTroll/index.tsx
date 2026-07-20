@@ -15,8 +15,11 @@ import { ChannelStore, FluxDispatcher, Menu, Toasts, UserStore } from "@webpack/
 const settings = definePluginSettings({
     enabled: {
         type: OptionType.BOOLEAN,
-        description: "Enable MimicTroll plugin",
+        description: "Toggle mimicking on/off without disabling the plugin",
         default: true,
+        onChange: (value: boolean) => {
+            if (!value) try { mimicManager.clearQueue(); } catch { }
+        }
     },
     delay: {
         type: OptionType.NUMBER,
@@ -34,14 +37,10 @@ const settings = definePluginSettings({
         description: "Show status messages when starting/stopping mimic",
         default: true,
     },
-    filterStrength: {
-        type: OptionType.SELECT,
-        description: "Content filter strength",
-        options: [
-            { label: "Standard", value: "standard" },
-            { label: "Strict", value: "strict" }
-        ],
-        default: "strict",
+    customBlockedWords: {
+        type: OptionType.STRING,
+        description: "Extra comma-separated words to block beyond the built-in list",
+        default: "",
     },
     blockedResponse: {
         type: OptionType.STRING,
@@ -58,6 +57,8 @@ interface MimicTarget {
     startTime: number;
 }
 
+const processedMessageIds = new Set<string>();
+
 class ContentFilter {
     // Core prohibited terms
     private static readonly BLOCKED_TERMS = [
@@ -65,7 +66,7 @@ class ContentFilter {
         "underage", "under age", "minor", "child", "kid", "young", "teen", "teenager",
         "cp", "c p", "child porn", "childporn", "loli", "shota", "pedo", "pedophile",
         "im underage", "i'm underage", "i am underage", "13", "14", "15", "16",
-        "years old", "yo ", " yo", "age verification", "jailbait", "12", "11", "10", "9", "8", "7", "6", "5", "4", "3", "2", "1",
+        "years old", "yo ", " yo", "age verification", "jailbait", "12", "11", "10",
 
         // Add other categories as needed
         "illegal", "drugs", "weapons", "harm", "suicide", "self harm", "nigger", "sped", "kys"
@@ -134,50 +135,95 @@ class ContentFilter {
         "g"
     );
 
-    public static normalizeText(text: string): string {
+    private static baseNormalize(text: string): string {
         let normalized = text.toLowerCase();
-
-        // Replace Unicode look-alikes in one pass (identical output to the original loop)
         normalized = normalized.replace(this.LOOKALIKE_REGEX, m => this.UNICODE_REPLACEMENTS[m]);
-
-        // Remove excessive punctuation and spacing
         normalized = normalized.replace(/[^\w\s]/g, " ");
         normalized = normalized.replace(/\s+/g, " ");
-        normalized = normalized.trim();
+        return normalized.trim();
+    }
 
-        // Handle l33t speak and common substitutions, single pass
-        normalized = normalized.replace(this.LEET_REGEX, m => this.LEET_MAP[m]);
+    private static leetNormalize(text: string): string {
+        return text.replace(this.LEET_REGEX, m => this.LEET_MAP[m]);
+    }
 
-        return normalized;
+    public static normalizeText(text: string): string {
+        return this.leetNormalize(this.baseNormalize(text));
+    }
+
+    private static getCustomTerms(): string[] {
+        const raw = settings.store.customBlockedWords;
+        if (!raw) return [];
+        return raw.split(",").map(s => s.trim()).filter(Boolean);
     }
 
     public static containsBlockedContent(message: string): boolean {
-        const normalizedMessage = this.normalizeText(message);
+        const msgBase = this.baseNormalize(message);
+        if (!msgBase) return false;
 
-        // Check against blocked terms
-        for (const term of this.BLOCKED_TERMS) {
-            const normalizedTerm = this.normalizeText(term);
+        // Leet-normalized version for catching leet bypasses like "n1gger"
+        const msgLeet = this.leetNormalize(msgBase);
 
-            // Direct substring match (catches phrases containing the term)
-            if (normalizedMessage.includes(normalizedTerm)) {
-                console.log(`[MimicTroll] 🚫 Blocked content detected: "${term}"`);
+        console.warn(`[MimicTroll] 🔎 Checking: "${message}" → base: "${msgBase}" leet: "${msgLeet}" (len=${msgBase.length})`);
+
+        // Normalize blocked terms WITHOUT leet mapping, so digits stay as digits
+        // Prevents e.g. "15" → "is" matching "this guy be beggin"
+        const normalizedTerms = this.getNormalizedTerms();
+
+        // Forward: message contains blocked term (e.g., "say child" → blocked)
+        // Check both plain and leet-normalized for leet bypass detection
+        for (const { original, term } of normalizedTerms) {
+            if (msgBase.includes(term)) {
+                console.warn(`[MimicTroll] 🚫 Forward blocked: "${message}" contains "${original}"`);
                 return true;
             }
-
-            // Spaced out version (e.g., "u n d e r a g e")
-            const spacedTerm = normalizedTerm.split("").join(" ");
-            if (normalizedMessage.includes(spacedTerm)) {
-                console.log(`[MimicTroll] 🚫 Blocked spaced content detected: "${term}"`);
+        }
+        for (const { original, term } of normalizedTerms) {
+            if (msgLeet.includes(term)) {
+                console.warn(`[MimicTroll] 🚫 Leet-forward blocked: "${message}" contains "${original}"`);
                 return true;
+            }
+        }
+
+        // Spaced forward: message contains spaced-out term (e.g., "c h i l d" → blocked)
+        for (const { original, term } of normalizedTerms) {
+            const spaced = term.split("").join(" ");
+            if (msgBase.includes(spaced) || msgLeet.includes(spaced)) {
+                console.warn(`[MimicTroll] 🚫 Spaced blocked: "${message}" contains spaced "${original}"`);
+                return true;
+            }
+        }
+
+        // Prefix match: blocked term starts with message (catches partials like "nigg" → "nigger")
+        // Only for messages >= 3 chars to avoid single-letter false positives
+        if (msgBase.length >= 3) {
+            for (const { original, term } of normalizedTerms) {
+                if (term.startsWith(msgBase)) {
+                    console.warn(`[MimicTroll] 🚫 Prefix blocked: "${original}" starts with "${message}"`);
+                    return true;
+                }
             }
         }
 
         // Additional pattern-based checks
-        if (this.containsSuspiciousPatterns(normalizedMessage)) {
+        if (this.containsSuspiciousPatterns(msgBase)) {
+            console.warn(`[MimicTroll] 🚫 Pattern blocked: "${message}" matched suspicious pattern`);
             return true;
         }
 
+        console.warn(`[MimicTroll] ✅ Not blocked: "${message}"`);
         return false;
+    }
+
+    private static _normalizedTerms: { original: string; term: string }[] | null = null;
+
+    private static getNormalizedTerms() {
+        if (this._normalizedTerms) return this._normalizedTerms;
+        const allTerms = [...this.BLOCKED_TERMS, ...this.getCustomTerms()];
+        this._normalizedTerms = allTerms
+            .map(t => ({ original: t, term: this.baseNormalize(t) }))
+            .filter(e => e.term.length > 0);
+        return this._normalizedTerms;
     }
 
     private static containsSuspiciousPatterns(message: string): boolean {
@@ -197,7 +243,7 @@ class ContentFilter {
                 if (match) {
                     const age = parseInt(match[0]);
                     if (age < 18 && age > 5) { // Reasonable age range
-                        console.log(`[MimicTroll] 🚫 Blocked age declaration: ${age}`);
+                        console.warn(`[MimicTroll] 🚫 Blocked age declaration: ${age}`);
                         return true;
                     }
                 }
@@ -208,7 +254,7 @@ class ContentFilter {
         const specialCharCount = (message.match(/[^a-z0-9\s]/g) || []).length;
         const totalLength = message.length;
         if (totalLength > 10 && (specialCharCount / totalLength) > 0.4) {
-            console.log("[MimicTroll] 🚫 Blocked heavily obfuscated message");
+            console.warn("[MimicTroll] 🚫 Blocked heavily obfuscated message");
             return true;
         }
 
@@ -270,8 +316,14 @@ class MimicManager {
         return this.activeTargets.has(userId);
     }
 
+    private currentUserId: string | null = null;
+
     public handleMessage(message: any) {
         if (!settings.store.enabled) return;
+
+        // Deduplicate: flux can fire MESSAGE_CREATE twice for the same message
+        if (processedMessageIds.has(message.id)) return;
+        processedMessageIds.add(message.id);
 
         const target = this.activeTargets.get(message.author.id);
         if (!target || !target.active) return;
@@ -282,13 +334,18 @@ class MimicManager {
         // Don't mimic empty messages
         if (!message.content || message.content.trim() === "") return;
 
+        // Use the message's own channel so mimic sends where the target is talking
+        const sendChannelId = message.channel_id;
+        if (!sendChannelId) return;
+
         // Process async to avoid blocking UI
+        const delay = settings.store.delay;
         setTimeout(() => {
             // Content filtering check. Blocked messages send the rejection on its own,
             // bypassing the template so it doesn't read like "someone really said <rejection>".
             if (ContentFilter.containsBlockedContent(message.content)) {
-                console.log(`[MimicTroll] 🚫 Blocked and replaced harmful content from ${message.author.username}`);
-                this.queueMessage(target.channelId, ContentFilter.getBlockedResponse());
+                console.warn(`[MimicTroll] 🚫 Blocked and replaced harmful content from ${message.author.username}`);
+                this.queueMessage(sendChannelId, ContentFilter.getBlockedResponse(), delay);
                 return;
             }
 
@@ -296,42 +353,43 @@ class MimicManager {
             const template = settings.store.messageTemplate || "{mimic}";
             const finalMessage = template.replace(/\{mimic\}/g, message.content);
 
-            // Queue the message to be sent
-            this.queueMessage(target.channelId, finalMessage);
+            this.queueMessage(sendChannelId, finalMessage, delay);
         }, 0);
     }
 
-    private queueMessage(channelId: string, content: string) {
-        this.messageQueue.push({
-            channelId,
-            content,
-            delay: settings.store.delay
-        });
+    private queueMessage(channelId: string, content: string, delay: number) {
+        this.messageQueue.push({ channelId, content, delay });
     }
 
     public start() {
         if (this.intervalId) return;
+        this.currentUserId = UserStore.getCurrentUser()?.id ?? null;
 
         this.intervalId = setInterval(async () => {
             if (this.isProcessing || this.messageQueue.length === 0) return;
 
             this.isProcessing = true;
 
-            while (this.messageQueue.length > 0) {
-                const message = this.messageQueue.shift()!;
+            try {
+                while (this.messageQueue.length > 0) {
+                    const item = this.messageQueue.shift()!;
 
-                try {
-                    await this.sendMessage(message.channelId, message.content);
-                    console.log(`[MimicTroll] 📤 Sent mimic message: "${message.content}"`);
-                } catch (error) {
-                    console.error("[MimicTroll] ❌ Failed to send message:", error);
+                    // Respect the per-message delay before sending
+                    if (item.delay > 0) await sleep(item.delay);
+
+                    try {
+                        await this.sendMessage(item.channelId, item.content);
+                        console.log(`[MimicTroll] 📤 Sent mimic message: "${item.content}"`);
+                    } catch (error) {
+                        console.error("[MimicTroll] ❌ Failed to send message:", error);
+                    }
+
+                    // Small extra gap between messages to avoid rate limiting
+                    await sleep(Math.random() * 500 + 200);
                 }
-
-                // Wait between messages to avoid rate limiting
-                await sleep(Math.random() * 500 + 200);
+            } finally {
+                this.isProcessing = false;
             }
-
-            this.isProcessing = false;
         }, 100);
     }
 
@@ -341,6 +399,7 @@ class MimicManager {
             this.intervalId = null;
         }
         this.clearAllTargets();
+        this.currentUserId = null;
     }
 
     private async sendMessage(channelId: string, content: string): Promise<boolean> {
@@ -462,6 +521,7 @@ export default definePlugin({
     stop() {
         FluxDispatcher.unsubscribe("MESSAGE_CREATE", handleMessageCreate);
         mimicManager.stop();
+        processedMessageIds.clear();
         console.log("[MimicTroll] 🛑 Plugin stopped");
     },
 });

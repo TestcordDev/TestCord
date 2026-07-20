@@ -406,6 +406,8 @@ export default definePlugin({
         void fetchAllGoogleFonts();
     },
 
+    stop() {},
+
     renderCaptionButton(instance: GifPickerItemInstance) {
         const props = instance?.props;
         if (!props) return null;

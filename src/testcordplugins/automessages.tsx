@@ -23,6 +23,11 @@ let currentChannelIndex: number = 0;
 let channelRotationTimer: number = 0;
 let channelRotationCountdownId: NodeJS.Timeout | null = null;
 
+const LOG_DEBUG = false;
+function devLog(...args: any[]) {
+    if (LOG_DEBUG) console.log(...args);
+}
+
 interface AlertButton extends HTMLElement {
     _alertClickHandler?: () => void;
 }
@@ -101,7 +106,7 @@ function rotateChannel() {
     const newChannelId = getCurrentChannelId();
     const displayName = getChannelDisplayName(newChannelId);
 
-    console.log(`[AutoMessageSender] 🔄 Rotated to channel ${currentChannelIndex + 1}/${channels.length}: ${displayName}`);
+    devLog(`[AutoMessageSender] 🔄 Rotated to channel ${currentChannelIndex + 1}/${channels.length}: ${displayName}`);
     showToast(`🔄 Switched to: ${displayName}`, Toasts.Type.MESSAGE);
 
     // Schedule next rotation
@@ -123,7 +128,7 @@ function scheduleChannelRotation() {
     const rotationSeconds = getRandomChannelRotationInterval();
     channelRotationTimer = rotationSeconds;
 
-    console.log(`[AutoMessageSender] Next channel rotation in ${Math.floor(rotationSeconds / 60)} minutes ${rotationSeconds % 60} seconds`);
+    devLog(`[AutoMessageSender] Next channel rotation in ${Math.floor(rotationSeconds / 60)} minutes ${rotationSeconds % 60} seconds`);
 
     // Start countdown for channel rotation
     channelRotationCountdownId = setInterval(() => {
@@ -249,7 +254,7 @@ function createAlertButton() {
             if (hintLine) hintLine.style.opacity = "0";
 
             showToast("🔕 Sound stopped. Click the button again to dismiss & resume.", Toasts.Type.MESSAGE);
-            console.log("[AutoMessageSender] Alert sound stopped (1st click). Waiting for 2nd click to resume.");
+            devLog("[AutoMessageSender] Alert sound stopped (1st click). Waiting for 2nd click to resume.");
         } else {
             // ── SECOND CLICK: dismiss and resume ─────────────────────────
             stopAlert();
@@ -338,21 +343,21 @@ function triggerAlert(detectedUserId: string = "", detectedUsername: string = ""
     if (isAlertActive) return; // Don't trigger multiple alerts
 
     if (reason === "neon-catchlist") {
-        console.log("[AutoMessageSender] 🎣 NEON CATCHLIST MESSAGE DETECTED IN CHANNEL! 🎣");
-        console.log("[AutoMessageSender] A rare catch was detected — pausing auto-messages!");
+        devLog("[AutoMessageSender] 🎣 NEON CATCHLIST MESSAGE DETECTED IN CHANNEL! 🎣");
+        devLog("[AutoMessageSender] A rare catch was detected — pausing auto-messages!");
     } else if (reason === "other-user") {
-        console.log("[AutoMessageSender] 👤 OTHER USER MESSAGE DETECTED IN CHANNEL!");
-        if (detectedUsername) console.log(`[AutoMessageSender] From: ${detectedUsername}`);
+        devLog("[AutoMessageSender] 👤 OTHER USER MESSAGE DETECTED IN CHANNEL!");
+        if (detectedUsername) devLog(`[AutoMessageSender] From: ${detectedUsername}`);
     } else if (reason === "bot") {
-        console.log("[AutoMessageSender] 🤖 BOT MESSAGE DETECTED IN CHANNEL!");
-        if (detectedUsername) console.log(`[AutoMessageSender] Bot: ${detectedUsername}`);
-        if (detectedUserId) console.log(`[AutoMessageSender] Bot ID: ${detectedUserId}`);
+        devLog("[AutoMessageSender] 🤖 BOT MESSAGE DETECTED IN CHANNEL!");
+        if (detectedUsername) devLog(`[AutoMessageSender] Bot: ${detectedUsername}`);
+        if (detectedUserId) devLog(`[AutoMessageSender] Bot ID: ${detectedUserId}`);
     } else {
-        console.log("[AutoMessageSender] 🚨 VERIFICATION MESSAGE DETECTED IN CHANNEL! 🚨");
-        console.log("[AutoMessageSender] Someone in the channel received a verification warning!");
+        devLog("[AutoMessageSender] 🚨 VERIFICATION MESSAGE DETECTED IN CHANNEL! 🚨");
+        devLog("[AutoMessageSender] Someone in the channel received a verification warning!");
     }
     if (detectedUserId) {
-        console.log(`[AutoMessageSender] Detected user ID: ${detectedUserId}`);
+        devLog(`[AutoMessageSender] Detected user ID: ${detectedUserId}`);
     }
 
     isAlertActive = true;
@@ -390,7 +395,7 @@ function triggerAlert(detectedUserId: string = "", detectedUsername: string = ""
             timerElement.innerHTML = `${pauseLabel}<br><span style="font-size: 12px; opacity: 0.8;">Dismiss the alert to resume</span>`;
         }
         const pauseReason = reason === "neon-catchlist" ? "neon catchlist detection" : reason === "other-user" ? "other user activity" : reason === "bot" ? "bot message detection" : "verification alert";
-        console.log(`[AutoMessageSender] Auto-messages PAUSED due to ${pauseReason}`);
+        devLog(`[AutoMessageSender] Auto-messages PAUSED due to ${pauseReason}`);
     }
 
     // Play alert sound (loops continuously until manually stopped)
@@ -480,7 +485,7 @@ function stopAlert() {
     const wasActive = isAlertActive || alertSoundStopped;
     if (!wasActive && !isPaused) return;
 
-    console.log("[AutoMessageSender] Alert dismissed (2nd click / direct call)");
+    devLog("[AutoMessageSender] Alert dismissed (2nd click / direct call)");
 
     isAlertActive = false;
     alertSoundStopped = false;
@@ -519,7 +524,7 @@ function stopAlert() {
         // Resume the message loop scheduling
         const resumeLoop = () => {
             const randomDelay = getRandomInterval();
-            console.log(`[AutoMessageSender] Resuming — next message in ${randomDelay} seconds...`);
+            devLog(`[AutoMessageSender] Resuming — next message in ${randomDelay} seconds...`);
             startCountdown(randomDelay);
             intervalId = setTimeout(() => {
                 sendMessages();
@@ -535,7 +540,7 @@ function stopAlert() {
 
         resumeLoop();
         showToast("✅ Alert dismissed — auto-messages RESUMED!", Toasts.Type.SUCCESS);
-        console.log("[AutoMessageSender] Auto-messages resumed after alert dismissal");
+        devLog("[AutoMessageSender] Auto-messages resumed after alert dismissal");
     } else {
         isPaused = false;
         showToast("Alert dismissed.", Toasts.Type.MESSAGE);
@@ -942,7 +947,7 @@ async function sendMessages() {
     }
 
     const displayName = getChannelDisplayName(channelId);
-    console.log(`[AutoMessageSender] Sending message sequence to: ${displayName}...`);
+    devLog(`[AutoMessageSender] Sending message sequence to: ${displayName}...`);
 
     for (const message of messages) {
         try {
@@ -959,7 +964,7 @@ async function sendMessages() {
                     nonce: generateNonce()
                 }
             );
-            console.log(`[AutoMessageSender] ✓ Sent to ${displayName}: "${message}"`);
+            devLog(`[AutoMessageSender] ✓ Sent to ${displayName}: "${message}"`);
 
             // Small delay between messages (500ms)
             if (message !== messages[messages.length - 1]) {
@@ -973,7 +978,7 @@ async function sendMessages() {
         }
     }
 
-    console.log(`[AutoMessageSender] Sequence complete. Next cycle in ${settings.store.minIntervalSeconds}-${settings.store.maxIntervalSeconds} seconds (random).`);
+    devLog(`[AutoMessageSender] Sequence complete. Next cycle in ${settings.store.minIntervalSeconds}-${settings.store.maxIntervalSeconds} seconds (random).`);
 }
 
 function manualPause() {
@@ -995,7 +1000,7 @@ function manualPause() {
         timerElement.innerHTML = "⏸️ MANUALLY PAUSED<br><span style=\"font-size: 12px; opacity: 0.8;\">Right-click → Resume to continue</span>";
     }
     showToast("⏸️ Auto-messages manually paused.", Toasts.Type.MESSAGE);
-    console.log("[AutoMessageSender] Auto-messages manually paused.");
+    devLog("[AutoMessageSender] Auto-messages manually paused.");
 }
 
 function manualResume() {
@@ -1020,7 +1025,7 @@ function manualResume() {
 
     const resumeLoop = () => {
         const randomDelay = getRandomInterval();
-        console.log(`[AutoMessageSender] (Manual resume) Next message in ${randomDelay} seconds...`);
+        devLog(`[AutoMessageSender] (Manual resume) Next message in ${randomDelay} seconds...`);
         startCountdown(randomDelay);
         intervalId = setTimeout(() => {
             sendMessages();
@@ -1030,7 +1035,7 @@ function manualResume() {
 
     resumeLoop();
     showToast("▶️ Auto-messages manually resumed!", Toasts.Type.SUCCESS);
-    console.log("[AutoMessageSender] Auto-messages manually resumed.");
+    devLog("[AutoMessageSender] Auto-messages manually resumed.");
 }
 
 function startMessageLoop() {
@@ -1062,7 +1067,7 @@ function startMessageLoop() {
     // Then repeat with random interval
     function scheduleNext() {
         const randomDelay = getRandomInterval();
-        console.log(`[AutoMessageSender] Next message in ${randomDelay} seconds...`);
+        devLog(`[AutoMessageSender] Next message in ${randomDelay} seconds...`);
         startCountdown(randomDelay);
 
         intervalId = setTimeout(() => {
@@ -1078,7 +1083,7 @@ function startMessageLoop() {
     }).join(", ");
 
     showToast(`Auto sender started! ${channels.length} enabled channel(s)`, Toasts.Type.SUCCESS);
-    console.log(`[AutoMessageSender] Plugin started with ${channels.length} enabled channels: ${channelList}`);
+    devLog(`[AutoMessageSender] Plugin started with ${channels.length} enabled channels: ${channelList}`);
 }
 
 function stopMessageLoop() {
@@ -1105,7 +1110,7 @@ function stopMessageLoop() {
     removeTimerDisplay();
     isRunning = false;
     showToast("Auto message sender stopped!", Toasts.Type.MESSAGE);
-    console.log("[AutoMessageSender] Plugin stopped");
+    devLog("[AutoMessageSender] Plugin stopped");
 }
 
 function addCurrentChannel() {
@@ -1155,7 +1160,7 @@ function addCurrentChannel() {
 
     const displayName = getChannelDisplayName(currentChannel.id);
     showToast(`✅ Channel added to Slot ${slotNum}: ${displayName}`, Toasts.Type.SUCCESS);
-    console.log(`[AutoMessageSender] Channel added to slot ${slotNum}: ${displayName} (${currentChannel.id})`);
+    devLog(`[AutoMessageSender] Channel added to slot ${slotNum}: ${displayName} (${currentChannel.id})`);
 }
 
 function toggleChannel(channelNumber: number) {
@@ -1174,7 +1179,7 @@ function toggleChannel(channelNumber: number) {
     const displayName = getChannelDisplayName(channelId);
     const status = !currentValue ? "enabled" : "disabled";
     showToast(`Channel ${channelNumber} ${status}: ${displayName}`, Toasts.Type.SUCCESS);
-    console.log(`[AutoMessageSender] Channel ${channelNumber} ${status}: ${displayName}`);
+    devLog(`[AutoMessageSender] Channel ${channelNumber} ${status}: ${displayName}`);
 }
 
 export default definePlugin({
@@ -1196,16 +1201,16 @@ export default definePlugin({
             const result = checkForVerificationMessage(message);
             if (result.detected) {
                 const authorName = message.author?.global_name || message.author?.username || "Unknown";
-                console.log("[AutoMessageSender] Verification message detected in current channel:");
-                console.log(`[AutoMessageSender] From: ${authorName}`);
-                console.log(`[AutoMessageSender] Content: ${message.content}`);
-                if (result.userId) console.log(`[AutoMessageSender] Targeted user ID: ${result.userId}`);
+                devLog("[AutoMessageSender] Verification message detected in current channel:");
+                devLog(`[AutoMessageSender] From: ${authorName}`);
+                devLog(`[AutoMessageSender] Content: ${message.content}`);
+                if (result.userId) devLog(`[AutoMessageSender] Targeted user ID: ${result.userId}`);
                 triggerAlert(result.userId, authorName, "verification");
                 return;
             }
 
             if (checkForNeonCatchlist(message)) {
-                console.log("[AutoMessageSender] 🎣 Neon catchlist message detected in current channel!");
+                devLog("[AutoMessageSender] 🎣 Neon catchlist message detected in current channel!");
                 triggerAlert("", "", "neon-catchlist");
                 return;
             }
@@ -1216,7 +1221,7 @@ export default definePlugin({
                 const myId = myUser?.id ?? "";
                 if (checkForOtherUserMessage(message, myId)) {
                     const authorName = message.author?.global_name || message.author?.username || "Unknown";
-                    console.log(`[AutoMessageSender] 👤 Other user message from ${authorName}: "${message.content}"`);
+                    devLog(`[AutoMessageSender] 👤 Other user message from ${authorName}: "${message.content}"`);
                     triggerAlert("", authorName, "other-user");
                     return;
                 }
@@ -1227,7 +1232,7 @@ export default definePlugin({
                 if (checkForBotMessage(message)) {
                     const botName = message.author?.global_name || message.author?.username || "Unknown Bot";
                     const botId = message.author?.id ?? "";
-                    console.log(`[AutoMessageSender] 🤖 Unignored bot message from ${botName} (${botId}): "${message.content}"`);
+                    devLog(`[AutoMessageSender] 🤖 Unignored bot message from ${botName} (${botId}): "${message.content}"`);
                     triggerAlert(botId, botName, "bot");
                 }
             }
@@ -1235,12 +1240,12 @@ export default definePlugin({
     },
 
     start() {
-        console.log("[AutoMessageSender] Plugin loaded!");
-        console.log("[AutoMessageSender] Verification detection enabled — PAUSES on alert, resumes on dismiss");
-        console.log("[AutoMessageSender] Supports up to 10 channels with enable/disable toggles");
-        console.log("[AutoMessageSender] Right-click any channel to see Auto Message options");
-        console.log("[AutoMessageSender] Developer: Ar7340 | Discord ID: 1321782566763892748");
-        console.log("[AutoMessageSender] Repository: https://github.com/Ar7340/Discord-Auto-Messages-Vencord");
+        devLog("[AutoMessageSender] Plugin loaded!");
+        devLog("[AutoMessageSender] Verification detection enabled — PAUSES on alert, resumes on dismiss");
+        devLog("[AutoMessageSender] Supports up to 10 channels with enable/disable toggles");
+        devLog("[AutoMessageSender] Right-click any channel to see Auto Message options");
+        devLog("[AutoMessageSender] Developer: Ar7340 | Discord ID: 1321782566763892748");
+        devLog("[AutoMessageSender] Repository: https://github.com/Ar7340/Discord-Auto-Messages-Vencord");
 
         // Create alert button (hidden by default)
         createAlertButton();
@@ -1251,7 +1256,7 @@ export default definePlugin({
         removeTimerDisplay();
         stopAlert();
         removeAlertButton();
-        console.log("[AutoMessageSender] Plugin unloaded");
+        devLog("[AutoMessageSender] Plugin unloaded");
     },
 
     // Add context menu to channels

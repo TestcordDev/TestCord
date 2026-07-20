@@ -23,6 +23,40 @@ let suppressReload = false;
 let streaming = false;
 let inVoiceChannel = false;
 
+const onVoiceChannelSelect = ({ channelId }: { channelId: string | null }) => {
+    if (channelId) {
+        inVoiceChannel = true;
+        armSuppress();
+    } else {
+        inVoiceChannel = false;
+        if (!streaming) {
+            clearTimeout(suppressTimer);
+            suppressTimer = setTimeout(() => suppressReload = false, 5000);
+        }
+    }
+};
+
+const onStreamStart = () => {
+    streaming = true;
+    armSuppress();
+};
+
+const onStreamStop = () => {
+    streaming = false;
+    if (!inVoiceChannel) {
+        clearTimeout(suppressTimer);
+        suppressTimer = setTimeout(() => suppressReload = false, 5000);
+    }
+};
+
+const onRtcConnectionState = () => {
+    armSuppress();
+};
+
+const onStreamViewerCountUpdate = () => {
+    armSuppress();
+};
+
 function armSuppress(ms = 6000) {
     suppressReload = true;
     clearTimeout(suppressTimer);
@@ -112,35 +146,11 @@ export default definePlugin({
             }
         } catch { }
 
-        FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", ({ channelId }) => {
-            if (channelId) {
-                inVoiceChannel = true;
-                armSuppress();
-            } else {
-                inVoiceChannel = false;
-                if (!streaming) {
-                    clearTimeout(suppressTimer);
-                    suppressTimer = setTimeout(() => suppressReload = false, 5000);
-                }
-            }
-        });
-        FluxDispatcher.subscribe("STREAM_START", () => {
-            streaming = true;
-            armSuppress();
-        });
-        FluxDispatcher.subscribe("STREAM_STOP", () => {
-            streaming = false;
-            if (!inVoiceChannel) {
-                clearTimeout(suppressTimer);
-                suppressTimer = setTimeout(() => suppressReload = false, 5000);
-            }
-        });
-        FluxDispatcher.subscribe("RTC_CONNECTION_STATE", () => {
-            armSuppress();
-        });
-        FluxDispatcher.subscribe("STREAM_VIEWER_COUNT_UPDATE", () => {
-            armSuppress();
-        });
+        FluxDispatcher.subscribe("VOICE_CHANNEL_SELECT", onVoiceChannelSelect);
+        FluxDispatcher.subscribe("STREAM_START", onStreamStart);
+        FluxDispatcher.subscribe("STREAM_STOP", onStreamStop);
+        FluxDispatcher.subscribe("RTC_CONNECTION_STATE", onRtcConnectionState);
+        FluxDispatcher.subscribe("STREAM_VIEWER_COUNT_UPDATE", onStreamViewerCountUpdate);
 
         // Use addEventListener so Discord's own window.onerror still runs.
         // event.preventDefault() prevents window.onerror from firing,
@@ -223,6 +233,11 @@ export default definePlugin({
     },
 
     stop() {
+        FluxDispatcher.unsubscribe("VOICE_CHANNEL_SELECT", onVoiceChannelSelect);
+        FluxDispatcher.unsubscribe("STREAM_START", onStreamStart);
+        FluxDispatcher.unsubscribe("STREAM_STOP", onStreamStop);
+        FluxDispatcher.unsubscribe("RTC_CONNECTION_STATE", onRtcConnectionState);
+        FluxDispatcher.unsubscribe("STREAM_VIEWER_COUNT_UPDATE", onStreamViewerCountUpdate);
         clearTimeout(suppressTimer);
         suppressReload = false;
         streaming = false;

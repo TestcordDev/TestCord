@@ -150,10 +150,10 @@ function startNativeNotificationPolling() {
     if (nativeNotificationInterval !== null) return;
     // Poll immediately once to catch queued notifications
     void pollNativeNotifications();
-    // Poll every 500ms for faster fallback notifications
+    // Poll every 2000ms for fallback notifications
     nativeNotificationInterval = window.setInterval(() => {
         void pollNativeNotifications();
-    }, 500);
+    }, 2000);
 }
 
 function stopNativeNotificationPolling() {

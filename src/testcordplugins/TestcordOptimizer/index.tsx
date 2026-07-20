@@ -98,7 +98,12 @@ function sel(cls: string | undefined): string {
 }
 
 function orSel(...clses: Array<string | undefined>): string {
-    return clses.filter((c): c is string => !!c).map(c => { try { return classNameToSelector(c); } catch { return ""; } }).filter(Boolean).join(", ");
+    const out: string[] = [];
+    for (const c of clses) {
+        if (!c) continue;
+        try { const s = classNameToSelector(c); if (s) out.push(s); } catch { }
+    }
+    return out.join(", ");
 }
 
 function joinSel(...selectors: Array<string | undefined>): string {
@@ -924,6 +929,7 @@ export default definePlugin({
     spellcheckObserver: null as MutationObserver | null,
     unfocusedFreezeStyleEl: null as HTMLStyleElement | null,
     unfocusedVisibilityHandler: null as (() => void) | null,
+    deferCssTimer: null as any,
     fluxThrottleState: null as {
         origDispatch: typeof FluxDispatcher.dispatch;
         wrappedDispatch: typeof FluxDispatcher.dispatch;
@@ -993,7 +999,7 @@ export default definePlugin({
         try { if (settings.store.freezeWhenUnfocused) this.installUnfocusedFreezer(); } catch (e) { logger.warn("installUnfocusedFreezer failed", e); }
         try { if (settings.store.killVoiceVideo) this.installVoiceVideoKiller(); } catch (e) { logger.warn("installVoiceVideoKiller failed", e); }
         try { if (settings.store.preventWebSocketFlood) this.installWebSocketFloodPreventer(); } catch (e) { logger.warn("installWebSocketFloodPreventer failed", e); }
-        const deferCss = (typeof requestIdleCallback === "function"
+        this.deferCssTimer = (typeof requestIdleCallback === "function"
             ? requestIdleCallback(() => { try { this.installExtraCSS(); } catch (e) { logger.warn("installExtraCSS failed", e); } }, { timeout: 3000 })
             : setTimeout(() => { try { this.installExtraCSS(); } catch (e) { logger.warn("installExtraCSS failed", e); } }, 100));
 
@@ -1019,6 +1025,11 @@ export default definePlugin({
         this.teardownLazyImages();
         this.teardownLazyIframes();
         this.teardownImageDecodingOptimization();
+        if (this.deferCssTimer !== null) {
+            if (typeof cancelIdleCallback === "function") cancelIdleCallback(this.deferCssTimer);
+            else clearTimeout(this.deferCssTimer);
+            this.deferCssTimer = null;
+        }
         this.teardownExtraCSS();
         this.teardownDisableAnimatedEmoji();
         this.teardownSuppressGifAutoplay();
@@ -2713,8 +2724,7 @@ export default definePlugin({
             });
             el.setAttribute("data-op-nospell", "1");
         };
-        document.querySelectorAll("textarea, input, [contenteditable]").forEach(el => el.setAttribute("spellcheck", "false"));
-        document.querySelectorAll("body").forEach(set);
+        set(document.body);
 
         const callback = (records: MutationRecord[]) => {
             for (const r of records) {

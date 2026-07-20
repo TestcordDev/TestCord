@@ -664,7 +664,7 @@ function startDomObserver() {
     domObserver = setInterval(() => {
         if (!isEnabled) return;
         scanNode(document.body);
-    }, 2000);
+    }, 5000);
 }
 
 function stopDomObserver() {

@@ -67,6 +67,8 @@ const limiterState = {
   peakLevel: 0,
   limitingCount: 0,
   lastNotification: 0,
+  rafId: 0,
+  volumeTimerId: 0,
 };
 
 // Function to get current volume
@@ -235,26 +237,17 @@ function startLevelMonitoring() {
     }
 
     // Continue monitoring
-    requestAnimationFrame(monitorLevels);
+    limiterState.rafId = requestAnimationFrame(monitorLevels);
   }
 
-  monitorLevels();
+  limiterState.rafId = requestAnimationFrame(monitorLevels);
 }
 
 // Function to start volume monitoring
 function startVolumeMonitoring() {
   if (!settings.store.enableVolumeLimiting) return;
 
-  function monitorVolume() {
-    if (!limiterState.isActive || !settings.store.enableVolumeLimiting) return;
-
-    checkAndLimitVolume();
-
-    // Continue monitoring
-    setTimeout(monitorVolume, 100); // Check every 100ms
-  }
-
-  monitorVolume();
+  limiterState.volumeTimerId = window.setInterval(checkAndLimitVolume, 100);
 }
 
 // Function to start the limiter
@@ -289,6 +282,11 @@ function stopLimiter() {
   try {
     limiterState.isActive = false;
 
+    cancelAnimationFrame(limiterState.rafId);
+    limiterState.rafId = 0;
+    clearInterval(limiterState.volumeTimerId);
+    limiterState.volumeTimerId = 0;
+
     // Clean up audio context
     if (limiterState.audioContext) {
       limiterState.audioContext.close();
@@ -302,8 +300,6 @@ function stopLimiter() {
     limiterState.currentLevel = 0;
     limiterState.peakLevel = 0;
     limiterState.limitingCount = 0;
-
-    console.log("Audio Limiter: Limiter stopped");
   } catch (error) {
     console.error("Audio Limiter: Error stopping limiter:", error);
   }

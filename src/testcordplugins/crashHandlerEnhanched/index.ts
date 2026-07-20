@@ -296,12 +296,19 @@ function getMemoryUsage(): any {
     return null;
 }
 
+let _crashLogsCache: CrashReport[] | null = null;
+let _crashLogsRaw: string | null = null;
 function getCrashLogs(): CrashReport[] {
+    const raw = settings.store.crashLogs || "[]";
+    if (raw === _crashLogsRaw && _crashLogsCache) return _crashLogsCache;
     try {
-        return JSON.parse(settings.store.crashLogs || "[]");
+        const parsed = JSON.parse(raw);
+        _crashLogsCache = Array.isArray(parsed) ? parsed : [];
     } catch {
-        return [];
+        _crashLogsCache = [];
     }
+    _crashLogsRaw = raw;
+    return _crashLogsCache;
 }
 
 function saveCrashLogs(logs: CrashReport[]): void {
@@ -309,16 +316,24 @@ function saveCrashLogs(logs: CrashReport[]): void {
         const maxLogs = settings.store.maxLogEntries;
         const trimmedLogs = logs.slice(-maxLogs);
         settings.store.crashLogs = JSON.stringify(trimmedLogs);
+        _crashLogsCache = null;
+        _crashLogsRaw = null;
     } catch (err) {
         CrashHandlerLogger.error("Failed to save crash logs:", err);
     }
 }
 
+let _crashStatsCache: CrashStatistics | null = null;
+let _crashStatsRaw: string | null = null;
 function getCrashStatistics(): CrashStatistics {
+    const raw = settings.store.crashStats || "{}";
+    if (raw === _crashStatsRaw && _crashStatsCache) return _crashStatsCache;
     try {
-        return JSON.parse(settings.store.crashStats || "{}");
+        _crashStatsCache = JSON.parse(raw);
+        _crashStatsRaw = raw;
+        return _crashStatsCache!;
     } catch {
-        return {
+        _crashStatsCache = {
             totalCrashes: 0,
             recoveredCrashes: 0,
             failedRecoveries: 0,
@@ -327,6 +342,8 @@ function getCrashStatistics(): CrashStatistics {
             crashFrequency: []
         };
     }
+    _crashStatsRaw = raw;
+    return _crashStatsCache;
 }
 
 function saveCrashStatistics(stats: CrashStatistics): void {

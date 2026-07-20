@@ -189,19 +189,15 @@ async function messageUpdateHandler(payload: MessageUpdatePayload) {
 }
 
 function messageCreateHandler(payload: MessageCreatePayload) {
-    // we do this here because cache is limited and to save memory
     if (!settings.store.cacheMessagesFromServers && payload.guildId != null) {
         const ids = [payload.channelId, payload.message?.author?.id, payload.guildId];
-        const isWhitelisted =
-            settings.store.whitelistedIds
-                .split(",")
-                .some(e => ids.includes(e));
-        if (!isWhitelisted) {
-            return; // dont cache messages from servers when cacheMessagesFromServers is disabled and not whitelisted.
-        }
+        const whitelistedIds = settings.store.whitelistedIds;
+        const isWhitelisted = !whitelistedIds ? false : whitelistedIds.split(",").some(e => ids.includes(e));
+        if (!isWhitelisted) return;
     }
 
-    cacheSentMessages.set(`${payload.message.channel_id},${payload.message.id}`, cleanUpCachedMessage(payload.message));
+    const message = payload.message;
+    cacheSentMessages.set(`${message.channel_id},${message.id}`, cleanUpCachedMessage(message));
 }
 
 async function processMessageFetch(response: FetchMessagesResponse) {

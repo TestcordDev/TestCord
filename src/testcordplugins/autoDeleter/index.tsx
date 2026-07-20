@@ -1115,7 +1115,7 @@ export default definePlugin({
     startRetryProcessor() {
         this.retryProcessor = setInterval(() => {
             this.processRetryQueue();
-        }, 1000); // Check every second
+        }, 2000); // Check every 2 seconds
     },
 
     processRetryQueue() {

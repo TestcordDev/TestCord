@@ -26,7 +26,7 @@ function ensureDomObserver() {
         if (fakeNicks.size === 0 && disconnectedUsers.size === 0 && kickedUsers.size === 0) return;
         if (domTimer) return;
         domTimer = setTimeout(() => { domTimer = null; if (isEnabled) pluginSelf?.applyDomOverrides(); }, 150);
-    }, 1000);
+    }, 3000);
 }
 
 function destroyDomObserver() {
@@ -148,12 +148,30 @@ function getVoiceChannelId(userId: string, guildId: string | null): string | nul
 function getGuildRoles(guildId: string | null): Array<{ id: string; name: string; color: number; }> {
     if (!guildId) return [];
     try {
-        return (GuildRoleStore as any)?.getSortedRoles?.(guildId)?.filter((r: any) => r.id !== guildId).map((r: any) => ({ id: r.id, name: r.name, color: r.color })) ?? [];
+        const sortedRoles = (GuildRoleStore as any)?.getSortedRoles?.(guildId);
+        if (sortedRoles) {
+            const out: Array<{ id: string; name: string; color: number; }> = [];
+            for (const r of sortedRoles) {
+                if (r.id !== guildId) out.push({ id: r.id, name: r.name, color: r.color });
+            }
+            return out;
+        }
+        return [];
     } catch {
         try {
             const guild = getGuild(guildId);
             if (!guild?.roles) return [];
-            return Object.values(guild.roles as Record<string, any>).filter((r: any) => r.id !== guildId).sort((a: any, b: any) => b.position - a.position).map((r: any) => ({ id: r.id, name: r.name, color: r.color }));
+            const vals = Object.values(guild.roles as Record<string, any>);
+            const filtered: any[] = [];
+            for (const r of vals) {
+                if (r.id !== guildId) filtered.push(r);
+            }
+            filtered.sort((a: any, b: any) => b.position - a.position);
+            const out2: Array<{ id: string; name: string; color: number; }> = [];
+            for (const r of filtered) {
+                out2.push({ id: r.id, name: r.name, color: r.color });
+            }
+            return out2;
         } catch { return []; }
     }
 }

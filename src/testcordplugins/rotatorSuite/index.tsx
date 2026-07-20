@@ -2925,7 +2925,12 @@ function arExportJSON() {
 async function arImportJSON(file: File): Promise<AvatarEntry[]> {
     const obj = JSON.parse(await file.text());
     const raw = Array.isArray(obj) ? obj : (obj.avatars ?? []);
-    return raw.filter((x: any) => typeof x.data === "string" && typeof x.label === "string").map((x: any) => ({ id: arUid(), label: x.label, data: x.data }));
+    const out: AvatarEntry[] = [];
+    for (const x of raw) {
+        if (typeof x.data === "string" && typeof x.label === "string")
+            out.push({ id: arUid(), label: x.label, data: x.data });
+    }
+    return out;
 }
 
 function ArExtBadge({ ext, excluded }: { ext: string; excluded?: boolean }) {

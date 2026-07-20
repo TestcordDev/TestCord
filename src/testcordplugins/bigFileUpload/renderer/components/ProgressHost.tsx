@@ -11,6 +11,7 @@
 import { createRoot, React } from "@webpack/common";
 import type { Root } from "react-dom/client";
 
+import { pluginLogger as log } from "../../logging";
 import { startProgressPolling, stopProgressPolling } from "../progress";
 import { UploadProgressBar } from "./UploadProgressBar";
 
@@ -35,7 +36,7 @@ export function initProgressBar() {
         if (!progressBarContainer || !document.contains(progressBarContainer)) {
             injectProgressBar();
         }
-    }, 2000);
+    }, 5000);
 }
 
 /**
@@ -142,7 +143,7 @@ function injectProgressBar() {
     // Also update on window resize
     window.addEventListener("resize", updateProgressBarDimensions);
 
-    console.log("[BigFileUpload] Progress bar injected into chat area");
+    log.debug("Progress bar injected into chat area");
 }
 
 /**
@@ -175,5 +176,5 @@ export function cleanupProgressBar() {
     // Stop progress polling to prevent memory leak
     stopProgressPolling();
 
-    console.log("[BigFileUpload] Progress bar cleaned up");
+    log.debug("Progress bar cleaned up");
 }

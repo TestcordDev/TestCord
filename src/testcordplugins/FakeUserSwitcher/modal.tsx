@@ -15,6 +15,26 @@ import { Button, GuildStore, React, Select, SelectedGuildStore, showToast, Toast
 
 import { clearTarget, getCachedTarget, getSavedUsers, isActive, loadTarget, logger, notify, resolveTargetUserId, setEnabled, setSavedUsers, settings, subscribe } from "./data";
 
+let _modalConnectionsCache: any[] | null = null;
+let _modalConnectionsRaw: string | null = null;
+function getModalConnections(): any[] {
+    const raw = settings.store.fakeConnectionsList || "[]";
+    if (raw === _modalConnectionsRaw && _modalConnectionsCache) return _modalConnectionsCache;
+    try {
+        const parsed = JSON.parse(raw);
+        _modalConnectionsCache = Array.isArray(parsed) ? parsed : [];
+    } catch {
+        _modalConnectionsCache = [];
+    }
+    _modalConnectionsRaw = raw;
+    return _modalConnectionsCache;
+}
+function setModalConnections(list: any[]) {
+    settings.store.fakeConnectionsList = JSON.stringify(list);
+    _modalConnectionsCache = list;
+    _modalConnectionsRaw = settings.store.fakeConnectionsList;
+}
+
 const ID_RE = /^\d{17,20}$/;
 
 const DECORATIONS_API = "https://fakeprofile.sampath.me/decorations";
@@ -1923,10 +1943,7 @@ export function FakeUserSwitcherModal({ modalProps }: { modalProps: ModalProps; 
                                 <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "8px" }}>
                                     <Label>Current Fake Connections</Label>
                                     {(() => {
-                                        let list: any[] = [];
-                                        try {
-                                            list = JSON.parse(settings.store.fakeConnectionsList || "[]");
-                                        } catch { }
+                                        const list = getModalConnections();
                                         if (list.length === 0) {
                                             return <div style={{ color: Col.muted, fontSize: "13px", fontStyle: "italic", margin: "8px 0" }}>No connections added yet.</div>;
                                         }
@@ -1948,7 +1965,7 @@ export function FakeUserSwitcherModal({ modalProps }: { modalProps: ModalProps; 
                                                             style={{ padding: "4px 8px", fontSize: "12px" }}
                                                             onClick={() => {
                                                                 const filtered = list.filter((_, i) => i !== index);
-                                                                settings.store.fakeConnectionsList = JSON.stringify(filtered);
+                                                                setModalConnections(filtered);
                                                                 notify();
                                                             }}
                                                         >
@@ -2010,17 +2027,14 @@ export function FakeUserSwitcherModal({ modalProps }: { modalProps: ModalProps; 
                                                 color={Button.Colors.BRAND}
                                                 disabled={!connName.trim()}
                                                 onClick={() => {
-                                                    let currentList: any[] = [];
-                                                    try {
-                                                        currentList = JSON.parse(settings.store.fakeConnectionsList || "[]");
-                                                    } catch { }
+                                                    const currentList = getModalConnections();
                                                     currentList.push({
                                                         id: `${connType}_${Date.now()}`,
                                                         type: connType,
                                                         name: connName.trim(),
                                                         verified: connVerified
                                                     });
-                                                    settings.store.fakeConnectionsList = JSON.stringify(currentList);
+                                                    setModalConnections(currentList);
                                                     setConnName("");
                                                     notify();
                                                     showToast(`Added fake ${connType} connection!`, Toasts.Type.SUCCESS);

@@ -1878,6 +1878,21 @@ function stopSwitcherClickInterceptor() {
     switcherClickInterceptor = null;
 }
 
+let _connectionsListCache: any[] | null = null;
+let _connectionsListRaw: string | null = null;
+function getFakeConnections(): any[] {
+    const raw = settings.store.fakeConnectionsList || "[]";
+    if (raw === _connectionsListRaw && _connectionsListCache) return _connectionsListCache;
+    try {
+        const parsed = JSON.parse(raw);
+        _connectionsListCache = Array.isArray(parsed) ? parsed : [];
+    } catch {
+        _connectionsListCache = [];
+    }
+    _connectionsListRaw = raw;
+    return _connectionsListCache;
+}
+
 let unsub: (() => void) | null = null;
 
 const plugin = definePlugin({
@@ -2459,10 +2474,8 @@ const plugin = definePlugin({
         }
 
         if (settings.store.fakeConnectionsEnabled) {
-            try {
-                const parsed = JSON.parse(settings.store.fakeConnectionsList || "[]");
-                if (Array.isArray(parsed)) overrides.connectedAccounts = parsed;
-            } catch { /* ignore */ }
+            const parsed = getFakeConnections();
+            if (parsed.length) overrides.connectedAccounts = parsed;
         }
 
         // Final safety net: every array field the user popout reads must be a real array.

@@ -235,7 +235,7 @@ function getBlacklistSet(): Set<string> {
     return blacklistCache;
 }
 
-const MAX_CACHE_ENTRIES = 5000;
+const MAX_CACHE_ENTRIES = 1000;
 const PRUNE_INTERVAL_MS = 60 * 1000;
 let lastPruneTime = 0;
 

@@ -280,12 +280,12 @@ function applyWallpaper(channelId?: string) {
                 clearInterval(pollInterval);
                 activeObservers.delete(pollInterval);
             }
-        }, 100);
+        }, 500);
         activeObservers.add(pollInterval);
         trackedTimeout(() => {
             clearInterval(pollInterval);
             activeObservers.delete(pollInterval);
-        }, 3000);
+        }, 15000);
     }
 }
 

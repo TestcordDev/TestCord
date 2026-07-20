@@ -17,5 +17,7 @@ export default definePlugin({
         const userStore = modules.find((x: any) => x?.exports?.default?.getCurrentUser);
         const currentUser = userStore.exports.default.getCurrentUser();
         currentUser.ageVerificationStatus = 3;
-    }
+    },
+
+    stop() {},
 });

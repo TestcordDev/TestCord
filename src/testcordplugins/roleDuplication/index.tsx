@@ -59,5 +59,7 @@ export default definePlugin({
     start() {
         // DeveloperMode needs to be enabled for the context menu to be shown
         DeveloperMode.updateSetting(true);
-    }
+    },
+
+    stop() {},
 });

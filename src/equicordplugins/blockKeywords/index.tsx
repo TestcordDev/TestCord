@@ -120,7 +120,8 @@ const settings = definePluginSettings({
 export function containsBlockedKeywords(message: Message) {
     if (!blockedKeywords) return false;
 
-    // test a nullable string against all keywords
+    if (!message.content && !message.embeds?.length) return false;
+
     const testField = (text: string | null | undefined) => text != null && blockedKeywords.some(regex => regex.test(text));
 
     return blockedKeywords.some(regex =>
