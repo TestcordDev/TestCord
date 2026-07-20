@@ -59,7 +59,7 @@ patches: [{
         find: "getDispatchHandler needs to be passed in first!",
         replacement: {
             match: /let \i=Date\.now\(\),(\i=\i\.Z\.flush\(\i,\i\));\i\.\i\.showPerformanceTelemetry\?.+?Telemetry\(.+?,\i\)/,
-            replace: "$1",
+            replace: "let $1",
         }
     }]
 });
