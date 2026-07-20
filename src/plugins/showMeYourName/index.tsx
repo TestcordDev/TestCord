@@ -20,7 +20,7 @@ import { classNameFactory } from "@utils/index";
 import definePlugin, { OptionType } from "@utils/types";
 import { GuildMember, Message, RenderModalProps, User } from "@vencord/discord-types";
 import { findByCodeLazy, findStoreLazy } from "@webpack";
-import { ChannelStore, GuildMemberStore, GuildStore, Menu, MessageStore, Modal, openModal, RelationshipStore, StreamerModeStore, TextInput, useEffect, useMemo, useState } from "@webpack/common";
+import { ChannelStore, GuildMemberStore, GuildStore, Menu, MessageStore, Modal, openModal, RelationshipStore, StreamerModeStore, TextInput, useMemo, useState } from "@webpack/common";
 import { JSX } from "react";
 
 const SMYNC = classNameFactory();
@@ -503,9 +503,7 @@ function renderUsername(
     const topRoleStyle = author ? resolveColor(authorColorStrings, authorDisplayNameStyles, "Role", canUseGradient, inGuild, ircColorsEnabled, isHovering) : null;
     const hasGradient = !!topRoleStyle?.gradient && Object.keys(topRoleStyle.gradient).length > 0;
 
-    const textMutedValue = hookless
-        ? getComputedStyle(document.documentElement)?.getPropertyValue("--text-muted")?.trim() || "#72767d"
-        : useMemo(() => getComputedStyle(document.documentElement)?.getPropertyValue("--text-muted")?.trim() || "#72767d", [triggerNameRerender]);
+    const textMutedValue = useMemo(() => getComputedStyle(document.documentElement)?.getPropertyValue("--text-muted")?.trim() || "#72767d", []);
     const options = splitTemplate(includedNames);
     const resolvedUsernameColor = author ? resolveColor(authorColorStrings, authorDisplayNameStyles, usernameColor.trim(), canUseGradient, inGuild, ircColorsEnabled, isHovering) : null;
     const resolvedDisplayNameColor = author ? resolveColor(authorColorStrings, authorDisplayNameStyles, displayNameColor.trim(), canUseGradient, inGuild, ircColorsEnabled, isHovering) : null;
@@ -779,19 +777,17 @@ function handleHoveringMessage(message: any, isHovering: boolean) {
     const shouldTrack = settings.store.animateGradients || settings.store.alwaysShowEffects;
     const effectiveIsHovering = settings.store.alwaysShowEffects || isHovering;
 
-    useEffect(() => {
-        if (!message || !shouldTrack) return;
+    if (!message || !shouldTrack) return;
 
-        if (effectiveIsHovering) {
-            addHoveringMessage(messageId);
-            addHoveringMessage(groupId);
-            addHoveringReply(repliedId);
-        } else {
-            removeHoveringMessage(messageId);
-            removeHoveringMessage(groupId);
-            removeHoveringReply(repliedId);
-        }
-    }, [messageId, groupId, effectiveIsHovering, shouldTrack]);
+    if (effectiveIsHovering) {
+        addHoveringMessage(messageId);
+        addHoveringMessage(groupId);
+        addHoveringReply(repliedId);
+    } else {
+        removeHoveringMessage(messageId);
+        removeHoveringMessage(groupId);
+        removeHoveringReply(repliedId);
+    }
 }
 
 function addHoveringMessage(id: string) {

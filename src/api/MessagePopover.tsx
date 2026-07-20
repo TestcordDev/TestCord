@@ -64,36 +64,50 @@ export function removeMessagePopoverButton(identifier: string) {
     MessagePopoverButtonMap.delete(identifier);
 }
 
-function VencordPopoverButtons(props: { Component: React.ComponentType<MessagePopoverButtonItem>, message: Message; }) {
-    const { Component, message } = props;
+/**
+ * Captured toolbar button component used by fallback patches on PTB/Stable.
+ * Set by _captureToolbarButton during the first successful patch application.
+ */
+let _capturedToolbarButton: any = null;
+
+export function _captureToolbarButton(comp: any) {
+    if (!_capturedToolbarButton) _capturedToolbarButton = comp;
+    return _capturedToolbarButton;
+}
+
+function VencordPopoverButtons(props: { message: Message }) {
+    const { message } = props;
 
     const { messagePopoverButtons } = useSettings(["uiElements.messagePopoverButtons.*"]).uiElements;
 
-    const elements = Array.from(MessagePopoverButtonMap.entries())
-        .filter(([key]) => messagePopoverButtons[key]?.enabled !== false)
-        .map(([key, { render }]) => {
-            try {
-                // FIXME: this should use proper React to ensure hooks work
-                const item = render(message);
-                if (!item) return null;
+    const elements: React.ReactNode[] = [];
+    for (const [key, { render }] of MessagePopoverButtonMap) {
+        if (messagePopoverButtons[key]?.enabled === false) continue;
+        try {
+            const item = render(message);
+            if (!item) continue;
 
-                return (
-                    <ErrorBoundary noop>
-                        <Component key={key} {...item} />
-                    </ErrorBoundary>
-                );
-            } catch (err) {
-                logger.error(`[${key}]`, err);
-                return null;
-            }
-        });
+            const ButtonComponent = _capturedToolbarButton as React.ComponentType<MessagePopoverButtonItem> | null;
+
+            elements.push(
+                <ErrorBoundary noop key={key}>
+                    {ButtonComponent
+                        ? <ButtonComponent {...item} />
+                        : <item.icon width={16} height={16} />
+                    }
+                </ErrorBoundary>
+            );
+        } catch (err) {
+            logger.error(`[${key}]`, err);
+        }
+    }
 
     return <>{elements}</>;
 }
 
 export function _buildPopoverElements(
-    Component: React.ComponentType<MessagePopoverButtonItem>,
+    Component: React.ComponentType<MessagePopoverButtonItem> | null,
     message: Message
 ) {
-    return <VencordPopoverButtons Component={Component} message={message} />;
+    return <VencordPopoverButtons message={message} />;
 }

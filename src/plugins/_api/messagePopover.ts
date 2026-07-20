@@ -26,11 +26,32 @@ export default definePlugin({
     patches: [
         {
             find: "#{intl::MESSAGE_UTILITIES_A11Y_LABEL}",
-            replacement: {
-                match: /(?<=\]\}\)),(.{0,40}togglePopout:.+?\}\))\]\}\):null,(?<=\((\i),\{label:.+?:null,(\i)\?\(0,\i\.jsxs?\)\(\i\.Fragment.+?message:(\i).+?)/,
-                replace: (_, ReactButton, ButtonComponent, showReactButton, message) => "" +
-                    `]}):null,Vencord.Api.MessagePopover._buildPopoverElements(${ButtonComponent},${message}),${showReactButton}?${ReactButton}:null,`
-            }
+            replacement: [
+                // Primary: Canary build pattern
+                // Matches the react button with togglePopout inside a Fragment wrapper
+                {
+                    match: /(?<=\]\}\)),(.{0,40}togglePopout:.+?\}\))\]\}\):null,(?<=\((\i),\{label:.+?:null,(\i)\?\(0,\i\.jsxs?\)\(\i\.Fragment.+?message:(\i).+?)/,
+                    replace: (_, ReactButton, ButtonComponent, showReactButton, message) => "" +
+                        `]}):null,Vencord.Api.MessagePopover._buildPopoverElements(Vencord.Api.MessagePopover._captureToolbarButton(${ButtonComponent}),${message}),${showReactButton}?${ReactButton}:null,`
+                },
+                // Fallback 1: PTB/Stable - simpler react button with togglePopout (no Fragment)
+                {
+                    match: /(\i&&\(0,\i\.jsxs?\)\(\i,\{message:(\i),togglePopout:\i\}\))/,
+                    replace: (_, reactBtn, message) =>
+                        `Vencord.Api.MessagePopover._buildPopoverElements(null,${message}),${reactBtn}`
+                },
+                // Fallback 2: PTB/Stable - react button with jsxs (multiple children, e.g. tooltip wrapper)
+                {
+                    match: /(\i\?\(0,\i\.jsxs?\)\(\i,\{message:(\i),togglePopout:\i\}\))/,
+                    replace: (_, reactBtn, message) =>
+                        `Vencord.Api.MessagePopover._buildPopoverElements(null,${message}),${reactBtn}`
+                },
+                // Fallback 3: Most basic - just find togglePopout in any conditional render
+                {
+                    match: /,(\i&&\(0,\i\.jsxs?\)\(\i,\{message:(\i),togglePopout:\i\}\))/,
+                    replace: ",Vencord.Api.MessagePopover._buildPopoverElements(null,$2),$1"
+                }
+            ]
         }
     ]
 });
