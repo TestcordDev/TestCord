@@ -19,7 +19,7 @@ import { decimalToRGB, formatLowerBadge, isDarkish, leftClick, middleClick, q, Q
 import { openQuestifySettingsModal } from "./settingsModal";
 
 const GuildlessServerListItemComponent = findComponentByCodeLazy("tooltip:", "lowerBadgeSize:");
-const ServerListItemPillComponent = findComponentByCodeLazy('"pill":"empty"');
+const ServerListItemPillComponent = findComponentByCodeLazy("overlay:d=!1", "unread:r=!1");
 const ServerListItemLowerBadgeComponent = findComponentByCodeLazy("BADGE_NOTIFICATION_BACKGROUND", "let{count:");
 
 interface QuestButtonLowerBadgeProps {

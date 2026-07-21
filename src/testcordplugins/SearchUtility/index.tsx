@@ -231,7 +231,7 @@ const defaultSearchEngine: SearchEngineKey = "google";
 const defaultCustomSearchEngine = "https://google.com/search?q={query}";
 const useMessageMenu = findByCodeLazy(".MESSAGE,commandTargetId:") as (props: FullSearchMessageMenuProps) => React.ReactElement | null;
 const GuildlessServerListItemComponent = findComponentByCodeLazy("tooltip:", "lowerBadgeSize:");
-const GuildedServerListItemPillComponent = findComponentByCodeLazy('"pill":"empty"');
+const GuildedServerListItemPillComponent = findComponentByCodeLazy("overlay:d=!1", "unread:r=!1");
 
 let CopyIdMenuItem: (props: CopyIdMenuItemProps) => React.ReactElement | null = NoopComponent;
 let favoriteGifPickerInstance: FavoriteGifPickerInstance | null = null;
