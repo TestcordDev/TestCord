@@ -43,7 +43,9 @@
 }
 
 @keyframes vc-health-pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 0 0 0 var(--status-danger-text, #f04747);
     }
 
@@ -71,7 +73,9 @@
 }
 
 @keyframes vc-health-glow {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 0 6px 0 rgb(0 168 252 / 0%);
     }
 
@@ -121,6 +125,7 @@
 /* ─── Reduced motion ─────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
+
     .vc-plugin-health-card,
     .vc-plugin-health-card-body,
     .vc-plugin-health-summary-fill,
@@ -175,12 +180,10 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(
-        90deg,
-        transparent 0%,
-        rgb(255 255 255 / 15%) 50%,
-        transparent 100%
-    );
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgb(255 255 255 / 15%) 50%,
+            transparent 100%);
     background-size: 200% 100%;
     animation: vc-health-shimmer 3s ease-in-out infinite;
 }
@@ -996,4 +999,8 @@
     display: flex;
     justify-content: flex-end;
     gap: 0.5em;
+}
+
+.vc-plugin-health-toggle input:checked + .vc-plugin-health-toggle-slider {
+    background: var(--switch-background-selected-default);
 }
