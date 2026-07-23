@@ -15,7 +15,7 @@ import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
 import { Icon } from "@vencord/discord-types";
 import { findCssClassesLazy } from "@webpack";
-import { ComponentDispatch, FocusLock, Menu } from "@webpack/common";
+import { ComponentDispatch, FocusLock, Menu, useRef } from "@webpack/common";
 import type { HTMLAttributes, ReactElement, ReactNode } from "react";
 
 import fullHeightStyle from "./fullHeightContext.css?managed";
@@ -62,6 +62,7 @@ interface LayerProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 function Layer({ mode, baseLayer = false, ...props }: LayerProps) {
+    const containerRef = useRef(null);
     const hidden = mode === "HIDDEN";
 
     const node = (
@@ -79,7 +80,7 @@ function Layer({ mode, baseLayer = false, ...props }: LayerProps) {
 
     return baseLayer
         ? node
-        : <FocusLock>{node}</FocusLock>;
+        : <FocusLock containerRef={containerRef}>{node}</FocusLock>;
 }
 
 export default definePlugin({
