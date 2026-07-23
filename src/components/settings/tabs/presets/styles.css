@@ -139,7 +139,8 @@
 .vc-presets-dup-hidden {
     max-width: 0;
     opacity: 0;
-    margin-left: -8px; /* swallow the flex gap so siblings close up */
+    margin-left: -8px;
+    /* swallow the flex gap so siblings close up */
     pointer-events: none;
 }
 
@@ -152,48 +153,81 @@ body.vc-presets-noanim-all [class*="vc-presets-"] {
 }
 
 body.vc-presets-noanim-all .vc-presets-row::before,
-body.vc-presets-noanim-all .vc-presets-tab::after { transition: none !important; }
+body.vc-presets-noanim-all .vc-presets-tab::after {
+    transition: none !important;
+}
 
 /* Row hover rail + lift */
 body.vc-presets-noanim-rowHover .vc-presets-row,
-body.vc-presets-noanim-rowHover .vc-presets-row::before { transition: none !important; }
-body.vc-presets-noanim-rowHover .vc-presets-row:hover { transform: none; }
-body.vc-presets-noanim-rowHover .vc-presets-row:hover::before { transform: scaleY(0); }
+body.vc-presets-noanim-rowHover .vc-presets-row::before {
+    transition: none !important;
+}
+
+body.vc-presets-noanim-rowHover .vc-presets-row:hover {
+    transform: none;
+}
+
+body.vc-presets-noanim-rowHover .vc-presets-row:hover::before {
+    transform: scaleY(0);
+}
 
 /* Tab underline slide */
-body.vc-presets-noanim-tabUnderline .vc-presets-tab::after { transition: none !important; }
+body.vc-presets-noanim-tabUnderline .vc-presets-tab::after {
+    transition: none !important;
+}
 
 /* Live badge pulse */
-body.vc-presets-noanim-badgePulse .vc-presets-row-badge::before { animation: none !important; }
+body.vc-presets-noanim-badgePulse .vc-presets-row-badge::before {
+    animation: none !important;
+}
 
 /* Panel & row fade-ins + duplicate collapse */
 body.vc-presets-noanim-fadeIn .vc-presets-preview,
 body.vc-presets-noanim-fadeIn .vc-presets-stats,
 body.vc-presets-noanim-fadeIn .vc-presets-settings,
 body.vc-presets-noanim-fadeIn .vc-presets-summary,
-body.vc-presets-noanim-fadeIn .vc-presets-json { animation: none !important; }
-body.vc-presets-noanim-fadeIn .vc-presets-dup-wrap { transition: none !important; }
+body.vc-presets-noanim-fadeIn .vc-presets-json {
+    animation: none !important;
+}
+
+body.vc-presets-noanim-fadeIn .vc-presets-dup-wrap {
+    transition: none !important;
+}
 
 /* Button hover & press */
 body.vc-presets-noanim-buttons .vc-presets-toolbar button,
 body.vc-presets-noanim-buttons .vc-presets-row-actions button,
 body.vc-presets-noanim-buttons .vc-presets-modal-actions button,
-body.vc-presets-noanim-buttons .vc-presets-modal-footer button { transition: none !important; }
+body.vc-presets-noanim-buttons .vc-presets-modal-footer button {
+    transition: none !important;
+}
+
 body.vc-presets-noanim-buttons .vc-presets-toolbar button:hover,
 body.vc-presets-noanim-buttons .vc-presets-row-actions button:hover,
 body.vc-presets-noanim-buttons .vc-presets-modal-actions button:hover,
 body.vc-presets-noanim-buttons .vc-presets-modal-footer button:hover {
-    transform: none; box-shadow: none; filter: none;
+    transform: none;
+    box-shadow: none;
+    filter: none;
 }
 
 /* Gear icon spin */
-body.vc-presets-noanim-gear .vc-presets-row-gear { transition: background-color .15s ease, color .15s ease; }
-body.vc-presets-noanim-gear .vc-presets-row-gear:hover { transform: none; }
+body.vc-presets-noanim-gear .vc-presets-row-gear {
+    transition: background-color .15s ease, color .15s ease;
+}
+
+body.vc-presets-noanim-gear .vc-presets-row-gear:hover {
+    transform: none;
+}
 
 /* JSON box hover */
-body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea { transition: none !important; }
+body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea {
+    transition: none !important;
+}
+
 body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
-    border-color: var(--border-subtle); background: var(--input-background, var(--background-base-lower-alt)) !important;
+    border-color: var(--border-subtle);
+    background: var(--input-background, var(--background-base-lower-alt)) !important;
 }
 
 /* ── Preset row ───────────────────────────────────────────────────── */
@@ -363,8 +397,17 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
 }
 
 @keyframes vc-presets-pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: .4; transform: scale(.75); }
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: .4;
+        transform: scale(.75);
+    }
 }
 
 /* Gear / info button, pinned top-right */
@@ -838,6 +881,7 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
 
 .vc-presets-stats {
     display: grid;
+    padding-top: 1px;
     grid-template-columns: 1fr;
     gap: 8px;
     background: transparent;
@@ -1063,16 +1107,31 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
 /* ── Motion ───────────────────────────────────────────────────────── */
 
 @keyframes vc-presets-fade-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes vc-presets-dropdown-in {
-    from { opacity: 0; transform: translateY(-4px) scale(.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+        opacity: 0;
+        transform: translateY(-4px) scale(.98);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
+
     .vc-presets-row,
     .vc-presets-row::before,
     .vc-presets-row-gear,
@@ -1095,5 +1154,7 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     .vc-presets-row-gear:hover,
     .vc-presets-toolbar button:hover,
     .vc-presets-row-actions button:hover,
-    .vc-presets-modal-actions button:hover { transform: none; }
+    .vc-presets-modal-actions button:hover {
+        transform: none;
+    }
 }
