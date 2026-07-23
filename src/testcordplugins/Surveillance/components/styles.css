@@ -20,6 +20,7 @@
 
 .vc-surveillance-header {
     justify-content: space-between;
+    display: block;
 }
 
 .vc-surveillance-actions,
@@ -56,21 +57,22 @@
 }
 
 .vc-surveillance-user-stat {
-    display: flex;
+    display: block;
     justify-content: space-between;
     gap: 12px;
-    padding: 8px 0;
+    padding: 12px;
 }
 
 .vc-surveillance-user-stat span {
     color: var(--text-normal);
     font-size: 14px;
     font-weight: 600;
-    text-align: right;
+    text-align: left;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    display: block;
 }
 
 .vc-surveillance-user-stat small {
@@ -92,6 +94,7 @@
 
 .vc-surveillance-summary {
     color: var(--text-muted);
+    flex-basis: 100%;
     font-size: 12px;
 }
 
@@ -130,7 +133,8 @@
 }
 
 .vc-surveillance-user-stat-grid {
-    gap: 0 14px;
+    margin-top: 12px;
+    gap: 12px;
 }
 
 .vc-surveillance-user-stat-summary {
@@ -149,7 +153,7 @@
 }
 
 .vc-surveillance-user-stat-groups {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 100%;
     margin-top: 12px;
 }
 
@@ -466,7 +470,7 @@
 
 .vc-surveillance-modal-title {
     flex: 1;
-    color: var(--white-500, #fff);
+    color: var(--text-default);
 }
 
 .vc-surveillance-modal-content {
@@ -493,7 +497,7 @@
 
 .vc-surveillance-modal-field strong {
     display: block;
-    color: var(--white-500, #fff);
+    color: var(--text-default);
     font-size: 12px;
     font-weight: 700;
     margin-bottom: 4px;
@@ -501,7 +505,7 @@
 
 .vc-surveillance-modal-field span,
 .vc-surveillance-modal-field pre {
-    color: var(--white-500, #fff);
+    color: var(--text-default);
 }
 
 .vc-surveillance-modal-field pre {
@@ -682,6 +686,7 @@
 }
 
 @media (max-width: 720px) {
+
     .vc-surveillance-target-grid,
     .vc-surveillance-user-stat-grid,
     .vc-surveillance-user-stat-groups,
@@ -726,5 +731,49 @@
 
     .vc-surveillance-identity-entry {
         grid-template-columns: 1fr;
+    }
+
+    .vc-surveillance-modal-field pre,
+    .vc-surveillance-timeline-scroll {
+        &::-webkit-scrollbar {
+            will-change: scroll-position;
+            height: 16px;
+            width: 16px;
+        }
+
+        &::-webkit-scrollbar-corner {
+            background-color: transparent;
+        }
+
+        &::-webkit-scrollbar-thumb {
+            background-color: var(--scrollbar-auto-thumb);
+            min-height: 40px;
+        }
+
+        &::-webkit-scrollbar-thumb,
+        &::-webkit-scrollbar-track {
+            background-clip: padding-box;
+            border: 4px solid transparent;
+            border-radius: 8px;
+        }
+
+        &::-webkit-scrollbar-thumb,
+        &::-webkit-scrollbar-track {
+            background-clip: padding-box;
+            border: 4px solid transparent;
+            border-radius: 8px;
+        }
+
+        &::-webkit-scrollbar-track {
+            background-color: var(--scrollbar-auto-track);
+        }
+    }
+
+    .vc-surveillance-action {
+        color: var(--text-default);
+    }
+
+    .vc-h2-defaultMargin {
+        margin-bottom: 8px;
     }
 }
