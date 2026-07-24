@@ -48,19 +48,56 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.vc-surveillance-user-stat,
-.vc-surveillance-panel,
-.vc-surveillance-event-row {
+.vc-surveillance-panel {
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
     background: var(--background-secondary);
 }
 
 .vc-surveillance-user-stat {
+    position: relative;
     display: block;
     justify-content: space-between;
     gap: 12px;
     padding: 12px;
+    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 18%, var(--border-subtle));
+    border-radius: 8px;
+    background:
+        radial-gradient(circle at top, color-mix(in srgb, var(--vc-stats-accent, var(--brand, #5865f2)) 18%, transparent), transparent 58%),
+        var(--background-secondary);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset, 0 4px 16px rgb(0 0 0 / 8%);
+    overflow: hidden;
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease, filter .15s ease, background-color .15s ease;
+}
+
+.vc-surveillance-user-stat::before {
+    content: "";
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 0;
+    height: 3px;
+    border-radius: 0 0 999px 999px;
+    background: var(--vc-stats-accent, var(--brand, #5865f2));
+    opacity: .7;
+    transform: scaleX(.45);
+    transition: opacity .15s ease, transform .15s ease;
+}
+
+.vc-surveillance-user-stat:hover {
+    border-color: color-mix(in srgb, var(--vc-stats-accent, var(--brand, #5865f2)) 42%, var(--border-subtle));
+    box-shadow: var(--elevation-medium), 0 1px 0 rgb(255 255 255 / 6%) inset;
+    filter: brightness(1.04);
+    transform: translateY(-2px);
+}
+
+.vc-surveillance-user-stat:hover::before {
+    opacity: 1;
+    transform: scaleX(1);
+}
+
+.vc-surveillance-user-stat:active {
+    transform: translateY(0) scale(.99);
 }
 
 .vc-surveillance-user-stat span {
@@ -221,7 +258,9 @@
 .vc-surveillance-nav-action,
 .vc-surveillance-filter,
 .vc-surveillance-target-pill,
-.vc-surveillance-text-action {
+.vc-surveillance-text-action,
+.vc-surveillance-event-action {
+    position: relative;
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     background: var(--background-tertiary);
@@ -229,6 +268,7 @@
     cursor: pointer;
     min-height: 32px;
     padding: 0 12px;
+    transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease, filter .12s ease;
 }
 
 .vc-surveillance-action:hover,
@@ -236,8 +276,31 @@
 .vc-surveillance-filter:hover,
 .vc-surveillance-target-pill:hover,
 .vc-surveillance-text-action:hover,
-.vc-surveillance-event-row:hover {
-    background: var(--background-modifier-hover);
+.vc-surveillance-event-action:hover {
+    background: var(--background-base-low, var(--background-modifier-hover));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, var(--border-subtle));
+    box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset;
+    filter: brightness(1.04);
+    transform: translateY(-1px);
+}
+
+.vc-surveillance-action:active,
+.vc-surveillance-nav-action:active,
+.vc-surveillance-filter:active,
+.vc-surveillance-target-pill:active,
+.vc-surveillance-text-action:active,
+.vc-surveillance-event-action:active {
+    transform: translateY(0) scale(.98);
+}
+
+.vc-surveillance-action:focus-visible,
+.vc-surveillance-nav-action:focus-visible,
+.vc-surveillance-filter:focus-visible,
+.vc-surveillance-target-pill:focus-visible,
+.vc-surveillance-text-action:focus-visible,
+.vc-surveillance-event-action:focus-visible {
+    outline: 2px solid var(--brand, var(--brand-experiment, #5865f2));
+    outline-offset: 2px;
 }
 
 .vc-surveillance-text-action {
@@ -246,6 +309,10 @@
 
 .vc-surveillance-danger {
     color: var(--status-danger);
+}
+
+.vc-surveillance-action.vc-surveillance-danger:hover {
+    border-color: color-mix(in srgb, var(--status-danger, #f23f43) 40%, var(--border-subtle));
 }
 
 .vc-surveillance-target-list,
@@ -279,6 +346,8 @@
 .vc-surveillance-filter-active {
     border-color: var(--brand-500);
     color: var(--brand-260);
+    background: color-mix(in srgb, var(--brand-500) 20%, var(--background-tertiary));
+    box-shadow: 0 0 12px color-mix(in srgb, var(--brand-500) 25%, transparent), 0 1px 0 rgb(255 255 255 / 6%) inset;
 }
 
 .vc-surveillance-timeline {
@@ -311,35 +380,62 @@
 }
 
 .vc-surveillance-event-row {
+    position: relative;
     display: grid;
     grid-template-columns: 88px minmax(0, 1fr) auto;
     align-items: start;
     gap: 12px;
     padding: 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    background: var(--background-secondary);
     color: var(--text-normal);
     cursor: pointer;
     text-align: left;
     width: 100%;
+    overflow: hidden;
+    transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+}
+
+.vc-surveillance-event-row::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 7px;
+    bottom: 7px;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--brand, var(--brand-experiment, #5865f2));
+    opacity: 0;
+    transform: scaleY(.35);
+    transition: opacity .12s ease, transform .12s ease;
+}
+
+.vc-surveillance-event-row:hover {
+    background: var(--background-base-low, var(--background-modifier-hover));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, var(--border-subtle));
+    box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset;
+    transform: translateX(2px);
+}
+
+.vc-surveillance-event-row:hover::before {
+    opacity: .8;
+    transform: scaleY(1);
+}
+
+.vc-surveillance-event-row:active {
+    transform: translateX(0) scale(.99);
 }
 
 .vc-surveillance-event-row:focus-visible {
-    outline: 2px solid var(--border-focus);
+    outline: 2px solid var(--brand, var(--brand-experiment, #5865f2));
     outline-offset: 2px;
 }
 
 .vc-surveillance-event-action {
-    border: 1px solid var(--border-subtle);
-    border-radius: 6px;
-    background: var(--background-tertiary);
-    color: var(--text-normal);
-    cursor: pointer;
     min-height: 28px;
     padding: 0 10px;
     white-space: nowrap;
-}
-
-.vc-surveillance-event-action:hover {
-    background: var(--background-modifier-hover);
 }
 
 .vc-surveillance-event-avatar,
@@ -554,8 +650,22 @@
     min-width: 0;
 }
 
-.vc-surveillance-attachment:hover {
+.vc-surveillance-attachment,
+.vc-surveillance-link-preview-image {
+    transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+}
+
+.vc-surveillance-attachment:hover,
+.vc-surveillance-link-preview-image:hover {
     background: var(--background-modifier-hover);
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, var(--border-subtle));
+    box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset;
+    transform: translateY(-1px);
+}
+
+.vc-surveillance-attachment:active,
+.vc-surveillance-link-preview-image:active {
+    transform: translateY(0) scale(.98);
 }
 
 .vc-surveillance-attachment img {
