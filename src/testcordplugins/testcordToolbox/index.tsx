@@ -44,38 +44,35 @@ function Icon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 function VencordPopoutButton() {
-    const buttonRef = useRef(null);
+    const buttonRef = useRef<HTMLSpanElement | null>(null);
     const [show, setShow] = useState(false);
-    const [key, setKey] = useState(0);
 
     return (
-        <Popout
-            key={key}
-            position="bottom"
-            align="center"
-            spacing={0}
-            animation={Popout.Animation.NONE}
-            shouldShow={show}
-            onRequestClose={() => setShow(false)}
-            targetElementRef={buttonRef}
-            renderPopout={() => renderPopout(() => setShow(false))}
-        >
-            {(_, { isShown }) => (
-                <HeaderBarButton
-                    ref={buttonRef}
-                    className="vc-toolbox-btn"
-                    onClick={e => {
-                        e.stopPropagation();
-                        const next = !show;
-                        setShow(next);
-                        if (!next) setKey(k => k + 1);
-                    }}
-                    tooltip={isShown ? null : "Testcord Toolbox"}
-                    icon={Icon}
-                    selected={isShown}
-                />
-            )}
-        </Popout>
+        <span ref={buttonRef} style={{ display: "inline-flex", alignItems: "center" }}>
+            <Popout
+                position="bottom"
+                align="center"
+                spacing={0}
+                animation={Popout.Animation.NONE}
+                shouldShow={show}
+                onRequestClose={() => setShow(false)}
+                targetElementRef={buttonRef}
+                renderPopout={() => renderPopout(() => setShow(false))}
+            >
+                {(_, { isShown }) => (
+                    <HeaderBarButton
+                        className="vc-toolbox-btn"
+                        onClick={e => {
+                            e.stopPropagation();
+                            setShow(prev => !prev);
+                        }}
+                        tooltip="Testcord Toolbox"
+                        icon={Icon}
+                        selected={isShown}
+                    />
+                )}
+            </Popout>
+        </span>
     );
 }
 

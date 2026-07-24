@@ -81,6 +81,7 @@ const settings = definePluginSettings({
     },
     panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#0e1852", onChange: () => apply() },
     colorfulActiveButtons: { type: OptionType.BOOLEAN, default: true, description: "Use distinct colored blobs for active plugin buttons", onChange: () => apply() },
+    lockButtonPosition: { type: OptionType.BOOLEAN, default: false, description: "Lock panel buttons in place (prevent wrap on long status or screen sharing)", onChange: () => apply() },
     // Chevrons
     hideChevrons: { type: OptionType.BOOLEAN, default: false, description: "Hide dropdown chevrons next to Mute and Deafen", onChange: () => apply() },
     // Call controls
@@ -100,18 +101,18 @@ const settings = definePluginSettings({
 // ─── Selectors & Constants ────────────────────────────────────────────────────
 
 const S = {
-    panelContainer: ".container__37e49",
-    panelButtons:   ".buttons__37e49",
-    panelButton:    ".button__201d5",
-    audioParent:    ".audioButtonParent__5e764",
-    chevron:        ".buttonChevron__5e764",
-    callContainer:  ".container_e131a9",
-    callControls:   ".actionButtons_e131a9",
-    callButton:     ".button_e131a9",
-    voiceStatus:    ".rtcConnectionStatus__06d62",
-    pingIcon:       ".clickablePing__06d62",
-    disconnect:     ".voiceButtonsContainer_e131a9",
-    accountWrapper: ".accountPopoutButtonWrapper__37e49",
+    panelContainer: '[class*="container_37e49"], [class*="container_e131a9"], section[class*="panels"] > div[class*="container"]',
+    panelButtons:   '[class*="buttons_37e49"], [class*="buttons_"]',
+    panelButton:    '[class*="button_201d5"], [class*="button_"]',
+    audioParent:    '[class*="audioButtonParent_5e764"], [class*="audioButtonParent_"]',
+    chevron:        '[class*="buttonChevron_5e764"], [class*="buttonChevron_"]',
+    callContainer:  '[class*="container_e131a9"]',
+    callControls:   '[class*="actionButtons_e131a9"]',
+    callButton:     '[class*="button_e131a9"]',
+    voiceStatus:    '[class*="rtcConnectionStatus_06d62"]',
+    pingIcon:       '[class*="clickablePing_06d62"]',
+    disconnect:     '[class*="voiceButtonsContainer_e131a9"]',
+    accountWrapper: '[class*="accountPopoutButtonWrapper"], [class*="avatarWrapper"]',
 };
 
 const NATIVE_BUTTON_LABELS = new Set([
@@ -252,6 +253,61 @@ function updateDomAttributes() {
         const canonical = getCanonicalLabel(rawLabel);
         if (el.getAttribute("data-deracul-label") !== canonical) {
             el.setAttribute("data-deracul-label", canonical);
+        }
+    }
+
+    const avatarWrapper = document.querySelector('[class*="avatarWrapper"], [class*="accountPopoutButtonWrapper"]') as HTMLElement | null;
+    const audioParent = document.querySelector('[class*="audioButtonParent"]') as HTMLElement | null;
+
+    if (settings.store.lockButtonPosition) {
+        if (avatarWrapper) {
+            avatarWrapper.style.setProperty("flex", "1 1 0px", "important");
+            avatarWrapper.style.setProperty("min-width", "0px", "important");
+            avatarWrapper.style.setProperty("max-width", "calc(100% - 135px)", "important");
+            avatarWrapper.style.setProperty("overflow", "hidden", "important");
+            avatarWrapper.style.setProperty("margin-right", "0px", "important");
+
+            const children = avatarWrapper.querySelectorAll("*");
+            for (const child of children) {
+                const el = child as HTMLElement;
+                if (el.style) {
+                    el.style.setProperty("min-width", "0px", "important");
+                    el.style.setProperty("max-width", "100%", "important");
+                    el.style.setProperty("overflow", "hidden", "important");
+                    el.style.setProperty("text-overflow", "ellipsis", "important");
+                    el.style.setProperty("white-space", "nowrap", "important");
+                }
+            }
+        }
+
+        if (audioParent) {
+            audioParent.style.setProperty("margin-left", "auto", "important");
+            audioParent.style.setProperty("flex-shrink", "0", "important");
+        }
+    } else {
+        if (avatarWrapper) {
+            avatarWrapper.style.removeProperty("flex");
+            avatarWrapper.style.removeProperty("min-width");
+            avatarWrapper.style.removeProperty("max-width");
+            avatarWrapper.style.removeProperty("overflow");
+            avatarWrapper.style.removeProperty("margin-right");
+
+            const children = avatarWrapper.querySelectorAll("*");
+            for (const child of children) {
+                const el = child as HTMLElement;
+                if (el.style) {
+                    el.style.removeProperty("min-width");
+                    el.style.removeProperty("max-width");
+                    el.style.removeProperty("overflow");
+                    el.style.removeProperty("text-overflow");
+                    el.style.removeProperty("white-space");
+                }
+            }
+        }
+
+        if (audioParent) {
+            audioParent.style.removeProperty("margin-left");
+            audioParent.style.removeProperty("flex-shrink");
         }
     }
 }
@@ -513,12 +569,62 @@ function buildCSS(): string {
     if (st.hideScreenShare) lines.push(`${getBtnSelector("Screen Share")} { display: none !important; }`);
     if (st.hideActivity) lines.push(`${getBtnSelector("Activity")} { display: none !important; }`);
 
+    // Lock Button Positions logic (prevents long status text or margin-right: auto from pushing buttons down to a 3rd row)
+    if (st.lockButtonPosition) {
+        lines.push(`
+            ${S.accountWrapper},
+            [class*="accountPopoutButtonWrapper"],
+            [class*="avatarWrapper"] {
+                flex: 1 1 0px !important;
+                min-width: 0 !important;
+                max-width: calc(100% - 135px) !important;
+                overflow: hidden !important;
+                margin-right: 0 !important;
+            }
+            ${S.accountWrapper} *,
+            [class*="accountPopoutButtonWrapper"] *,
+            [class*="avatarWrapper"] * {
+                min-width: 0 !important;
+                max-width: 100% !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                white-space: nowrap !important;
+            }
+            ${S.audioParent},
+            [class*="audioButtonParent"] {
+                margin-left: auto !important;
+                flex-shrink: 0 !important;
+                white-space: nowrap !important;
+            }
+            [data-deracul-label="User Settings"],
+            [data-deracul-label="Mute"],
+            [data-deracul-label="Deafen"] {
+                flex-shrink: 0 !important;
+                white-space: nowrap !important;
+            }
+        `);
+
+        if (st.userPanelLayout === "default") {
+            lines.push(`
+                ${S.panelContainer} {
+                    flex-wrap: nowrap !important;
+                    align-items: center !important;
+                }
+                ${S.panelButtons} {
+                    flex-shrink: 0 !important;
+                    flex-wrap: nowrap !important;
+                }
+            `);
+        }
+    }
+
     return lines.join("\n");
 }
 
 function buildCustomCSS(): string {
     const lines: string[] = [];
-    const layout = settings.store.userPanelLayout;
+    const st = settings.store;
+    const layout = st.userPanelLayout;
     const isSplit = ["split_row", "split_grid2", "split_grid3", "split_grid4"].includes(layout);
 
     for (const cfg of Object.values(buttonConfigs)) {
@@ -537,6 +643,55 @@ function buildCustomCSS(): string {
             lines.push(`${sel} { order: ${orderVal} !important; }`);
         }
     }
+
+    if (st.lockButtonPosition) {
+        lines.push(`
+            ${S.accountWrapper},
+            [class*="accountPopoutButtonWrapper"],
+            [class*="avatarWrapper"] {
+                flex: 1 1 0px !important;
+                min-width: 0 !important;
+                max-width: calc(100% - 135px) !important;
+                overflow: hidden !important;
+                margin-right: 0 !important;
+            }
+            ${S.accountWrapper} *,
+            [class*="accountPopoutButtonWrapper"] *,
+            [class*="avatarWrapper"] * {
+                min-width: 0 !important;
+                max-width: 100% !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+                white-space: nowrap !important;
+            }
+            ${S.audioParent},
+            [class*="audioButtonParent"] {
+                margin-left: auto !important;
+                flex-shrink: 0 !important;
+                white-space: nowrap !important;
+            }
+            [data-deracul-label="User Settings"],
+            [data-deracul-label="Mute"],
+            [data-deracul-label="Deafen"] {
+                flex-shrink: 0 !important;
+                white-space: nowrap !important;
+            }
+        `);
+
+        if (st.userPanelLayout === "default") {
+            lines.push(`
+                ${S.panelContainer} {
+                    flex-wrap: nowrap !important;
+                    align-items: center !important;
+                }
+                ${S.panelButtons} {
+                    flex-shrink: 0 !important;
+                    flex-wrap: nowrap !important;
+                }
+            `);
+        }
+    }
+
     return lines.join("\n");
 }
 
@@ -983,6 +1138,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: ModalProps; }) {
 
                             <Heading tag="h5">Extra Features</Heading>
                             <Card variant="primary">
+                                <FormSwitch title="Lock Button Positions" description="Locks Mute/Deafen/Settings in place and prevents buttons wrapping down on large status or screen sharing." value={s.lockButtonPosition} onChange={v => set("lockButtonPosition", v)} />
                                 <FormSwitch title="Hide Dropdown Chevrons" description="Removes the tiny arrows next to Mute/Deafen." value={s.hideChevrons} onChange={v => set("hideChevrons", v)} hideBorder />
                             </Card>
                         </>}

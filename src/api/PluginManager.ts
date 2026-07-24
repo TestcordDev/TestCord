@@ -130,7 +130,11 @@ function isReporterTestable(p: Plugin, part: ReporterTestable) {
 }
 
 export function pluginRequiresRestart(p: Plugin) {
-    return p.requiresRestart !== false && (p.requiresRestart || !!p.patches?.length);
+    return p.requiresRestart !== false && (
+        Boolean(p.requiresRestart) ||
+        Boolean(p.patches?.length) ||
+        (p.startAt !== undefined && p.startAt !== StartAt.WebpackReady)
+    );
 }
 
 export const startAllPlugins = traceFunction("startAllPlugins", function startAllPlugins(target: StartAt) {
