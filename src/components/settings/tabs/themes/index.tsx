@@ -23,6 +23,7 @@ import { React, Select, showToast, TextInput, Toasts, useEffect, useMemo, useRef
 import { OnlineThemesSection } from "./OnlineThemes";
 import { QuickActionsSection } from "./QuickActions";
 import { ThemeCard } from "./ThemeCard";
+import { ThemeMarketplaceSection } from "./ThemeMarketplace";
 
 const cl = classNameFactory("vc-settings-theme-");
 
@@ -94,6 +95,10 @@ function ThemesTab() {
     useEffect(() => {
         void updateThemes();
     }, []);
+
+    useEffect(() => {
+        void refreshOnlineThemes();
+    }, [settings.themeLinks?.join(",")]);
 
     async function updateThemes() {
         await Promise.allSettled([refreshLocalThemes(), refreshOnlineThemes()]);
@@ -362,8 +367,6 @@ function ThemesTab() {
                 addThemeLink={addThemeLink}
             />
 
-            <Divider className={Margins.top20} />
-
             <Heading className={Margins.top20}>Installed Themes</Heading>
             <Paragraph className={Margins.bottom8}>
                 Manage your themes here. Local themes load from your themes folder, online themes from URLs. Themes with a cog wheel icon have customizable settings.
@@ -461,6 +464,10 @@ function ThemesTab() {
                     })}
                 </div>
             )}
+
+            <Divider className={Margins.top20} />
+
+            <ThemeMarketplaceSection />
         </SettingsTab>
     );
 }

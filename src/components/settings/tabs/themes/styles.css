@@ -81,6 +81,7 @@
     fill: var(--text-muted);
 }
 
+/* stylelint-disable selector-class-pattern */
 .name__2ea32,
 .overflow_b0dfc2 {
     color: lightgray;
@@ -93,7 +94,7 @@
 .vc-btn-base,
 .vc-btn-primary,
 .vc-btn-small {
-    background-color: rgba(10, 115, 185, 0.5) !important;
+    background-color: rgb(10 115 185 / 50%) !important;
     color: whitesmoke !important;
 }
 
@@ -103,19 +104,20 @@
 .vc-text-btn-base,
 .vc-text-btn-secondary,
 .vc-ranb-button {
-    color: rgb(233, 233, 233);
+    color: rgb(233 233 233);
 }
 
 .vc-text-base,
 .vc-text-md,
 .vc-text-medium,
 .vc-plugins-setting-title {
-    color: #ffffff;
+    color: #fff;
 }
 
 .lowerBadge_cc5dd2 {
     color: lightgray !important;
 }
+/* stylelint-enable selector-class-pattern */
 
 .vc-membercount-total-count {
     color: gray !important;
@@ -136,4 +138,517 @@
 .vc-margin-top-20,
 .vc-margin-bottom-8 {
     color: white;
+}
+
+/* ── Theme Marketplace ── */
+
+.vc-settings-theme-market-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.vc-settings-theme-market-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.vc-settings-theme-market-search {
+    flex: 1;
+    min-width: 200px;
+}
+
+.vc-settings-theme-market-sort-tabs {
+    display: flex;
+    gap: 4px;
+}
+
+.vc-settings-theme-market-sort-tab {
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    background: transparent;
+    border: 1px solid var(--border-subtle, rgb(255 255 255 / 10%));
+    border-radius: 6px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+}
+
+.vc-settings-theme-market-sort-tab:hover {
+    color: var(--text-default);
+    border-color: var(--border-hover, rgb(255 255 255 / 20%));
+}
+
+.vc-settings-theme-market-sort-tab.active {
+    background: var(--brand-500, #5865f2);
+    color: #fff;
+    border-color: var(--brand-500, #5865f2);
+}
+
+.vc-settings-theme-market-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--background-base-lower-alt, #1e1f22);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-subtle, rgb(255 255 255 / 6%));
+    transition: border-color 0.15s, transform 0.1s;
+}
+
+.vc-settings-theme-market-card:hover {
+    border-color: var(--brand-500, #5865f2);
+    transform: translateY(-2px);
+}
+
+.vc-settings-theme-market-card-preview {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    background: var(--background-base-lowest, #111214);
+}
+
+.vc-settings-theme-market-card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.vc-settings-theme-market-card-img-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.vc-settings-theme-market-card-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--status-positive, #248046);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.vc-settings-theme-market-card-body {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.vc-settings-theme-market-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+.vc-settings-theme-market-card-name {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-default);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-settings-theme-market-card-likes {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.vc-settings-theme-market-card-author {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.vc-settings-theme-market-card-desc {
+    font-size: 13px;
+    color: var(--text-normal);
+    line-height: 1.4;
+    margin: 4px 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.vc-settings-theme-market-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 4px 0;
+}
+
+.vc-settings-theme-market-card-tag {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 12px;
+    background: var(--background-base-low, rgb(255 255 255 / 6%));
+    color: var(--text-muted);
+}
+
+.vc-settings-theme-market-card-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+}
+
+/* ── Theme Marketplace Interactivity & Animations ── */
+
+.vc-settings-theme-market-card {
+    transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.vc-settings-theme-market-card:hover {
+    transform: translateY(-4px) scale(1.01);
+    border-color: color-mix(in srgb, var(--brand-500, #5865f2) 60%, var(--border-subtle, rgb(255 255 255 / 15%)));
+    box-shadow: 0 8px 24px rgb(0 0 0 / 30%), 0 1px 0 rgb(255 255 255 / 8%) inset;
+}
+
+.vc-settings-theme-market-card:active {
+    transform: translateY(-1px) scale(0.99);
+}
+
+.vc-settings-theme-market-card-img {
+    transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.vc-settings-theme-market-card:hover .vc-settings-theme-market-card-img {
+    transform: scale(1.05);
+}
+
+.vc-settings-theme-market-tag-btn {
+    cursor: pointer;
+    border: none;
+    outline: none;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+
+.vc-settings-theme-market-tag-btn:hover {
+    background: var(--brand-500, #5865f2) !important;
+    color: #ffffff !important;
+    transform: translateY(-1px);
+}
+
+.vc-settings-theme-market-tag-btn:active {
+    transform: scale(0.95);
+}
+
+.vc-settings-theme-market-author-clickable {
+    cursor: pointer;
+    display: inline-block;
+    transition: color 0.15s ease;
+}
+
+.vc-settings-theme-market-author-clickable:hover {
+    color: var(--brand-500, #5865f2) !important;
+    text-decoration: underline;
+}
+
+/* ── Modal Details Grid & Compact Layout ── */
+
+.vc-settings-theme-market-modal-body {
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.vc-settings-theme-market-modal-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    color: var(--header-secondary, #b5bac1);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.vc-settings-theme-market-modal-banner,
+.vc-settings-theme-market-modal-banner * {
+    width: 100%;
+    max-height: 150px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--background-base-lowest, #111214);
+    cursor: pointer !important;
+    transition: filter 0.2s ease, box-shadow 0.2s ease;
+}
+
+.vc-settings-theme-market-modal-banner:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 4px 16px rgb(0 0 0 / 40%);
+}
+
+.vc-settings-theme-market-modal-img {
+    width: 100%;
+    height: 100%;
+    max-height: 150px;
+    object-fit: cover;
+    display: block;
+    cursor: pointer !important;
+    transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.vc-settings-theme-market-modal-banner:hover .vc-settings-theme-market-modal-img {
+    transform: scale(1.04);
+}
+
+.vc-settings-theme-market-modal-details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 6px;
+}
+
+.vc-settings-theme-market-modal-detail-card {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: var(--background-base-lower-alt, rgb(0 0 0 / 20%));
+    border: 1px solid var(--border-subtle, rgb(255 255 255 / 6%));
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.vc-settings-theme-market-modal-detail-card:hover {
+    background: var(--background-base-low, rgb(255 255 255 / 8%));
+    border-color: color-mix(in srgb, var(--brand-500, #5865f2) 40%, var(--border-subtle, rgb(255 255 255 / 10%)));
+    transform: translateY(-2px);
+}
+
+.vc-settings-theme-market-modal-detail-card:active {
+    transform: translateY(0) scale(0.98);
+}
+
+.vc-settings-theme-market-modal-detail-card-full {
+    grid-column: 1 / -1;
+}
+
+.vc-settings-theme-market-modal-detail-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted, #949ba4);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.vc-settings-theme-market-modal-detail-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-default, #f2f3f5);
+    overflow-wrap: anywhere;
+    word-break: break-all;
+}
+
+/* ── Interactive Buttons Styling ── */
+
+.vc-settings-theme-market-action-btn,
+.vc-settings-theme-market-source-btn {
+    transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), filter 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.vc-settings-theme-market-action-btn:hover,
+.vc-settings-theme-market-source-btn:hover {
+    transform: translateY(-2px) !important;
+    filter: brightness(1.1);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 25%);
+}
+
+.vc-settings-theme-market-action-btn:active,
+.vc-settings-theme-market-source-btn:active {
+    transform: translateY(0) scale(0.96) !important;
+    filter: brightness(0.95);
+}
+
+.vc-settings-theme-market-modal-top-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin: 4px 0 8px 0;
+}
+
+.vc-settings-theme-market-modal-top-action-btn {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
+    justify-content: center;
+    padding: 8px 16px;
+    transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), filter 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.vc-settings-theme-market-modal-top-action-btn:hover {
+    transform: translateY(-2px) !important;
+    filter: brightness(1.1);
+    box-shadow: 0 6px 16px rgb(0 0 0 / 30%);
+}
+
+.vc-settings-theme-market-modal-top-action-btn:active {
+    transform: translateY(0) scale(0.97) !important;
+    filter: brightness(0.95);
+}
+
+/* ── Skeleton Loading Animation ── */
+
+@keyframes vc-skeleton-shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.vc-settings-theme-market-skeleton-card {
+    height: 240px;
+    border-radius: 12px;
+    background: linear-gradient(
+        90deg,
+        var(--background-secondary, #2b2d31) 25%,
+        var(--background-secondary-alt, #383a40) 50%,
+        var(--background-secondary, #2b2d31) 75%
+    );
+    background-size: 200% 100%;
+    animation: vc-skeleton-shimmer 1.5s infinite ease-in-out;
+}
+
+/* ── Lightbox Overlay ── */
+
+.vc-settings-theme-market-lightbox-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100000;
+    background: rgb(0 0 0 / 85%);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    animation: vc-lightbox-fade-in 0.15s ease-out;
+}
+
+@keyframes vc-lightbox-fade-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.vc-settings-theme-market-lightbox-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--background-base-lower-alt, #1e1f22);
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle, rgb(255 255 255 / 12%));
+    box-shadow: 0 16px 48px rgb(0 0 0 / 75%);
+    overflow: hidden;
+}
+
+.vc-settings-theme-market-lightbox-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--background-base-lowest, #111214);
+    border-bottom: 1px solid var(--border-subtle, rgb(255 255 255 / 8%));
+}
+
+.vc-settings-theme-market-lightbox-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-default, #fff);
+}
+
+.vc-settings-theme-market-lightbox-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vc-settings-theme-market-lightbox-btn,
+.vc-settings-theme-market-lightbox-btn * {
+    cursor: pointer !important;
+    transition: transform 0.15s ease, filter 0.2s ease, background-color 0.2s ease !important;
+}
+
+.vc-settings-theme-market-lightbox-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.15);
+}
+
+.vc-settings-theme-market-lightbox-btn:active {
+    transform: translateY(0) scale(0.96);
+    filter: brightness(0.95);
+}
+
+.vc-settings-theme-market-lightbox-close,
+.vc-settings-theme-market-lightbox-close * {
+    background: transparent;
+    border: none;
+    color: var(--interactive-normal, #b5bac1);
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer !important;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: color 0.2s ease, background-color 0.2s ease, transform 0.15s ease;
+    font-family: inherit;
+    line-height: 1;
+}
+
+.vc-settings-theme-market-lightbox-close:hover {
+    color: var(--status-danger, #f23f43);
+    background: rgb(242 63 67 / 15%);
+    transform: scale(1.1);
+}
+
+.vc-settings-theme-market-lightbox-close:active {
+    transform: scale(0.95);
+    background: rgb(242 63 67 / 25%);
+}
+
+.vc-settings-theme-market-lightbox-img-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    overflow: auto;
+    max-height: calc(90vh - 50px);
+}
+
+.vc-settings-theme-market-lightbox-img {
+    max-width: 100%;
+    max-height: calc(85vh - 60px);
+    object-fit: contain;
+    border-radius: 6px;
+    box-shadow: 0 4px 20px rgb(0 0 0 / 50%);
 }
