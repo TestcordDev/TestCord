@@ -80,6 +80,7 @@ const settings = definePluginSettings({
         onChange: () => apply()
     },
     panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#0e1852", onChange: () => apply() },
+    glowColor: { type: OptionType.STRING, description: "Glow hover color", default: "#ffffff", onChange: () => apply() },
     colorfulActiveButtons: { type: OptionType.BOOLEAN, default: true, description: "Use distinct colored blobs for active plugin buttons", onChange: () => apply() },
     lockButtonPosition: { type: OptionType.BOOLEAN, default: false, description: "Lock panel buttons in place (prevent wrap on long status or screen sharing)", onChange: () => apply() },
     // Chevrons
@@ -565,7 +566,7 @@ function buildCSS(): string {
     // Hover
     switch (st.hoverEffect) {
         case "scale": lines.push(`${btnTarget}:hover { transform: scale(1.15) !important; transition: transform 0.15s ease !important; }`); break;
-        case "glow": lines.push(`${btnTarget}:hover { filter: drop-shadow(0 0 6px white) !important; transition: filter 0.15s ease !important; }`); break;
+        case "glow": lines.push(`${btnTarget}:hover { filter: drop-shadow(0 0 6px ${st.glowColor}) !important; transition: filter 0.15s ease !important; }`); break;
         case "bright": lines.push(`${btnTarget}:hover { filter: brightness(1.3) !important; transition: filter 0.15s ease !important; }`); break;
     }
 
@@ -1227,6 +1228,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: ModalProps; }) {
                             <Heading tag="h5">Panel Colors</Heading>
                             <Card variant="primary">
                                 <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} />
+                                <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} />
                             </Card>
                         </>}
 
