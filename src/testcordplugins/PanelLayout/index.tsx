@@ -105,7 +105,7 @@ const PANELS = 'section[class*="panels"]';
 const S = {
     panels:         PANELS,
     panelContainer: `${PANELS} > div[class*="container"]`,
-    panelButtons:   `${PANELS} div[class*="buttons"]`,
+    panelButtons:   `${PANELS} [class*="buttons_"]`,
     panelButton:    '[class*="button_"], button',
     audioParent:    `${PANELS} [class*="audioButtonParent"]`,
     chevron:        '[class*="buttonChevron"]',
@@ -265,7 +265,7 @@ function updateDomAttributes() {
 
     if (settings.store.lockButtonPosition && isSplit) {
         if (avatarWrapper) {
-            avatarWrapper.style.setProperty("flex", "1 1 0px", "important");
+            avatarWrapper.style.setProperty("flex", "0 1 auto", "important");
             avatarWrapper.style.setProperty("min-width", "0px", "important");
             avatarWrapper.style.setProperty("max-width", "calc(100% - 135px)", "important");
             avatarWrapper.style.setProperty("overflow", "hidden", "important");
@@ -415,6 +415,10 @@ function buildCSS(): string {
     // Base fixes
     lines.push(`${S.panelContainer} { height: auto !important; min-height: unset !important; }`);
 
+    // Suppress plugin redGlow/orangeGlow on user-area toggle buttons at rest
+    // (btnTarget:hover has higher specificity so PanelLayout hover effects still apply on hover)
+    lines.push(`.vc-plugin-icon-button { box-shadow: none !important; filter: none !important; }`);
+
     // Ensure cloned config SVGs display correctly
     lines.push(`
         .deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
@@ -454,10 +458,16 @@ function buildCSS(): string {
                 }
                 ${S.panelButtons} { display: contents !important; }
                 ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]):not([data-deracul-label="Mute"]):not([data-deracul-label="Deafen"]) {
-                    display: flex !important; justify-content: center !important; align-items: center !important; flex: ${flexSize} !important;
+                    order: 10000 !important; display: flex !important; justify-content: center !important; align-items: center !important; flex: ${flexSize} !important;
                 }
                 ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]):not([data-deracul-label="Mute"]):not([data-deracul-label="Deafen"]) > button {
                     width: 100% !important; display: flex !important; justify-content: center !important; align-items: center !important;
+                }
+                ${S.panelButtons} > ${S.audioParent},
+                ${S.panelButtons} > [data-deracul-label="User Settings"],
+                ${S.panelButtons} > [data-deracul-label="Mute"],
+                ${S.panelButtons} > [data-deracul-label="Deafen"] {
+                    order: 40000 !important; margin: 0 !important;
                 }
             `);
             break;
@@ -491,7 +501,7 @@ function buildCSS(): string {
             break;
     }
 
-    const btnTarget = `${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) :is([class*="button_"], button, [data-deracul-label]), ${S.panelButtons} > button:not([data-deracul-label="User Settings"])`;
+    const btnTarget = `${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) :is([class*="button_"], button), ${S.panelButtons} > button:not([data-deracul-label="User Settings"])`;
 
     // Icon & Button size
     if (st.iconSize !== 20) {
@@ -531,8 +541,8 @@ function buildCSS(): string {
     // Colorful Active Buttons
     if (st.colorfulActiveButtons) {
         lines.push(`
-            ${S.panelButtons} button[role="switch"][aria-checked="true"] { background-color: var(--brand-experiment, #5865F2) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} button[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
+            ${S.panelButtons} button:not(.vc-plugin-icon-button)[role="switch"][aria-checked="true"] { background-color: var(--brand-experiment, #5865F2) !important; color: white !important; border-radius: 10px !important; }
+            ${S.panelButtons} button:not(.vc-plugin-icon-button)[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
             ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"], ${S.panelButtons} [data-deracul-label="Ban all in VC"] button { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
             ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"] svg, ${S.panelButtons} [data-deracul-label="Ban all in VC"] button svg { color: white !important; fill: white !important; }
             ${S.panelButtons} [data-deracul-label="Fake States"] button[aria-checked="true"] { background-color: var(--status-positive, #23A559) !important; color: white !important; border-radius: 10px !important; }
@@ -555,7 +565,7 @@ function buildCSS(): string {
     // Hover
     switch (st.hoverEffect) {
         case "scale": lines.push(`${btnTarget}:hover { transform: scale(1.15) !important; transition: transform 0.15s ease !important; }`); break;
-        case "glow": lines.push(`${btnTarget}:hover { filter: drop-shadow(0 0 6px var(--brand-experiment, #5865f2)) !important; transition: filter 0.15s ease !important; }`); break;
+        case "glow": lines.push(`${btnTarget}:hover { filter: drop-shadow(0 0 6px white) !important; transition: filter 0.15s ease !important; }`); break;
         case "bright": lines.push(`${btnTarget}:hover { filter: brightness(1.3) !important; transition: filter 0.15s ease !important; }`); break;
     }
 
@@ -583,7 +593,7 @@ function buildCSS(): string {
             ${S.accountWrapper},
             [class*="accountPopoutButtonWrapper"],
             [class*="avatarWrapper"] {
-                flex: 1 1 0px !important;
+                flex: 0 1 auto !important;
                 min-width: 0 !important;
                 max-width: calc(100% - 135px) !important;
                 overflow: hidden !important;
@@ -666,7 +676,7 @@ function buildCustomCSS(): string {
             ${S.accountWrapper},
             [class*="accountPopoutButtonWrapper"],
             [class*="avatarWrapper"] {
-                flex: 1 1 0px !important;
+                flex: 0 1 auto !important;
                 min-width: 0 !important;
                 max-width: calc(100% - 135px) !important;
                 overflow: hidden !important;
