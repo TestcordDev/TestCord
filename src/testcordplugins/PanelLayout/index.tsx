@@ -82,9 +82,9 @@ const settings = definePluginSettings({
     panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#0e1852", onChange: () => apply() },
     glowColor: { type: OptionType.STRING, description: "Glow hover color", default: "#ffffff", onChange: () => apply() },
     colorfulActiveButtons: { type: OptionType.BOOLEAN, default: true, description: "Use distinct colored blobs for active plugin buttons", onChange: () => apply() },
-    lockButtonPosition: { type: OptionType.BOOLEAN, default: false, description: "Lock panel buttons in place (prevent wrap on long status or screen sharing)", onChange: () => apply() },
-    // Chevrons
+    // Chevrons & Lock
     hideChevrons: { type: OptionType.BOOLEAN, default: false, description: "Hide dropdown chevrons next to Mute and Deafen", onChange: () => apply() },
+    lockButtonPosition: { type: OptionType.BOOLEAN, default: false, description: "Lock Button Position (prevents buttons dropping down on long status)", onChange: () => apply() },
     // Call controls
     callCompact: { type: OptionType.BOOLEAN, default: false, description: "Compact mode for call control buttons", onChange: () => apply() },
     hideDisconnect: { type: OptionType.BOOLEAN, default: false, description: "Hide the disconnect button", onChange: () => apply() },
@@ -101,22 +101,19 @@ const settings = definePluginSettings({
 
 // ─── Selectors & Constants ────────────────────────────────────────────────────
 
-const PANELS = 'section[class*="panels"]';
-
 const S = {
-    panels:         PANELS,
-    panelContainer: `${PANELS} > div[class*="container"]`,
-    panelButtons:   `${PANELS} [class*="buttons_"]`,
-    panelButton:    '[class*="button_"], button',
-    audioParent:    `${PANELS} [class*="audioButtonParent"]`,
-    chevron:        '[class*="buttonChevron"]',
-    callContainer:  'div[class*="container_e131a9"]',
-    callControls:   'div[class*="actionButtons_e131a9"]',
-    callButton:     'div[class*="button_e131a9"]',
-    voiceStatus:    '[class*="rtcConnectionStatus"]',
-    pingIcon:       '[class*="clickablePing"]',
-    disconnect:     '[class*="voiceButtonsContainer"]',
-    accountWrapper: `${PANELS} [class*="avatarWrapper"], ${PANELS} [class*="accountPopoutButtonWrapper"]`,
+    panelContainer: ".container__37e49",
+    panelButtons:   ".buttons__37e49",
+    panelButton:    ".button__201d5",
+    audioParent:    ".audioButtonParent__5e764",
+    chevron:        ".buttonChevron__5e764",
+    callContainer:  ".container_e131a9",
+    callControls:   ".actionButtons_e131a9",
+    callButton:     ".button_e131a9",
+    voiceStatus:    ".rtcConnectionStatus__06d62",
+    pingIcon:       ".clickablePing__06d62",
+    disconnect:     ".voiceButtonsContainer_e131a9",
+    accountWrapper: ".accountPopoutButtonWrapper__37e49",
 };
 
 const NATIVE_BUTTON_LABELS = new Set([
@@ -209,7 +206,7 @@ function cssVal(val: string): string {
 
 // Employs a unique data attribute injected dynamically for stable ordering
 function getBtnSelector(canonical: string): string {
-    return `section[class*="panels"] [data-deracul-label=${cssVal(canonical)}]`;
+    return `html body div${S.panelContainer} div:is(${S.panelButtons}, ${S.callControls}) > [data-deracul-label=${cssVal(canonical)}]`;
 }
 
 // ─── Global Keybind Logic ─────────────────────────────────────────────────────
@@ -257,67 +254,6 @@ function updateDomAttributes() {
         const canonical = getCanonicalLabel(rawLabel);
         if (el.getAttribute("data-deracul-label") !== canonical) {
             el.setAttribute("data-deracul-label", canonical);
-        }
-    }
-
-    const avatarWrapper = document.querySelector('section[class*="panels"] [class*="avatarWrapper"], section[class*="panels"] [class*="accountPopoutButtonWrapper"]') as HTMLElement | null;
-    const audioParent = document.querySelector('section[class*="panels"] [class*="audioButtonParent"]') as HTMLElement | null;
-    const isSplit = ["split_row", "split_grid2", "split_grid3", "split_grid4"].includes(settings.store.userPanelLayout);
-
-    if (settings.store.lockButtonPosition && isSplit) {
-        if (avatarWrapper) {
-            avatarWrapper.style.setProperty("flex", "0 1 auto", "important");
-            avatarWrapper.style.setProperty("min-width", "0px", "important");
-            avatarWrapper.style.setProperty("max-width", "calc(100% - 135px)", "important");
-            avatarWrapper.style.setProperty("overflow", "hidden", "important");
-            avatarWrapper.style.setProperty("margin-right", "0px", "important");
-
-            const children = avatarWrapper.querySelectorAll("*");
-            for (const child of children) {
-                const el = child as HTMLElement;
-                if (el.style) {
-                    el.style.setProperty("min-width", "0px", "important");
-                    el.style.setProperty("max-width", "100%", "important");
-                    el.style.setProperty("overflow", "hidden", "important");
-                    el.style.setProperty("text-overflow", "ellipsis", "important");
-                    el.style.setProperty("white-space", "nowrap", "important");
-                }
-            }
-        }
-
-        if (audioParent) {
-            audioParent.style.setProperty("order", "40000", "important");
-            audioParent.style.setProperty("display", "inline-flex", "important");
-            audioParent.style.setProperty("flex", "0 0 auto", "important");
-            audioParent.style.setProperty("width", "auto", "important");
-            audioParent.style.setProperty("margin-left", "auto", "important");
-            audioParent.style.setProperty("margin-right", "4px", "important");
-            audioParent.style.setProperty("flex-shrink", "0", "important");
-        }
-    } else {
-        if (avatarWrapper) {
-            avatarWrapper.style.removeProperty("flex");
-            avatarWrapper.style.removeProperty("min-width");
-            avatarWrapper.style.removeProperty("max-width");
-            avatarWrapper.style.removeProperty("overflow");
-            avatarWrapper.style.removeProperty("margin-right");
-
-            const children = avatarWrapper.querySelectorAll("*");
-            for (const child of children) {
-                const el = child as HTMLElement;
-                if (el.style) {
-                    el.style.removeProperty("min-width");
-                    el.style.removeProperty("max-width");
-                    el.style.removeProperty("overflow");
-                    el.style.removeProperty("text-overflow");
-                    el.style.removeProperty("white-space");
-                }
-            }
-        }
-
-        if (audioParent) {
-            audioParent.style.removeProperty("margin-left");
-            audioParent.style.removeProperty("flex-shrink");
         }
     }
 }
@@ -416,10 +352,6 @@ function buildCSS(): string {
     // Base fixes
     lines.push(`${S.panelContainer} { height: auto !important; min-height: unset !important; }`);
 
-    // Suppress plugin redGlow/orangeGlow on user-area toggle buttons at rest
-    // (btnTarget:hover has higher specificity so PanelLayout hover effects still apply on hover)
-    lines.push(`.vc-plugin-icon-button { box-shadow: none !important; filter: none !important; }`);
-
     // Ensure cloned config SVGs display correctly
     lines.push(`
         .deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
@@ -445,6 +377,7 @@ function buildCSS(): string {
             if (st.userPanelLayout === "split_grid3") flexSize = `0 0 calc(33.333% - (${gap}px * 2 / 3))`;
             if (st.userPanelLayout === "split_grid4") flexSize = `0 0 calc(25% - (${gap}px * 3 / 4))`;
 
+            // Note: Massive flex order gaps (10000, 20000) allow custom Drag and Drop orders to inject safely in between.
             lines.push(`
                 ${S.panelContainer} {
                     display: flex !important; flex-wrap: wrap !important; gap: ${gap}px !important;
@@ -458,16 +391,14 @@ function buildCSS(): string {
                     order: 30000 !important; flex: 1 1 auto !important; min-width: 0 !important; margin-right: auto !important;
                 }
                 ${S.panelButtons} { display: contents !important; }
-                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]):not([data-deracul-label="Mute"]):not([data-deracul-label="Deafen"]) {
+                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) {
                     order: 10000 !important; display: flex !important; justify-content: center !important; align-items: center !important; flex: ${flexSize} !important;
                 }
-                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]):not([data-deracul-label="Mute"]):not([data-deracul-label="Deafen"]) > button {
+                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) > button {
                     width: 100% !important; display: flex !important; justify-content: center !important; align-items: center !important;
                 }
                 ${S.panelButtons} > ${S.audioParent},
-                ${S.panelButtons} > [data-deracul-label="User Settings"],
-                ${S.panelButtons} > [data-deracul-label="Mute"],
-                ${S.panelButtons} > [data-deracul-label="Deafen"] {
+                ${S.panelButtons} > [data-deracul-label="User Settings"] {
                     order: 40000 !important; margin: 0 !important;
                 }
             `);
@@ -502,48 +433,46 @@ function buildCSS(): string {
             break;
     }
 
-    const btnTarget = `${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) :is([class*="button_"], button), ${S.panelButtons} > button:not([data-deracul-label="User Settings"])`;
-
     // Icon & Button size
     if (st.iconSize !== 20) {
-        lines.push(`${btnTarget} svg, ${btnTarget} .lottieIcon__5eb9b { width: ${st.iconSize}px !important; height: ${st.iconSize}px !important; }`);
+        lines.push(`${S.panelButtons} ${S.panelButton} svg, ${S.panelButtons} ${S.panelButton} .lottieIcon__5eb9b { width: ${st.iconSize}px !important; height: ${st.iconSize}px !important; }`);
     }
     if (st.buttonContainerSize !== 32) {
         lines.push(`
-            ${btnTarget} {
+            ${S.panelButtons} ${S.panelButton} {
                 width: ${st.buttonContainerSize}px !important; height: ${st.buttonContainerSize}px !important;
                 min-width: unset !important; min-height: unset !important; padding: 0 !important;
                 display: flex !important; align-items: center !important; justify-content: center !important;
             }
-            ${btnTarget} .contents__201d5 { display: flex !important; align-items: center !important; justify-content: center !important; }
+            ${S.panelButtons} ${S.panelButton} .contents__201d5 { display: flex !important; align-items: center !important; justify-content: center !important; }
         `);
     }
 
     // Button Base style
     switch (st.buttonStyle) {
         case "filled":
-            lines.push(`${btnTarget} { background: var(--background-modifier-hover) !important; border-radius: 8px !important; }
-                        ${btnTarget}:hover { background: var(--background-modifier-active) !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover) !important; border-radius: 8px !important; }
+                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active) !important; }`);
             break;
         case "outlined":
-            lines.push(`${btnTarget} { border: 1.5px solid var(--background-modifier-accent) !important; border-radius: 8px !important; }
-                        ${btnTarget}:hover { border-color: var(--interactive-normal) !important; background: var(--background-modifier-hover) !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent) !important; border-radius: 8px !important; }
+                        ${S.panelButtons} ${S.panelButton}:hover { border-color: var(--interactive-normal) !important; background: var(--background-modifier-hover) !important; }`);
             break;
         case "pill":
-            lines.push(`${btnTarget} { background: var(--background-modifier-hover) !important; border-radius: 20px !important; }
-                        ${btnTarget}:hover { background: var(--background-modifier-active) !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover) !important; border-radius: 20px !important; }
+                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active) !important; }`);
             break;
         case "square":
-            lines.push(`${btnTarget} { background: var(--background-modifier-hover) !important; border-radius: 2px !important; }
-                        ${btnTarget}:hover { background: var(--background-modifier-active) !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover) !important; border-radius: 2px !important; }
+                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active) !important; }`);
             break;
     }
 
     // Colorful Active Buttons
     if (st.colorfulActiveButtons) {
         lines.push(`
-            ${S.panelButtons} button:not(.vc-plugin-icon-button)[role="switch"][aria-checked="true"] { background-color: var(--brand-experiment, #5865F2) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} button:not(.vc-plugin-icon-button)[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
+            ${S.panelButtons} button[role="switch"][aria-checked="true"] { background-color: var(--brand-experiment, #5865F2) !important; color: white !important; border-radius: 10px !important; }
+            ${S.panelButtons} button[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
             ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"], ${S.panelButtons} [data-deracul-label="Ban all in VC"] button { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
             ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"] svg, ${S.panelButtons} [data-deracul-label="Ban all in VC"] button svg { color: white !important; fill: white !important; }
             ${S.panelButtons} [data-deracul-label="Fake States"] button[aria-checked="true"] { background-color: var(--status-positive, #23A559) !important; color: white !important; border-radius: 10px !important; }
@@ -565,9 +494,9 @@ function buildCSS(): string {
 
     // Hover
     switch (st.hoverEffect) {
-        case "scale": lines.push(`${btnTarget}:hover { transform: scale(1.15) !important; transition: transform 0.15s ease !important; }`); break;
-        case "glow": lines.push(`${btnTarget}:hover { filter: drop-shadow(0 0 6px ${st.glowColor}) !important; transition: filter 0.15s ease !important; }`); break;
-        case "bright": lines.push(`${btnTarget}:hover { filter: brightness(1.3) !important; transition: filter 0.15s ease !important; }`); break;
+        case "scale": lines.push(`${S.panelButtons} ${S.panelButton}:hover { transform: scale(1.15) !important; transition: transform 0.15s ease !important; }`); break;
+        case "glow": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: drop-shadow(0 0 6px ${st.glowColor}) !important; transition: filter 0.15s ease !important; }`); break;
+        case "bright": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: brightness(1.3) !important; transition: filter 0.15s ease !important; }`); break;
     }
 
     // Visibility toggles
@@ -586,57 +515,40 @@ function buildCSS(): string {
     if (st.hideScreenShare) lines.push(`${getBtnSelector("Screen Share")} { display: none !important; }`);
     if (st.hideActivity) lines.push(`${getBtnSelector("Activity")} { display: none !important; }`);
 
-    const isSplit = ["split_row", "split_grid2", "split_grid3", "split_grid4"].includes(st.userPanelLayout);
-
-    // Lock Button Positions logic (prevents long status text or margin-right: auto from pushing buttons down to a 3rd row)
-    if (st.lockButtonPosition && isSplit) {
+    // Lock Button Positions logic (prevents long status text or screen sharing from pushing buttons down to a new row)
+    if (st.lockButtonPosition) {
+        const isSplit = ["split_row", "split_grid2", "split_grid3", "split_grid4", "all_top"].includes(st.userPanelLayout);
+        if (!isSplit) {
+            lines.push(`${S.panelContainer} { flex-wrap: nowrap !important; }`);
+            lines.push(`${S.panelButtons} { flex-wrap: nowrap !important; flex-shrink: 0 !important; }`);
+        }
         lines.push(`
-            ${S.accountWrapper},
-            [class*="accountPopoutButtonWrapper"],
-            [class*="avatarWrapper"] {
+            ${S.accountWrapper} {
                 flex: 0 1 auto !important;
-                min-width: 0 !important;
-                max-width: calc(100% - 135px) !important;
+                min-width: 120px !important;
+                max-width: 180px !important;
                 overflow: hidden !important;
-                margin-right: 0 !important;
             }
-            ${S.accountWrapper} *,
-            [class*="accountPopoutButtonWrapper"] *,
-            [class*="avatarWrapper"] * {
-                min-width: 0 !important;
-                max-width: 100% !important;
+            ${S.accountWrapper} [class*="avatar_"],
+            ${S.accountWrapper} [class*="avatarWrapper_"] {
+                flex-shrink: 0 !important;
+            }
+            ${S.accountWrapper} [class*="nameTag_"],
+            ${S.accountWrapper} [class*="panelSubtextContainer_"],
+            ${S.accountWrapper} [class*="activity_"],
+            ${S.accountWrapper} [class*="subtext_"],
+            ${S.accountWrapper} [class*="text_"],
+            ${S.accountWrapper} [class*="status_"],
+            ${S.accountWrapper} [class*="customStatus_"] {
                 overflow: hidden !important;
                 text-overflow: ellipsis !important;
                 white-space: nowrap !important;
             }
             ${S.audioParent},
-            [class*="audioButtonParent"] {
-                order: 40000 !important;
-                display: inline-flex !important;
-                align-items: center !important;
-                flex: 0 0 auto !important;
-                width: auto !important;
-                margin-left: auto !important;
-                margin-right: 4px !important;
-                flex-shrink: 0 !important;
-                white-space: nowrap !important;
-            }
-            ${S.audioParent} > *,
-            [class*="audioButtonParent"] > * {
-                order: unset !important;
-                flex: 0 0 auto !important;
-                width: auto !important;
-                margin: 0 !important;
-            }
-            [data-deracul-label="User Settings"] {
-                order: 40002 !important;
-                margin-left: 0 !important;
-                margin-right: 0 !important;
-                flex-shrink: 0 !important;
-                white-space: nowrap !important;
-            }
-            [data-deracul-label="Mute"],
-            [data-deracul-label="Deafen"] {
+            ${S.panelContainer} [class*="audioButtonParent"],
+            ${S.panelContainer} [data-deracul-label="User Settings"],
+            ${S.panelContainer} [data-deracul-label="Mute"],
+            ${S.panelContainer} [data-deracul-label="Deafen"] {
                 flex-shrink: 0 !important;
                 white-space: nowrap !important;
             }
@@ -648,97 +560,25 @@ function buildCSS(): string {
 
 function buildCustomCSS(): string {
     const lines: string[] = [];
-    const st = settings.store;
-    const layout = st.userPanelLayout;
+    const layout = settings.store.userPanelLayout;
     const isSplit = ["split_row", "split_grid2", "split_grid3", "split_grid4"].includes(layout);
 
     for (const cfg of Object.values(buttonConfigs)) {
         if (!cfg.label) continue;
-        const canonical = getCanonicalLabel(cfg.label);
         const sel = getBtnSelector(cfg.label);
 
         if (cfg.hidden) lines.push(`${sel} { display: none !important; }`);
 
-        // Native audio children stay inside audioParent container natively
-        if (["Mute", "Deafen", "Input Options", "Output Options"].includes(canonical)) continue;
-
         if (cfg.order != null) {
             let orderVal = cfg.order;
-            if (isSplit && st.lockButtonPosition) {
-                const isNative = NATIVE_BUTTON_LABELS.has(canonical);
+            if (isSplit) {
+                // If it's a split layout, automatically push native buttons to the bottom tier.
+                const isNative = NATIVE_BUTTON_LABELS.has(getCanonicalLabel(cfg.label));
                 orderVal = isNative ? (40000 + cfg.order) : (10000 + cfg.order);
             }
             lines.push(`${sel} { order: ${orderVal} !important; }`);
         }
     }
-
-    if (st.lockButtonPosition && isSplit) {
-        lines.push(`
-            ${S.accountWrapper},
-            [class*="accountPopoutButtonWrapper"],
-            [class*="avatarWrapper"] {
-                flex: 0 1 auto !important;
-                min-width: 0 !important;
-                max-width: calc(100% - 135px) !important;
-                overflow: hidden !important;
-                margin-right: 0 !important;
-            }
-            ${S.accountWrapper} *,
-            [class*="accountPopoutButtonWrapper"] *,
-            [class*="avatarWrapper"] * {
-                min-width: 0 !important;
-                max-width: 100% !important;
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
-                white-space: nowrap !important;
-            }
-            ${S.audioParent},
-            [class*="audioButtonParent"] {
-                order: 40000 !important;
-                display: inline-flex !important;
-                align-items: center !important;
-                flex: 0 0 auto !important;
-                width: auto !important;
-                margin-left: auto !important;
-                margin-right: 4px !important;
-                flex-shrink: 0 !important;
-                white-space: nowrap !important;
-            }
-            ${S.audioParent} > *,
-            [class*="audioButtonParent"] > * {
-                order: unset !important;
-                flex: 0 0 auto !important;
-                width: auto !important;
-                margin: 0 !important;
-            }
-            [data-deracul-label="User Settings"] {
-                order: 40002 !important;
-                margin-left: 0 !important;
-                margin-right: 0 !important;
-                flex-shrink: 0 !important;
-                white-space: nowrap !important;
-            }
-            [data-deracul-label="Mute"],
-            [data-deracul-label="Deafen"] {
-                flex-shrink: 0 !important;
-                white-space: nowrap !important;
-            }
-        `);
-
-        if (st.userPanelLayout === "default") {
-            lines.push(`
-                ${S.panelContainer} {
-                    flex-wrap: nowrap !important;
-                    align-items: center !important;
-                }
-                ${S.panelButtons} {
-                    flex-shrink: 0 !important;
-                    flex-wrap: nowrap !important;
-                }
-            `);
-        }
-    }
-
     return lines.join("\n");
 }
 
@@ -877,18 +717,12 @@ interface BtnItem { id: string; label: string; iconHTML: string; }
 function getBtnItems(): BtnItem[] {
     const seen = new Set<string>();
     const out: BtnItem[] = [];
-    let idx = 0;
     for (const el of getAllButtons()) {
         const rawLabel = getBtnLabel(el);
         if (!rawLabel) continue;
         const label = getCanonicalLabel(rawLabel);
         if (seen.has(label)) continue;
         seen.add(label);
-
-        if (buttonConfigs[label]?.order == null) {
-            setBtnCfg(label, { order: idx * 10 });
-        }
-        idx++;
 
         let iconHTML = "";
         const svg = el.querySelector("svg");
@@ -1126,6 +960,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: ModalProps; }) {
         set("iconSize", 20);
         set("buttonGap", 6);
         set("panelOpacity", 100);
+        set("lockButtonPosition", false);
         setResetKey(prev => prev + 1);
     }
 
@@ -1191,8 +1026,8 @@ function PanelLayoutModal({ modalProps }: { modalProps: ModalProps; }) {
 
                             <Heading tag="h5">Extra Features</Heading>
                             <Card variant="primary">
-                                <FormSwitch title="Lock Button Positions" description="Locks Mute/Deafen/Settings in place and prevents buttons wrapping down on large status or screen sharing." value={s.lockButtonPosition} onChange={v => set("lockButtonPosition", v)} />
-                                <FormSwitch title="Hide Dropdown Chevrons" description="Removes the tiny arrows next to Mute/Deafen." value={s.hideChevrons} onChange={v => set("hideChevrons", v)} hideBorder />
+                                <FormSwitch title="Hide Dropdown Chevrons" description="Removes the tiny arrows next to Mute/Deafen." value={s.hideChevrons} onChange={v => set("hideChevrons", v)} />
+                                <FormSwitch title="Lock Button Position" description="Prevents Mute, Deafen, and Settings buttons from dropping down to a new row when you have a long status or share screen." value={s.lockButtonPosition} onChange={v => set("lockButtonPosition", v)} hideBorder />
                             </Card>
                         </>}
 
