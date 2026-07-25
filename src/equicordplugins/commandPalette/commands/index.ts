@@ -11,6 +11,7 @@ import { equicordCommands } from "./equicord";
 import { navigationCommands } from "./navigation";
 import { pluginCommands } from "./pluginManagement";
 import { sendDmCommand } from "./sendDm";
+import { themeCommands } from "./themes";
 
 export async function registerBuiltinCommands() {
     registerCommands("CommandPalette.builtin", [
@@ -18,6 +19,7 @@ export async function registerBuiltinCommands() {
         ...discordCommands,
         ...pluginCommands,
         ...equicordCommands,
+        ...themeCommands,
         sendDmCommand
     ]);
 
