@@ -87,23 +87,24 @@ export const discordCommands: PaletteCommand[] = [
     },
     {
         id: "discord.toggleTheme",
-        title: "Toggle Theme",
+        title: "Toggle Discord Client Theme",
         section: SECTION,
-        keywords: ["theme", "light", "ash", "dark", "onyx", "appearance"],
+        keywords: ["discord", "light", "ash", "dark", "onyx", "appearance", "mode"],
         icon: MoonIcon,
         actions: [{
             id: "run",
-            label: "Toggle Theme",
+            label: "Toggle Discord Theme",
             run() {
-                if (ThemeStore == null || typeof updateDiscordTheme !== "function") {
-                    showToast("Theme store is not available yet. Try again in a moment.", Toasts.Type.FAILURE);
+                const saveTheme = updateDiscordTheme ?? findByCodeLazy('type:"UNSYNCED_USER_SETTINGS_UPDATE', '"system"===');
+                if (ThemeStore == null || typeof saveTheme !== "function") {
+                    showToast("Discord theme settings are not ready yet.", Toasts.Type.FAILURE);
                     return;
                 }
 
                 const currentIdx = THEMES.findIndex(theme => theme.value === ThemeStore.theme);
                 const next = THEMES[(currentIdx + 1) % THEMES.length];
-                updateDiscordTheme({ theme: next.value });
-                showToast(`Theme set to ${next.label}.`, Toasts.Type.SUCCESS);
+                saveTheme({ theme: next.value });
+                showToast(`Discord theme set to ${next.label}.`, Toasts.Type.SUCCESS);
             }
         }]
     }

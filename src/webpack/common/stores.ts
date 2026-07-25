@@ -118,6 +118,7 @@ const storeAssignments: Record<string, (s: any) => void> = {
     WindowStore: m => WindowStore = m,
     EmojiStore: m => EmojiStore = m,
     StickersStore: m => StickersStore = m,
+    ThemeStore: m => ThemeStore = m,
     TypingStore: m => TypingStore = m,
     VoiceStateStore: m => VoiceStateStore = m,
     StreamerModeStore: m => StreamerModeStore = m,
