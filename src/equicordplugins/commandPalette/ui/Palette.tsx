@@ -492,7 +492,7 @@ export function Palette({ onClose, initialPage }: PaletteProps) {
 
     const footerHint = recordingFor
         ? "Press a key combo, Backspace to clear, Esc to cancel"
-        : currentPage?.title ?? "Equicord";
+        : currentPage?.title ?? "Testcord";
 
     const blur = Math.max(0, settings.store.backdropBlur ?? 6);
 
