@@ -80,18 +80,20 @@ function injectCSS() {
     removeCSS();
     const style = document.createElement("style");
     style.id = STYLE_ID;
-    const { fadeSpeed, smoothScrollbar, scrollbarColor } = settings.store;
+    const { fadeSpeed, smoothChars, smoothScrollbar, scrollbarColor } = settings.store;
 
     style.textContent = `
-        /* Hide original caret */
-        [class*="slateTextArea"] * {
+        /* Hide original caret. caret-color inherits, so setting it on the editor covers the
+           whole subtree; the previous "[class*=...] *" put a universal-key selector in the
+           bucket that gets retested against every element on every style recalc. */
+        [class*="slateTextArea"] {
             caret-color: transparent !important;
         }
-
+${smoothChars ? `
         /* Smooth char fade-in */
         [class*="slateTextArea"] span[data-slate-string="true"] {
             animation: smoothCharIn ${fadeSpeed}ms ease-out both;
-        }
+        }` : ""}
 
         @keyframes smoothCharIn {
             from {

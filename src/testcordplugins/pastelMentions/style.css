@@ -1,11 +1,15 @@
 /* MallCord PastelMentions — pastel mention/role pills */
-[class*="mention"] {
-    background: linear-gradient(90deg, rgba(255, 113, 206, 0.35), rgba(1, 205, 254, 0.35)) !important;
-    color: #fff0fb !important;
+
+/* `.mention` is the pill itself and is not a mangled class. Matching [class*="mention"] also
+   hit the pinged message row (mentioned__hash), the unread-mentions bar and vc-mentionAvatars-*,
+   so entire rows got the gradient. */
+.mention {
+    background: linear-gradient(90deg, rgba(255, 113, 206, 0.35), rgba(1, 205, 254, 0.35)) !important; /* overrides Discord's own .mention background */
+    color: #fff0fb !important; /* same Discord rule sets the pill text colour */
     border-radius: 6px;
     transition: filter 0.15s ease;
 }
 
-[class*="mention"]:hover {
+.mention:hover {
     filter: brightness(1.2);
 }

@@ -7,6 +7,7 @@
 import "./styles.css";
 
 import { addHeaderBarButton, HeaderBarButton, removeHeaderBarButton } from "@api/HeaderBar";
+import { disableStyle, enableStyle } from "@api/Styles";
 import { sleep } from "@utils/misc";
 import { ModalCloseButton,ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
@@ -14,6 +15,7 @@ import { findByPropsLazy, findStoreLazy } from "@webpack";
 import { Forms, React, useEffect,useRef, UserStore, useState } from "@webpack/common";
 
 import { t } from "../autoTranslateNightcord";
+import sidebarStyle from "./sidebar.css?managed";
 
 const GuildStore = findStoreLazy("GuildStore");
 const GuildChannelStore = findStoreLazy("GuildChannelStore");
@@ -312,9 +314,11 @@ export default definePlugin({
     dependencies: ["HeaderBarAPI"],
 
     start() {
+        enableStyle(sidebarStyle);
         addHeaderBarButton("nightcord-voice-channel-search", () => <VCSHeaderButton />, 9);
     },
     stop() {
+        disableStyle(sidebarStyle);
         removeHeaderBarButton("nightcord-voice-channel-search");
         scanCache = null;
     },

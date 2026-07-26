@@ -158,7 +158,7 @@ export default definePlugin({
 
         // ─── Timestamp markdown <t:unix:t> — hover tooltip ────────────────────
         {
-            find: /.full,.{0,15}children:/,
+            find: /\.full,.{0,15}children:/,
             replacement: {
                 match: /(__unsupportedReactNodeAsText:)\i\.full/,
                 replace: "$1$self.renderTimestamp(new Date(arguments[0].node.timestamp*1000),'tooltip')",
