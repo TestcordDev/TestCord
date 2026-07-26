@@ -7,7 +7,7 @@
 import { registerCommands } from "../api/registry";
 import { loadCustomCommands, registerCustomCommands } from "./custom";
 import { discordCommands } from "./discordActions";
-import { equicordCommands } from "./equicord";
+import { testcordCommands } from "./testcord";
 import { navigationCommands } from "./navigation";
 import { pluginCommands } from "./pluginManagement";
 import { sendDmCommand } from "./sendDm";
@@ -18,7 +18,7 @@ export async function registerBuiltinCommands() {
         ...navigationCommands,
         ...discordCommands,
         ...pluginCommands,
-        ...equicordCommands,
+        ...testcordCommands,
         ...themeCommands,
         sendDmCommand
     ]);
