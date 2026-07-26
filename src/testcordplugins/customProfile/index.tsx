@@ -658,11 +658,21 @@ function scanNode(node: Node) {
     while ((n = walker.nextNode())) scanTextNode(n as Text);
 }
 
+// Walking every text node in the client is expensive, so only do it when there is
+// actually a string to swap. With no fake name and no fake creation date configured
+// the walk could never change anything, and it was still running every 5 seconds.
+function hasTextReplacements(): boolean {
+    if (storedData.createdAt) return true;
+    if (storedData.username && _realUsername) return true;
+    if (storedData.globalName && _realGlobalName) return true;
+    return false;
+}
+
 function startDomObserver() {
     stopDomObserver(); if (!isEnabled) return;
     scanNode(document.body);
     domObserver = setInterval(() => {
-        if (!isEnabled) return;
+        if (!isEnabled || !hasTextReplacements()) return;
         scanNode(document.body);
     }, 5000);
 }

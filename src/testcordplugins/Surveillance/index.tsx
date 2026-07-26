@@ -1151,7 +1151,16 @@ const logReactionClear = (event: { channelId: string; messageId: string; }) => {
 };
 
 const logChannelEvent = (type: "channel_create" | "channel_delete" | "channel_update", event: ChannelFluxEvent) => {
+    // Guard before doing any work. getChannelEventInfo hits ChannelStore and GuildStore
+    // and builds an object, and CHANNEL_UPDATES delivers a whole batch of channels at
+    // once - so on a big server this ran hundreds of store lookups per dispatch only to
+    // throw the result away in addServerEvent. This was the single most expensive event
+    // in the client by total time.
+    const rawGuildId = event.channel?.guild_id ?? event.guildId;
+    if (rawGuildId != null && !shouldTrackServer(rawGuildId)) return;
+
     const info = getChannelEventInfo(event);
+    if (!shouldTrackServer(info.guildId)) return;
     const label = info.channelName ?? info.channelId ?? "Unknown channel";
     const verb = type === "channel_create" ? "Created" : type === "channel_delete" ? "Deleted" : "Updated";
 
@@ -1165,7 +1174,11 @@ const logChannelEvent = (type: "channel_create" | "channel_delete" | "channel_up
 };
 
 const logThreadEvent = (type: "thread_create" | "thread_delete" | "thread_update", event: ChannelFluxEvent) => {
+    const rawGuildId = event.channel?.guild_id ?? event.guildId;
+    if (rawGuildId != null && !shouldTrackServer(rawGuildId)) return;
+
     const info = getChannelEventInfo(event);
+    if (!shouldTrackServer(info.guildId)) return;
     const label = info.channelName ?? info.channelId ?? "Unknown thread";
     const verb = type === "thread_create" ? "Created" : type === "thread_delete" ? "Deleted" : "Updated";
 
@@ -1217,6 +1230,8 @@ const logGuildMemberEvent = (
 
 const logGuildEvent = (event: GuildFluxEvent) => {
     const guildId = event.guild?.id ?? event.guildId;
+    if (!shouldTrackServer(guildId)) return;
+
     const guildName = event.guild?.name ?? GuildStore.getGuild(guildId ?? "")?.name;
 
     addServerEvent("guild_update", guildId, `Server settings changed${guildName ? ` for ${guildName}` : ""}.`, {
@@ -1357,6 +1372,9 @@ export default definePlugin({
         },
 
         CHANNEL_UPDATES({ channels }: { channels: Channel[]; }) {
+            // With no server targeted every channel in the batch is a guaranteed no-op,
+            // so skip the loop entirely rather than paying per-channel guard cost.
+            if (serverTargets.length === 0) return;
             for (const channel of channels) {
                 logChannelEvent("channel_update", { channel });
             }

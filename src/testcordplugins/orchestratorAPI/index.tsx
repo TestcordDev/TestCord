@@ -51,25 +51,31 @@ function dispatchCoalesced(actionType: string, event: any) {
     }
 }
 
+// Leading-edge throttle per channel. The first message of a burst goes through
+// immediately (no added latency), and the trailing timer only fires if something newer
+// arrived while the window was open. Previously the first message was both dispatched
+// inline AND re-dispatched by the timer, so every single message ran all subscribed
+// handlers twice - the opposite of what coalescing is for.
 function maybeCoalesce(actionType: string, event: any): boolean {
     if (actionType !== "MESSAGE_CREATE" || !settings.store.messageCoalesce) return false;
     const channelId = event.message?.channel_id;
     if (!channelId) return false;
+
     const pending = pendingCoalesce.get(channelId);
     if (pending) {
-        clearTimeout(pending.timer);
         pending.event = event;
-        pending.timer = setTimeout(() => {
-            pendingCoalesce.delete(channelId);
-            dispatchCoalesced(actionType, pending.event);
-        }, COALESCE_MS);
         return true;
     }
-    const timer = setTimeout(() => {
-        pendingCoalesce.delete(channelId);
-        dispatchCoalesced(actionType, event);
-    }, COALESCE_MS);
-    pendingCoalesce.set(channelId, { event, timer });
+
+    const entry: { event: any; timer: ReturnType<typeof setTimeout>; } = {
+        event: null,
+        timer: setTimeout(() => {
+            const latest = pendingCoalesce.get(channelId);
+            pendingCoalesce.delete(channelId);
+            if (latest?.event) dispatchCoalesced(actionType, latest.event);
+        }, COALESCE_MS)
+    };
+    pendingCoalesce.set(channelId, entry);
     return false;
 }
 

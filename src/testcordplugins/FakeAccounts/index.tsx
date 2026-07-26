@@ -1,22 +1,22 @@
 /*
- * Equicord, a Discord client mod
- * Copyright (c) 2024 Vendicated and contributors
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 import { definePluginSettings } from "@api/Settings";
+import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, RenderModalProps } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
-import { ModalContent, ModalFooter, ModalHeader, ModalProps, ModalRoot, ModalSize, ModalCloseButton, openModal } from "@utils/modal";
 import { findByPropsLazy, waitFor } from "@webpack";
-import { Button, Forms, React, RestAPI, Toasts, TextInput } from "@webpack/common";
+import { Button, Forms, React, RestAPI, TextInput, Toasts } from "@webpack/common";
 
-const UserStore         = findByPropsLazy("getCurrentUser", "getUser");
-const GuildStore        = findByPropsLazy("getGuilds", "getGuildCount");
-const GuildFolderStore  = findByPropsLazy("getGuildsTree", "getFlattenedGuildIds");
-const ChannelStore      = findByPropsLazy("getSortedPrivateChannels", "getMutablePrivateChannels");
+const UserStore = findByPropsLazy("getCurrentUser", "getUser");
+const GuildStore = findByPropsLazy("getGuilds", "getGuildCount");
+const GuildFolderStore = findByPropsLazy("getGuildsTree", "getFlattenedGuildIds");
+const ChannelStore = findByPropsLazy("getSortedPrivateChannels", "getMutablePrivateChannels");
 const RelationshipStore = findByPropsLazy("getRelationshipType", "getFriendCount");
-const AuthStore         = findByPropsLazy("getId", "getToken");
-const TabBar            = findByPropsLazy("Header", "Item", "Separator", "Panel");
+const AuthStore = findByPropsLazy("getId", "getToken");
+const TabBar = findByPropsLazy("Header", "Item", "Separator", "Panel");
 
 let UserClass: any = null;
 
@@ -206,7 +206,7 @@ export function deactivateFakeSession() {
     });
 }
 
-function FakeAccountModal({ modalProps }: { modalProps: ModalProps; }) {
+function FakeAccountModal({ modalProps }: { modalProps: RenderModalProps; }) {
     const [accounts, setAccounts] = React.useState<FakeAccount[]>(parseFakeAccounts());
     const [userId, setUserId] = React.useState("");
     const [manualUsername, setManualUsername] = React.useState("");
@@ -459,7 +459,7 @@ function handleKeyDown(e: KeyboardEvent) {
 export default definePlugin({
     name: "Fake Accounts",
     description: "Fake accounts to larp",
-    authors: [{ name: "deracul", id: 1454853467783954444n}],
+    authors: [{ name: "deracul", id: 1454853467783954444n }],
     settings,
 
     patches: [

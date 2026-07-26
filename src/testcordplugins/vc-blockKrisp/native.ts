@@ -4,19 +4,37 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { RendererSettings } from "@main/settings";
 import { app, session } from "electron";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from "fs";
 
 const PRELOAD_FILENAME = "vc-blockKrisp-preload.js";
 
-function inject() {
-    try {
-        const userData = app.getPath("userData");
-        const preloadDir = join(userData, "Testcord");
-        if (!existsSync(preloadDir)) mkdirSync(preloadDir, { recursive: true });
+function isEnabled() {
+    return RendererSettings.store.plugins?.BlockKrisp?.enabled === true;
+}
 
-        const preloadPath = join(preloadDir, PRELOAD_FILENAME);
+function getPreloadPath() {
+    const preloadDir = join(app.getPath("userData"), "Testcord");
+    if (!existsSync(preloadDir)) mkdirSync(preloadDir, { recursive: true });
+    return join(preloadDir, PRELOAD_FILENAME);
+}
+
+function sync() {
+    try {
+        const { defaultSession } = session;
+        if (!defaultSession) return;
+
+        const preloadPath = getPreloadPath();
+        // setPreloads replaces the whole list, so preserve anything else already
+        // registered instead of wiping other preloads off the session.
+        const others = defaultSession.getPreloads().filter(p => !p.endsWith(PRELOAD_FILENAME));
+
+        if (!isEnabled()) {
+            defaultSession.setPreloads(others);
+            return;
+        }
 
         const preloadSrc = [
             "try{",
@@ -34,13 +52,12 @@ function inject() {
             writeFileSync(preloadPath, preloadSrc, "utf-8");
         }
 
-        if (session?.defaultSession) {
-            session.defaultSession.setPreloads([preloadPath]);
-        }
+        defaultSession.setPreloads([...others, preloadPath]);
     } catch (e) {
-        console.error("[vc-blockKrisp] Failed to inject Krisp-blocking preload:", e);
+        console.error("[vc-blockKrisp] Failed to sync Krisp-blocking preload:", e);
     }
 }
 
-app.on("browser-window-created", () => inject());
-inject();
+app.on("browser-window-created", sync);
+RendererSettings.addChangeListener("plugins.BlockKrisp.enabled" as any, sync);
+sync();

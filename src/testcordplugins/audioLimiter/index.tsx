@@ -99,12 +99,20 @@ function setVolume(volume: number) {
   }
 }
 
+// Reused across frames. Allocating a fresh Uint8Array inside the rAF loop meant a
+// new heap buffer 60 times a second for the entire time the limiter was running,
+// which kept the GC busy for no reason.
+let levelBuffer: Uint8Array<ArrayBuffer> | null = null;
+
 // Function to analyze audio level
 function analyzeAudioLevel(): number {
   if (!limiterState.analyser) return 0;
 
   const bufferLength = limiterState.analyser.frequencyBinCount;
-  const dataArray = new Uint8Array(bufferLength);
+  if (!levelBuffer || levelBuffer.length !== bufferLength) {
+    levelBuffer = new Uint8Array(bufferLength);
+  }
+  const dataArray = levelBuffer;
   limiterState.analyser.getByteFrequencyData(dataArray);
 
   // Calculate RMS level

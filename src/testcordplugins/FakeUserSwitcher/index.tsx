@@ -461,9 +461,14 @@ let switcherDropdownObserver: ReturnType<typeof setInterval> | null = null;
 let switcherDropdownCheckQueued = false;
 let accountSwitcherRenderUntil = 0;
 
+// One comma-joined query instead of four separate document walks. These are substring
+// class matches, which skip the browser's fast selector path, so each one is a full
+// traversal — running four of them twice a second was pure overhead.
+const SWITCHER_DROPDOWN_SELECTOR = SWITCHER_DROPDOWN_SELECTORS.join(", ");
+
 function readSwitcherDropdownOpen(): boolean {
     try {
-        return SWITCHER_DROPDOWN_SELECTORS.some(sel => !!document.querySelector(sel));
+        return !!document.querySelector(SWITCHER_DROPDOWN_SELECTOR);
     } catch {
         return false;
     }
@@ -2634,7 +2639,7 @@ const plugin = definePlugin({
         // as "FakeUser". Returning here lets Discord's normal send path run unchanged.
         const active = getActiveTargetForGuild(undefined);
         if (active?.manualData?.overlaySelf) return;
-        const replyRef = options?.replyOptions?.messageReference;
+        const replyRef = options?.messageReference;
         const fake = buildFakeMessage(channelId, msg.content, replyRef);
         if (!fake) return;
 

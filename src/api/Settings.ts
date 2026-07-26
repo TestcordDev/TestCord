@@ -239,12 +239,21 @@ export const Settings = SettingsStore.store;
  * @returns Settings
  */
 // TODO: Representing paths as essentially "string[].join('.')" wont allow dots in paths, change to "paths?: string[][]" later
-export function useSettings(paths?: UseSettings<Settings>[]) {
+export function useSettings(paths?: readonly UseSettings<Settings>[]) {
     const [, forceUpdate] = React.useReducer(() => ({}), {});
 
+    // Almost every call site passes a fresh array literal, so keying the effect on the
+    // array identity tore down and rebuilt every listener on every single render. Key on
+    // the contents instead and read the current paths through a ref.
+    const pathsRef = React.useRef(paths);
+    pathsRef.current = paths;
+    const pathKey = paths ? paths.join("\0") : null;
+
     useEffect(() => {
-        if (paths) {
-            paths.forEach(p => {
+        const currentPaths = pathsRef.current;
+
+        if (currentPaths) {
+            currentPaths.forEach(p => {
                 if (p.endsWith(".*")) {
                     SettingsStore.addPrefixChangeListener(p.slice(0, -2), forceUpdate);
                 } else {
@@ -252,7 +261,7 @@ export function useSettings(paths?: UseSettings<Settings>[]) {
                 }
             });
 
-            return () => paths.forEach(p => {
+            return () => currentPaths.forEach(p => {
                 if (p.endsWith(".*")) {
                     SettingsStore.removePrefixChangeListener(p.slice(0, -2), forceUpdate);
                 } else {
@@ -263,7 +272,7 @@ export function useSettings(paths?: UseSettings<Settings>[]) {
             SettingsStore.addGlobalChangeListener(forceUpdate);
             return () => SettingsStore.removeGlobalChangeListener(forceUpdate);
         }
-    }, [paths]);
+    }, [pathKey]);
 
     return SettingsStore.store;
 }

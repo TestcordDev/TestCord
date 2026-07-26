@@ -200,7 +200,7 @@ export async function savePreset(name: string, createdAt: number, scope: ScopeKe
     if (scope.includes("themes")) {
         preset.themes = [...((Settings as any).enabledThemes ?? [])];
         const themes = await VencordNative.themes.getThemesList().catch(() => [] as { fileName: string; content: string; }[]);
-        const contentByName = new Map(themes.map(theme => [theme.fileName, theme.content]));
+        const contentByName = new Map(themes.map(theme => [theme.fileName, theme.content] as const));
         preset.themeFiles = Object.fromEntries(preset.themes
             .map(fileName => [fileName, contentByName.get(fileName)] as const)
             .filter((entry): entry is readonly [string, string] => typeof entry[1] === "string"));

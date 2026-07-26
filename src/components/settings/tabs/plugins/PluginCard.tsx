@@ -7,7 +7,7 @@
 import { showNotice } from "@api/Notices";
 import { PluginHealth } from "@api/PluginHealth";
 import { hasAnyVisibleSettings, isPluginEnabled, pluginRequiresRestart, startDependenciesRecursive, startPlugin, stopPlugin } from "@api/PluginManager";
-import { Settings } from "@api/Settings";
+import { Settings, useSettings } from "@api/Settings";
 import { CogWheel, InfoIcon } from "@components/Icons";
 import { AddonCard } from "@components/settings/AddonCard";
 import { classNameFactory } from "@utils/css";
@@ -21,6 +21,9 @@ import { openPluginModal } from "./PluginModal";
 
 const logger = new Logger("PluginCard");
 const cl = classNameFactory("vc-plugins-");
+
+// Hoisted so each card passes the same array instance across renders.
+const PLUGIN_ENABLED_PATHS: Record<string, readonly `plugins.${string}.enabled`[]> = {};
 interface PluginCardProps extends React.HTMLProps<HTMLDivElement> {
     plugin: Plugin;
     disabled?: boolean;
@@ -31,6 +34,11 @@ interface PluginCardProps extends React.HTMLProps<HTMLDivElement> {
 }
 
 export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, onMouseLeave, isNew }: PluginCardProps) {
+    // Subscribe to this plugin's own enabled flag. The card reads it through the
+    // non-reactive isPluginEnabled, and the parent memoises the card elements against
+    // `settings.plugins`, so nothing here re-renders on its own when the value changes.
+    useSettings(PLUGIN_ENABLED_PATHS[plugin.name] ??= [`plugins.${plugin.name}.enabled`]);
+
     const settings = Settings.plugins[plugin.name];
     const pluginMeta = PluginMeta[plugin.name] || { folderName: "", userPlugin: false };
     const isEquicordPlugin = pluginMeta.folderName?.startsWith("src/equicordplugins/") ?? false;

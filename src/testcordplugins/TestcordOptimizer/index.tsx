@@ -1195,10 +1195,23 @@ export default definePlugin({
         this.originalCancelRaf = window.cancelAnimationFrame.bind(window);
         const minInterval = 1000 / (60 * (1 - Math.min(skip, 95) / 100));
         let lastFrame = 0;
+        // closest() walks up the whole ancestor chain, and this runs on every single
+        // requestAnimationFrame registration — hundreds per frame under React. The answer
+        // only changes when focus changes, so cache it against the active element.
+        let lastActive: Element | null = null;
+        let lastActiveIsEditor = false;
+        const isEditorFocused = () => {
+            const active = document.activeElement;
+            if (active !== lastActive) {
+                lastActive = active;
+                lastActiveIsEditor = !!active?.closest("[data-slate-editor]");
+            }
+            return lastActiveIsEditor;
+        };
         window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
             const { originalRaf } = this;
             if (!originalRaf) return 0;
-            if (document.activeElement?.closest("[data-slate-editor]")) return originalRaf(cb);
+            if (isEditorFocused()) return originalRaf(cb);
             const id = this.nextRafReductionId++;
             const pending: { raf?: number; timeout?: ReturnType<typeof setTimeout>; } = {};
             this.pendingRafReduction.set(id, pending);

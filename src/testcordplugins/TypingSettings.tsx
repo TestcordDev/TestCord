@@ -212,32 +212,36 @@ function isChatInputFocused() {
     return !!(focused?.closest("[class*='slateTextArea']") || focused?.closest("[class*='textArea']"));
 }
 
-function rafLoop() {
-    if (!tracking) return;
-    // Only do the getSelection + getBoundingClientRect work while the chat input
-    // is actually focused; otherwise park the loop and let focusin restart it.
-    if (isChatInputFocused()) {
-        updateCaretPosition();
-        rafId = requestAnimationFrame(rafLoop);
-    } else {
-        if (caretEl) caretEl.style.display = "none";
+// The caret only moves when the selection, layout or focus changes, and every one of
+// those fires an event. A permanent rAF loop re-ran getSelection + getBoundingClientRect
+// 60 times a second while the chat box was focused, forcing a synchronous layout on every
+// frame — that was the typing lag. Now each event schedules at most one coalesced update.
+function scheduleCaretUpdate() {
+    if (!tracking || rafId !== null) return;
+    rafId = requestAnimationFrame(() => {
         rafId = null;
-    }
+        if (!tracking) return;
+        if (isChatInputFocused()) updateCaretPosition();
+        else if (caretEl) caretEl.style.display = "none";
+    });
 }
 
-function onFocusIn() {
-    if (tracking && rafId === null && isChatInputFocused()) {
-        rafId = requestAnimationFrame(rafLoop);
-    }
+function onFocusChange() {
+    if (!tracking) return;
+    if (isChatInputFocused()) scheduleCaretUpdate();
+    else if (caretEl) caretEl.style.display = "none";
 }
 
 function startTracking() {
     stopTracking();
     tracking = true;
-    document.addEventListener("selectionchange", updateCaretPosition);
+    document.addEventListener("selectionchange", scheduleCaretUpdate);
     document.addEventListener("keydown", resetBlinkOnKey);
-    document.addEventListener("focusin", onFocusIn);
-    if (isChatInputFocused()) rafId = requestAnimationFrame(rafLoop);
+    document.addEventListener("focusin", onFocusChange);
+    document.addEventListener("focusout", onFocusChange);
+    window.addEventListener("resize", scheduleCaretUpdate);
+    window.addEventListener("scroll", scheduleCaretUpdate, true);
+    scheduleCaretUpdate();
 }
 
 function stopTracking() {
@@ -246,9 +250,12 @@ function stopTracking() {
         cancelAnimationFrame(rafId);
         rafId = null;
     }
-    document.removeEventListener("selectionchange", updateCaretPosition);
+    document.removeEventListener("selectionchange", scheduleCaretUpdate);
     document.removeEventListener("keydown", resetBlinkOnKey);
-    document.removeEventListener("focusin", onFocusIn);
+    document.removeEventListener("focusin", onFocusChange);
+    document.removeEventListener("focusout", onFocusChange);
+    window.removeEventListener("resize", scheduleCaretUpdate);
+    window.removeEventListener("scroll", scheduleCaretUpdate, true);
 }
 
 function resetBlinkOnKey() {

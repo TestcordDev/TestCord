@@ -24,7 +24,7 @@ let currentFetch: FetchTiming | null = null;
 let currentChannelId: string | null = null;
 const channelTimings: Map<string, { time: number; timestamp: Date; }> = new Map();
 const MAX_CHANNEL_TIMINGS = 100;
-const FETCH_BUTTON_KEYS = ["showMs", "iconColor", "showIcon", "location"];
+const FETCH_BUTTON_KEYS = ["showMs", "iconColor", "showIcon", "location"] as const;
 
 function trimChannelTimings() {
     while (channelTimings.size > MAX_CHANNEL_TIMINGS) {

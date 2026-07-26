@@ -16,7 +16,7 @@ import { ChannelStore, ContextMenuApi, MediaEngineStore, Menu, PermissionsBits, 
 
 import { settings } from "./settings";
 
-const CONTEXT_MENU_KEYS = ["fakeMute", "fakeDeafen", "fakeStream", "fakeGame", "fakeCam", "cutMicTransmission"];
+const CONTEXT_MENU_KEYS = ["fakeMute", "fakeDeafen", "fakeStream", "fakeGame", "fakeCam", "cutMicTransmission"] as const;
 
 export let faked = false;
 

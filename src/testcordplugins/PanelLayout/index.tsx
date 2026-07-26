@@ -8,14 +8,15 @@ import * as DataStore from "@api/DataStore";
 import { definePluginSettings } from "@api/Settings";
 import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import { BaseText } from "@components/BaseText";
+import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
-import { ModalContent, ModalFooter, ModalHeader, ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
+import { ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, RenderModalProps } from "@utils/modal";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
-import { Button, React, Select, Slider } from "@webpack/common";
+import { React, Select, Slider } from "@webpack/common";
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
@@ -917,9 +918,9 @@ function ButtonsDragTab() {
 
 type Tab = "panel" | "call" | "style" | "colors" | "hide" | "drag";
 
-function PanelLayoutIcon({ style }: { style?: React.CSSProperties; }) {
+function PanelLayoutIcon({ style, className }: { style?: React.CSSProperties; className?: string; }) {
     return (
-        <svg style={style} width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <svg style={style} className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             {/* Top-Left Block */}
             <rect x="3" y="3" width="8" height="10" rx="2" fill="currentColor" />
             {/* Bottom-Left Block */}
@@ -932,7 +933,7 @@ function PanelLayoutIcon({ style }: { style?: React.CSSProperties; }) {
     );
 }
 
-function PanelLayoutModal({ modalProps }: { modalProps: ModalProps; }) {
+function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const [tab, setTab] = React.useState<Tab>("panel");
     const [resetKey, setResetKey] = React.useState(0);

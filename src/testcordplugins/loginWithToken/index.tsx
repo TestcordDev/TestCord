@@ -172,17 +172,32 @@ function tryInject() {
     form.appendChild(mount);
 }
 
+function isOnLoginPage() {
+    return location.pathname.startsWith("/login") || location.pathname.startsWith("/register");
+}
+
 function startObserver() {
     stopObserver();
+    // On a logged-in client the login form never appears, so the body-subtree observer
+    // below would wake on every DOM mutation for the whole session and re-run tryInject's
+    // querySelector each time. Only watch while we are actually on the login route.
+    if (!isOnLoginPage()) return;
     tryInject();
     if (document.getElementById(MOUNT_ID)) return;
+
+    let queued = false;
     observer = new MutationObserver(() => {
-        if (document.getElementById(MOUNT_ID)) return;
-        tryInject();
-        if (document.getElementById(MOUNT_ID)) {
-            observer?.disconnect();
-            observer = null;
-        }
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+            queued = false;
+            if (!observer || document.getElementById(MOUNT_ID)) return;
+            tryInject();
+            if (document.getElementById(MOUNT_ID)) {
+                observer.disconnect();
+                observer = null;
+            }
+        });
     });
     observer.observe(document.body, { childList: true, subtree: true });
 }

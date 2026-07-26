@@ -322,11 +322,15 @@ function ThemeDetailsModalContent({
 
 function openThemeDetailsModal(
     theme: MarketplaceTheme,
+    installed: boolean,
+    onToggleInstall: () => void,
     onTagClick: (tag: string) => void
 ) {
     openModal(modalProps => (
         <ThemeDetailsModalContent
             theme={theme}
+            installed={installed}
+            onToggleInstall={onToggleInstall}
             modalProps={modalProps}
             onTagClick={onTagClick}
         />
@@ -400,7 +404,7 @@ function MarketplaceCard({ theme, installed, onToggleInstall, onOpenDetails, onT
                 <div className={cl("card-actions")}>
                     <Button
                         size="small"
-                        variant={installed ? "danger-secondary" : "primary"}
+                        variant={installed ? "dangerSecondary" : "primary"}
                         className={cl("action-btn")}
                         onClick={e => {
                             e.stopPropagation();
@@ -562,6 +566,8 @@ export function ThemeMarketplaceSection() {
                             onToggleInstall={() => handleToggleInstall(theme)}
                             onOpenDetails={() => openThemeDetailsModal(
                                 theme,
+                                installedIds.has(theme.id),
+                                () => handleToggleInstall(theme),
                                 (tag: string) => setSearch(tag)
                             )}
                             onTagClick={(tag: string) => setSearch(tag)}
@@ -574,4 +580,3 @@ export function ThemeMarketplaceSection() {
         </>
     );
 }
-

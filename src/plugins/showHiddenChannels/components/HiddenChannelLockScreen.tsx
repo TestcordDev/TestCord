@@ -150,7 +150,7 @@ function downloadChannelAccessExport(channel: Channel) {
     const directAllowedUsers = Array.from(allowedUserIds)
         .map(userId => {
             const member = GuildMemberStore.getMember(guild.id, userId);
-            const user = member?.user ?? UserStore.getUser(userId);
+            const user = UserStore.getUser(userId);
             if (!user) return null;
 
             return serializeUser(user, member ?? void 0);

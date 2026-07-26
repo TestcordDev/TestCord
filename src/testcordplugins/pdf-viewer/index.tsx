@@ -457,7 +457,7 @@ function PdfBody({ attachment }: { attachment: MessageAttachment; }) {
     return <PdfView bytes={bytes} />;
 }
 
-const MAX_FILE_SIZE_KEYS = ["maxFileSizeMb"];
+const MAX_FILE_SIZE_KEYS = ["maxFileSizeMb"] as const;
 
 function Preview({ attachment }: { attachment: MessageAttachment; }) {
     const { maxFileSizeMb } = settings.use(MAX_FILE_SIZE_KEYS);

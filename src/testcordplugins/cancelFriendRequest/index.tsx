@@ -131,6 +131,10 @@ export default definePlugin({
     start() {
         observer = setInterval(() => {
             if (scanTimer) return;
+            // Check the store before scheduling. Without an outgoing request there is
+            // nothing to patch, so the two substring-class document sweeps inside scan()
+            // would walk the whole tree for nothing.
+            if (!hasOutgoingRequests()) return;
             scanTimer = setTimeout(() => {
                 scanTimer = null;
                 scan(document);

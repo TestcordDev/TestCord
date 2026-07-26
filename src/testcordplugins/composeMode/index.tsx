@@ -49,8 +49,8 @@ const ComposeModeIcon = ({ width = 24, height = 24 }: { width?: number; height?:
     </svg>
 );
 
-const COMPOSE_CTX_KEYS = ["isEnabled", "contextMenu"];
-const COMPOSE_BUTTON_KEYS = ["isEnabled", "showIcon"];
+const COMPOSE_CTX_KEYS = ["isEnabled", "contextMenu"] as const;
+const COMPOSE_BUTTON_KEYS = ["isEnabled", "showIcon"] as const;
 
 const ContextMenuPatch: NavContextMenuPatchCallback = (children, props: any) => {
     const isEnabled = settings.store.isEnabled;

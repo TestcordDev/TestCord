@@ -94,7 +94,7 @@ function downloadMemberList() {
     const members = memberIds
         .map(userId => {
             const member = GuildMemberStore.getMember(guildId, userId);
-            const user = member?.user ?? UserStore.getUser(userId);
+            const user = UserStore.getUser(userId);
             return member && user ? { member, user } : null;
         })
         .filter((entry): entry is { member: GuildMember; user: User; } => entry != null);

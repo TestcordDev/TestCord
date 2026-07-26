@@ -16,14 +16,15 @@
     }
 }
 
-[--messageListItem] {
-    animation: vc-smoothmessages-fade-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-    will-change: opacity, transform;
+/* Only the newest row animates. Applying this to every list item meant a jump to present,
+   a channel switch, or any scroll that remounted virtualized rows animated hundreds of
+   items at once, which is what made jump-to-present stutter and flash. */
+[--messageListItem]:last-child {
+    animation: vc-smoothmessages-fade-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
 @media (prefers-reduced-motion: reduce) {
-    [--messageListItem] {
+    [--messageListItem]:last-child {
         animation: none;
-        will-change: auto;
     }
 }

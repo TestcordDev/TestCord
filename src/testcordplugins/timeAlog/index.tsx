@@ -84,7 +84,7 @@ function TimeAlogIcon({ height = 20, width = 20, className, color = "currentColo
     );
 }
 
-const TIME_ALOG_KEYS = ["isActive"];
+const TIME_ALOG_KEYS = ["isActive"] as const;
 
 function TimeAlogButton() {
     const { isActive } = settings.use(TIME_ALOG_KEYS);

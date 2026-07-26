@@ -437,7 +437,7 @@ export interface DefinedSettings<
      * React hook for getting the settings for this plugin
      * @param filter optional filter to avoid rerenders for irrelevant settings
      */
-    use<F extends Extract<keyof Def | keyof PrivateSettings, string>>(filter?: F[]): Pick<SettingsStore<Def> & PrivateSettings, F>;
+    use<F extends Extract<keyof Def | keyof PrivateSettings, string>>(filter?: readonly F[]): Pick<SettingsStore<Def> & PrivateSettings, F>;
     /**
      * Name of the plugin these settings belong to,
      * will be an empty string until plugin is initialized

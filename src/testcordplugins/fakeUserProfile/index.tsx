@@ -1063,7 +1063,7 @@ export default definePlugin({
         const target = getCachedTarget();
         if (!target) return;
 
-        const replyRef = options?.replyOptions?.messageReference;
+        const replyRef = options?.messageReference;
         const fake = buildFakeMessage(channelId, msg.content, replyRef);
         if (!fake) return;
 

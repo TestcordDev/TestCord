@@ -50,6 +50,12 @@ export class SettingsStore<T extends object> {
     private prefixListeners = new Map<string, Set<(newData: any, path: string) => void>>();
     private globalListeners = new Set<(newData: T, path: string) => void>();
     private readonly proxyContexts = new WeakMap<any, ProxyContext<T>>();
+    // Every nested read used to allocate a brand new Proxy, so `Settings.plugins`
+    // never equalled `Settings.plugins`. That made object reads ~50x slower than plain
+    // ones in hot paths like isPluginEnabled, and it silently broke every React memo
+    // and effect that lists a settings object in its dependencies - those deps changed
+    // identity on every single render. Proxies are now created once per target.
+    private readonly proxyCache = new WeakMap<any, any>();
 
     private readonly proxyHandler: ProxyHandler<any> = (() => {
         const self = this;
@@ -155,7 +161,12 @@ export class SettingsStore<T extends object> {
             path
         });
 
-        return new Proxy(object, this.proxyHandler);
+        const cached = this.proxyCache.get(object);
+        if (cached !== undefined) return cached;
+
+        const proxy = new Proxy(object, this.proxyHandler);
+        this.proxyCache.set(object, proxy);
+        return proxy;
     }
 
     private notifyPrefixListeners(pathString: string, pathElements: string[], value: any) {

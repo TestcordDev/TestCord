@@ -24,15 +24,17 @@ import { React, useState } from "@webpack/common";
 import { resolveError, SettingProps, SettingsSection } from "./Common";
 
 export function BooleanSetting({ setting, pluginSettings, definedSettings, id, onChange }: SettingProps<PluginSettingBooleanDef>) {
-    const def = pluginSettings[id] ?? setting.default;
+    // Read straight from pluginSettings (a reactive useSettings proxy) instead of mirroring
+    // it into local state. A local copy went stale whenever the value changed from anywhere
+    // other than this switch - another plugin's onChange, a chat bar button, a preset - so
+    // the checkbox only caught up after the menu was closed and reopened.
+    const state: boolean = (pluginSettings[id] ?? setting.default) ?? false;
 
-    const [state, setState] = useState(def ?? false);
     const [error, setError] = useState<string | null>(null);
 
     function handleChange(newValue: boolean): void {
         const isValid = setting.isValid?.call(definedSettings, newValue) ?? true;
 
-        setState(newValue);
         setError(resolveError(isValid));
 
         if (isValid === true) {

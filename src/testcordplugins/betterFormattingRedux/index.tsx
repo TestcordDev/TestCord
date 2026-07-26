@@ -202,7 +202,7 @@ const FormatIcon = () => (
     </svg>
 );
 
-const FORMAT_BUTTON_KEYS = ["showButton"];
+const FORMAT_BUTTON_KEYS = ["showButton"] as const;
 
 const FormatButton: ChatBarButtonFactory = ({ isMainChat }) => {
     const { showButton } = settings.use(FORMAT_BUTTON_KEYS);

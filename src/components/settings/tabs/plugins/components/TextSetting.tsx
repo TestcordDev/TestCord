@@ -23,13 +23,13 @@ import { React, TextArea, TextInput, useState } from "@webpack/common";
 import { resolveError, SettingProps, SettingsSection } from "./Common";
 
 export function TextSetting({ setting, pluginSettings, definedSettings, id, onChange }: SettingProps<PluginSettingStringDef>) {
-    const [state, setState] = useState(pluginSettings[id] ?? setting.default ?? null);
+    // Derived, not mirrored, so external writes to this setting show up immediately.
+    const state = pluginSettings[id] ?? setting.default ?? "";
     const [error, setError] = useState<string | null>(null);
 
     function handleChange(newValue: string) {
         const isValid = setting.isValid?.call(definedSettings, newValue) ?? true;
 
-        setState(newValue);
         setError(resolveError(isValid));
 
         if (isValid === true) {

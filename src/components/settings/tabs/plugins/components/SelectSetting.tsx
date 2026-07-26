@@ -23,15 +23,15 @@ import { React, Select, useState } from "@webpack/common";
 import { resolveError, SettingProps, SettingsSection } from "./Common";
 
 export function SelectSetting({ setting, pluginSettings, definedSettings, onChange, id }: SettingProps<PluginSettingSelectDef>) {
-    const def = pluginSettings[id] ?? setting.options?.find(o => o.default)?.value;
+    // Derived, not mirrored: local state went stale when the value was changed outside
+    // this dropdown, leaving the UI showing the old option until the menu was reopened.
+    const state = pluginSettings[id] ?? setting.options?.find(o => o.default)?.value ?? null;
 
-    const [state, setState] = useState<any>(def ?? null);
     const [error, setError] = useState<string | null>(null);
 
     function handleChange(newValue: any) {
         const isValid = setting.isValid?.call(definedSettings, newValue) ?? true;
 
-        setState(newValue);
         setError(resolveError(isValid));
 
         if (isValid === true) {
