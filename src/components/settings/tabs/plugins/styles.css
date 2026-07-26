@@ -106,7 +106,7 @@
 }
 
 .vc-plugins-restart-button:hover {
-    background-color: var(--text-status-idle) !important;
+   background-color: color-mix(in srgb, var(--text-status-idle) 40%, transparent) !important;
 }
 
 .vc-plugin-stats {

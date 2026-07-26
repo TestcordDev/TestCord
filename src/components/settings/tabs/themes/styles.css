@@ -98,6 +98,21 @@
     color: whitesmoke !important;
 }
 
+.vc-plugins-disable-warning,
+.vc-plugin-modal-disable-warning {
+    background-color:
+        color-mix(in srgb, var(--status-danger) 10%, transparent) !important;
+    color:
+        color-mix(in srgb, var(--status-danger) 100%, transparent) !important;
+}
+
+.vc-plugins-restart-button {
+    background-color:
+        color-mix(in srgb, var(--text-status-idle) 10%, transparent) !important;
+     color:
+        color-mix(in srgb, var(--text-status-idle) 100%, transparent) !important;
+}
+
 .vc-toolbox-btn,
 .iconWrapper__9293f,
 .clickable__9293f,
@@ -245,6 +260,7 @@
     padding: 12px;
     display: flex;
     flex-direction: column;
+    background-color: var(--card-background-default);
     gap: 4px;
 }
 

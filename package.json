@@ -1,7 +1,7 @@
 {
     "name": "testcord",
     "private": "true",
-    "version": "2.1.2",
+    "version": "2.1.3",
     "description": "The less stable fork of Equicord",
     "homepage": "https://github.com/TestcordDev/Testcord#readme",
     "bugs": {
