@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { globalPatches, navPatches } from "@api/ContextMenu";
 import { isPluginEnabled, plugins as Plugins } from "@api/PluginManager";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
@@ -23,33 +24,21 @@ const settings = definePluginSettings({
     },
     messageCoalesce: {
         type: OptionType.BOOLEAN,
-        description: "Batch rapid MESSAGE_CREATE events per channel: within a 50ms window only the newest message reaches plugin handlers. Cuts re-render storms in busy channels. Discord's own stores are never coalesced, so nothing goes missing from the client itself.",
+        description: "Batch rapid MESSAGE_CREATE events per-channel: only dispatch the latest message from each channel within a 100ms window. Drastically cuts React re-render storms in busy channels. Safe because intermediate messages settle into the store anyway via bulk fetch.",
         default: false,
+    },
+    contextMenuHardening: {
+        type: OptionType.BOOLEAN,
+        description: "Wrap context menu patches so a patch that repeatedly throws is auto-disabled instead of taxing every menu open.",
+        default: true,
     },
 });
 
 let originalSubscribe: typeof FluxDispatcher.subscribe | null = null;
 let originalUnsubscribe: typeof FluxDispatcher.unsubscribe | null = null;
-/** Holds the handlers exactly as they were passed to subscribe, so unsubscribe still matches. */
 const fluxSubscribers = new Map<string, Set<FluxHandler>>();
 const fluxFans = new Map<string, FluxHandler>();
-/** Subscribed handler -> the instrumented version to call in its place. */
-const fluxAliases = new Map<FluxHandler, FluxHandler>();
 let fluxBusActive = false;
-
-// Only plugin handlers belong on the bus. Discord's own stores subscribe lazily as chunks
-// load, and routing those through the fan would both reorder them against the dependencies
-// the dispatcher tracks and, with coalescing on, silently drop messages from the client.
-function isPluginFluxHandler(handler: FluxHandler) {
-    for (const name in Plugins) {
-        const { flux } = Plugins[name];
-        if (!flux) continue;
-        for (const event in flux) {
-            if (flux[event] === handler) return true;
-        }
-    }
-    return false;
-}
 
 const COALESCE_MS = 50;
 const pendingCoalesce = new Map<string, { event: any; timer: ReturnType<typeof setTimeout> }>();
@@ -58,11 +47,7 @@ function dispatchCoalesced(actionType: string, event: any) {
     const set = fluxSubscribers.get(actionType);
     if (!set) return;
     for (const handler of set) {
-        try {
-            (fluxAliases.get(handler) ?? handler)(event);
-        } catch (e) {
-            logger.error(`Flux handler for ${actionType} errored,`, e);
-        }
+        try { handler(event); } catch (e) { logger.error(`Flux handler for ${actionType} errored,`, e); }
     }
 }
 
@@ -102,16 +87,21 @@ function clearAllCoalesce() {
 function fluxFan(actionType: string): FluxHandler {
     return event => {
         if (maybeCoalesce(actionType, event)) return;
-        dispatchCoalesced(actionType, event);
+        const set = fluxSubscribers.get(actionType);
+        if (!set) return;
+        for (const handler of set) {
+            try {
+                handler(event);
+            } catch (e) {
+                logger.error(`Flux handler for ${actionType} errored,`, e);
+            }
+        }
     };
 }
 
 function wrappedSubscribe(this: typeof FluxDispatcher, actionType: any, handler: FluxHandler) {
     if (!fluxBusActive || !originalSubscribe) {
         return originalSubscribe!.call(FluxDispatcher, actionType, handler);
-    }
-    if (!isPluginFluxHandler(handler)) {
-        return originalSubscribe.call(FluxDispatcher, actionType, handler);
     }
     let set = fluxSubscribers.get(actionType);
     if (!set) {
@@ -137,7 +127,6 @@ function wrappedUnsubscribe(this: typeof FluxDispatcher, actionType: any, handle
         return;
     }
     set.delete(handler);
-    fluxAliases.delete(handler);
     if (set.size === 0) {
         const fan = fluxFans.get(actionType);
         if (fan) {
@@ -171,12 +160,12 @@ function startFluxBus() {
 }
 
 export function wrapFluxHandlers(wrapper: (handler: FluxHandler) => FluxHandler) {
-    for (const set of fluxSubscribers.values()) {
+    for (const [actionType, set] of fluxSubscribers) {
+        const newSet = new Set<FluxHandler>();
         for (const handler of set) {
-            const current = fluxAliases.get(handler) ?? handler;
-            const wrapped = wrapper(current);
-            if (wrapped !== current) fluxAliases.set(handler, wrapped);
+            newSet.add(wrapper(handler));
         }
+        fluxSubscribers.set(actionType, newSet);
     }
 }
 
@@ -203,15 +192,103 @@ function stopFluxBus() {
     }
     fluxSubscribers.clear();
     fluxFans.clear();
-    fluxAliases.clear();
     clearAllCoalesce();
     originalSubscribe = null;
     originalUnsubscribe = null;
 }
 
+let hardeningActive = false;
+const wrappedToOriginal = new Map<Function, Function>();
+const failCounts = new WeakMap<Function, number>();
+const disabledPatches = new WeakSet<Function>();
+
+type NavPatch = (children: Array<any>, ...args: Array<any>) => void;
+type GlobalPatch = (navId: string, children: Array<any>, ...args: Array<any>) => void;
+
+function makeHardenedNav(fn: NavPatch) {
+    const wrapped = function (children: Array<any>, ...args: Array<any>) {
+        if (!hardeningActive || disabledPatches.has(fn)) {
+            return fn(children, ...args);
+        }
+        try {
+            fn(children, ...args);
+        } catch (e) {
+            const count = (failCounts.get(fn) ?? 0) + 1;
+            failCounts.set(fn, count);
+            if (count >= 3) {
+                disabledPatches.add(fn);
+                logger.warn("Disabled a context menu patch after 3 consecutive failures.", e);
+            }
+        }
+    };
+    wrappedToOriginal.set(wrapped, fn);
+    return wrapped;
+}
+
+function makeHardenedGlobal(fn: GlobalPatch) {
+    const wrapped = function (navId: string, children: Array<any>, ...args: Array<any>) {
+        if (!hardeningActive || disabledPatches.has(fn)) {
+            return fn(navId, children, ...args);
+        }
+        try {
+            fn(navId, children, ...args);
+        } catch (e) {
+            const count = (failCounts.get(fn) ?? 0) + 1;
+            failCounts.set(fn, count);
+            if (count >= 3) {
+                disabledPatches.add(fn);
+                logger.warn("Disabled a global context menu patch after 3 consecutive failures.", e);
+            }
+        }
+    };
+    wrappedToOriginal.set(wrapped, fn);
+    return wrapped;
+}
+
+function startContextMenuHardening() {
+    if (hardeningActive) return;
+    hardeningActive = true;
+    for (const set of navPatches.values()) {
+        const originals = [...set];
+        for (const fn of originals) {
+            if (typeof fn !== "function" || wrappedToOriginal.has(fn)) continue;
+            set.delete(fn);
+            set.add(makeHardenedNav(fn as NavPatch));
+        }
+    }
+    const globals = [...globalPatches];
+    for (const fn of globals) {
+        if (typeof fn !== "function" || wrappedToOriginal.has(fn)) continue;
+        globalPatches.delete(fn);
+        globalPatches.add(makeHardenedGlobal(fn as GlobalPatch));
+    }
+}
+
+function stopContextMenuHardening() {
+    if (!hardeningActive) return;
+    hardeningActive = false;
+    for (const set of navPatches.values()) {
+        const wrappers = [...set];
+        for (const fn of wrappers) {
+            const original = wrappedToOriginal.get(fn);
+            if (!original) continue;
+            set.delete(fn);
+            set.add(original as NavPatch);
+        }
+    }
+    const globals = [...globalPatches];
+    for (const fn of globals) {
+        const original = wrappedToOriginal.get(fn);
+        if (!original) continue;
+        globalPatches.delete(fn);
+        globalPatches.add(original as GlobalPatch);
+    }
+    wrappedToOriginal.clear();
+}
+
 export default definePlugin({
     name: "OrchestratorAPI",
-    description: "Transparent performance orchestrator. Coalesces duplicate Flux subscriptions so the client stays smooth under heavy plugin load. Opt-in via TestcordHelper.",
+    description: "Transparent performance orchestrator. Coalesces duplicate Flux subscriptions and hardens context menu patches so the client stays smooth under heavy plugin load. Opt-in via TestcordHelper.",
     authors: [TestcordDevs.x2b],
     tags: ["Utility"],
     hidden: true,
@@ -223,12 +300,22 @@ export default definePlugin({
         } catch (e) {
             logger.error("Failed to start FluxDispatcherBus,", e);
         }
+        try {
+            if (settings.store.contextMenuHardening) startContextMenuHardening();
+        } catch (e) {
+            logger.error("Failed to start ContextMenuHardening,", e);
+        }
         if (settings.store.messageCoalesce) {
             logger.info("MESSAGE_CREATE coalescing active (window:", COALESCE_MS, "ms)");
         }
     },
 
     stop() {
+        try {
+            stopContextMenuHardening();
+        } catch (e) {
+            logger.error("Failed to stop ContextMenuHardening,", e);
+        }
         try {
             stopFluxBus();
         } catch (e) {
