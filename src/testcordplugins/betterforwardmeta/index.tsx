@@ -21,6 +21,7 @@ export default definePlugin({
         const { guild_id, channel_id, message_id } = message.message.messageReference;
         const guild = useStateFromStores([GuildStore], () => GuildStore.getGuild(guild_id));
         const channel = useStateFromStores([ChannelStore], () => ChannelStore.getChannel(channel_id));
+        const popoutRef = useRef<HTMLDivElement>(null);
 
         return <div className={cl("footer")} >
             {
@@ -29,9 +30,9 @@ export default definePlugin({
                         guild_id !== SelectedGuildStore.getGuildId() && <Popout
                             position="top"
                             renderPopout={() => <ServerProfileComponent guildId={guild_id} />}
-                            targetElementRef={useRef(null)}
+                            targetElementRef={popoutRef}
                         >
-                            {popoutProps => <div className={cl("footer-element")} {...popoutProps}>
+                            {popoutProps => <div ref={popoutRef} className={cl("footer-element")} {...popoutProps}>
                                 {
                                     checkForIconExistence(guild) && <img src={guild.icon && IconUtils.getGuildIconURL({
                                         id: guild.id,

@@ -268,6 +268,11 @@ export const settings = definePluginSettings({
         default: false,
         description: "Send notifications for high signal surveillance events.",
     },
+    enableOsintAnalysis: {
+        type: OptionType.BOOLEAN,
+        default: false,
+        description: "Enable OSINT-style analysis of surveillance activity patterns, timings, and behavioral profiles.",
+    },
     trackSelf: {
         type: OptionType.BOOLEAN,
         default: false,

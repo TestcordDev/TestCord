@@ -212,27 +212,27 @@ const FormatButton: ChatBarButtonFactory = ({ isMainChat }) => {
     if (!isMainChat || !showButton || settings.store.location !== "chatbar") return null;
 
     return (
-        <Popout
-            position="top"
-            align="center"
-            spacing={8}
-            animation={Popout.Animation.NONE}
-            shouldShow={open}
-            onRequestClose={() => setOpen(false)}
-            targetElementRef={buttonRef}
-            renderPopout={() => <ToolbarPopout closePopout={() => setOpen(false)} />}
-        >
-            {(_, { isShown }) => (
-                <div ref={buttonRef}>
+        <div ref={buttonRef} style={{ display: "inline-flex", alignItems: "center" }}>
+            <Popout
+                position="top"
+                align="center"
+                spacing={8}
+                animation={Popout.Animation.NONE}
+                shouldShow={open}
+                onRequestClose={() => setOpen(false)}
+                targetElementRef={buttonRef}
+                renderPopout={() => <ToolbarPopout closePopout={() => setOpen(false)} />}
+            >
+                {(_, { isShown }) => (
                     <ChatBarButton
                         tooltip={isShown ? "" : "Text Formatting"}
                         onClick={() => setOpen(v => !v)}
                     >
                         <FormatIcon />
                     </ChatBarButton>
-                </div>
-            )}
-        </Popout>
+                )}
+            </Popout>
+        </div>
     );
 };
 
@@ -241,26 +241,26 @@ function HeaderFormatButton() {
     const buttonRef = React.useRef<HTMLDivElement>(null);
 
     return (
-        <Popout
-            position="bottom"
-            align="center"
-            spacing={8}
-            animation={Popout.Animation.NONE}
-            shouldShow={open}
-            onRequestClose={() => setOpen(false)}
-            targetElementRef={buttonRef}
-            renderPopout={() => <ToolbarPopout closePopout={() => setOpen(false)} />}
-        >
-            {(_, { isShown }) => (
-                <div ref={buttonRef}>
+        <div ref={buttonRef} style={{ display: "inline-flex", alignItems: "center" }}>
+            <Popout
+                position="bottom"
+                align="center"
+                spacing={8}
+                animation={Popout.Animation.NONE}
+                shouldShow={open}
+                onRequestClose={() => setOpen(false)}
+                targetElementRef={buttonRef}
+                renderPopout={() => <ToolbarPopout closePopout={() => setOpen(false)} />}
+            >
+                {(_, { isShown }) => (
                     <HeaderBarButton
                         icon={FormatIcon}
                         tooltip={isShown ? null : "Text Formatting"}
                         onClick={() => setOpen(v => !v)}
                     />
-                </div>
-            )}
-        </Popout>
+                )}
+            </Popout>
+        </div>
     );
 }
 
@@ -269,26 +269,26 @@ function ChannelFormatButton() {
     const buttonRef = React.useRef<HTMLDivElement>(null);
 
     return (
-        <Popout
-            position="bottom"
-            align="center"
-            spacing={8}
-            animation={Popout.Animation.NONE}
-            shouldShow={open}
-            onRequestClose={() => setOpen(false)}
-            targetElementRef={buttonRef}
-            renderPopout={() => <ToolbarPopout closePopout={() => setOpen(false)} />}
-        >
-            {(_, { isShown }) => (
-                <div ref={buttonRef}>
+        <div ref={buttonRef} style={{ display: "inline-flex", alignItems: "center" }}>
+            <Popout
+                position="bottom"
+                align="center"
+                spacing={8}
+                animation={Popout.Animation.NONE}
+                shouldShow={open}
+                onRequestClose={() => setOpen(false)}
+                targetElementRef={buttonRef}
+                renderPopout={() => <ToolbarPopout closePopout={() => setOpen(false)} />}
+            >
+                {(_, { isShown }) => (
                     <ChannelToolbarButton
                         icon={FormatIcon}
                         tooltip={isShown ? null : "Text Formatting"}
                         onClick={() => setOpen(v => !v)}
                     />
-                </div>
-            )}
-        </Popout>
+                )}
+            </Popout>
+        </div>
     );
 }
 

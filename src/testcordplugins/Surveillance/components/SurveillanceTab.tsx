@@ -19,6 +19,7 @@ import { formatDurationMs } from "@utils/text";
 import { ChannelStore, GuildStore, IconUtils, NavigationRouter, React, Select, TextInput, Toasts, useEffect, useMemo, UserStore, useState, useStateFromStores } from "@webpack/common";
 
 import { addServerTarget, getServerTargets, getTargets, removeServerTarget, removeTarget, setTargets, settings, subscribeServerTargets, subscribeTargets } from "..";
+import { analyzeSurveillanceEvents, OsintAnalysisResult } from "../osintAnalysis";
 import { clearEvents, getEvents, loadEvents, subscribe } from "../store";
 import type { IdentityHistoryEntry, SurveillanceEvent, SurveillanceEventType } from "../types";
 
@@ -879,6 +880,53 @@ function EventRow({ event }: { event: SurveillanceEvent; }) {
     );
 }
 
+function OsintAnalysisPanel({ events, selectedUserId }: { events: SurveillanceEvent[]; selectedUserId?: string; }) {
+    const [result, setResult] = useState<OsintAnalysisResult | null>(null);
+    const [expanded, setExpanded] = useState(false);
+
+    useEffect(() => {
+        if (!selectedUserId) {
+            setResult(null);
+            return;
+        }
+        const userEvents = events.filter(e => e.userId === selectedUserId);
+        setResult(analyzeSurveillanceEvents(userEvents));
+    }, [events, selectedUserId]);
+
+    if (!selectedUserId || !result || result.sections.length === 0) return null;
+
+    return (
+        <section className={cl("panel")}>
+            <div className={cl("section-head")}>
+                <HeadingTertiary>OSINT Analysis</HeadingTertiary>
+                <button className={cl("text-action")} onClick={() => setExpanded(v => !v)}>
+                    {expanded ? "Collapse" : "Expand all"}
+                </button>
+            </div>
+            <div className={cl("osint-summary")}>{result.summary}</div>
+            <div className={cl("osint-sections")}>
+                {(expanded ? result.sections : result.sections.slice(0, 3)).map((section, i) => (
+                    <div key={i} className={cl("osint-section")}>
+                        <div className={cl("osint-section-title")}>{section.title}</div>
+                        <div className={cl("osint-section-body")}>
+                            {section.content.split("\n").map((line, j) => (
+                                <div key={j} className={cl("osint-line", { indent: line.startsWith("  -") })}>
+                                    {line.replace(/^  - /, "")}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+            {!expanded && result.sections.length > 3 && (
+                <button className={cl("text-action")} onClick={() => setExpanded(true)}>
+                    Show all {result.sections.length} sections
+                </button>
+            )}
+        </section>
+    );
+}
+
 function SurveillanceTab() {
     const [events, setEvents] = useState<SurveillanceEvent[]>(getEvents());
     const [targets, setLocalTargets] = useState(getTargets());
@@ -1058,6 +1106,12 @@ function SurveillanceTab() {
                 <div id="vc-surveillance-stats">
                     <UserStatsPanel events={events} selectedUserId={selectedStatsUserId} setSelectedUserId={setSelectedStatsUserId} />
                 </div>
+
+                {settings.store.enableOsintAnalysis && (
+                    <div id="vc-surveillance-osint">
+                        <OsintAnalysisPanel events={events} selectedUserId={selectedStatsUserId} />
+                    </div>
+                )}
             </div>
         </SettingsTab>
     );

@@ -61,30 +61,31 @@ function HotkeyReferenceButtonInner() {
     if (!showHotkeyButton) return null;
 
     return (
-        <Popout
-            position="bottom"
-            align="right"
-            spacing={8}
-            animation={Popout.Animation.NONE}
-            shouldShow={isOpen}
-            onRequestClose={() => setIsOpen(false)}
-            targetElementRef={buttonRef}
-            renderPopout={() => (
-                <ErrorBoundary noop>
-                    <HotkeyPopoutContent />
-                </ErrorBoundary>
-            )}
-        >
-            {(_, { isShown }) => (
-                <HeaderBarButton
-                    ref={buttonRef}
-                    icon={KeyboardIcon}
-                    tooltip={isShown ? null : "HyprTiles Keybinds"}
-                    selected={isShown}
-                    onClick={() => setIsOpen(v => !v)}
-                />
-            )}
-        </Popout>
+        <span ref={buttonRef} style={{ display: "inline-flex", alignItems: "center" }}>
+            <Popout
+                position="bottom"
+                align="right"
+                spacing={8}
+                animation={Popout.Animation.NONE}
+                shouldShow={isOpen}
+                onRequestClose={() => setIsOpen(false)}
+                targetElementRef={buttonRef}
+                renderPopout={() => (
+                    <ErrorBoundary noop>
+                        <HotkeyPopoutContent />
+                    </ErrorBoundary>
+                )}
+            >
+                {(_, { isShown }) => (
+                    <HeaderBarButton
+                        icon={KeyboardIcon}
+                        tooltip={isShown ? null : "HyprTiles Keybinds"}
+                        selected={isShown}
+                        onClick={() => setIsOpen(v => !v)}
+                    />
+                )}
+            </Popout>
+        </span>
     );
 }
 
