@@ -109,6 +109,9 @@ function buildHandlerPluginMap() {
     }
 }
 
+/** Per-plugin milliseconds spent inside the dispatch currently on the stack. */
+const currentDispatchCost = new Map<string, number>();
+
 function wrapHandlerTiming(handler: (...args: any[]) => void): (...args: any[]) => void {
     const wrapped = function (this: any, ...args: any[]) {
         const t0 = performance.now();
@@ -120,9 +123,40 @@ function wrapHandlerTiming(handler: (...args: any[]) => void): (...args: any[]) 
         stat.totalMs += dt;
         stat.maxMs = Math.max(stat.maxMs, dt);
         pluginDispatchStats.set(plugin, stat);
+        currentDispatchCost.set(plugin, (currentDispatchCost.get(plugin) ?? 0) + dt);
     };
     handlerWrappers.set(handler, wrapped);
     return wrapped;
+}
+
+/**
+ * What a slow dispatch actually cost, per plugin. Listing everything subscribed to the event
+ * instead blamed all 36 MESSAGE_CREATE subscribers for time that is mostly Discord's own
+ * stores and React, which sent several perf investigations after the wrong plugin.
+ */
+function describeDispatchBlame(type: string, totalMs: number) {
+    if (currentDispatchCost.size === 0) {
+        const subscribed = getPluginsForEvent(type);
+        return {
+            plugins: subscribed,
+            text: subscribed.length
+                ? ` — no per-plugin timing (enable debugMode); ${subscribed.length} plugins subscribed`
+                : ""
+        };
+    }
+
+    const measured = [...currentDispatchCost.entries()]
+        .filter(([, ms]) => ms >= 0.5)
+        .sort((a, b) => b[1] - a[1]);
+    const pluginMs = [...currentDispatchCost.values()].reduce((a, b) => a + b, 0);
+    const top = measured.slice(0, 5).map(([name, ms]) => `${name} ${ms.toFixed(1)}ms`);
+
+    return {
+        plugins: measured.map(([name]) => name),
+        text: ` — plugins ${pluginMs.toFixed(1)}ms of ${totalMs.toFixed(1)}ms`
+            + (top.length ? ` (${top.join(", ")})` : " (none individually significant)")
+            + ", rest is Discord"
+    };
 }
 
 function dumpPatchDiagnostics() {
@@ -260,6 +294,7 @@ function installDebugInstrumentation() {
 
     origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher) as (payload: any) => void;
     FluxDispatcher.dispatch = function (payload: any) {
+        currentDispatchCost.clear();
         const t0 = performance.now();
         const result = (origDispatch as any).call(FluxDispatcher, payload);
         const dt = performance.now() - t0;
@@ -271,18 +306,20 @@ function installDebugInstrumentation() {
         dispatchStats.set(payload.type, stat);
 
         if (dt > SLOW_DISPATCH_MS) {
-            const culprits = getPluginsForEvent(payload.type);
-            recentSlowEvents.push({ at: Date.now(), type: payload.type, ms: Math.round(dt * 10) / 10, plugins: culprits });
+            const blame = describeDispatchBlame(payload.type, dt);
+            recentSlowEvents.push({ at: Date.now(), type: payload.type, ms: Math.round(dt * 10) / 10, plugins: blame.plugins });
             if (recentSlowEvents.length > RECENT_EVENTS_LIMIT) recentSlowEvents.shift();
-            const blame = culprits.length ? ` — subscribed plugins: ${culprits.join(", ")}` : "";
-            console.warn(`%c[TestcordHelper] Slow dispatch: %c${payload.type}%c took ${dt.toFixed(1)}ms${blame}`, "color: #ff4f4f;", "color: #ffaa00; font-weight: bold;", "color: inherit;");
+            console.warn(`%c[TestcordHelper] Slow dispatch: %c${payload.type}%c took ${dt.toFixed(1)}ms${blame.text}`, "color: #ff4f4f;", "color: #ffaa00; font-weight: bold;", "color: inherit;");
         }
 
         if (payload.type === "CHANNEL_SELECT") {
             channelSwitchStart = t0;
-        } else if (channelSwitchStart && (payload.type === "MESSAGE_CREATE" || payload.type === "LOAD_MESSAGES_SUCCESS" || payload.type === "CHANNEL_PRELOAD")) {
+        } else if (channelSwitchStart && payload.type === "LOAD_MESSAGES_SUCCESS") {
+            // Only LOAD_MESSAGES_SUCCESS means "the messages are here". Stopping the clock on
+            // MESSAGE_CREATE measured how long until somebody happened to send a message,
+            // which reported multi-second channel loads that never happened.
             const elapsed = t0 - channelSwitchStart;
-            logger.info(`Channel switch to ${payload.type} took ${elapsed.toFixed(1)}ms`);
+            logger.info(`Channel load took ${elapsed.toFixed(1)}ms`);
             channelSwitchStart = 0;
         }
 

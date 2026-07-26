@@ -23,6 +23,12 @@ export { getSettings };
 export function messageLoggerEnhancedUniqueIdThingyIdkMan() { }
 
 const nativeSavedImages = new Map<string, string>();
+/**
+ * Attachments whose CDN links have expired. Without this, every re-encounter of a dead
+ * attachment cost another 4 requests and 3 seconds of sleeps, forever, because a 404 here is
+ * permanent - the link is gone, not temporarily unavailable.
+ */
+const nativeDeadImages = new Set<string>();
 export const getNativeSavedImages = () => nativeSavedImages;
 
 let logsDir: string;
@@ -168,6 +174,9 @@ export async function downloadAttachment(_event: IpcMainInvokeEvent, attachment:
                 path: existingImage
             };
 
+        if (nativeDeadImages.has(attachment.id))
+            return { error: "Attachment is no longer available", path: null };
+
         const res = await fetch(useOldUrl ? attachment.oldUrl : attachment.url);
 
         if (res.status !== 200) {
@@ -176,6 +185,10 @@ export async function downloadAttachment(_event: IpcMainInvokeEvent, attachment:
 
             attempts++;
             if (attempts > 3) {
+                // Both the fresh and the old URL are gone, so stop asking.
+                if (res.status === 404 || res.status === 403 || res.status === 410) {
+                    nativeDeadImages.add(attachment.id);
+                }
                 return {
                     error: `Failed to get attachment ${attachment.id} for caching. too many attempts, error code ${res.status}`,
                     path: null,
