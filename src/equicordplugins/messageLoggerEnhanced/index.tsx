@@ -38,8 +38,10 @@ export const cl = classNameFactory("vc-msg-logger-enhanced-");
 
 let didClearLogsOnStartup = false;
 const processedPayloads = new WeakSet<any>();
-const mergedMessageCache = new Map<string, LoggedMessageJSON>();
-const mergedEditTimestamps = new Map<string, number>();
+// These mirror entries of the capped cachedMessages map, but eviction there never reached
+// them, so they grew for every logged message the client rendered. Same cap, same setting.
+const mergedMessageCache = new LimitedMap<string, LoggedMessageJSON>();
+const mergedEditTimestamps = new LimitedMap<string, number>();
 
 const cacheThing = findByPropsLazy("commit", "getOrCreate");
 

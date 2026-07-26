@@ -197,7 +197,6 @@ function buildLiveFixToggle() {
     return (
         <Menu.MenuCheckboxItem
             id="livefix-toggle"
-            key={`livefix-${liveFix}`}
             label="LiveFix Debug Server"
             checked={liveFix}
             action={() => {

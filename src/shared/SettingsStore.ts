@@ -156,13 +156,13 @@ export class SettingsStore<T extends object> {
     }
 
     private makeProxy(object: any, root: T = object, path = "") {
+        const cached = this.proxyCache.get(object);
+        if (cached !== undefined) return cached;
+
         this.proxyContexts.set(object, {
             root,
             path
         });
-
-        const cached = this.proxyCache.get(object);
-        if (cached !== undefined) return cached;
 
         const proxy = new Proxy(object, this.proxyHandler);
         this.proxyCache.set(object, proxy);

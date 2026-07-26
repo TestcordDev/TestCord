@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { CACHED_MESSAGES_MAX } from "@utils/cacheLimits";
 import { PluginNative } from "@utils/types";
 import { findByCodeLazy, findLazy } from "@webpack";
 import { ChannelStore, moment, UserStore } from "@webpack/common";
@@ -132,6 +133,11 @@ export function messageJsonToMessageClass(log: { message: LoggedMessageJSON; }) 
     if (message.messageSnapshots)
         message.messageSnapshots.map(m => mapTimestamp(m.message));
 
+    // db.ts evicts from cachedMessages without touching this map, so it used to outgrow the
+    // 5000-entry cap it mirrors and keep every rendered message alive for the session.
+    if (messageClassCache.size >= CACHED_MESSAGES_MAX) {
+        messageClassCache.delete(messageClassCache.keys().next().value!);
+    }
     messageClassCache.set(id, message);
     return message;
 }

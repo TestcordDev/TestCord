@@ -195,7 +195,10 @@ export const globPlugins = (kind) => ({
                         continue;
                     if (fileName === "index.ts") continue;
                     if (fileName === "index.tsx") continue;
-                    if (/\.(zip|rar|7z|tar|gz|bz2)/.test(fileName)) continue;
+                    // A loose non-source file next to the plugins (a stray .css, .md, .json)
+                    // otherwise got imported as if it were a plugin, which both bundled it
+                    // and put a junk entry keyed `undefined` into the plugin registry.
+                    if (!file.isDirectory() && !/\.tsx?$/.test(fileName)) continue;
                     if (
                         file.isDirectory() &&
                         !(await exists(join(fullDir, fileName, "index.ts"))) &&

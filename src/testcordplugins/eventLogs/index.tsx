@@ -153,6 +153,18 @@ function savePersistLogs() {
 let globalVersion = 0;
 const updateListeners = new Set<() => void>();
 
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+// savePersistLogs structured-clones up to DEFAULT_MAX_LOGS entries into IndexedDB. Running it
+// on the 500ms UI debounce meant a busy guild rewrote the whole log twice a second. This
+// interval is also the worst-case data loss window, since stop() doesn't run on a crash.
+function scheduleSave() {
+    if (saveTimer !== null) return;
+    saveTimer = setTimeout(() => {
+        saveTimer = null;
+        savePersistLogs();
+    }, 10_000);
+}
+
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleFlush() {
     if (flushTimer !== null) return;
@@ -168,7 +180,7 @@ function scheduleFlush() {
         for (const fn of updateListeners) {
             try { fn(); } catch { }
         }
-        savePersistLogs();
+        scheduleSave();
     }, 500);
 }
 
@@ -881,6 +893,7 @@ export default definePlugin({
         removeHeaderBarButton("nightcord-event-logs");
         unsubs.forEach(fn => fn()); unsubs = [];
         if (flushTimer !== null) { clearTimeout(flushTimer); flushTimer = null; }
+        if (saveTimer !== null) { clearTimeout(saveTimer); saveTimer = null; }
         savePersistLogs();
         logs = []; msgCache.clear(); prevVS.clear(); unreadLogEntries.clear(); updateListeners.clear();
         isLoadingMessages = false;

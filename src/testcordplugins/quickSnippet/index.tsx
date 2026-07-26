@@ -7,6 +7,7 @@
 import "./style.css";
 
 import { definePluginSettings } from "@api/Settings";
+import ErrorBoundary from "@components/ErrorBoundary";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
@@ -54,7 +55,7 @@ function trimCodeBlocks(str: string) {
     return output.trim();
 }
 
-function AppendButton(props: { code: CodeBlock; context: Context; }) {
+const AppendButton = ErrorBoundary.wrap(function AppendButton(props: { code: CodeBlock; context: Context; }) {
     const { code, context } = props;
     const [appended, setAppended] = useState(false);
     if (code.lang.toLowerCase() !== "css" || !settings.store.whitelistChannels.includes(context.channelId || "undefined") && !settings.store.whitelistChannels.includes("all")) return null;
@@ -73,7 +74,7 @@ function AppendButton(props: { code: CodeBlock; context: Context; }) {
         }}
         className="qs-quickcss-append-button"
         size="">{appended ? <svg aria-hidden="true" role="img" width="16" height="16" fill="none" viewBox="0 0 24 24"><path fill="currentColor" d="M21.7 5.3a1 1 0 0 1 0 1.4l-12 12a1 1 0 0 1-1.4 0l-6-6a1 1 0 1 1 1.4-1.4L9 16.58l11.3-11.3a1 1 0 0 1 1.4 0Z"></path></svg> : <svg aria-hidden="true" role="img" width="16" height="16" fill="green" viewBox="0 0 24 24"><path fill="currentColor" d="M3 16a1 1 0 0 1-1-1v-5a8 8 0 0 1 8-8h5a1 1 0 0 1 1 1v.5a.5.5 0 0 1-.5.5H10a6 6 0 0 0-6 6v5.5a.5.5 0 0 1-.5.5H3Z"></path><path fill="currentColor" d="M6 18a4 4 0 0 0 4 4h8a4 4 0 0 0 4-4v-4h-3a5 5 0 0 1-5-5V6h-4a4 4 0 0 0-4 4v8Z"></path><path fill="currentColor" d="M21.73 12a3 3 0 0 0-.6-.88l-4.25-4.24a3 3 0 0 0-.88-.61V9a3 3 0 0 0 3 3h2.73Z"></path></svg>}</Button>;
-}
+}, { noop: true });
 
 export default definePlugin({
     name: "QuickSnippet",

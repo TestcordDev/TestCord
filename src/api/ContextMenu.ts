@@ -37,110 +37,11 @@ const ContextMenuLogger = new Logger("ContextMenu");
 export const navPatches = new Map<string, Set<NavContextMenuPatchCallback>>();
 export const globalPatches = new Set<GlobalContextMenuPatchCallback>();
 
-interface MenuCacheEntry {
-    children: Array<ReactElement<any> | null>;
-    timestamp: number;
-}
-
-const menuCache = new Map<string, MenuCacheEntry>();
-/** How long a patched menu stays reusable for the same target. */
-const CACHE_TTL = 8_000;
-/** Cap shared cache entries so right-clicking many different targets still helps. */
-const CACHE_MAX = 64;
 /** Log individual patches slower than this (ms). Only when IS_DEV. */
 const SLOW_PATCH_MS = 2;
 /** Log total patch pass slower than this (ms). Only when IS_DEV. */
 const SLOW_TOTAL_MS = 8;
 
-interface ArgsSignature {
-    /** Cache key segment for this menu open. */
-    key: string;
-    /** False when args lack stable ids — skip shared menuCache (mount memo still applies). */
-    cacheable: boolean;
-}
-
-function extractStableId(a: any): string | null {
-    if (a == null) return null;
-    if (typeof a !== "object") return String(a);
-
-    const id =
-        a.id ??
-        a.user?.id ??
-        a.userId ??
-        a.message?.id ??
-        a.messageId ??
-        a.channel?.id ??
-        a.channelId ??
-        a.guild?.id ??
-        a.guildId ??
-        a.role?.id ??
-        a.roleId ??
-        a.emoji?.id ??
-        a.sticker?.id ??
-        a.target?.id ??
-        a.item?.id ??
-        a.attachment?.id ??
-        a.sound?.soundId ??
-        a.soundId;
-
-    return id != null ? String(id) : null;
-}
-
-function getArgsSignature(args: Array<any>): ArgsSignature {
-    const parts: string[] = [];
-    let cacheable = true;
-
-    for (let i = 0; i < args.length; i++) {
-        const a = args[i];
-        if (a == null) {
-            parts.push("n");
-            continue;
-        }
-        if (typeof a !== "object") {
-            parts.push(String(a));
-            continue;
-        }
-
-        const id = extractStableId(a);
-        if (id != null) {
-            parts.push(id);
-            continue;
-        }
-
-        // No stable id: don't poison the shared cache with random keys.
-        // Mount-level memoization still avoids re-patching on re-renders.
-        cacheable = false;
-        const keys = Object.keys(a).slice(0, 6).join(".");
-        parts.push(`o${i}:${a.constructor?.name ?? "Object"}:${keys}`);
-    }
-
-    return { key: parts.join(","), cacheable };
-}
-
-function readMenuCache(fullKey: string): Array<ReactElement<any> | null> | null {
-    const entry = menuCache.get(fullKey);
-    if (!entry) return null;
-    if (Date.now() - entry.timestamp > CACHE_TTL) {
-        menuCache.delete(fullKey);
-        return null;
-    }
-    return entry.children;
-}
-
-function writeMenuCache(fullKey: string, children: Array<ReactElement<any> | null>) {
-    if (menuCache.size >= CACHE_MAX) {
-        let oldestKey: string | null = null;
-        let oldestTime = Infinity;
-        for (const [k, v] of menuCache) {
-            if (v.timestamp < oldestTime) {
-                oldestTime = v.timestamp;
-                oldestKey = k;
-            }
-        }
-        if (oldestKey) menuCache.delete(oldestKey);
-    }
-    menuCache.set(fullKey, { children, timestamp: Date.now() });
-}
 /**
  * Add a context menu patch
  * @param navId The navId(s) for the context menu(s) to patch
@@ -251,10 +152,11 @@ interface ContextMenuProps {
 }
 
 interface MountPatchState {
-    fullKey: string;
+    /** The `children` prop `patchedChildren` was built from. */
+    sourceChildren: ContextMenuProps["children"] | null;
     patchedChildren: Array<ReactElement<any> | null> | null;
-    /** True once deferred work for fullKey has been scheduled or completed. */
-    scheduled: boolean;
+    /** True once a patch pass has completed, i.e. the menu is already on screen. */
+    patchedOnce: boolean;
 }
 
 function normalizeChildren(children: ContextMenuProps["children"]): Array<ReactElement<any> | null> {
@@ -339,95 +241,65 @@ function applyAllPatches(
 /**
  * Patches context menu children for plugin items.
  *
- * Fast path: shared cache hit or already-computed mount result → return immediately.
- * Slow path: paint Discord's stock menu first, then apply plugin patches after paint
- * (useEffect) so right-click feels instant even with dozens of enabled menu plugins.
+ * The first paint of a menu shows Discord's stock items and applies plugin patches in an
+ * effect right after, so right-click feels instant even with dozens of menu plugins. Every
+ * render after that patches inline, because a re-render means the menu's own state changed
+ * (a checkbox toggled, a search box typed into) and that update has to land in this render.
  */
 export function _usePatchContextMenu(props: ContextMenuProps) {
     // Hooks must run unconditionally (before any early return).
     const mountRef = React.useRef<MountPatchState>({
-        fullKey: "",
+        sourceChildren: null,
         patchedChildren: null,
-        scheduled: false,
+        patchedOnce: false
     });
     const [, forceRender] = React.useReducer((n: number) => n + 1, 0);
 
     props.contextMenuAPIArguments ??= [];
     const args = props.contextMenuAPIArguments;
-    const { key: argsKey, cacheable } = getArgsSignature(args);
-    const fullKey = props.navId + ":" + argsKey;
 
     const contextMenuPatches = navPatches.get(props.navId);
     const hasPatches = (contextMenuPatches?.size ?? 0) > 0 || globalPatches.size > 0;
 
-    // Reset mount memo when Discord opens a different menu target in the same component instance.
-    if (mountRef.current.fullKey !== fullKey) {
-        mountRef.current = { fullKey, patchedChildren: null, scheduled: false };
-    }
-
-    // Defer plugin patches until after first paint when work is needed.
-    // useEffect runs after paint, so the stock Discord menu appears immediately.
     React.useEffect(() => {
         if (!Menu.MenuItem) return;
         if (!hasPatches) return;
-        if (mountRef.current.fullKey === fullKey && mountRef.current.patchedChildren) return;
-        if (mountRef.current.fullKey === fullKey && mountRef.current.scheduled) return;
 
-        mountRef.current.scheduled = true;
-        let cancelled = false;
+        const state = mountRef.current;
+        // Already handled, either by a previous effect or inline in the render below.
+        if (state.sourceChildren === props.children) return;
 
         try {
-            const patched = applyAllPatches(props.navId, props.children, args);
-            if (cancelled) {
-                // Effect was cleaned up (Strict Mode / unmount); allow a later effect to retry.
-                if (mountRef.current.fullKey === fullKey) {
-                    mountRef.current.scheduled = false;
-                }
-                return;
-            }
-
-            mountRef.current = {
-                fullKey,
-                patchedChildren: patched,
-                scheduled: true,
-            };
-
-            if (cacheable) writeMenuCache(fullKey, patched);
+            state.patchedChildren = applyAllPatches(props.navId, props.children, args);
+            state.sourceChildren = props.children;
+            state.patchedOnce = true;
             forceRender();
         } catch (err) {
-            if (mountRef.current.fullKey === fullKey) {
-                mountRef.current.scheduled = false;
-            }
             ContextMenuLogger.error(`Deferred patch for ${props.navId} failed,`, err);
         }
-
-        return () => {
-            cancelled = true;
-        };
-        // fullKey captures navId + stable args identity. Children/args come from this open's render.
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: re-run only when menu identity changes
-    }, [fullKey, hasPatches]);
+    }, [props.navId, props.children, hasPatches]);
 
     if (!Menu.MenuItem) return props; // Prevent crashes if menu items failed to resolve
 
-    // Already patched on this mount (after deferred pass or sync path).
-    if (mountRef.current.patchedChildren && mountRef.current.fullKey === fullKey) {
-        return { ...props, children: mountRef.current.patchedChildren };
+    const state = mountRef.current;
+
+    if (state.patchedChildren && state.sourceChildren === props.children) {
+        return { ...props, children: state.patchedChildren };
     }
 
-    // Shared cache hit — show full plugin menu immediately, no flash.
-    if (hasPatches && cacheable) {
-        const cached = readMenuCache(fullKey);
-        if (cached) {
-            mountRef.current = { fullKey, patchedChildren: cached, scheduled: true };
-            return { ...props, children: cached };
-        }
-    }
-
-    // No plugin patches: normalize and return.
     if (!hasPatches) {
         const children = normalizeChildren(props.children);
-        mountRef.current = { fullKey, patchedChildren: children, scheduled: true };
+        state.sourceChildren = props.children;
+        state.patchedChildren = children;
+        return { ...props, children };
+    }
+
+    // Menu is already on screen, so patch inline instead of waiting a frame and flashing
+    // back to Discord's stock items.
+    if (state.patchedOnce) {
+        const children = applyAllPatches(props.navId, props.children, args);
+        state.sourceChildren = props.children;
+        state.patchedChildren = children;
         return { ...props, children };
     }
 

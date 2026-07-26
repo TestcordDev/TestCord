@@ -16,13 +16,32 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { disableStyle, enableStyle, setStyleClassNames } from "@api/Styles";
 import { Devs } from "@utils/constants";
 import definePlugin from "@utils/types";
+import { findCssClassesLazy } from "@webpack";
+
+import style from "./messagePopover.css?managed";
+
+const messageClasses = findCssClassesLazy("messageListItem", "message");
 
 export default definePlugin({
     name: "MessagePopoverAPI",
     description: "API to add buttons to message popovers.",
     authors: [Devs.KingFish, Devs.Ven, Devs.Nuckyz],
+
+    start() {
+        setStyleClassNames(style, {
+            messageListItem: messageClasses.messageListItem,
+            message: messageClasses.message
+        });
+        enableStyle(style);
+    },
+
+    stop() {
+        disableStyle(style);
+    },
+
     patches: [
         {
             find: "#{intl::MESSAGE_UTILITIES_A11Y_LABEL}",

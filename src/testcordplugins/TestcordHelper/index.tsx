@@ -24,7 +24,7 @@ import { sleep, tryOrElse } from "@utils/misc";
 import { makeCodeblock } from "@utils/text";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { Message, User } from "@vencord/discord-types";
-import { cache, wreq } from "@webpack";
+import { wreq } from "@webpack";
 import { Avatar, Button, ChannelStore, ColorPicker, FluxDispatcher, MessageActions, SelectedChannelStore, showToast, TextInput, Toasts, Tooltip, useEffect, useMemo, UserProfileStore, UserStore, useStateFromStores } from "@webpack/common";
 import { patches as allPatches, patchTimings } from "@webpack/patcher";
 import { JSX } from "react";
@@ -297,19 +297,6 @@ function installDebugInstrumentation() {
         }
         return (origSubscribe as any).call(FluxDispatcher, event, handler);
     };
-
-    if ((FluxDispatcher as any)._subscriptions) {
-        for (const eventType in (FluxDispatcher as any)._subscriptions) {
-            const handlers = (FluxDispatcher as any)._subscriptions[eventType];
-            if (!Array.isArray(handlers)) continue;
-            for (let i = 0; i < handlers.length; i++) {
-                const name = handlerPluginMap.get(handlers[i]);
-                if (name && !handlerWrappers.has(handlers[i])) {
-                    handlers[i] = wrapHandlerTiming(handlers[i]);
-                }
-            }
-        }
-    }
 
     let wrappedCount = 0;
     try {
@@ -1228,31 +1215,28 @@ function handleLiveFixRequest(req: LiveFixRequest): any {
         switch (action) {
             case "search": {
                 if (!req.query) return { id, error: "Missing query" };
+                const factories = wreq?.m;
+                if (!factories) return { id, error: "Webpack factories not available" };
+
                 const results: Array<{ id: number; snippet: string; }> = [];
                 const query = req.query.toLowerCase();
-                const modules = cache ?? wreq?.c;
-                if (!modules) return { id, error: "Webpack cache not available" };
 
-                for (const moduleId in modules) {
-                    const mod = modules[moduleId];
-                    if (!mod?.exports) continue;
-                    const src = String(mod.exports);
-                    if (src.toLowerCase().includes(query)) {
-                        results.push({ id: Number(moduleId), snippet: src.slice(0, 300) });
-                        if (results.length >= 20) break;
-                    }
+                for (const moduleId in factories) {
+                    const src = String(factories[moduleId]);
+                    const at = src.toLowerCase().indexOf(query);
+                    if (at === -1) continue;
+
+                    results.push({ id: Number(moduleId), snippet: src.slice(Math.max(0, at - 100), at + 200) });
+                    if (results.length >= 20) break;
                 }
-                return { id, results };
+                return { id, results, truncated: results.length >= 20 };
             }
 
             case "readModule": {
                 if (req.moduleId === undefined) return { id, error: "Missing moduleId" };
-                const modules = cache ?? wreq?.c;
-                if (!modules) return { id, error: "Webpack cache not available" };
-                const mod = modules[req.moduleId];
-                if (!mod?.exports) return { id, error: `Module ${req.moduleId} not found` };
-                const src = String(mod.exports);
-                return { id, source: src };
+                const factory = wreq?.m?.[req.moduleId];
+                if (!factory) return { id, error: `Module ${req.moduleId} not found` };
+                return { id, source: String(factory) };
             }
 
             case "eval": {

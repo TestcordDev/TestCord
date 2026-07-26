@@ -45,10 +45,7 @@ interface SpringMod {
     Springs?: object;
 }
 
-const PASSIVE_EVENTS = ["wheel", "mousewheel", "touchstart", "touchmove", "touchend"];
-
 let boostStyleEl: HTMLStyleElement | null = null;
-let originalAddEventListener: typeof EventTarget.prototype.addEventListener | null = null;
 let springs: SpringMod[] = [];
 
 function CacheIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -164,27 +161,6 @@ function applyBoost(): string[] {
     }
     if (springs.length > 0) applied.push("Spring animations");
 
-    if (!originalAddEventListener) {
-        originalAddEventListener = EventTarget.prototype.addEventListener;
-        const orig = originalAddEventListener;
-        EventTarget.prototype.addEventListener = function (
-            this: EventTarget,
-            type: string,
-            listener: EventListenerOrEventListenerObject | null,
-            options?: boolean | AddEventListenerOptions
-        ): void {
-            if (PASSIVE_EVENTS.includes(type) && listener != null) {
-                if (typeof options === "boolean" || options === undefined) {
-                    options = { capture: !!options, passive: true };
-                } else if (options.passive === undefined) {
-                    options = { ...options, passive: true };
-                }
-            }
-            return orig.call(this, type, listener, options);
-        } as typeof EventTarget.prototype.addEventListener;
-        applied.push("Passive listeners");
-    }
-
     document.querySelectorAll<HTMLImageElement>("img").forEach(img => {
         if (!img.loading) img.loading = "lazy";
         if (!img.decoding) img.decoding = "async";
@@ -213,11 +189,6 @@ function removeBoost(): void {
         spring.Globals?.assign?.({ skipAnimation: false });
     }
     springs = [];
-
-    if (originalAddEventListener) {
-        EventTarget.prototype.addEventListener = originalAddEventListener;
-        originalAddEventListener = null;
-    }
 }
 
 function CacheResetButton() {

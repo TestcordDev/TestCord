@@ -103,12 +103,13 @@ const PlatformIcon = ({ platform, status, small }) => {
 };
 
 function useEnsureOwnStatus(user: User) {
-    if (user.id !== AuthenticationStore.getId()) {
-        return;
-    }
-
+    // Member list rows are recycled across users as you scroll, so this instance can go from
+    // rendering someone else to rendering you. Gating the hook on that made the hook count
+    // flip and tore down the row mid-render.
+    const isOwnUser = user?.id === AuthenticationStore.getId();
     const sessions = useStateFromStores([SessionsStore], () => SessionsStore.getSessions());
-    if (typeof sessions !== "object") return null;
+
+    if (!isOwnUser || typeof sessions !== "object") return;
     const sortedSessions = Object.values(sessions).sort(({ status: a }, { status: b }) => {
         if (a === b) return 0;
         if (a === "online") return 1;
@@ -136,10 +137,15 @@ interface PlatformIndicatorProps {
 }
 
 const PlatformIndicator = ({ user, isProfile, isMessage, isMemberList }: PlatformIndicatorProps) => {
-    if (user == null || (user.bot && !settings.store.showBots)) return null;
     useEnsureOwnStatus(user);
 
-    const status = useStateFromStores([PresenceStore], () => PresenceStore.getClientStatus(user.id));
+    const status = useStateFromStores(
+        [PresenceStore],
+        () => user == null ? null : PresenceStore.getClientStatus(user.id),
+        [user?.id]
+    );
+
+    if (user == null || (user.bot && !settings.store.showBots)) return null;
     if (!status) return null;
 
     const icons = Array.from(Object.entries(status), ([platform, status]) => (

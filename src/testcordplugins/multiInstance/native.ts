@@ -5,7 +5,7 @@
  */
 
 import { app, BrowserWindow, ipcMain, screen, Session,session, systemPreferences } from "electron";
-import { existsSync,mkdirSync, writeFileSync } from "fs";
+import { existsSync,mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
 
 // Inlined from nightcord/main/mediaPermissions.ts
@@ -124,9 +124,19 @@ function registerWindowControlIpc(win: BrowserWindow): () => void {
 // Creates the preload script that injects the token
 // ─────────────────────────────────────────────────────────────────────────────
 
-function createTokenPreload(token: string): string {
-    // Temporary directory in userData
-    const dir = join(app.getPath("userData"), "nightcord-mi-preloads");
+function preloadDir() {
+    return join(app.getPath("userData"), "nightcord-mi-preloads");
+}
+
+// The preload embeds the account's token in plaintext and the session re-reads it from disk
+// on every frame, so it has to outlive the window. One file per account, deleted on close,
+// instead of a new timestamped file left behind on every open.
+function deleteTokenPreload(userId: string) {
+    rmSync(join(preloadDir(), `token-preload-${userId}.js`), { force: true });
+}
+
+function createTokenPreload(token: string, userId: string): string {
+    const dir = preloadDir();
     mkdirSync(dir, { recursive: true });
 
     const safeToken = JSON.stringify(token); // properly escapes the token
@@ -161,8 +171,8 @@ function createTokenPreload(token: string): string {
 })();
 `;
 
-    const filePath = join(dir, `token-preload-${Date.now()}.js`);
-    writeFileSync(filePath, script, "utf-8");
+    const filePath = join(dir, `token-preload-${userId}.js`);
+    writeFileSync(filePath, script, { encoding: "utf-8", mode: 0o600 });
     return filePath;
 }
 
@@ -230,7 +240,7 @@ export async function openInstanceWindow(
 
         registerMediaPermissionsForSession(ses);
 
-        const preloadPath = createTokenPreload(token);
+        const preloadPath = createTokenPreload(token, userId);
         ses.setPreloads([preloadPath]);
 
         const win = new BrowserWindow({
@@ -307,6 +317,7 @@ export async function openInstanceWindow(
 
         win.once("closed", () => {
             cleanupIpc();
+            deleteTokenPreload(userId);
             openWindows.delete(userId);
             // Clean up the session's service workers to permanently cut notifications
             ses.clearStorageData({ storages: ["serviceworkers"] }).catch(() => {});
@@ -390,7 +401,7 @@ export async function openInstanceWindowGrouped(
 
         registerMediaPermissionsForSession(ses);
 
-        const preloadPath = createTokenPreload(token);
+        const preloadPath = createTokenPreload(token, userId);
         ses.setPreloads([preloadPath]);
 
         const win = new BrowserWindow({
@@ -448,6 +459,7 @@ export async function openInstanceWindowGrouped(
 
         win.once("closed", () => {
             cleanupIpc();
+            deleteTokenPreload(userId);
             openGroupedWindows.delete(userId);
             ses.clearStorageData({ storages: ["serviceworkers"] }).catch(() => {});
         });

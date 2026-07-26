@@ -51,19 +51,21 @@ function HideToggleButton(props: { open: boolean | undefined, onClick: MouseEven
 }
 
 function ButtonsInnerComponent({ buttons }: { buttons: ReactNode; }) {
+    const [open, setOpen] = useState(hidechatbuttonsopen);
+
+    useEffect(() => {
+        hidechatbuttonsopen = open;
+    }, [open]);
+
     const buttonItems = Array.isArray(buttons)
         ? buttons
         : buttons == null
             ? []
             : [buttons];
 
+    // Discord toggles buttons to disabled as you move between channels you can and can't post
+    // in, so this guard has to sit below the hooks or the whole chat bar unmounts mid-render.
     if (buttonItems.length === 0 || buttonItems.every(button => (button as any)?.props?.disabled === true)) return null;
-
-    const [open, setOpen] = useState(hidechatbuttonsopen);
-
-    useEffect(() => {
-        hidechatbuttonsopen = open;
-    }, [open]);
 
     return (
         <div key="chat-bar-buttons-menu" id="chat-bar-buttons-menu" style={{

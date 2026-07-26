@@ -15,6 +15,7 @@ import type { MessageDecorationProps } from "../../api/MessageDecorations";
 const ActivityCard = findComponentByCodeLazy(".USER_PROFILE_LIVE_ACTIVITY_CARD),{themeType:");
 
 function ListeningCover({ message }: MessageDecorationProps) {
+    const ref = useRef<HTMLDivElement>(null);
     const activities = useStateFromStores([PresenceStore], () =>
         PresenceStore.getActivities(message.author.id)
             .filter(a => a.type === ActivityType.LISTENING && a.assets?.large_image)
@@ -27,8 +28,6 @@ function ListeningCover({ message }: MessageDecorationProps) {
     const url = largeImage.startsWith("spotify:")
         ? largeImage.replace("spotify:", "https://i.scdn.co/image/")
         : largeImage.replace("mp:", "https://media.discordapp.net/");
-
-    const ref = useRef<HTMLDivElement>(null);
 
     return <Popout
         position="top"

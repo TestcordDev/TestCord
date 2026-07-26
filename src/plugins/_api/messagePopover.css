@@ -1,6 +1,9 @@
-/* Ensure message toolbar doesn't clip under the message above */
-[class*="messageListItem_"]:hover,
-[class*="message_"]:hover {
+/* Ensure message toolbar doesn't clip under the message above.
+   The class names are filled in at runtime. Matching [class*="message_"] instead put this
+   rule in the browser's universal selector bucket, so it was retested against every element
+   on every hover change and every message list mutation. */
+[--messageListItem]:hover,
+[--message]:hover {
     z-index: 1;
     position: relative;
 }

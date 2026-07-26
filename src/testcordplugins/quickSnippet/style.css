@@ -1,21 +1,5 @@
-div[role="button"][class]:has(
-        svg[aria-hidden="true"][role="img"][width="16"][height="16"][viewBox="0 0 24 24"]
-    ):has(
-        path[d="M3 16a1 1 0 0 1-1-1v-5a8 8 0 0 1 8-8h5a1 1 0 0 1 1 1v.5a.5.5 0 0 1-.5.5H10a6 6 0 0 0-6 6v5.5a.5.5 0 0 1-.5.5H3Z"]
-    ) {
-    display: inline;
-}
-
-div[role="button"][class]:has(
-        svg[aria-hidden="true"][role="img"][width="16"][height="16"][viewBox="0 0 24 24"]
-    ):has(
-        path[d="M21.7 5.3a1 1 0 0 1 0 1.4l-12 12a1 1 0 0 1-1.4 0l-6-6a1 1 0 1 1 1.4-1.4L9 16.58l11.3-11.3a1 1 0 0 1 1.4 0Z"]
-    ) {
-    display: inline;
-}
-
 .qs-quickcss-append-button {
-    background-color: inherit !important;
+    background-color: inherit !important; /* Button.Looks.FILLED paints a brand background inside the code block */
     padding: 0;
     display: inline;
     margin-left: 5px;

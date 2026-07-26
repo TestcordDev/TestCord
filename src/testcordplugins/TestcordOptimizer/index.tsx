@@ -1560,6 +1560,15 @@ export default definePlugin({
 
         watch(document.body);
 
+        // A media element that scrolls out of the virtualised message list is added to
+        // `paused` and only ever removed when it scrolls back in. React then unmounts the
+        // row, so it never intersects again and the Set pins the element plus its whole
+        // detached ancestor subtree for the rest of the session.
+        const release = (el: HTMLMediaElement) => {
+            this.intersectionObserver?.unobserve(el);
+            paused.delete(el);
+        };
+
         const callback = (records: MutationRecord[]) => {
             for (const r of records) {
                 for (const node of r.addedNodes) {
@@ -1568,6 +1577,10 @@ export default definePlugin({
                     } else if (node instanceof Element && node.querySelector("video, audio")) {
                         watch(node);
                     }
+                }
+                for (const node of r.removedNodes) {
+                    if (node instanceof HTMLMediaElement) release(node);
+                    else if (node instanceof Element) node.querySelectorAll<HTMLMediaElement>("video, audio").forEach(release);
                 }
             }
         };
@@ -2890,12 +2903,16 @@ export default definePlugin({
         const timers = new Map<string, ReturnType<typeof setTimeout>>();
         const DEBOUNCE_MS = 120;
 
-        const wrappedDispatch = function (payload: { type: string }) {
+        // TypingStore is keyed by channel and then user, so two people typing in the same
+        // channel are not redundant events. Debouncing on the action type alone threw away
+        // everyone but the last typer in each window.
+        const wrappedDispatch = function (payload: { type: string; channelId?: string; userId?: string; }) {
             if (THROTTLED.has(payload.type)) {
-                const existing = timers.get(payload.type);
+                const key = `${payload.type}\0${payload.channelId ?? ""}\0${payload.userId ?? ""}`;
+                const existing = timers.get(key);
                 if (existing) clearTimeout(existing);
-                timers.set(payload.type, setTimeout(() => {
-                    timers.delete(payload.type);
+                timers.set(key, setTimeout(() => {
+                    timers.delete(key);
                     return origDispatch(payload);
                 }, DEBOUNCE_MS));
                 return undefined;
