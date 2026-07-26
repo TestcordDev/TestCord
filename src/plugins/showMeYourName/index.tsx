@@ -20,11 +20,10 @@ import { classNameFactory } from "@utils/index";
 import definePlugin, { OptionType } from "@utils/types";
 import { GuildMember, Message, RenderModalProps, User } from "@vencord/discord-types";
 import { findByCodeLazy, findStoreLazy } from "@webpack";
-import { ChannelStore, GuildMemberStore, GuildStore, Menu, MessageStore, Modal, openModal, RelationshipStore, StreamerModeStore, TextInput, useMemo, useState } from "@webpack/common";
+import { ChannelStore, GuildMemberStore, GuildStore, Menu, MessageStore, Modal, openModal, RelationshipStore, StreamerModeStore, TextInput, useMemo, UserStore, useState } from "@webpack/common";
 import { JSX } from "react";
 
 const SMYNC = classNameFactory();
-const UserStore = findStoreLazy("UserStore");
 const wrapEmojis = findByCodeLazy("lastIndex;return");
 const adjustColor = findByCodeLazy("light1", '.get("hsl.s"))');
 const AccessibilityStore = findStoreLazy("AccessibilityStore");
@@ -1103,7 +1102,10 @@ export default definePlugin({
     isModified: true,
     settings,
 
-    UserStore,
+    // Read through a getter, not a plain value. Capturing the store in the object literal
+    // resolved it at module-eval time, before webpack was ready, and the patch below then
+    // called getUser on whatever that came back as.
+    get UserStore() { return UserStore; },
 
     patches: [
         {
