@@ -175,10 +175,10 @@ export function LogsModal({ modalProps, initalQuery }: Props) {
                     modalProps.transitionState === 1 &&
                     <div>
                         {pending && (
-                            <LoadingLogs />
+                            <LoadingLogs tab={currentTab} />
                         )}
 
-                        {messages != null && total === 0 && (
+                        {!pending && messages != null && total === 0 && (
                             <EmptyLogs
                                 hasQuery={queryEh.length !== 0}
                                 reset={reset}
@@ -302,13 +302,13 @@ function EmptyLogs({ hasQuery, reset: forceUpdate }: { hasQuery: boolean; reset:
     );
 }
 
-function LoadingLogs() {
+function LoadingLogs(tab) {
     return (
         <div className={cl("modal-empty-logs", "modal-content-inner")} style={{ textAlign: "center" }}>
             <Flex flexDirection="column" style={{ position: "relative" }}>
 
                 <BaseText size="lg">
-                    Loading Logs...
+                    Loading {tab} Logs...
                 </BaseText>
             </Flex>
         </div>
