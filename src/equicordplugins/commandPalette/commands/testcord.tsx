@@ -19,7 +19,7 @@ export const testcordCommands: PaletteCommand[] = [
         icon: GearIcon,
         actions: [{
             id: "run",
-            label: "Open Equicord Settings",
+            label: "Open Testcord Settings",
             run: () => void openSettingsPage("equicord_main")
         }]
     },
