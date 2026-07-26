@@ -882,6 +882,7 @@ export default definePlugin({
     gifBlobUrls: new Set<string>(),
     lazyImageObserver: null as MutationObserver | null,
     consolidatedObserver: null as MutationObserver | null,
+    consolidatedFlushReset: null as (() => void) | null,
     observerCallbacks: new Map<string, (records: MutationRecord[]) => void>(),
     animatedEmojiObserver: null as MutationObserver | null,
     imageDecodingObserver: null as MutationObserver | null,
@@ -1078,10 +1079,17 @@ export default definePlugin({
 
         const callbacks = this.observerCallbacks;
         const throttle = settings.store.throttleMutationObservers;
+        // A MutationRecord holds strong refs to target/addedNodes/removedNodes.
+        // requestAnimationFrame is starved while the window is hidden or occluded,
+        // so an unbounded queue pins every mutated node - including detached
+        // subtrees - for as long as the client stays backgrounded.
+        const MAX_QUEUED_RECORDS = 5000;
         let queued: MutationRecord[] = [];
         let frame = 0;
+        let flushTimer: ReturnType<typeof setTimeout> | null = null;
         const flush = () => {
-            frame = 0;
+            if (frame) { cancelAnimationFrame(frame); frame = 0; }
+            if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
             const records = queued;
             queued = [];
             for (const cb of callbacks.values()) {
@@ -1092,13 +1100,22 @@ export default definePlugin({
                 }
             }
         };
+        this.consolidatedFlushReset = () => {
+            if (frame) { cancelAnimationFrame(frame); frame = 0; }
+            if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+            queued = [];
+        };
 
         try {
             this.consolidatedObserver = new MutationObserver(records => {
                 if (callbacks.size === 0) return;
                 if (throttle) {
-                    queued.push(...records);
+                    // Spread-push blows the call stack on large record batches.
+                    for (const rec of records) queued.push(rec);
+                    if (queued.length > MAX_QUEUED_RECORDS) queued.splice(0, queued.length - MAX_QUEUED_RECORDS);
                     if (!frame) frame = requestAnimationFrame(flush);
+                    // Fallback drain for when rAF never fires (backgrounded window).
+                    if (!flushTimer) flushTimer = setTimeout(flush, 1000);
                 } else {
                     for (const cb of callbacks.values()) {
                         try {
@@ -1122,6 +1139,10 @@ export default definePlugin({
             this.consolidatedObserver.disconnect();
             this.consolidatedObserver = null;
             this.observerCallbacks.clear();
+        }
+        if (this.consolidatedFlushReset) {
+            this.consolidatedFlushReset();
+            this.consolidatedFlushReset = null;
         }
     },
 
@@ -1154,6 +1175,14 @@ export default definePlugin({
             timers.set(el, t);
         };
 
+        const release = (el: Element) => {
+            const t = timers.get(el);
+            if (t !== undefined) {
+                clearTimeout(t);
+                timers.delete(el);
+            }
+        };
+
         const callback = (records: MutationRecord[]) => {
             for (const r of records) {
                 for (const node of r.addedNodes) {
@@ -1161,6 +1190,11 @@ export default definePlugin({
                     if (node instanceof HTMLIFrameElement) continue;
                     if (node.querySelector?.("iframe")) continue;
                     if (matches(node)) apply(node);
+                }
+                for (const node of r.removedNodes) {
+                    if (!(node instanceof Element)) continue;
+                    release(node);
+                    if (timers.size) node.querySelectorAll?.("[data-op-throttled]").forEach(release);
                 }
             }
         };
@@ -1747,11 +1781,20 @@ export default definePlugin({
 
         document.querySelectorAll<HTMLImageElement>("img").forEach(freeze);
 
+        const release = (img: HTMLImageElement) => {
+            const cleanup = (img as any).__opCleanup;
+            if (typeof cleanup === "function") cleanup();
+        };
+
         const callback = (records: MutationRecord[]) => {
             for (const r of records) {
                 for (const node of r.addedNodes) {
                     if (node instanceof HTMLImageElement) freeze(node);
                     else if (node instanceof Element && node.querySelector("img")) node.querySelectorAll<HTMLImageElement>("img").forEach(freeze);
+                }
+                for (const node of r.removedNodes) {
+                    if (node instanceof HTMLImageElement) release(node);
+                    else if (node instanceof Element && node.querySelector?.("img")) node.querySelectorAll<HTMLImageElement>("img").forEach(release);
                 }
             }
         };
