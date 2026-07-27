@@ -42,6 +42,64 @@ const FolderUtils = findByPropsLazy("move", "toggleGuildFolderExpand");
 let lastGuildId = null as string | null;
 let dispatchingFoldersClose = false;
 
+const STYLES = `
+.folderIcon__48112 {
+    height: 32px !important;
+    width: 32px !important;
+    margin: 4px;
+}
+
+.vc-betterFolders-sidebar .folderIcon__48112 {
+    height: 32px !important;
+    width: 32px !important;
+    margin: 4px 0;
+}
+
+.vc-betterFolders-sidebar .isExpanded__48112 .folderHeader__48112 {
+    height: 32px !important;
+    width: 32px !important;
+    ;
+}
+
+.folderGroup__48112 .svg_cc5dd2.shiftSVG_cc5dd2 {
+    height: 44px !important;
+    width: 44px !important;
+    margin-left: 2px;
+}
+
+.folderGroup__48112 {
+    --guildbar-folder-size: 40px !important;
+}
+
+.stack_dbd263.folderGuildsList__48112 {
+    height: calc(100% - 8px) !important;
+}
+
+.stack_dbd263.folderGuildsList__48112 {
+    gap: 0 !important;
+}
+
+.folderGroupBackground__48112 {
+    mask: url(#«r10»);
+    border-radius: 0;
+}
+
+.vc-betterFolders-sidebar .folderGroupBackground__48112 {
+    border-radius: var(--radius-lg);
+    mask: none;
+}
+`;
+
+function injectStyles() {
+    if (document.getElementById("betterfolders-foldersize-styles")) return;
+    const el = document.createElement("style");
+    el.id = "betterfolders-foldersize-styles";
+    el.textContent = STYLES;
+    document.head.appendChild(el);
+}
+
+function removeStyles() { document.getElementById("betterfolders-foldersize-styles")?.remove(); }
+
 function getGuildFolder(id: string) {
     return SortedGuildStore.getGuildFolders().find(folder => folder.guildIds.includes(id));
 }
@@ -132,6 +190,18 @@ export const settings = definePluginSettings({
             { label: "When more than one folder is expanded", value: FolderIconDisplay.MoreThanOneFolderExpanded }
         ],
         restartNeeded: true
+    },
+    consistentFolderSize: {
+        type: OptionType.BOOLEAN,
+        description: "Consistently sized folder",
+        default: false,
+        onChange(value) {
+            if (value) {
+                injectStyles();
+            } else {
+                removeStyles();
+            }
+        }
     }
 });
 
