@@ -72,20 +72,29 @@ const STYLES = `
 }
 
 .stack_dbd263.folderGuildsList__48112 {
-    height: calc(100% - 8px) !important;
-}
-
-.stack_dbd263.folderGuildsList__48112 {
     gap: 0 !important;
 }
 
+.folderPreviewGuildIcon__48112:first-child {
+    border-radius: 7px 4px 4px;
+}
+
+.folderPreviewGuildIcon__48112:nth-child(2) {
+    border-radius: 4px 7px 4px 4px;
+}
+
 .folderGroupBackground__48112 {
-    mask: url(#«r10»);
-    border-radius: 0;
+    border-radius: 12px;
 }
 
 .vc-betterFolders-sidebar .folderGroupBackground__48112 {
-    border-radius: var(--radius-lg);
+    height: calc(100% - 8px) !important;
+    border-radius: var(--radius-md);
+}
+
+.folderGroup__48112 .wrapper_cc5dd2 foreignObject,
+.folderPreviewWrapper__48112 {
+    border-radius: 10px;
     mask: none;
 }
 `;
