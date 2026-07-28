@@ -226,6 +226,9 @@ export default definePlugin({
     tags: ["Organisation", "Servers", "Appearance"],
     settings,
 
+    start() { if (settings.store.consistentFolderSize) { injectStyles(); } },
+    stop() { if (settings.store.consistentFolderSize) { removeStyles(); } },
+
     patches: [
         {
             find: '("guildsnav")',
