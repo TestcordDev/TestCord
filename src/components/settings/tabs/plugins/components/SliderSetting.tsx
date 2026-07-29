@@ -45,7 +45,7 @@ export function SliderSetting({ setting, pluginSettings, definedSettings, id, on
                 maxValue={setting.markers[setting.markers.length - 1]}
                 initialValue={def}
                 onValueChange={handleChange}
-                onValueRender={(v: number) => String(v.toFixed(2))}
+                onValueRender={(v: number) => typeof v === "number" ? String(v.toFixed(2)) : String(v)}
                 stickToMarkers={setting.stickToMarkers ?? true}
                 disabled={isSettingDisabled(definedSettings, setting)}
                 {...setting.componentProps}
