@@ -29,7 +29,7 @@ const SECTION_ICONS: Record<string, Icon> = {
     equicord_section: EquicordIcon,
     billing_section: CreditCardIcon,
     app_section: AppsIcon,
-    activity_section: GameControllerIcon,
+    games_and_apps_section: GameControllerIcon,
     developer_section: HammerAndChiselIcon,
     utility_section: MainSettingsIcon,
     playgrounds: AchievementsIcon,

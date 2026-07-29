@@ -19,6 +19,7 @@ import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
 import { getStylusWebStoreUrl } from "@utils/web";
 import { React, Select, showToast, TextInput, Toasts, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { SyntheticEvent } from "react";
 
 import { OnlineThemesSection } from "./OnlineThemes";
 import { QuickActionsSection } from "./QuickActions";
@@ -118,12 +119,7 @@ function ThemesTab() {
         }
     }
 
-    async function onFileUpload(e: React.SyntheticEvent<HTMLInputElement>) {
-        e.stopPropagation();
-        e.preventDefault();
-        if (!e.currentTarget?.files?.length) return;
-        const { files } = e.currentTarget;
-
+    async function doUploadThemes(files: ArrayLike<File>) {
         const uploads = Array.from(files, file => {
             const { name } = file;
             if (!name.endsWith(".css")) return;
@@ -143,6 +139,47 @@ function ThemesTab() {
         refreshLocalThemes();
     }
 
+    async function onFileUpload(e: SyntheticEvent<HTMLInputElement>) {
+        e.stopPropagation();
+        e.preventDefault();
+
+        if (!e.currentTarget?.files?.length) return;
+        await doUploadThemes(e.currentTarget.files);
+    }
+
+    function useDropFile(refreshThemes: Function) {
+        useEffect(() => {
+            const onDragOver = (e: DragEvent) => {
+                if (!e.dataTransfer?.items.length) return;
+                if (!Array.from(e.dataTransfer.items).some(item => item.kind === "file" && item.getAsFile()?.name.endsWith(".css")))
+                    return;
+
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+
+            const onDrop = async (e: DragEvent) => {
+                e.preventDefault();
+
+                if (!e.dataTransfer?.files.length) return;
+
+                await doUploadThemes(
+                    Array.from(e.dataTransfer.files).filter(file => file.name.endsWith(".css"))
+                );
+
+                refreshThemes();
+            };
+
+            window.addEventListener("dragover", onDragOver);
+            window.addEventListener("drop", onDrop);
+
+            return () => {
+                window.removeEventListener("dragover", onDragOver);
+                window.removeEventListener("drop", onDrop);
+            };
+        }, []);
+    }
+
     function addThemeLink(link: string) {
         if (!themeLinkValid) return;
         if (settings.themeLinks.includes(link)) return;
@@ -151,6 +188,9 @@ function ThemesTab() {
         setCurrentThemeLink("");
         refreshOnlineThemes();
     }
+
+    // This condition is compile time so conditional hook is okay
+    if (IS_WEB) useDropFile(refreshLocalThemes);
 
     async function refreshOnlineThemes() {
         const themes = await Promise.all(

@@ -105,15 +105,16 @@ function ReloadRequiredCard({ required, enabledPlugins, openWarningModal, resetC
 
 const SearchStatus = {
     ALL: 0,
-    ENABLED: 1,
-    DISABLED: 2,
-    EQUICORD: 3,
-    TESTCORD: 4,
-    VENCORD: 5,
-    NEW: 6,
-    USER_PLUGINS: 7,
-    API_PLUGINS: 8,
-    BETTERDISCORD: 9,
+    FAVORITES: 1,
+    ENABLED: 2,
+    DISABLED: 3,
+    EQUICORD: 4,
+    TESTCORD: 5,
+    VENCORD: 6,
+    NEW: 7,
+    USER_PLUGINS: 8,
+    API_PLUGINS: 9,
+    BETTERDISCORD: 10,
 } as const;
 
 type SearchStatus = typeof SearchStatus[keyof typeof SearchStatus];
@@ -180,10 +181,10 @@ export default function PluginSettings() {
                         <p>The following plugins require a restart:</p>
                         <div>
                             {displayed.map((s, i) => (
-                                <span key={i}>
+                                <React.Fragment key={i}>
                                     {i > 0 && ", "}
                                     {Parser.parse("`" + s + "`")}
-                                </span>
+                                </React.Fragment>
                             ))}
                             {remainingCount > 0 && <span> and {remainingCount} more</span>}
                         </div>
@@ -207,9 +208,13 @@ export default function PluginSettings() {
         return o;
     }, []);
 
-    const sortedPlugins = useMemo(() => Object.values(Plugins)
+const sortedPlugins = useMemo(() =>
+    Object.values(Plugins)
         .filter(p => p.name)
-        .sort((a, b) => a.name.localeCompare(b.name)), []);
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .toSorted((a, b) => Number(settings.plugins[b.name]?.isFavorite ?? false) - Number(settings.plugins[a.name]?.isFavorite ?? false)),
+    []
+);
 
     const hasUserPlugins = useMemo(() => !IS_STANDALONE && Object.values(PluginMeta).some(m => m.userPlugin), []);
 
@@ -259,6 +264,9 @@ export default function PluginSettings() {
         const { status, tags } = searchValue;
 
         switch (status) {
+            case SearchStatus.FAVORITES:
+                if (!settings.plugins[plugin.name]?.isFavorite) return false;
+                break;
             case SearchStatus.DISABLED:
                 if (isPluginEnabled(plugin.name)) return false;
                 break;
@@ -479,6 +487,7 @@ export default function PluginSettings() {
                     <Select
                         options={[
                             { label: "Show All", value: SearchStatus.ALL, default: true },
+                            { label: "Show Favorites", value: SearchStatus.FAVORITES },
                             { label: "Show Enabled", value: SearchStatus.ENABLED },
                             { label: "Show Disabled", value: SearchStatus.DISABLED },
                             { label: "Show Equicord", value: SearchStatus.EQUICORD },

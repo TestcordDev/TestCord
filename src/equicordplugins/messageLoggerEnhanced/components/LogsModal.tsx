@@ -302,11 +302,10 @@ function EmptyLogs({ hasQuery, reset: forceUpdate }: { hasQuery: boolean; reset:
     );
 }
 
-function LoadingLogs(tab) {
+function LoadingLogs({ tab }: { tab: LogTabs; }) {
     return (
         <div className={cl("modal-empty-logs", "modal-content-inner")} style={{ textAlign: "center" }}>
             <Flex flexDirection="column" style={{ position: "relative" }}>
-
                 <BaseText size="lg">
                     Loading {tab} Logs...
                 </BaseText>
