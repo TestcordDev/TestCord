@@ -544,17 +544,25 @@ function buildCSS(): string {
                 overflow: hidden !important;
                 text-overflow: ellipsis !important;
                 white-space: nowrap !important;
-            }
             ${S.audioParent},
-            ${S.panelContainer} [class*="audioButtonParent"],
-            ${S.panelContainer} [data-deracul-label="User Settings"],
-            ${S.panelContainer} [data-deracul-label="Mute"],
-            ${S.panelContainer} [data-deracul-label="Deafen"] {
+            ${S.panelContainer} [class*="audioButtonParent"] {
                 flex-shrink: 0 !important;
                 white-space: nowrap !important;
             }
         `);
     }
+
+    lines.push(`
+        /* Fix active effect background pill visibility when hovering with scale up */
+        [class*="item"]:hover [class*="pill"],
+        [class*="wrapper"]:hover [class*="pill"],
+        [class*="pill_"]:hover,
+        [class*="pill"] > [class*="item"] {
+            opacity: 1 !important;
+            visibility: visible !important;
+            z-index: 10 !important;
+        }
+    `);
 
     return lines.join("\n");
 }

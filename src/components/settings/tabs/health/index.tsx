@@ -859,19 +859,19 @@ function HealthTab() {
         setCollapsed(new Set());
     };
 
-    const handleBannerToggle = (value: boolean) => {
-        setBannerDismissed(!value);
-        void DataStore.set(DB_KEY_BANNER_DISMISSED, !value);
+    const handleNoticeToggle = (enabled: boolean) => {
+        setNoticeDismissed(!enabled);
+        void DataStore.set(DB_KEY_NOTICE_DISMISSED, !enabled);
     };
 
-    const handleConflictsToggle = (value: boolean) => {
-        setConflictsHidden(value);
-        void DataStore.set(DB_KEY_CONFLICTS_HIDDEN, value);
+    const handleConflictsToggle = (show: boolean) => {
+        setConflictsHidden(!show);
+        void DataStore.set(DB_KEY_CONFLICTS_HIDDEN, !show);
     };
 
-    const handleNoticeDismiss = (value: boolean) => {
-        setNoticeDismissed(value);
-        void DataStore.set(DB_KEY_NOTICE_DISMISSED, value);
+    const handleBannerToggle = (enabled: boolean) => {
+        setBannerDismissed(!enabled);
+        void DataStore.set(DB_KEY_BANNER_DISMISSED, !enabled);
     };
 
     return (
@@ -906,7 +906,7 @@ function HealthTab() {
                         <input
                             type="checkbox"
                             checked={!noticeDismissed}
-                            onChange={e => handleNoticeDismiss(!e.target.checked)}
+                            onChange={e => handleNoticeToggle(e.target.checked)}
                         />
                         <span className="vc-plugin-health-toggle-slider" />
                     </label>
@@ -923,7 +923,7 @@ function HealthTab() {
                         <input
                             type="checkbox"
                             checked={!conflictsHidden}
-                            onChange={e => handleConflictsToggle(!e.target.checked)}
+                            onChange={e => handleConflictsToggle(e.target.checked)}
                         />
                         <span className="vc-plugin-health-toggle-slider" />
                     </label>
@@ -940,7 +940,7 @@ function HealthTab() {
                         <input
                             type="checkbox"
                             checked={!bannerDismissed}
-                            onChange={e => handleBannerToggle(!e.target.checked)}
+                            onChange={e => handleBannerToggle(e.target.checked)}
                         />
                         <span className="vc-plugin-health-toggle-slider" />
                     </label>
