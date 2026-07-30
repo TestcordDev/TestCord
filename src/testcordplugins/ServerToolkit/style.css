@@ -839,8 +839,7 @@
 }
 
 .guild-toolkit-modal input.gt-input:focus {
-    border-color: var(--gt-accent) !important;
-    background-color: #000 !important;
+    border-color: var(--custom-input-focus-border-color) !important;
     box-shadow: none !important;
 }
 
