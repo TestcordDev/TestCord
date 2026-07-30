@@ -58,7 +58,6 @@ const STYLES = `
 .vc-betterFolders-sidebar .isExpanded__48112 .folderHeader__48112 {
     height: 32px !important;
     width: 32px !important;
-    ;
 }
 
 .folderGroup__48112 .svg_cc5dd2.shiftSVG_cc5dd2 {
