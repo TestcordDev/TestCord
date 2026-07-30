@@ -56,27 +56,56 @@ export default definePlugin({
     start() {
         logger.info("Plugin is starting");
 
+        const oldStyle = document.querySelector(`[id="${STYLE_ELEMENT_ID}"]`);
+        if (oldStyle) oldStyle.remove();
+
         const buttonsToHide = [
-            { setting: "hideGiftButton", labels: ["Send a gift", "Gift Nitro"] },
-            { setting: "hideBoostButton", labels: ["Boost this server"] },
-            { setting: "hideStickerButton", labels: ["Open sticker picker", "Sticker picker"] },
-            { setting: "hideGifButton", labels: ["Open GIF picker", "GIF picker"] },
-            { setting: "hideAppsButton", labels: ["Apps", "Launch App"] }
+            {
+                setting: "hideGiftButton",
+                labels: ["Send a gift", "Gift Nitro", "Gift", "Upgrade to Nitro", "Give Nitro", "Gift Nitro to a friend", "Nitro Gift"],
+                patterns: ["gift"]
+            },
+            {
+                setting: "hideBoostButton",
+                labels: ["Boost this server", "Boost"],
+                patterns: ["boost"]
+            },
+            {
+                setting: "hideStickerButton",
+                labels: ["Open sticker picker", "Sticker picker", "Stickers"],
+                patterns: ["sticker"]
+            },
+            {
+                setting: "hideGifButton",
+                labels: ["Open GIF picker", "GIF picker", "GIFs"],
+                patterns: ["gif picker"]
+            },
+            {
+                setting: "hideAppsButton",
+                labels: ["Apps", "Launch App", "App Launcher"],
+                patterns: ["launch app", "app launcher"]
+            }
         ];
         let css = "";
 
         const hideStyles = "display:none !important;width:0 !important;height:0 !important;padding:0 !important;margin:0 !important;min-width:0 !important;min-height:0 !important;max-width:0 !important;max-height:0 !important;flex:0 0 0 !important;border:none !important;overflow:hidden !important;";
 
-        for (const { labels, setting } of buttonsToHide) {
+        for (const { labels, patterns, setting } of buttonsToHide) {
             const shouldHideButton = settings.store[setting];
             if (shouldHideButton) {
-                for (const label of labels) {
+                const matchers = [
+                    ...labels.map(l => `[aria-label="${l}" i]`),
+                    ...patterns.map(p => `[aria-label*="${p}" i]`)
+                ];
+                for (const matcher of matchers) {
                     const selectors = [
-                        `[aria-label="${label}" i]`,
-                        `div:has(> [aria-label="${label}" i])`,
-                        `button:has([aria-label="${label}" i])`,
-                        `[class*="buttonContainer"]:has([aria-label="${label}" i])`,
-                        `[class*="expressionPicker"]:has([aria-label="${label}" i])`
+                        matcher,
+                        `div:has(> ${matcher})`,
+                        `button:has(${matcher})`,
+                        `[class*="buttonContainer"]:has(${matcher})`,
+                        `[class*="expressionPicker"]:has(${matcher})`,
+                        `[class*="channelTextArea"] button:has(${matcher})`,
+                        `[class*="channelBottomBar"] button:has(${matcher})`
                     ].join(",");
                     css += `${selectors}{${hideStyles}}`;
                 }
