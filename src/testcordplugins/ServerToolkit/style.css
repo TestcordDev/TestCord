@@ -818,9 +818,9 @@
     height: 36px !important;
     min-height: 36px !important;
     padding: 0 14px !important;
-    background-color: #000 !important;
-    border: 1px solid var(--gt-border) !important;
-    border-radius: 8px !important;
+    background-color: var(--custom-input-background-color) !important;
+    border: 1px solid var(--custom-input-border-color) !important;
+    border-radius: var(--custom-input-border-radius) !important;
     outline: none !important;
     box-shadow: none !important;
     color: var(--gt-text-normal) !important;
@@ -835,8 +835,7 @@
 }
 
 .guild-toolkit-modal input.gt-input:hover {
-    border-color: color-mix(in srgb, var(--gt-accent) 45%, var(--gt-border)) !important;
-    background-color: #000 !important;
+    border-color: var(--custom-input-hover-border-color) !important;
 }
 
 .guild-toolkit-modal input.gt-input:focus {
