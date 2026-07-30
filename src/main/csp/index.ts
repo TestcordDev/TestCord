@@ -120,7 +120,7 @@ const patchCsp = (headers: PolicyMap) => {
             csp[directive].push(...values);
         };
 
-        pushDirective("style-src", "'unsafe-inline'");
+        pushDirective("style-src", "'unsafe-inline'", "file:", "blob:", "data:", "vencord:", "vesktop:", "equicord:", "equibop:");
         // we could make unsafe-inline safe by using strict-dynamic with a random nonce on our Vencord loader script https://content-security-policy.com/strict-dynamic/
         // HOWEVER, at the time of writing (24 Jan 2025), Discord is INSANE and also uses unsafe-inline
         // Once they stop using it, we also should
