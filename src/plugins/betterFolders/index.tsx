@@ -425,11 +425,7 @@ export default definePlugin({
             return originalComponent();
         }
 
-        return (
-            <div style={{ display: "none" }}>
-                {originalComponent()}
-            </div>
-        );
+        return null;
     },
 
     makeGuildsBarGuildListFilter(isBetterFolders: boolean) {
