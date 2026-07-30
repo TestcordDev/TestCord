@@ -755,8 +755,8 @@ function HealthTab() {
     const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
     const [filter, setFilter] = React.useState<FilterKey>("all");
     const [sort, setSort] = React.useState<SortKey>("errors");
-    const [bannerDismissed, setBannerDismissed] = React.useState(false);
-    const [noticeDismissed, setNoticeDismissed] = React.useState(false);
+    const [bannerDismissed, setBannerDismissed] = React.useState(true);
+    const [noticeDismissed, setNoticeDismissed] = React.useState(true);
     const [conflictsHidden, setConflictsHidden] = React.useState(true);
     React.useEffect(() => PluginHealth.subscribe(() => setTick(t => t + 1)), []);
     React.useEffect(() => {

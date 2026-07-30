@@ -605,11 +605,14 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    z-index: 1;
+    position: relative;
 }
 
 .vc-settings-theme-market-lightbox-btn,
 .vc-settings-theme-market-lightbox-btn * {
     cursor: pointer !important;
+    pointer-events: auto;
     transition: transform 0.15s ease, filter 0.2s ease, background-color 0.2s ease !important;
 }
 
@@ -631,8 +634,8 @@
     font-size: 18px;
     font-weight: 600;
     cursor: pointer !important;
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -640,6 +643,7 @@
     transition: color 0.2s ease, background-color 0.2s ease, transform 0.15s ease;
     font-family: inherit;
     line-height: 1;
+    pointer-events: auto;
 }
 
 .vc-settings-theme-market-lightbox-close:hover {

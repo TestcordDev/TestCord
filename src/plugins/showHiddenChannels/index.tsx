@@ -492,14 +492,7 @@ export default definePlugin({
                 replace: ",true"
             }
         },
-        {
-            find: '"NowPlayingViewStore"',
-            replacement: {
-                // Make active now voice states on hidden channels
-                match: /(getVoiceStateForUser.{0,150}?)&&\i\.\i\.canWithPartialContext.{0,20}VIEW_CHANNEL.+?}\)(?=\?)/,
-                replace: "$1"
-            }
-        },
+
         {
             find: "#{intl::ROLE_REQUIRED_SINGLE_USER_MESSAGE}",
             replacement: {

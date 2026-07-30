@@ -68,7 +68,7 @@ export default definePlugin({
         for (const { label, setting } of buttonsToHide) {
             const shouldHideButton = settings.store[setting];
             if (shouldHideButton) {
-                css = css.concat(`[aria-label="${label}"]{display:none}`);
+                css = css.concat(`[aria-label="${label}"]{display:none;width:0 !important;height:0 !important;padding:0 !important;margin:0 !important;min-width:0 !important;min-height:0 !important;flex:0 0 0 !important;border:none !important;overflow:hidden !important}`);
             }
             logger.debug(`Hide button (Label: "${label}", Setting: "${setting}"): ${shouldHideButton}"`);
         }

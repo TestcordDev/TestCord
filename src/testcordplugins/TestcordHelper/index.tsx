@@ -1428,9 +1428,10 @@ async function startLiveFixServer() {
         await NativeHelper.startLiveFixServer();
 
         liveFixInterval = setInterval(async () => {
+            let cmd: string | null = null;
             let reqId = "unknown";
             try {
-                const cmd = await NativeHelper.getCommand();
+                cmd = await NativeHelper.getCommand();
                 if (!cmd) return;
 
                 const req: LiveFixRequest = JSON.parse(cmd);
@@ -1438,6 +1439,7 @@ async function startLiveFixServer() {
                 const response = handleLiveFixRequest(req);
                 await NativeHelper.writeResponse(JSON.stringify(response));
             } catch (e) {
+                logger.error("LiveFix loop failed:", e);
                 try {
                     await NativeHelper.writeResponse(JSON.stringify({ id: reqId, error: String(e) }));
                 } catch { /* ignore */ }
