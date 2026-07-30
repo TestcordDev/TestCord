@@ -1,14 +1,19 @@
 .vc-serverprofileforward-footer {
     margin-top: 3px;
+    color: var(--text-normal, #ffffff) !important;
 
     svg {
         width: 12px !important;
+
+        path {
+            fill: var(--text-normal, currentColor) !important;
+        }
     }
 
     .vc-serverprofileforward-footer-text {
         font-weight: 400;
         font-size: 14px;
-        color: var(--text-muted, var(--text-normal, inherit));
+        color: var(--text-normal, #ffffff) !important;
     }
 
     .vc-serverprofileforward-guild-icon {
