@@ -48,17 +48,10 @@
     text-overflow: ellipsis;
 }
 
-[class^="forwardPreview"] > [class^="contentWrapper"] {
-    overflow: hidden;
-}
-/* Fix forwarded message source text color to be theme-adaptive */
-[class^="forwardPreview"] [class^="header"],
-[class^="forwardPreview"] [class^="channel"],
-[class^="forwardFrom"],
-[class*="forwardFrom"] {
+/* Fix forwarded message source text to be theme-adaptive */
+[class^="forwardPreview"] {
     color: var(--text-normal) !important;
 }
-/* Fix any text that shows where a forwarded message came from */
-:has(.vc-betterforwards-footer) {
-    color: var(--text-normal);
+[class^="forwardPreview"] svg path {
+    fill: var(--text-normal) !important;
 }
