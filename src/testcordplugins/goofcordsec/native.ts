@@ -41,7 +41,7 @@ const DEFAULT_BLOCKLIST = [
     "https://www.youtube.com/youtubei/v*/log_event?*",
 ];
 const DEFAULT_BLOCKED_STRINGS = ["sentry", "google", "tracking", "stats", "\\.spotify", "pagead", "analytics", "doubleclick"];
-const DEFAULT_ALLOWED_STRINGS = ["videoplayback", "discord-attachments", "googleapis", "search", "api.spotify", "discord.com/assets/sentry."];
+const DEFAULT_ALLOWED_STRINGS = ["videoplayback", "discord-attachments", "googleapis", "search", "api.spotify", "discord.com/assets/sentry.", "sentry-ipc"];
 
 const log = (...args: unknown[]) => console.log("[GoofcordSecurity]", ...args);
 
@@ -141,7 +141,7 @@ function initCspUnstricter() {
     log("CSP unstricter installed");
 }
 
-// ─────────────────────────────────────────────────────────── chrome spoofer
+// ─────────────────────────────────────────────────── chrome spoofer
 
 interface Brand { brand: string; version: string; }
 interface UserAgentMetadata {
@@ -243,7 +243,65 @@ async function spoofChrome(win: BrowserWindow) {
     await apply();
 }
 
-// ───────────────────────────────────────────────────────────── invidious embeds
+// ─────────────────────────────────────────────────────────── chrome spoofer
+
+// ─────────────────────────────────────────────────────────────── JS-level request interceptor
+// Silently drops analytics/sentry requests at the XHR/fetch level before they reach the network,
+// eliminating ERR_BLOCKED_BY_CLIENT console noise from onBeforeRequest cancellation.
+
+const REQUEST_INTERCEPTOR_SCRIPT = `
+(() => {
+    if (window.__gcSecRequestIntercepted) return;
+    window.__gcSecRequestIntercepted = true;
+
+    const blockedPatterns = [
+        /\\/api\\/v\\d\\/science/,
+        /\\/api\\/v\\d\\/applications\\/detectable/,
+        /\\/api\\/v\\d\\/auth\\/location-metadata/,
+        /\\/api\\/v\\d\\/premium-marketing/,
+        /sentry/,
+        /\\/bad-domains/,
+        /analytics/,
+        /tracking/,
+        /stats/,
+        /pagead/,
+        /doubleclick/,
+        /youtubei\\/v\\d\\/log_event/,
+    ];
+
+    const shouldBlock = (url) => {
+        if (typeof url !== "string") return false;
+        return blockedPatterns.some(p => p.test(url));
+    };
+
+    // Intercept XMLHttpRequest
+    const _xhrOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+        if (shouldBlock(url)) {
+            this._gcBlocked = true;
+            return;
+        }
+        return _xhrOpen.call(this, method, url, ...rest);
+    };
+    const _xhrSend = XMLHttpRequest.prototype.send;
+    XMLHttpRequest.prototype.send = function(...args) {
+        if (this._gcBlocked) return;
+        return _xhrSend.call(this, ...args);
+    };
+    const _xhrSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+    XMLHttpRequest.prototype.setRequestHeader = function(...args) {
+        if (this._gcBlocked) return;
+        return _xhrSetHeader.call(this, ...args);
+    };
+
+    // Intercept fetch
+    const _fetch = window.fetch;
+    window.fetch = function(input, init) {
+        const url = typeof input === "string" ? input : input?.url;
+        if (url && shouldBlock(url)) return Promise.resolve(new Response(null, { status: 204 }));
+        return _fetch.call(this, input, init);
+    };
+})();`;
 
 function injectInvidiousReplacer(win: BrowserWindow) {
     const store = getStore();
@@ -274,6 +332,14 @@ function injectInvidiousReplacer(win: BrowserWindow) {
     });
 }
 
+// ────────────────────────────────────────────────────────── request interceptor injection
+
+function injectRequestInterceptor(win: BrowserWindow) {
+    void win.webContents.once("dom-ready", () => {
+        void win.webContents.executeJavaScript(REQUEST_INTERCEPTOR_SCRIPT).catch(() => { /* noop */ });
+    });
+}
+
 // ───────────────────────────────────────────────────────────────── bootstrap
 
 let bootstrapped = false;
@@ -289,6 +355,7 @@ function bootstrap() {
         if (!isEnabled()) return;
         void spoofChrome(win);
         injectInvidiousReplacer(win);
+        injectRequestInterceptor(win);
     });
 
     log("Initialized");
