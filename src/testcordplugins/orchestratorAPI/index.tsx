@@ -199,19 +199,23 @@ function stopFluxBus() {
 
 let hardeningActive = false;
 const wrappedToOriginal = new Map<Function, Function>();
-const failCounts = new WeakMap<Function, number>();
-const disabledPatches = new WeakSet<Function>();
+const failCounts = new Map<Function, number>();
+const disabledPatches = new Set<Function>();
 
 type NavPatch = (children: Array<any>, ...args: Array<any>) => void;
 type GlobalPatch = (navId: string, children: Array<any>, ...args: Array<any>) => void;
 
 function makeHardenedNav(fn: NavPatch) {
     const wrapped = function (children: Array<any>, ...args: Array<any>) {
-        if (!hardeningActive || disabledPatches.has(fn)) {
+        if (!hardeningActive) {
             return fn(children, ...args);
+        }
+        if (disabledPatches.has(fn)) {
+            return;
         }
         try {
             fn(children, ...args);
+            failCounts.delete(fn);
         } catch (e) {
             const count = (failCounts.get(fn) ?? 0) + 1;
             failCounts.set(fn, count);
@@ -227,11 +231,15 @@ function makeHardenedNav(fn: NavPatch) {
 
 function makeHardenedGlobal(fn: GlobalPatch) {
     const wrapped = function (navId: string, children: Array<any>, ...args: Array<any>) {
-        if (!hardeningActive || disabledPatches.has(fn)) {
+        if (!hardeningActive) {
             return fn(navId, children, ...args);
+        }
+        if (disabledPatches.has(fn)) {
+            return;
         }
         try {
             fn(navId, children, ...args);
+            failCounts.delete(fn);
         } catch (e) {
             const count = (failCounts.get(fn) ?? 0) + 1;
             failCounts.set(fn, count);
@@ -284,6 +292,8 @@ function stopContextMenuHardening() {
         globalPatches.add(original as GlobalPatch);
     }
     wrappedToOriginal.clear();
+    failCounts.clear();
+    disabledPatches.clear();
 }
 
 export default definePlugin({
