@@ -57,24 +57,33 @@ export default definePlugin({
         logger.info("Plugin is starting");
 
         const buttonsToHide = [
-            { setting: "hideGiftButton", label: "Send a gift" },
-            { setting: "hideBoostButton", label: "Boost this server" },
-            { setting: "hideStickerButton", label: "Open sticker picker" },
-            { setting: "hideGifButton", label: "Open GIF picker" },
-            { setting: "hideAppsButton", label: "Apps" }
+            { setting: "hideGiftButton", labels: ["Send a gift", "Gift Nitro"] },
+            { setting: "hideBoostButton", labels: ["Boost this server"] },
+            { setting: "hideStickerButton", labels: ["Open sticker picker", "Sticker picker"] },
+            { setting: "hideGifButton", labels: ["Open GIF picker", "GIF picker"] },
+            { setting: "hideAppsButton", labels: ["Apps", "Launch App"] }
         ];
         let css = "";
-        let hiddenLabels: string[] = [];
 
-        for (const { label, setting } of buttonsToHide) {
+        const hideStyles = "display:none !important;width:0 !important;height:0 !important;padding:0 !important;margin:0 !important;min-width:0 !important;min-height:0 !important;max-width:0 !important;max-height:0 !important;flex:0 0 0 !important;border:none !important;overflow:hidden !important;";
+
+        for (const { labels, setting } of buttonsToHide) {
             const shouldHideButton = settings.store[setting];
             if (shouldHideButton) {
-                css = css.concat(`[aria-label="${label}"]{display:none;width:0 !important;height:0 !important;padding:0 !important;margin:0 !important;min-width:0 !important;min-height:0 !important;flex:0 0 0 !important;border:none !important;overflow:hidden !important}`);
-                hiddenLabels.push(label);
+                for (const label of labels) {
+                    const selectors = [
+                        `[aria-label="${label}" i]`,
+                        `div:has(> [aria-label="${label}" i])`,
+                        `button:has([aria-label="${label}" i])`,
+                        `[class*="buttonContainer"]:has([aria-label="${label}" i])`,
+                        `[class*="expressionPicker"]:has([aria-label="${label}" i])`
+                    ].join(",");
+                    css += `${selectors}{${hideStyles}}`;
+                }
             }
-            logger.debug(`Hide button (Label: "${label}", Setting: "${setting}"): ${shouldHideButton}"`);
+            logger.debug(`Hide button (Labels: "${labels.join(", ")}", Setting: "${setting}"): ${shouldHideButton}`);
         }
-        css = css.concat('[id="channel-attach-THREAD"]{display:none}');
+        css += `[id="channel-attach-THREAD"]{${hideStyles}}`;
 
         logger.debug(`Final css:\n${css}`);
 
@@ -82,17 +91,6 @@ export default definePlugin({
         style.innerHTML = css;
         style.id = STYLE_ELEMENT_ID;
         document.body.appendChild(style);
-
-        if (hiddenLabels.length > 0) {
-            requestAnimationFrame(() => {
-                const chatBar = document.querySelector('[class*="chatInput "] [class*="buttons"], [class*="bottom"] [class*="buttons"]');
-                if (chatBar && chatBar instanceof HTMLElement) {
-                    chatBar.style.gap = "0px";
-                    chatBar.style.padding = "0px";
-                    logger.info(`Removed gap/padding from chat input buttons bar after hiding ${hiddenLabels.join(", ")}`);
-                }
-            });
-        }
     },
     stop() {
         logger.info("Plugin is stopping");

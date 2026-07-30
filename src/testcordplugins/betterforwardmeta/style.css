@@ -8,7 +8,7 @@
     .vc-serverprofileforward-footer-text {
         font-weight: 400;
         font-size: 14px;
-        color: var(--text-low-contrast);
+        color: var(--text-muted, var(--text-normal, inherit));
     }
 
     .vc-serverprofileforward-guild-icon {

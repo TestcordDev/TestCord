@@ -48,10 +48,27 @@
     text-overflow: ellipsis;
 }
 
-/* Fix forwarded message source text to be theme-adaptive */
-[class^="forwardPreview"] {
-    color: var(--text-normal) !important;
+/* Fix forwarded message source text to be theme-adaptive and readable */
+.vc-betterforwards-footer .vc-betterforwards-footer-text,
+.vc-serverprofileforward-footer .vc-serverprofileforward-footer-text,
+[class*="forwardPreview"],
+[class*="forwardPreview"] *,
+[class*="forwardedMessage"],
+[class*="forwardedMessage"] *,
+[class*="forwardFooter"],
+[class*="forwardFooter"] *,
+[class*="forwardHeader"],
+[class*="forwardHeader"] *,
+[class*="originLabel"],
+[class*="originLabel"] * {
+    color: var(--text-normal, var(--header-primary, inherit)) !important;
 }
-[class^="forwardPreview"] svg path {
-    fill: var(--text-normal) !important;
+
+.vc-betterforwards-footer svg path,
+.vc-serverprofileforward-footer svg path,
+[class*="forwardPreview"] svg path,
+[class*="forwardedMessage"] svg path,
+[class*="forwardFooter"] svg path,
+[class*="originLabel"] svg path {
+    fill: var(--text-normal, var(--header-primary, currentColor)) !important;
 }
