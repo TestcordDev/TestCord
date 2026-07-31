@@ -2,7 +2,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    padding: 4px 0;
+    padding: 2px 0;
 }
 
 .vc-code-viewer-hint {
@@ -11,28 +11,123 @@
     margin: 0;
 }
 
-.vc-code-viewer-textarea {
+/* Editor Main Area */
+.vc-code-viewer-editor-wrapper {
+    position: relative;
+    display: flex;
     width: 100%;
-    min-height: 50vh;
-    max-height: 60vh;
-    resize: vertical;
-    background: var(--background-secondary);
-    color: var(--text-default);
-    border: 1px solid var(--background-modifier-accent);
-    border-radius: 6px;
-    padding: 12px;
-    font-family: var(--font-code, "Consolas", "Courier New", monospace);
+    height: 55vh;
+    min-height: 380px;
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.1));
+    background: #1e1e1e;
+    overflow: hidden;
+    font-family: var(--font-code, "Consolas", "Fira Code", "Courier New", monospace);
     font-size: 13px;
+    line-height: 1.5;
+}
+
+/* Gutter */
+.vc-code-viewer-gutter {
+    width: 48px;
+    min-width: 48px;
+    background: rgba(0, 0, 0, 0.25);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    user-select: none;
+    overflow: hidden;
+    padding: 12px 0;
+    text-align: right;
+}
+
+.vc-code-gutter-line {
+    padding-right: 10px;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 12px;
+    line-height: 1.5;
+    height: 19.5px;
+}
+
+
+
+/* Code Area */
+.vc-code-viewer-code-area {
+    position: relative;
+    flex: 1;
+    height: 100%;
+    overflow: hidden;
+}
+
+.vc-code-viewer-highlight-layer {
+    position: absolute;
+    inset: 0;
+    padding: 12px;
+    overflow: hidden;
+    pointer-events: none;
+    white-space: pre;
+}
+
+.vc-code-highlight-pre {
+    margin: 0;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: 1.5;
+    white-space: pre;
+}
+
+.vc-code-viewer-textarea {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    resize: none;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--text-normal, #ffffff);
+    border: none;
+    padding: 12px;
+    font-family: inherit;
+    font-size: inherit;
     line-height: 1.5;
     tab-size: 4;
     white-space: pre;
+    outline: none;
     overflow: auto;
 }
 
+/* Custom dark scrollbar for code editor textarea */
+.vc-code-viewer-textarea::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.vc-code-viewer-textarea::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+.vc-code-viewer-textarea::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.vc-code-viewer-textarea::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
 .vc-code-viewer-textarea:read-only {
-    opacity: 0.85;
     cursor: text;
 }
+
+/* Syntax Token Colors (Dark Modern) */
+.vc-code-token-comment { color: #6a9955; font-style: italic; }
+.vc-code-token-string { color: #ce9178; }
+.vc-code-token-atrule { color: #c586c0; font-weight: 600; }
+.vc-code-token-selector { color: #d7ba7d; font-weight: 600; }
+.vc-code-token-property { color: #9cdcfe; }
+.vc-code-token-color { color: #b5cea8; }
+.vc-code-token-number { color: #b5cea8; }
+.vc-code-token-punct { color: #ffd700; }
+.vc-code-token-default { color: #d4d4d4; }
 
 .vc-code-viewer-actions {
     display: flex;

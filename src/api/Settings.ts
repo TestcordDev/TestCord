@@ -103,6 +103,8 @@ export interface Settings {
     };
 
     ignoreResetWarning: boolean;
+    hideThemeMarketplace?: boolean;
+    hideSnippetMarketplace?: boolean;
 }
 
 const DefaultSettings: Settings = {
@@ -110,6 +112,8 @@ const DefaultSettings: Settings = {
     autoUpdateNotification: true,
     updaterBranch: "main",
     useQuickCss: true,
+    hideThemeMarketplace: false,
+    hideSnippetMarketplace: false,
     themeLinks: [],
     eagerPatches: false, // Eagerly patching no longer works due to module factories with the same id being able to have different sources now.
     enabledThemes: [],
@@ -255,18 +259,20 @@ export function useSettings(paths?: readonly UseSettings<Settings>[]) {
 
         if (currentPaths) {
             currentPaths.forEach(p => {
+                if (!p) return;
                 if (p.endsWith(".*")) {
                     SettingsStore.addPrefixChangeListener(p.slice(0, -2), forceUpdate);
                 } else {
-                    SettingsStore.addChangeListener(p, forceUpdate);
+                    SettingsStore.addChangeListener(p as any, forceUpdate);
                 }
             });
 
             return () => currentPaths.forEach(p => {
+                if (!p) return;
                 if (p.endsWith(".*")) {
                     SettingsStore.removePrefixChangeListener(p.slice(0, -2), forceUpdate);
                 } else {
-                    SettingsStore.removeChangeListener(p, forceUpdate);
+                    SettingsStore.removeChangeListener(p as any, forceUpdate);
                 }
             });
         } else {

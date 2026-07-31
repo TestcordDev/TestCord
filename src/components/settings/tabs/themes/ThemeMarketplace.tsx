@@ -14,7 +14,7 @@ import { classNameFactory } from "@utils/css";
 import { openImageModal } from "@utils/discord";
 import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
-import { Modal, openModal, React, showToast, TextInput, Toasts, useEffect, useMemo, useState } from "@webpack/common";
+import { Modal, openModal, React, Select, showToast, TextInput, Toasts, useEffect, useMemo, useState } from "@webpack/common";
 
 import { fetchMarketplaceCatalog, getItemLink, MarketplaceItem } from "./MarketplaceData";
 import { CodeViewerModal } from "./CodeViewerModal";
@@ -457,7 +457,8 @@ function MarketplaceCard({ theme, installed, onToggleInstall, onOpenDetails, onT
 }
 
 export function ThemeMarketplaceSection() {
-    const settings = useSettings(["themeLinks", "enabledThemeLinks"]);
+    const settings = useSettings(["themeLinks", "enabledThemeLinks", "hideThemeMarketplace"]);
+    const isHidden = settings.hideThemeMarketplace ?? false;
     const [themes, setThemes] = useState<MarketplaceTheme[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -485,9 +486,9 @@ export function ThemeMarketplaceSection() {
         const links = settings.themeLinks ?? [];
         const ids = new Set<number>();
         themes.forEach(t => {
-            const themeLink = getThemeLink(t.id);
+            const link = getThemeLink(t.id);
             const altLink = `${THEMES_API_URL}/${t.id}`;
-            if (links.includes(themeLink) || links.includes(altLink)) {
+            if (links.includes(link) || links.includes(altLink)) {
                 ids.add(t.id);
             }
         });
@@ -555,63 +556,91 @@ export function ThemeMarketplaceSection() {
 
     return (
         <>
-            <Heading className={Margins.top20}>Theme Marketplace</Heading>
-            <Paragraph className={Margins.bottom16}>
-                Browse and install themes from the Equicord Theme Library. Click Install to add a theme directly as an online theme link.
-            </Paragraph>
-
-            <div className={classes(cl("toolbar"), Margins.bottom16)}>
-                <div className={cl("search")}>
-                    <TextInput
-                        placeholder="Search themes by name, author, or tag..."
-                        value={search}
-                        onChange={setSearch}
-                    />
-                </div>
-                <div className={cl("sort-tabs")}>
-                    {SORTS.map(s => (
-                        <button
-                            key={s.key}
-                            className={classes(cl("sort-tab"), sort === s.key && cl("sort-tab", "active"))}
-                            onClick={() => setSort(s.key)}
-                        >
-                            {s.label}
-                        </button>
-                    ))}
-                </div>
+            <div
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    cursor: "pointer",
+                    userSelect: "none"
+                }}
+                className={Margins.top20}
+                onClick={() => {
+                    Settings.hideThemeMarketplace = !isHidden;
+                }}
+            >
+                <Heading style={{ margin: 0 }}>Theme Marketplace</Heading>
+                <span
+                    style={{
+                        fontSize: "12px",
+                        color: "var(--text-muted)",
+                        transform: isHidden ? "rotate(-90deg)" : "rotate(0deg)",
+                        transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                        display: "inline-block"
+                    }}
+                >
+                    ▼
+                </span>
             </div>
 
-            {loading ? (
-                <div className={cl("grid")}>
-                    {Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className={cl("skeleton-card")} />
-                    ))}
-                </div>
-            ) : error ? (
-                <Paragraph color="text-muted" className={Margins.top16}>
-                    Failed to load themes: {error}
+            <div className={`vc-marketplace-collapsible ${isHidden ? "collapsed" : "expanded"}`}>
+                <Paragraph className={Margins.bottom16}>
+                    Browse and install themes from the Equicord Theme Library. Click Install to add a theme directly as an online theme link.
                 </Paragraph>
-            ) : visible.length === 0 ? (
-                <Paragraph color="text-muted" className={Margins.top16}>No themes found.</Paragraph>
-            ) : (
-                <div className={cl("grid")}>
-                    {visible.map(theme => (
-                        <MarketplaceCard
-                            key={theme.id}
-                            theme={theme}
-                            installed={installedIds.has(theme.id)}
-                            onToggleInstall={() => handleToggleInstall(theme)}
-                            onOpenDetails={() => openThemeDetailsModal(
-                                theme,
-                                installedIds.has(theme.id),
-                                () => handleToggleInstall(theme),
-                                (tag: string) => setSearch(tag)
-                            )}
-                            onTagClick={(tag: string) => setSearch(tag)}
+
+                <div className={classes(cl("toolbar"), Margins.bottom16)}>
+                    <div className={cl("search")}>
+                        <TextInput
+                            placeholder="Search themes by name, author, or tag..."
+                            value={search}
+                            onChange={setSearch}
                         />
-                    ))}
+                    </div>
+                    <div className={cl("sort-tabs")}>
+                        {SORTS.map(s => (
+                            <button
+                                key={s.key}
+                                className={classes(cl("sort-tab"), sort === s.key && cl("sort-tab", "active"))}
+                                onClick={() => setSort(s.key)}
+                            >
+                                {s.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
-            )}
+
+                {loading ? (
+                    <div className={cl("grid")}>
+                        {Array.from({ length: 6 }).map((_, i) => (
+                            <div key={i} className={cl("skeleton-card")} />
+                        ))}
+                    </div>
+                ) : error ? (
+                    <Paragraph color="text-muted" className={Margins.top16}>
+                        Failed to load themes: {error}
+                    </Paragraph>
+                ) : visible.length === 0 ? (
+                    <Paragraph color="text-muted" className={Margins.top16}>No themes found.</Paragraph>
+                ) : (
+                    <div className={cl("grid")}>
+                        {visible.map(theme => (
+                            <MarketplaceCard
+                                key={theme.id}
+                                theme={theme}
+                                installed={installedIds.has(theme.id)}
+                                onToggleInstall={() => handleToggleInstall(theme)}
+                                onOpenDetails={() => openThemeDetailsModal(
+                                    theme,
+                                    installedIds.has(theme.id),
+                                    () => handleToggleInstall(theme),
+                                    (tag: string) => setSearch(tag)
+                                )}
+                                onTagClick={(tag: string) => setSearch(tag)}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
 
             <Divider className={Margins.top20} />
         </>

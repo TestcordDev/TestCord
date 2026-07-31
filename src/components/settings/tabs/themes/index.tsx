@@ -94,7 +94,7 @@ function openCodeViewer(title: string, code: string, editable: boolean, onSave?:
 }
 
 function ThemesTab() {
-    const settings = useSettings(["themeLinks", "enabledThemeLinks", "enabledThemes", "enableOnlineThemes", "pinnedThemes", "themeActivationModes.*"]);
+    const settings = useSettings(["themeLinks", "enabledThemeLinks", "enabledThemes", "enableOnlineThemes", "pinnedThemes", "themeActivationModes.*", "hideThemeMarketplace", "hideSnippetMarketplace"]);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [currentThemeLink, setCurrentThemeLink] = useState("");
@@ -459,12 +459,33 @@ function ThemesTab() {
                     onChange={setSearchQuery}
                 />
                 <div>
-                    <Select
-                        options={filterOptions}
-                        select={setFilter}
-                        isSelected={v => v === filter}
-                        serialize={v => v}
-                    />
+                    {Select ? (
+                        <Select
+                            options={filterOptions}
+                            select={setFilter}
+                            isSelected={v => v === filter}
+                            serialize={v => v}
+                        />
+                    ) : (
+                        <select
+                            className="vc-settings-theme-filter-select"
+                            value={filter}
+                            onChange={e => setFilter(e.target.value as ThemeFilter)}
+                            style={{
+                                background: "var(--background-secondary, #1e1f22)",
+                                color: "var(--text-normal, #dbdee1)",
+                                border: "1px solid var(--background-modifier-accent, #35363c)",
+                                borderRadius: "6px",
+                                padding: "6px 12px",
+                                fontSize: "13px",
+                                outline: "none"
+                            }}
+                        >
+                            {filterOptions.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                        </select>
+                    )}
                 </div>
             </div>
 

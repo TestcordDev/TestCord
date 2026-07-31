@@ -1,27 +1,73 @@
-.vc-snippet-pill {
-    display: inline-block;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: var(--white-500, #fff);
-    background: var(--brand-500, #5865f2);
-    border-radius: 4px;
-    padding: 2px 6px;
-    margin-right: 6px;
-    vertical-align: middle;
+.vc-snippet-badge {
+    background: var(--status-positive, #23a55a) !important;
 }
 
-/* Snippets have no preview image, so let the card body take the full height
-   instead of leaving an empty gap where a thumbnail would normally sit. */
 .vc-snippet-card {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Hardcoded friendly blue, independent of whatever accent color the user's
-   active theme sets for "primary" buttons — keeps this action recognizable
-   no matter which theme is currently applied. */
+.vc-snippet-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.vc-snippet-placeholder-preview {
+    width: 100%;
+    height: 140px;
+    background: linear-gradient(135deg, rgba(30, 27, 75, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.vc-snippet-placeholder-preview::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.15), transparent 70%);
+}
+
+.vc-snippet-placeholder-tag {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 6px 14px;
+    border-radius: 20px;
+    backdrop-filter: blur(8px);
+    letter-spacing: 0.5px;
+}
+
+.vc-snippet-modal-placeholder {
+    width: 100%;
+    height: 160px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
+    border: 1px dashed rgba(168, 85, 247, 0.4);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.vc-snippet-modal-placeholder-icon {
+    font-size: 32px;
+}
+
+.vc-snippet-modal-placeholder-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
 .vc-snippet-add-btn {
     background-color: #3b82f6 !important;
     border-color: #3b82f6 !important;
