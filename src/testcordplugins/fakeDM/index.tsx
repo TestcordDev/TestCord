@@ -9,6 +9,7 @@ import "./styles.css";
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
 import { addChannelToolbarButton, addHeaderBarButton, ChannelToolbarButton, HeaderBarButton, removeChannelToolbarButton, removeHeaderBarButton } from "@api/HeaderBar";
 import { definePluginSettings } from "@api/Settings";
+import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import { findStoreLazy } from "@webpack";
 import { FluxDispatcher, React, ReactDOM, SelectedChannelStore, UserStore } from "@webpack/common";
@@ -394,16 +395,18 @@ function FakeDMPanel({ onClose, btnRect }: { onClose(): void; btnRect: DOMRect; 
     const statusTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // ── Position ──────────────────────────────────────────────────────────────
-    const [pos, setPos] = React.useState<React.CSSProperties>({ opacity: 0, position: "fixed", zIndex: 1000000, width: "430px" });
+    const isModal = btnRect.width === 0 && btnRect.height === 0;
+    const [pos, setPos] = React.useState<React.CSSProperties>({ opacity: 0, ...(isModal ? { position: "relative", display: "flex", flexDirection: "column" } : { position: "fixed", zIndex: 1000000, width: "430px" }) });
 
     React.useLayoutEffect(() => {
+        if (isModal) return;
         const PW = 430, PH = 360, margin = 12;
         let left = btnRect.left + btnRect.width / 2 - PW / 2;
         let top = btnRect.top - PH - margin;
         left = Math.max(margin, Math.min(left, window.innerWidth - PW - margin));
         if (top < margin) top = btnRect.bottom + margin;
         setPos({ left: `${left}px`, top: `${top}px`, opacity: 1, position: "fixed", zIndex: 1000000, width: `${PW}px`, height: "auto", visibility: "visible", display: "flex", flexDirection: "column", pointerEvents: "auto" });
-    }, [btnRect]);
+    }, [btnRect, isModal]);
 
     React.useEffect(() => {
         focusTimerRef.current = setTimeout(() => {
@@ -495,7 +498,7 @@ function FakeDMPanel({ onClose, btnRect }: { onClose(): void; btnRect: DOMRect; 
 
     return (
         <>
-            <div className="fdm-backdrop" onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 999999, backgroundColor: "rgba(0,0,0,0.4)" }} />
+            {!isModal && <div className="fdm-backdrop" onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 999999, backgroundColor: "rgba(0,0,0,0.4)" }} />}
             <div
                 ref={panelRef}
                 className="fdm-panel"
@@ -597,45 +600,47 @@ function FakeDMIcon({ height = 20, width = 20, className }: any) {
 
 // ─── Header Bar Button ──────────────────────────────────────
 function FakeDMHeaderButton() {
-    const [btnRect, setBtnRect] = React.useState<DOMRect | null>(null);
     return (
-        <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onMouseUp={e => e.stopPropagation()} style={{ display: "contents" }}>
-            <HeaderBarButton
-                icon={FakeDMIcon}
-                tooltip="FakeDM"
-                onClick={e => {
-                    if (btnRect) { setBtnRect(null); } else {
-                        setBtnRect((e.currentTarget as HTMLElement).getBoundingClientRect());
-                    }
-                }}
-            />
-            {btnRect && ReactDOM.createPortal(
-                <FakeDMPanel onClose={() => setBtnRect(null)} btnRect={btnRect} />,
-                document.body
-            )}
-        </div>
+        <HeaderBarButton
+            icon={FakeDMIcon}
+            tooltip="FakeDM"
+            onClick={() => {
+                openModal(modalProps => (
+                    <ModalRoot {...modalProps}>
+                        <ModalHeader>
+                            FakeDM
+                            <ModalCloseButton onClick={modalProps.onClose} />
+                        </ModalHeader>
+                        <ModalContent>
+                            <FakeDMPanel onClose={modalProps.onClose} btnRect={new DOMRect(0, 0, 0, 0)} />
+                        </ModalContent>
+                    </ModalRoot>
+                ));
+            }}
+        />
     );
 }
 
 // ─── Channel Toolbar Button ──────────────────────────────────
 function FakeDMChannelButton() {
-    const [btnRect, setBtnRect] = React.useState<DOMRect | null>(null);
     return (
-        <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onMouseUp={e => e.stopPropagation()} style={{ display: "contents" }}>
-            <ChannelToolbarButton
-                icon={FakeDMIcon}
-                tooltip="FakeDM"
-                onClick={e => {
-                    if (btnRect) { setBtnRect(null); } else {
-                        setBtnRect((e.currentTarget as HTMLElement).getBoundingClientRect());
-                    }
-                }}
-            />
-            {btnRect && ReactDOM.createPortal(
-                <FakeDMPanel onClose={() => setBtnRect(null)} btnRect={btnRect} />,
-                document.body
-            )}
-        </div>
+        <ChannelToolbarButton
+            icon={FakeDMIcon}
+            tooltip="FakeDM"
+            onClick={() => {
+                openModal(modalProps => (
+                    <ModalRoot {...modalProps}>
+                        <ModalHeader>
+                            FakeDM
+                            <ModalCloseButton onClick={modalProps.onClose} />
+                        </ModalHeader>
+                        <ModalContent>
+                            <FakeDMPanel onClose={modalProps.onClose} btnRect={new DOMRect(0, 0, 0, 0)} />
+                        </ModalContent>
+                    </ModalRoot>
+                ));
+            }}
+        />
     );
 }
 
