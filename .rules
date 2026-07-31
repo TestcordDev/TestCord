@@ -562,8 +562,6 @@ Discord's canary build has a conditional-hook bug in `e_` (a context menu render
 
 The fix is layered:
 
-1. **`applyAllPatches` wraps patched children in `ErrorBoundary` (`noop` mode)** (`src/api/ContextMenu.ts`): individual broken menu items are silently hidden instead of crashing the whole menu via Discord's error boundary. This is the primary fix that makes right-click context menus work despite Discord's broken `e_` component.
+The `e_` hook error in Discord's context menu renderer remains a Discord-side bug triggered when Equicord patches inject items. OrchestratorAPI disables patches after 1 failure (threshold=1, down from original 3) — but note that hook errors happen during React's render phase (after patch application), so OrchestratorAPI's wrapped function never catches them. This means patches stay active across right-clicks and the hook error repeats each time unless Discord internally fixes `e_`.
 
-2. **Crash handlers skip `handlePreventCrash` for Discord hook errors** (`src/plugins/crashHandler/index.ts`, `src/testcordplugins/crashHandlerEnhanched/index.ts`): even when an error slips through (e.g. ErrorBoundary isn't wrapping an item), the crash handler does not dispatch `CONTEXT_MENU_CLOSE`, avoiding a full-screen crash and blank screen. The error boundary stays in error state showing a brief error overlay in the context menu area instead.
-
-3. **OrchestratorAPI disables the failing patch** (`src/testcordplugins/orchestratorAPI/index.tsx`): after 1 failure (threshold=1, down from original 3), the problematic patch is disabled for subsequent right-clicks so no further errors are triggered.
+1. **Crash handlers skip `handlePreventCrash` for Discord hook errors** (`src/plugins/crashHandler/index.ts`, `src/testcordplugins/crashHandlerEnhanched/index.ts`): the crash handler does not dispatch `CONTEXT_MENU_CLOSE` or trigger full crash recovery for hook errors, preventing the screen from going blank and auto-navigating to @me. The error boundary shows a brief error overlay in the context menu area instead.
