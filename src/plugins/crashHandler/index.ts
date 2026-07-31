@@ -58,13 +58,20 @@ let isRecovering = false;
 let shouldAttemptRecover = true;
 
 function isDiscordHookError(errorState: any): boolean {
-    if (errorState?.error instanceof Error) {
-        const msg = errorState.error.message;
-        return /invalid hook call/i.test(msg)
-            || /should have a queue/i.test(msg)
-            || /Cannot read properties of null \(reading 'current'\)/.test(msg);
+    let msg: string;
+    const err = errorState?.error;
+    if (err instanceof Error) {
+        msg = err.message;
+    } else if (typeof err === "string") {
+        msg = err;
+    } else if (err && typeof err === "object") {
+        msg = String(err.message ?? err);
+    } else {
+        return false;
     }
-    return false;
+    return /invalid hook call/i.test(msg)
+        || /should have a queue/i.test(msg)
+        || /Cannot read properties of null \(reading 'current'\)/.test(msg);
 }
 
 export default definePlugin({
