@@ -428,6 +428,7 @@ export default definePlugin({
         window.addEventListener("drop", this.globalDrop, true);
         window.addEventListener("dragstart", this.globalDragStart, true);
         window.addEventListener("drag", this.globalDragMove, true);
+        window.addEventListener("dragover", this.globalDragMove, true);
         window.addEventListener("dragend", this.globalDragEnd, true);
         startDragWatchdog(hideDragGhost);
     },
@@ -437,6 +438,7 @@ export default definePlugin({
         window.removeEventListener("drop", this.globalDrop, true);
         window.removeEventListener("dragstart", this.globalDragStart, true);
         window.removeEventListener("drag", this.globalDragMove, true);
+        window.removeEventListener("dragover", this.globalDragMove, true);
         window.removeEventListener("dragend", this.globalDragEnd, true);
         stopDragState();
         clearInviteCache();

@@ -57,7 +57,7 @@ export default definePlugin({
             find: ".getDesktopType()===",
             replacement: [
                 {
-                    match: /(\i\.\i\.getDesktopType\(\)===\i\.\i\.NEVER)\)(?:(?=.{0,500}?(\i\.\i\.playNotificationSound\(.{0,50}\)))|)/,
+                    match: /(\i\.\i\.getDesktopType\(\)===\i\.\i\.NEVER)\)(?=.*?(\i\.\i\.playNotificationSound\(.{0,5}\)))/,
                     replace: "$&if(!$self.isPrivateChannelRead(arguments[0]?.message))return;else if($self.playSound())return $2;else "
                 },
                 {
@@ -70,8 +70,7 @@ export default definePlugin({
     playSound() {
         return settings.store.alwaysPlaySound;
     },
-    isPrivateChannelRead(message: MessageJSON | undefined) {
-        if (!message?.author) return true;
+    isPrivateChannelRead(message: MessageJSON) {
         const ignoreList = settings.store.ignoreUsers.split(", ").filter(Boolean);
         if (ignoreList.includes(message.author.id)) return true;
         const channelType = ChannelStore.getChannel(message.channel_id)?.type;
@@ -79,7 +78,7 @@ export default definePlugin({
             (channelType !== ChannelType.DM && channelType !== ChannelType.GROUP_DM) ||
             (channelType === ChannelType.DM && settings.store.channelToAffect === "group_dm") ||
             (channelType === ChannelType.GROUP_DM && settings.store.channelToAffect === "user_dm") ||
-            (settings.store.allowMentions && message.mentions?.some(m => m.id === UserStore.getCurrentUser().id)) ||
+            (settings.store.allowMentions && message.mentions.some(m => m.id === UserStore.getCurrentUser().id)) ||
             (settings.store.allowEveryone && message.mention_everyone)
         ) {
             return true;

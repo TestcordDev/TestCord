@@ -269,6 +269,66 @@ function disableUserTools(userId: string, currentGuildId?: string) {
     });
 }
 
+function ActiveUsersSubMenu({ guildId }: { guildId?: string; }) {
+    const activeUsers = getActiveUsers();
+
+    if (activeUsers.length === 0) {
+        return (
+            <Menu.MenuItem
+                id="user-tools-no-active"
+                label="No active users"
+                disabled={true}
+            />
+        );
+    }
+
+    return (
+        <>
+            {activeUsers.map(({ userId, actions }) => {
+                const user = UserStore.getUser(userId);
+                if (!user) return null;
+
+                const displayName = guildId
+                    ? (GuildMemberStore.getNick(guildId, userId) || (user as any).globalName || user.username)
+                    : ((user as any).globalName || user.username);
+
+                const actionLabels: string[] = [];
+                if (actions.disconnect) actionLabels.push("Disconnect");
+                if (actions.mute) actionLabels.push("Mute");
+                if (actions.deafen) actionLabels.push("Deafen");
+
+                return (
+                    <Menu.MenuItem
+                        key={`active-user-${userId}`}
+                        id={`user-tools-active-${userId}`}
+                        label={
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <Avatar
+                                    src={user.getAvatarURL(guildId || null, 20, false)}
+                                    size="SIZE_20"
+                                />
+                                <span>{displayName}</span>
+                                {actionLabels.length > 0 && (
+                                    <span style={{
+                                        fontSize: "11px",
+                                        color: "var(--text-muted)",
+                                        marginLeft: "4px"
+                                    }}>
+                                        ({actionLabels.join(", ")})
+                                    </span>
+                                )}
+                            </div>
+                        }
+                        action={() => {
+                            disableUserTools(userId, guildId);
+                        }}
+                    />
+                );
+            })}
+        </>
+    );
+}
+
 function ActiveUsersModal({ modalProps }: { modalProps: ModalProps; }) {
     const activeUsers = getActiveUsers();
 
@@ -389,7 +449,6 @@ const UserContext: NavContextMenuPatchCallback = (children, { user, guildId }: U
 
     const allActions = getAllUserActions();
     const actions = allActions[user.id] ?? { disconnect: false, mute: false, deafen: false };
-    const activeUsers = getActiveUsers();
     const hasActiveUsers = Object.values(allActions).some(actions => actions.disconnect || actions.mute || actions.deafen);
 
     children.splice(-1, 0, (
@@ -455,49 +514,12 @@ const UserContext: NavContextMenuPatchCallback = (children, { user, guildId }: U
                 <Menu.MenuItem
                     id="user-tools-active-users"
                     label="Active Users"
-                >
-                    {activeUsers.map(({ userId, actions }) => {
-                        const user = UserStore.getUser(userId);
-                        if (!user) return null;
-
-                        const displayName = guildId
-                            ? (GuildMemberStore.getNick(guildId, userId) || (user as any).globalName || user.username)
-                            : ((user as any).globalName || user.username);
-
-                        const actionLabels: string[] = [];
-                        if (actions.disconnect) actionLabels.push("Disconnect");
-                        if (actions.mute) actionLabels.push("Mute");
-                        if (actions.deafen) actionLabels.push("Deafen");
-
-                        return (
-                            <Menu.MenuItem
-                                key={`active-user-${userId}`}
-                                id={`user-tools-active-${userId}`}
-                                label={
-                                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                        <Avatar
-                                            src={user.getAvatarURL(guildId || null, 20, false)}
-                                            size="SIZE_20"
-                                        />
-                                        <span>{displayName}</span>
-                                        {actionLabels.length > 0 && (
-                                            <span style={{
-                                                fontSize: "11px",
-                                                color: "var(--text-muted)",
-                                                marginLeft: "4px"
-                                            }}>
-                                                ({actionLabels.join(", ")})
-                                            </span>
-                                        )}
-                                    </div>
-                                }
-                                action={() => {
-                                    disableUserTools(userId, guildId);
-                                }}
-                            />
-                        );
-                    })}
-                </Menu.MenuItem>
+                    renderSubmenu={() => (
+                        <Menu.Menu navId="user-tools-active-users-menu" onClose={() => { }}>
+                            <ActiveUsersSubMenu guildId={guildId} />
+                        </Menu.Menu>
+                    )}
+                />
             )}
         </Menu.MenuGroup>
     ));
