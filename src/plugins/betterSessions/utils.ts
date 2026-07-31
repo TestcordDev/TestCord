@@ -28,8 +28,9 @@ const getDataKey = () => `BetterSessions_savedSessions_${UserStore.getCurrentUse
 export const cl = classNameFactory("vc-betterSessions-");
 export const savedSessionsCache: Map<string, { name: string, isNew: boolean; }> = new Map();
 
-export function getDefaultName(clientInfo: SessionInfo["session"]["client_info"]) {
-    return `${clientInfo.os} · ${clientInfo.platform}`;
+export function getDefaultName(clientInfo?: SessionInfo["session"]["client_info"]) {
+    if (!clientInfo) return "Unknown Session";
+    return `${clientInfo.os ?? "Unknown"} · ${clientInfo.platform ?? "Unknown"}`;
 }
 
 export function saveSessionsToDataStore() {
@@ -43,7 +44,8 @@ export async function fetchNamesFromDataStore() {
     });
 }
 
-export function GetOsColor(os: string) {
+export function GetOsColor(os?: string) {
+    if (!os) return "#f3799a";
     switch (os) {
         case "Windows Mobile":
         case "Windows":
@@ -60,7 +62,8 @@ export function GetOsColor(os: string) {
     }
 }
 
-export function GetPlatformIcon(platform: string) {
+export function GetPlatformIcon(platform?: string) {
+    if (!platform) return UnknownIcon;
     switch (platform) {
         case "Discord Android":
         case "Discord iOS":
