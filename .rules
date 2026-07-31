@@ -553,3 +553,17 @@ TestcordHelper's `start()` wraps all console methods (`log`, `warn`, `error`, `i
 - Port 18963 only listens on `127.0.0.1` — safe from external access.
 - The command file uses a queue — only one request at a time with a 10s timeout.
 - If you get `"error": "Timeout waiting for renderer response"`, the renderer is either busy or crashed before responding. Use `consoleDump` to see what happened before.
+
+## Testcord Crash Handling & Right-Click Context Menu
+
+### Context menu crash in search (Discord hook error)
+
+Discord's canary build has a conditional-hook bug in `e_` (a context menu renderer component). When Equicord patches inject items into the context menu tree (`applyAllPatches`), React tries to render those items and `e_` throws `"Should have a queue"` / `"Invalid hook call"`. Previously the crash handler's recovery cycle dispatches CONTEXT_MENU_CLOSE which forcibly closed the context menu, making the right-click menu never appear.
+
+The fix is layered:
+
+1. **`applyAllPatches` wraps patched children in `ErrorBoundary` (`noop` mode)** (`src/api/ContextMenu.ts`): individual broken menu items are silently hidden instead of crashing the whole menu via Discord's error boundary. This is the primary fix that makes right-click context menus work despite Discord's broken `e_` component.
+
+2. **Crash handlers skip `handlePreventCrash` for Discord hook errors** (`src/plugins/crashHandler/index.ts`, `src/testcordplugins/crashHandlerEnhanched/index.ts`): even when an error slips through (e.g. ErrorBoundary isn't wrapping an item), the crash handler does not dispatch `CONTEXT_MENU_CLOSE`, avoiding a full-screen crash and blank screen. The error boundary stays in error state showing a brief error overlay in the context menu area instead.
+
+3. **OrchestratorAPI disables the failing patch** (`src/testcordplugins/orchestratorAPI/index.tsx`): after 1 failure (threshold=1, down from original 3), the problematic patch is disabled for subsequent right-clicks so no further errors are triggered.
