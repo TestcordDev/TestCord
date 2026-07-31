@@ -10,9 +10,12 @@ import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
 import { addChannelToolbarButton, addHeaderBarButton, ChannelToolbarButton, HeaderBarButton, removeChannelToolbarButton, removeHeaderBarButton } from "@api/HeaderBar";
 import { definePluginSettings } from "@api/Settings";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/modal";
-import definePlugin, { OptionType } from "@utils/types";
+import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { findStoreLazy } from "@webpack";
 import { FluxDispatcher, React, ReactDOM, SelectedChannelStore, UserStore } from "@webpack/common";
+
+const Native = VencordNative.pluginHelpers.fakeDM as PluginNative<typeof import("./native")>;
+const STORAGE_KEY = "nightcord_fakedm_fakes";
 
 // ─── Unique IDs ─────────────────────────────────────────────────────────────
 let _idCounter = 0;
@@ -43,8 +46,6 @@ const fakeDMSettings = definePluginSettings({
         restartNeeded: true,
     },
 });
-
-const STORAGE_KEY = "nightcord_fakedm_fakes";
 
 interface PersistedMessage {
     type: "message";
@@ -77,7 +78,9 @@ function loadPersisted(): PersistedFake[] {
 }
 
 function savePersisted(fakes: PersistedFake[]) {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(fakes)); } catch { }
+    const json = JSON.stringify(fakes);
+    try { localStorage.setItem(STORAGE_KEY, json); } catch { }
+    try { Native?.saveFakes(json); } catch { }
 }
 
 function removePersisted(channelId: string, ids: Set<string>) {
