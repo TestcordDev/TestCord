@@ -85,6 +85,15 @@ export function OnlineThemeIcon({ size }: { size?: string; }) {
     );
 }
 
+function CodeIcon({ size }: { size?: string; }) {
+    const sizeVal = size === "sm" ? 16 : 24;
+    return (
+        <svg viewBox="0 0 24 24" width={sizeVal} height={sizeVal} fill="currentColor">
+            <path d="M9.3 6.71a1 1 0 0 1 0 1.42L4.83 12.6l4.47 4.47a1 1 0 1 1-1.42 1.42l-5.17-5.18a1 1 0 0 1 0-1.42l5.17-5.18a1 1 0 0 1 1.42 0Zm5.4 0a1 1 0 0 1 1.42 0l5.17 5.18a1 1 0 0 1 0 1.42l-5.17 5.18a1 1 0 0 1-1.42-1.42l4.47-4.47-4.47-4.47a1 1 0 0 1 0-1.42Z" />
+        </svg>
+    );
+}
+
 export interface ThemeCardProps {
     theme: UserThemeHeader;
     enabled: boolean;
@@ -99,13 +108,15 @@ export interface ThemeCardProps {
     onOpenFolder?: () => void;
     onCopyUrl?: () => void;
     onDownload?: () => void;
+    /** Opens the code viewer/editor modal for this theme's CSS */
+    onViewCode?: () => void;
     themeLink?: string;
     isLocal?: boolean;
     activationMode?: ThemeActivationMode;
     onActivationModeChange?: (mode: ThemeActivationMode) => void;
 }
 
-export function ThemeCard({ theme, enabled, onChange, onDelete, showDeleteButton, onEditName, disabled, onPin, isPinned, onRefresh, onOpenFolder, onCopyUrl, onDownload, themeLink, isLocal, activationMode = "always", onActivationModeChange }: ThemeCardProps) {
+export function ThemeCard({ theme, enabled, onChange, onDelete, showDeleteButton, onEditName, disabled, onPin, isPinned, onRefresh, onOpenFolder, onCopyUrl, onDownload, onViewCode, themeLink, isLocal, activationMode = "always", onActivationModeChange }: ThemeCardProps) {
     const openThemeMenu = (e: React.MouseEvent) => {
         ContextMenuApi.openContextMenu(e, () => (
             <ThemeActivationMenu
@@ -119,6 +130,14 @@ export function ThemeCard({ theme, enabled, onChange, onDelete, showDeleteButton
                         label={isPinned ? "Unpin" : "Pin"}
                         icon={PinIcon}
                         action={onPin}
+                    />
+                )}
+                {onViewCode && (
+                    <Menu.MenuItem
+                        id="view-code"
+                        label={isLocal ? "Edit Code" : "View Code"}
+                        icon={CodeIcon}
+                        action={onViewCode}
                     />
                 )}
                 {theme.website && (

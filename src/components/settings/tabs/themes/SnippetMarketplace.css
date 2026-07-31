@@ -1,0 +1,32 @@
+.vc-snippet-pill {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--white-500, #fff);
+    background: var(--brand-500, #5865f2);
+    border-radius: 4px;
+    padding: 2px 6px;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+/* Snippets have no preview image, so let the card body take the full height
+   instead of leaving an empty gap where a thumbnail would normally sit. */
+.vc-snippet-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+/* Hardcoded friendly blue, independent of whatever accent color the user's
+   active theme sets for "primary" buttons — keeps this action recognizable
+   no matter which theme is currently applied. */
+.vc-snippet-add-btn {
+    background-color: #3b82f6 !important;
+    border-color: #3b82f6 !important;
+}
+
+.vc-snippet-add-btn:hover {
+    background-color: #2563eb !important;
+}

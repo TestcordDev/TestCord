@@ -18,13 +18,15 @@ import { copyWithToast } from "@utils/discord";
 import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
 import { getStylusWebStoreUrl } from "@utils/web";
-import { React, Select, showToast, TextInput, Toasts, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { openModal, React, Select, showToast, TextInput, Toasts, useEffect, useMemo, useRef, useState } from "@webpack/common";
 import { SyntheticEvent } from "react";
 
+import { CodeViewerModal } from "./CodeViewerModal";
 import { OnlineThemesSection } from "./OnlineThemes";
 import { QuickActionsSection } from "./QuickActions";
 import { ThemeCard } from "./ThemeCard";
 import { ThemeMarketplaceSection } from "./ThemeMarketplace";
+import { SnippetMarketplaceSection } from "./SnippetMarketplace";
 
 const cl = classNameFactory("vc-settings-theme-");
 
@@ -77,6 +79,18 @@ interface UnifiedTheme {
     header: UserThemeHeader;
     link?: string;
     activationMode: ThemeActivationMode;
+}
+
+function openCodeViewer(title: string, code: string, editable: boolean, onSave?: (newCode: string) => Promise<void> | void) {
+    openModal(modalProps => (
+        <CodeViewerModal
+            modalProps={modalProps}
+            title={`${title} - Code`}
+            code={code}
+            editable={editable}
+            onSave={onSave}
+        />
+    ));
 }
 
 function ThemesTab() {
@@ -297,6 +311,29 @@ function ThemesTab() {
         }
     }
 
+    async function viewLocalThemeCode(fileName: string, displayName: string) {
+        try {
+            const content = await VencordNative.themes.getThemeData(fileName);
+            openCodeViewer(displayName, content ?? "", true, async newCode => {
+                await VencordNative.themes.uploadTheme(fileName, newCode);
+                await refreshLocalThemes();
+            });
+        } catch {
+            showToast("Failed to load theme code", Toasts.Type.FAILURE);
+        }
+    }
+
+    async function viewOnlineThemeCode(link: string, displayName: string) {
+        try {
+            const res = await fetch(link);
+            if (!res.ok) throw new Error(`Failed to fetch ${link}`);
+            const css = await res.text();
+            openCodeViewer(displayName, css, false);
+        } catch {
+            showToast("Failed to load theme code", Toasts.Type.FAILURE);
+        }
+    }
+
     const allThemes = useMemo((): UnifiedTheme[] => {
         const themes: UnifiedTheme[] = [];
 
@@ -464,6 +501,7 @@ function ThemesTab() {
                                     onCopyUrl={() => copyWithToast(onlineTheme.link, "Theme URL copied!")}
                                     onRefresh={() => refreshOnlineTheme(onlineTheme.link)}
                                     onDownload={() => downloadTheme(onlineTheme.link, onlineTheme.name ?? "theme")}
+                                    onViewCode={() => viewOnlineThemeCode(onlineTheme.link, theme.name)}
                                     isLocal={false}
                                     activationMode={theme.activationMode}
                                     onActivationModeChange={mode => setThemeActivationMode(onlineTheme.link, mode)}
@@ -495,6 +533,7 @@ function ThemesTab() {
                                 onPin={() => togglePinTheme(localTheme.fileName)}
                                 isPinned={settings.pinnedThemes.includes(localTheme.fileName)}
                                 onRefresh={refreshLocalThemes}
+                                onViewCode={() => viewLocalThemeCode(localTheme.fileName, theme.name)}
                                 isLocal
                                 theme={localTheme}
                                 activationMode={theme.activationMode}
@@ -506,6 +545,8 @@ function ThemesTab() {
             )}
 
             <Divider className={Margins.top20} />
+
+            <SnippetMarketplaceSection />
 
             <ThemeMarketplaceSection />
         </SettingsTab>

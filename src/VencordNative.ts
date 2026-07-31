@@ -32,12 +32,8 @@ for (const [plugin, methods] of Object.entries(pluginIpcMap)) {
 
 export default {
     themes: {
-        uploadTheme: async (fileName: string, fileData: string): Promise<void> => {
-            throw new Error("uploadTheme is WEB only");
-        },
-        deleteTheme: async (fileName: string): Promise<void> => {
-            throw new Error("deleteTheme is WEB only");
-        },
+        uploadTheme: (fileName: string, fileData: string) => invoke<void>(IpcEvents.UPLOAD_THEME, fileName, fileData),
+        deleteTheme: (fileName: string) => invoke<void>(IpcEvents.DELETE_THEME, fileName),
         getThemesList: () => invoke<Array<UserThemeHeader>>(IpcEvents.GET_THEMES_LIST),
         getThemeData: (fileName: string) => invoke<string | undefined>(IpcEvents.GET_THEME_DATA, fileName),
         getSystemValues: () => invoke<Record<string, string>>(IpcEvents.GET_THEME_SYSTEM_VALUES),

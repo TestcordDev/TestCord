@@ -16,29 +16,15 @@ import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
 import { Modal, openModal, React, showToast, TextInput, Toasts, useEffect, useMemo, useState } from "@webpack/common";
 
+import { fetchMarketplaceCatalog, getItemLink, MarketplaceItem } from "./MarketplaceData";
+import { CodeViewerModal } from "./CodeViewerModal";
+
 const cl = classNameFactory("vc-settings-theme-market-");
 
 const THEMES_API_URL = "https://themes.equicord.org/api/themes";
 const THEME_RAW_API_URL = "https://themes.equicord.org/api";
 
-interface MarketplaceTheme {
-    id: number;
-    name: string;
-    type: string;
-    description: string;
-    author: {
-        discord_snowflake: string;
-        discord_name: string;
-        github_name: string;
-    };
-    tags: string[];
-    thumbnail_url: string;
-    release_date: string;
-    content: string;
-    source: string;
-    likes: number;
-    downloads: number;
-}
+type MarketplaceTheme = MarketplaceItem;
 
 type SortKey = "downloads" | "likes" | "name" | "newest";
 
@@ -49,16 +35,32 @@ const SORTS: { key: SortKey; label: string }[] = [
     { key: "newest", label: "Newest" }
 ];
 
+export function decodeThemeContent(content: string): string {
+    if (!content) return "";
+    try {
+        return window.atob(content);
+    } catch {
+        // content wasn't base64 to begin with, use as-is
+        return content;
+    }
+}
+
+export function slugifyThemeName(name: string): string {
+    return (name || "theme").replace(/[^a-z0-9]/gi, "-").toLowerCase();
+}
+
+export async function saveThemeAsLocal(name: string, css: string): Promise<void> {
+    const fileName = `${slugifyThemeName(name)}.theme.css`;
+    await VencordNative.themes.uploadTheme(fileName, css);
+}
+
 async function fetchMarketplaceThemes(): Promise<MarketplaceTheme[]> {
-    const res = await fetch(THEMES_API_URL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const themes: MarketplaceTheme[] = Object.values(data);
-    return themes.filter(t => t.type === "theme" || !t.type);
+    const all = await fetchMarketplaceCatalog();
+    return all.filter(t => t.type === "theme" || !t.type);
 }
 
 function getThemeLink(themeId: number): string {
-    return `${THEME_RAW_API_URL}/${themeId}`;
+    return getItemLink(themeId);
 }
 
 function installTheme(theme: MarketplaceTheme): boolean {
@@ -106,6 +108,19 @@ function openEnlargedImageModal(url: string, title?: string, width = 1280, heigh
             </Modal>
         ));
     }
+}
+
+export function openThemeCodeModal(name: string, content: string) {
+    const code = decodeThemeContent(content);
+    openModal(modalProps => (
+        <CodeViewerModal
+            modalProps={modalProps}
+            title={`${name} - Code`}
+            code={code}
+            editable={false}
+            onSaveAsLocal={css => saveThemeAsLocal(name, css)}
+        />
+    ));
 }
 
 function ThemeDetailsModalContent({
@@ -170,6 +185,15 @@ function ThemeDetailsModalContent({
                         >
                             {installed ? "Uninstall Theme" : "Install Theme"}
                         </Button>
+                        {theme.content && (
+                            <Button
+                                variant="secondary"
+                                className={cl("modal-top-action-btn")}
+                                onClick={() => openThemeCodeModal(theme.name, theme.content)}
+                            >
+                                View Code
+                            </Button>
+                        )}
                         {theme.source && (
                             <Button
                                 variant="secondary"
@@ -413,6 +437,19 @@ function MarketplaceCard({ theme, installed, onToggleInstall, onOpenDetails, onT
                     >
                         {installed ? "Uninstall" : "Install"}
                     </Button>
+                    {theme.content && (
+                        <Button
+                            size="small"
+                            variant="secondary"
+                            className={cl("action-btn")}
+                            onClick={e => {
+                                e.stopPropagation();
+                                openThemeCodeModal(theme.name, theme.content);
+                            }}
+                        >
+                            Code
+                        </Button>
+                    )}
                 </div>
             </div>
         </div>

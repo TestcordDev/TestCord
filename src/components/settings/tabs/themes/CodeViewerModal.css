@@ -1,0 +1,41 @@
+.vc-code-viewer-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 4px 0;
+}
+
+.vc-code-viewer-hint {
+    color: var(--text-muted);
+    font-size: 0.85em;
+    margin: 0;
+}
+
+.vc-code-viewer-textarea {
+    width: 100%;
+    min-height: 50vh;
+    max-height: 60vh;
+    resize: vertical;
+    background: var(--background-secondary);
+    color: var(--text-default);
+    border: 1px solid var(--background-modifier-accent);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: var(--font-code, "Consolas", "Courier New", monospace);
+    font-size: 13px;
+    line-height: 1.5;
+    tab-size: 4;
+    white-space: pre;
+    overflow: auto;
+}
+
+.vc-code-viewer-textarea:read-only {
+    opacity: 0.85;
+    cursor: text;
+}
+
+.vc-code-viewer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
