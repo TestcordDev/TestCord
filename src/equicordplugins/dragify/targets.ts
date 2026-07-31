@@ -175,21 +175,13 @@ export function inspectDragEvent(event: DragEvent, context: InspectionContext): 
 }
 
 export function inspectInputTarget(event: DragEvent): { hasMessageInput: boolean; hasChatBody: boolean; } {
-    const candidates: HTMLElement[] = [];
-    const { target } = event;
-    if (target instanceof HTMLElement) candidates.push(target);
-    for (const entry of event.composedPath?.() ?? []) {
-        if (entry instanceof HTMLElement) {
-            candidates.push(entry);
-            break;
-        }
-    }
-
+    const path = event.composedPath?.() ?? [];
     let hasMessageInput = false;
     let hasChatBody = false;
-    for (const element of candidates) {
-        if (!hasMessageInput && element.closest(messageInputSelector)) hasMessageInput = true;
-        if (!hasChatBody && element.closest(chatBodySelector)) hasChatBody = true;
+    for (const entry of path) {
+        if (!(entry instanceof HTMLElement)) continue;
+        if (!hasMessageInput && entry.matches(messageInputSelector)) hasMessageInput = true;
+        if (!hasChatBody && entry.matches(chatBodySelector)) hasChatBody = true;
         if (hasMessageInput && hasChatBody) break;
     }
 

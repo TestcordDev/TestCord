@@ -354,7 +354,7 @@ function scheduleFrame(el: Element, x: number, y: number) {
 }
 
 function onMouseMove(e: MouseEvent) {
-    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const el = e.target instanceof Element ? e.target : null;
     if (!el || el === overlay || el === tooltip || tooltip?.contains(el)) return;
     scheduleFrame(el, e.clientX, e.clientY);
 }
