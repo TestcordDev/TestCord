@@ -208,7 +208,9 @@ type GlobalPatch = (navId: string, children: Array<any>, ...args: Array<any>) =>
 function isDiscordSideError(e: unknown): boolean {
     if (e instanceof Error) {
         const msg = e.message;
-        return /invalid hook call/i.test(msg) || /should have a queue/i.test(msg);
+        return /invalid hook call/i.test(msg)
+            || /should have a queue/i.test(msg)
+            || /Cannot read properties of null \(reading 'current'\)/.test(msg);
     }
     return false;
 }
