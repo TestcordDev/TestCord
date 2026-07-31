@@ -7,17 +7,18 @@
 import "./styles.css";
 
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
+import * as DataStore from "@api/DataStore";
 import { addChannelToolbarButton, addHeaderBarButton, ChannelToolbarButton, HeaderBarButton, removeChannelToolbarButton, removeHeaderBarButton } from "@api/HeaderBar";
 import { definePluginSettings } from "@api/Settings";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
-import { findStoreLazy } from "@webpack";
-import { FluxDispatcher, React, ReactDOM, SelectedChannelStore, UserStore } from "@webpack/common";
+import { ChannelStore, FluxDispatcher, GuildMemberStore, MessageStore, React, ReactDOM, SelectedChannelStore, UserStore } from "@webpack/common";
 
 const Native = VencordNative.pluginHelpers.fakeDM as PluginNative<typeof import("./native")>;
-const STORAGE_KEY = "nightcord_fakedm_fakes";
+const STORAGE_KEY = "fakedm_fakes";
+const LEGACY_STORAGE_KEY = "nightcord_fakedm_fakes";
 
-// ─── Unique IDs ─────────────────────────────────────────────────────────────
+// ─── Unique Snowflake Generator ─────────────────────────────────────────────
 let _idCounter = 0;
 function uniqueSnowflake(date: Date): string {
     const offset = _idCounter++ % 4096;
@@ -25,18 +26,49 @@ function uniqueSnowflake(date: Date): string {
     return ((BigInt(ms) << 22n) | BigInt(offset)).toString();
 }
 
-// ─── Random seconds helper ───────────────────────────────────────────────────
-// Adds 1-59 random seconds so timestamps never land exactly on :00
 function randomSeconds(date: Date): Date {
     const sec = 1 + Math.floor(Math.random() * 59);
     return new Date(date.getTime() + sec * 1000);
 }
 
-// ─── Persistence ─────────────────────────────────────────────────────────────
+// ─── Flexible Time Parsing Helper ───────────────────────────────────────────
+function parseFlexibleDate(input: string): Date | null {
+    if (!input) return null;
+    const str = input.trim().toLowerCase();
+    if (!str) return null;
+
+    if (str === "now" || str === "0") return new Date();
+
+    const relMatch = str.match(/^([+-]?\d+)\s*([smhd])(?: ago)?$/);
+    if (relMatch) {
+        const val = parseInt(relMatch[1], 10);
+        const unit = relMatch[2];
+        const mult = unit === "s" ? 1000 : unit === "m" ? 60000 : unit === "h" ? 3600000 : 86400000;
+        return new Date(Date.now() + val * mult);
+    }
+
+    const timeMatch = str.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+    if (timeMatch) {
+        const now = new Date();
+        const hrs = parseInt(timeMatch[1], 10);
+        const mins = parseInt(timeMatch[2], 10);
+        const secs = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0;
+        if (hrs >= 0 && hrs < 24 && mins >= 0 && mins < 60 && secs >= 0 && secs < 60) {
+            return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hrs, mins, secs);
+        }
+    }
+
+    const parsed = new Date(input);
+    if (!isNaN(parsed.getTime())) return parsed;
+
+    return null;
+}
+
+// ─── Plugin Settings ────────────────────────────────────────────────────────
 const fakeDMSettings = definePluginSettings({
     location: {
         type: OptionType.SELECT,
-        description: "Where to show the button",
+        description: "Where to show the FakeDM button",
         options: [
             { label: "Chat bar", value: "chatbar", default: true },
             { label: "Header bar", value: "headerbar" },
@@ -47,10 +79,13 @@ const fakeDMSettings = definePluginSettings({
     },
 });
 
+// ─── Data Types ─────────────────────────────────────────────────────────────
 interface PersistedMessage {
     type: "message";
     channelId: string;
     authorId: string;
+    authorName?: string;
+    authorAvatar?: string | null;
     content: string;
     timestamp: string;
     snowflakeId: string;
@@ -70,25 +105,61 @@ interface PersistedCall {
 
 type PersistedFake = PersistedMessage | PersistedCall;
 
-function loadPersisted(): PersistedFake[] {
+// ─── Data Persistence & Migration ──────────────────────────────────────────
+let _persistedFakes: PersistedFake[] = [];
+
+async function loadPersisted(): Promise<PersistedFake[]> {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
+        let stored = await DataStore.get<PersistedFake[]>(STORAGE_KEY);
+        if (!stored || !Array.isArray(stored)) {
+            const legacy = await DataStore.get<PersistedFake[]>(LEGACY_STORAGE_KEY);
+            if (legacy && Array.isArray(legacy)) {
+                stored = legacy;
+                await DataStore.set(STORAGE_KEY, legacy);
+            }
+        }
+        if (stored && Array.isArray(stored)) {
+            _persistedFakes = stored;
+            return stored;
+        }
+
+        const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            _persistedFakes = parsed;
+            return parsed;
+        }
+
+        const nativeRaw = Native?.loadFakes();
+        if (nativeRaw) {
+            const parsed = JSON.parse(nativeRaw);
+            _persistedFakes = parsed;
+            return parsed;
+        }
+    } catch { }
+
+    _persistedFakes = [];
+    return [];
 }
 
-function savePersisted(fakes: PersistedFake[]) {
-    const json = JSON.stringify(fakes);
-    try { localStorage.setItem(STORAGE_KEY, json); } catch { }
-    try { Native?.saveFakes(json); } catch { }
+async function savePersisted(fakes: PersistedFake[]) {
+    _persistedFakes = fakes;
+    try { await DataStore.set(STORAGE_KEY, fakes); } catch { }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(fakes)); } catch { }
+    try { Native?.saveFakes(JSON.stringify(fakes)); } catch { }
 }
 
-function removePersisted(channelId: string, ids: Set<string>) {
-    const fakes = loadPersisted().filter(f => !(f.channelId === channelId && ids.has(f.snowflakeId)));
-    savePersisted(fakes);
+async function removePersistedItem(snowflakeId: string) {
+    const next = _persistedFakes.filter(f => f.snowflakeId !== snowflakeId);
+    await savePersisted(next);
 }
 
-// ─── Fake message ID storage ───────────────────────────────────────────────
+async function removePersistedChannel(channelId: string) {
+    const next = _persistedFakes.filter(f => f.channelId !== channelId);
+    await savePersisted(next);
+}
+
+// ─── Active Message Tracking ────────────────────────────────────────────────
 const fakeIds = new Map<string, Set<string>>();
 
 function registerFake(channelId: string, id: string) {
@@ -96,84 +167,57 @@ function registerFake(channelId: string, id: string) {
     fakeIds.get(channelId)!.add(id);
 }
 
-function clearFakes(channelId: string): number {
-    const ids = fakeIds.get(channelId);
-    if (!ids?.size) return 0;
-    let n = 0;
-    for (const id of ids) {
-        FluxDispatcher.dispatch({ type: "MESSAGE_DELETE", channelId, id, mlDeleted: true });
-        n++;
-    }
-    removePersisted(channelId, ids);
-    ids.clear();
-    return n;
+function clearSingleFake(channelId: string, snowflakeId: string) {
+    FluxDispatcher.dispatch({ type: "MESSAGE_DELETE", channelId, id: snowflakeId, mlDeleted: true });
+    fakeIds.get(channelId)?.delete(snowflakeId);
+    removePersistedItem(snowflakeId);
 }
 
-// ─── Avatar URL ───────────────────────────────────────────────────────────────
-function avatarUrl(user: any): string {
+function clearChannelFakes(channelId: string): number {
+    const ids = fakeIds.get(channelId);
+    const persistedChannelFakes = _persistedFakes.filter(f => f.channelId === channelId);
+    const allIds = new Set<string>([...(ids ?? []), ...persistedChannelFakes.map(f => f.snowflakeId)]);
+
+    let count = 0;
+    for (const id of allIds) {
+        FluxDispatcher.dispatch({ type: "MESSAGE_DELETE", channelId, id, mlDeleted: true });
+        count++;
+    }
+
+    if (ids) ids.clear();
+    removePersistedChannel(channelId);
+    return count;
+}
+
+// ─── Avatar & Channel Context ───────────────────────────────────────────────
+function getAvatarUrl(user: any): string {
     if (!user) return "";
-    if (user.avatar) return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.webp?size=32`;
+    if (user.avatar) return `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.webp?size=64`;
     const idx = user.discriminator && user.discriminator !== "0"
         ? parseInt(user.discriminator) % 5
         : Number(BigInt(user.id) >> 22n) % 6;
     return `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
 }
 
-// ─── Channel helpers ─────────────────────────────────────────────────────────
-const ChannelStore = findStoreLazy("ChannelStore");
-
-/** Returns the current channel if it's a DM (type 1) or group DM (type 3), else null */
-function getCurrentDMChannel(): any | null {
+function getCurrentChannel(): any | null {
     try {
         const chId = SelectedChannelStore.getChannelId();
         if (!chId) return null;
-        const ch = ChannelStore.getChannel(chId);
-        if (!ch || (ch.type !== 1 && ch.type !== 3)) return null;
-        return ch;
+        return ChannelStore.getChannel(chId) ?? null;
     } catch { return null; }
 }
 
-/** For a 1:1 DM (type 1), returns the other user. For groups, returns null (use getChannelMembers). */
-function getOtherUser(): any | null {
-    try {
-        const ch = getCurrentDMChannel();
-        if (!ch || ch.type !== 1) return null;
-        const me = UserStore.getCurrentUser();
-        const otherId = ch.recipients?.find((id: string) => id !== me?.id);
-        return otherId ? (UserStore.getUser(otherId) ?? null) : null;
-    } catch { return null; }
-}
-
-/** Returns all members of a DM or group DM channel (including self). */
-function getChannelMembers(): any[] {
-    try {
-        const ch = getCurrentDMChannel();
-        if (!ch) return [];
-        const me = UserStore.getCurrentUser();
-        const ids: string[] = ch.recipients ?? ch.rawRecipients?.map((r: any) => r.id) ?? [];
-        const members: any[] = [];
-        if (me) members.push(me);
-        for (const id of ids) {
-            if (id === me?.id) continue;
-            const u = UserStore.getUser(id);
-            if (u) members.push(u);
-        }
-        return members;
-    } catch { return []; }
-}
-
-// ─── Build author object ──────────────────────────────────────────────────────
-function buildAuthor(user: any) {
+function buildAuthorObject(user: any) {
     return {
         id: user.id,
-        username: user.username,
+        username: user.username || "User",
         discriminator: user.discriminator ?? "0",
         avatar: user.avatar ?? null,
         public_flags: user.publicFlags ?? 0,
         flags: user.flags ?? 0,
         banner: user.banner ?? null,
         accent_color: null,
-        global_name: user.globalName ?? user.username,
+        global_name: user.globalName || user.global_name || user.username || "User",
         avatar_decoration_data: user.avatarDecorationData
             ? { asset: user.avatarDecorationData.asset, sku_id: user.avatarDecorationData.skuId }
             : null,
@@ -181,16 +225,69 @@ function buildAuthor(user: any) {
     };
 }
 
-// ─── Message injection ────────────────────────────────────────────────────────
-function inject(channelId: string, author: any, content: string, date: Date, persistedId?: string) {
+function getChannelParticipants(): any[] {
+    const usersMap = new Map<string, any>();
+    const me = UserStore.getCurrentUser();
+    if (me) usersMap.set(me.id, me);
+
+    try {
+        const ch = getCurrentChannel();
+        if (!ch) return Array.from(usersMap.values());
+
+        if (ch.recipients || ch.rawRecipients) {
+            const recipientIds: string[] = ch.recipients ?? ch.rawRecipients?.map((r: any) => r.id) ?? [];
+            for (const rid of recipientIds) {
+                const u = UserStore.getUser(rid);
+                if (u) usersMap.set(u.id, u);
+            }
+        }
+
+        if (ch.guild_id) {
+            const memberStore = GuildMemberStore as any;
+            const members = memberStore.getMembers?.(ch.guild_id) ?? memberStore.getMemberIds?.(ch.guild_id);
+            if (Array.isArray(members)) {
+                for (const m of members.slice(0, 50)) {
+                    const id = typeof m === "string" ? m : m?.userId || m?.user?.id;
+                    if (id) {
+                        const u = UserStore.getUser(id);
+                        if (u) usersMap.set(u.id, u);
+                    }
+                }
+            } else if (members && typeof members === "object") {
+                for (const m of Object.values(members).slice(0, 50) as any[]) {
+                    const id = m?.userId || m?.user?.id || m?.id;
+                    if (id) {
+                        const u = UserStore.getUser(id);
+                        if (u) usersMap.set(u.id, u);
+                    }
+                }
+            }
+
+            const messages = MessageStore.getMessages(ch.id);
+            if (messages && messages._array) {
+                for (const msg of messages._array.slice(-30)) {
+                    if (msg.author && msg.author.id) {
+                        usersMap.set(msg.author.id, msg.author);
+                    }
+                }
+            }
+        }
+    } catch { }
+
+    return Array.from(usersMap.values());
+}
+
+// ─── Injections ─────────────────────────────────────────────────────────────
+function injectMessage(channelId: string, author: any, content: string, date: Date, persistedId?: string) {
     const actualDate = persistedId ? date : randomSeconds(date);
     const id = persistedId ?? uniqueSnowflake(actualDate);
+
     FluxDispatcher.dispatch({
         type: "MESSAGE_CREATE",
         channelId,
         message: {
             attachments: [], components: [], embeds: [], mention_roles: [], mentions: [],
-            author: buildAuthor(author),
+            author: buildAuthorObject(author),
             channel_id: channelId,
             content,
             edited_timestamp: null,
@@ -208,22 +305,21 @@ function inject(channelId: string, author: any, content: string, date: Date, per
     });
     registerFake(channelId, id);
 
-    // Persist only new injections (not restores)
     if (!persistedId) {
-        const fakes = loadPersisted();
-        fakes.push({
-            type: "message",
+        const next = [..._persistedFakes, {
+            type: "message" as const,
             channelId,
             authorId: author.id,
+            authorName: author.globalName || author.username,
+            authorAvatar: author.avatar,
             content,
             timestamp: actualDate.toISOString(),
             snowflakeId: id,
-        });
-        savePersisted(fakes);
+        }];
+        savePersisted(next);
     }
 }
 
-// ─── Call injection ───────────────────────────────────────────────────────────
 function injectCall(
     channelId: string,
     caller: any,
@@ -246,7 +342,7 @@ function injectCall(
         channelId,
         message: {
             attachments: [], components: [], embeds: [], mention_roles: [], mentions: [],
-            author: buildAuthor(caller),
+            author: buildAuthorObject(caller),
             channel_id: channelId,
             content: "",
             edited_timestamp: null,
@@ -270,9 +366,8 @@ function injectCall(
     registerFake(channelId, id);
 
     if (!persistedId) {
-        const fakes = loadPersisted();
-        fakes.push({
-            type: "call",
+        const next = [..._persistedFakes, {
+            type: "call" as const,
             channelId,
             callerId: caller.id,
             otherId: other.id,
@@ -281,40 +376,38 @@ function injectCall(
             timestamp: actualDate.toISOString(),
             endedTimestamp: endedDate.toISOString(),
             snowflakeId: id,
-        });
-        savePersisted(fakes);
+        }];
+        savePersisted(next);
     }
 }
 
-// ─── Restore persisted fakes on startup ──────────────────────────────────────
-let _restoreHandler: (() => void) | null = null;
-let _restoreTimer: ReturnType<typeof setTimeout> | null = null;
+// ─── Automatic Restoration Listener ─────────────────────────────────────────
+function restoreChannelFakes(channelId: string) {
+    if (!channelId || !_persistedFakes.length) return;
+    const channelFakes = _persistedFakes.filter(f => f.channelId === channelId);
+    if (!channelFakes.length) return;
 
-function scheduleRestore() {
-    _restoreHandler = () => {
-        FluxDispatcher.unsubscribe("CONNECTION_OPEN", _restoreHandler!);
-        _restoreHandler = null;
-        _restoreTimer = setTimeout(() => {
-            _restoreTimer = null;
-            doRestore();
-        }, 1200);
-    };
-    FluxDispatcher.subscribe("CONNECTION_OPEN", _restoreHandler);
-}
+    for (const f of channelFakes) {
+        const existing = MessageStore.getMessage(channelId, f.snowflakeId);
+        if (existing) continue;
 
-function doRestore() {
-    const fakes = loadPersisted();
-    if (!fakes.length) return;
-
-    for (const f of fakes) {
         if (f.type === "message") {
-            const author = UserStore.getUser(f.authorId);
-            if (!author) continue;
-            inject(f.channelId, author, f.content, new Date(f.timestamp), f.snowflakeId);
+            let author = UserStore.getUser(f.authorId);
+            if (!author) {
+                author = {
+                    id: f.authorId,
+                    username: f.authorName || "User",
+                    globalName: f.authorName || "User",
+                    avatar: f.authorAvatar || null,
+                };
+            }
+            injectMessage(f.channelId, author, f.content, new Date(f.timestamp), f.snowflakeId);
         } else {
-            const caller = UserStore.getUser(f.callerId);
-            const other = UserStore.getUser(f.otherId);
-            if (!caller || !other) continue;
+            let caller = UserStore.getUser(f.callerId);
+            let other = UserStore.getUser(f.otherId);
+            if (!caller) caller = { id: f.callerId, username: "Caller" };
+            if (!other) other = { id: f.otherId, username: "User" };
+
             injectCall(
                 f.channelId, caller, other,
                 f.missed, f.durationSec,
@@ -326,272 +419,653 @@ function doRestore() {
     }
 }
 
-// ─── Date helpers ─────────────────────────────────────────────────────────────
-function toLocal(d: Date): string {
-    const p = (n: number) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+function restoreAllFakes() {
+    const channelIds = new Set(_persistedFakes.map(f => f.channelId));
+    for (const cid of channelIds) {
+        restoreChannelFakes(cid);
+    }
 }
 
-// ─── Avatar component ─────────────────────────────────────────────────────────
-function UserAvatar({ user }: { user: any; }) {
-    const [err, setErr] = React.useState(false);
+let _unsubscribeOpen: (() => void) | null = null;
+
+function setupRestorationListeners() {
+    const handleLoadMessages = (action: any) => {
+        if (action.channelId) setTimeout(() => restoreChannelFakes(action.channelId), 50);
+    };
+
+    const handleSelectChannel = (action: any) => {
+        if (action.channelId) setTimeout(() => restoreChannelFakes(action.channelId), 50);
+    };
+
+    const handleConnectionOpen = () => {
+        setTimeout(() => restoreAllFakes(), 800);
+    };
+
+    FluxDispatcher.subscribe("LOAD_MESSAGES_SUCCESS", handleLoadMessages);
+    FluxDispatcher.subscribe("CHANNEL_SELECT", handleSelectChannel);
+    FluxDispatcher.subscribe("CONNECTION_OPEN", handleConnectionOpen);
+
+    _unsubscribeOpen = () => {
+        FluxDispatcher.unsubscribe("LOAD_MESSAGES_SUCCESS", handleLoadMessages);
+        FluxDispatcher.unsubscribe("CHANNEL_SELECT", handleSelectChannel);
+        FluxDispatcher.unsubscribe("CONNECTION_OPEN", handleConnectionOpen);
+    };
+
+    loadPersisted().then(() => {
+        const activeCh = SelectedChannelStore.getChannelId();
+        if (activeCh) restoreChannelFakes(activeCh);
+    });
+}
+
+// ─── Format Utilities ───────────────────────────────────────────────────────
+function toLocalDatetimeString(date: Date): string {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// ─── Sub-Components ─────────────────────────────────────────────────────────
+function UserAvatar({ user, size = 22 }: { user: any; size?: number; }) {
+    const [hasErr, setHasErr] = React.useState(false);
     if (!user) return null;
-    const url = avatarUrl(user);
-    if (err || !url) return <div className="fdm-sender-avatar fdm-sender-avatar--ph">{user.username?.[0]?.toUpperCase() ?? "?"}</div>;
-    return <img src={url} className="fdm-sender-avatar" alt="" onError={() => setErr(true)} />;
+    const url = getAvatarUrl(user);
+    const name = user.globalName || user.username || "?";
+
+    if (hasErr || !url) {
+        return (
+            <div className="fakedm-avatar-placeholder" style={{ width: size, height: size }}>
+                {name[0]?.toUpperCase()}
+            </div>
+        );
+    }
+    return <img src={url} className="fakedm-avatar" style={{ width: size, height: size }} alt="" onError={() => setHasErr(true)} />;
 }
 
-// ─── Member selector (group DM) ───────────────────────────────────────────────
-function MemberSelect({ members, value, onChange, label }: { members: any[]; value: string; onChange(id: string): void; label?: string; }) {
+// User Picker Component
+function UserPicker({ participants, selectedId, onSelect }: { participants: any[]; selectedId: string; onSelect(user: any): void; }) {
+    const [query, setQuery] = React.useState("");
+    const [isOpen, setIsOpen] = React.useState(false);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    const selectedUser = participants.find(p => p.id === selectedId) || UserStore.getUser(selectedId);
+
+    React.useEffect(() => {
+        const handleOutsideClick = (e: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleOutsideClick, true);
+        return () => document.removeEventListener("mousedown", handleOutsideClick, true);
+    }, []);
+
+    const filtered = React.useMemo(() => {
+        if (!query.trim()) return participants.slice(0, 10);
+        const q = query.toLowerCase().trim();
+        return participants.filter(p =>
+            p.id.includes(q) ||
+            (p.username && p.username.toLowerCase().includes(q)) ||
+            (p.globalName && p.globalName.toLowerCase().includes(q))
+        ).slice(0, 10);
+    }, [participants, query]);
+
     return (
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 12px" }}>
-            {label && <span className="fdm-date-label">{label}</span>}
-            <select
-                value={value}
-                onChange={e => onChange(e.target.value)}
-                style={{
-                    flex: 1, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: 6, color: "#fff", fontSize: 13, padding: "4px 6px", cursor: "pointer",
+        <div className="fakedm-picker" ref={containerRef}>
+            <input
+                type="text"
+                className="fakedm-input"
+                placeholder={selectedUser ? `${selectedUser.globalName || selectedUser.username} (@${selectedUser.username})` : "Search user or enter User ID..."}
+                value={query}
+                onChange={e => {
+                    setQuery(e.target.value);
+                    setIsOpen(true);
                 }}
-            >
-                {members.map(m => (
-                    <option key={m.id} value={m.id} style={{ background: "#2b2d31" }}>
-                        {m.globalName || m.username}
-                    </option>
-                ))}
-            </select>
+                onFocus={() => setIsOpen(true)}
+            />
+
+            {isOpen && (
+                <div className="fakedm-dropdown">
+                    {filtered.map(user => (
+                        <div
+                            key={user.id}
+                            className="fakedm-dropdown-item"
+                            onMouseDown={e => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onSelect(user);
+                                setQuery("");
+                                setIsOpen(false);
+                            }}
+                        >
+                            <UserAvatar user={user} size={24} />
+                            <span className="fakedm-user-name">{user.globalName || user.username} (@{user.username})</span>
+                        </div>
+                    ))}
+                    {query.length > 3 && !filtered.length && (
+                        <div
+                            className="fakedm-dropdown-item"
+                            onMouseDown={e => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const customUser = { id: query, username: `User_${query.slice(0, 4)}`, globalName: `User (${query.slice(0, 6)})` };
+                                onSelect(customUser);
+                                setQuery("");
+                                setIsOpen(false);
+                            }}
+                        >
+                            Use User ID: {query}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
 
-// ─── FakeDM Panel ───────────────────────────────────────────────────────────
+// ─── Main Popout Panel ──────────────────────────────────────────────────────
 function FakeDMPanel({ onClose, btnRect }: { onClose(): void; btnRect: DOMRect; }) {
     const me = UserStore.getCurrentUser();
-    const ch = getCurrentDMChannel();
+    const currentCh = getCurrentChannel();
     const channelId = SelectedChannelStore.getChannelId();
-    const isGroup = ch?.type === 3;
-    const other = getOtherUser(); // only set for 1:1 DMs
-    const members = getChannelMembers(); // set for both 1:1 and group DMs
-    const isInDMOrGroup = !!ch; // true for type 1 AND type 3
+    const participants = getChannelParticipants();
 
-    // Mode: "message" | "call"
-    const [mode, setMode] = React.useState<"message" | "call">("message");
+    const otherUser = participants.find(p => p.id !== me?.id) || me;
 
-    // Message mode state — for groups we use a member ID string; for 1:1 we keep "me"/"other"
-    const [senderId, setSenderId] = React.useState<string>(() => me?.id ?? "");
-
-    // Call mode state
-    const [callerId, setCallerId] = React.useState<string>(() => me?.id ?? "");
-    const [callReceiverId, setCallReceiverId] = React.useState<string>(() => {
-        // Default "other" for calls = first non-me member
-        return members.find(m => m.id !== me?.id)?.id ?? me?.id ?? "";
-    });
+    const [tab, setTab] = React.useState<"message" | "call" | "history">("message");
+    const [sender, setSender] = React.useState<any>(() => me);
+    const [caller, setCaller] = React.useState<any>(() => me);
+    const [callReceiver, setCallReceiver] = React.useState<any>(() => otherUser);
     const [callMissed, setCallMissed] = React.useState(false);
     const [callDuration, setCallDuration] = React.useState("5");
 
-    const [text, setText] = React.useState("");
-    const [dateStr, setDateStr] = React.useState(() => toLocal(new Date()));
-    const [status, setStatus] = React.useState<{ msg: string; ok: boolean; } | null>(null);
-    const textareaRef = React.useRef<HTMLTextAreaElement>(null);
-    const panelRef = React.useRef<HTMLDivElement>(null);
-    const focusTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-    const statusTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [content, setContent] = React.useState("");
+    const [dateStr, setDateStr] = React.useState(() => toLocalDatetimeString(new Date()));
+    const [textTimeInput, setTextTimeInput] = React.useState("");
+    const [notice, setNotice] = React.useState<{ msg: string; ok: boolean; } | null>(null);
 
-    // ── Position ──────────────────────────────────────────────────────────────
+    const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+    const noticeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const popoutRef = React.useRef<HTMLDivElement>(null);
+
     const isModal = btnRect.width === 0 && btnRect.height === 0;
-    const [pos, setPos] = React.useState<React.CSSProperties>({ opacity: 0, ...(isModal ? { position: "relative", display: "flex", flexDirection: "column" } : { position: "fixed", zIndex: 1000000, width: "430px" }) });
+
+    // Direct DOM Position Tracking - 0 React Re-renders during motion & Guaranteed 100% Release
+    const posRef = React.useRef({ x: 0, y: 0, width: 420 });
 
     React.useLayoutEffect(() => {
         if (isModal) return;
-        const PW = 430, PH = 360, margin = 12;
-        let left = btnRect.left + btnRect.width / 2 - PW / 2;
-        let top = btnRect.top - PH - margin;
-        left = Math.max(margin, Math.min(left, window.innerWidth - PW - margin));
-        if (top < margin) top = btnRect.bottom + margin;
-        setPos({ left: `${left}px`, top: `${top}px`, opacity: 1, position: "fixed", zIndex: 1000000, width: `${PW}px`, height: "auto", visibility: "visible", display: "flex", flexDirection: "column", pointerEvents: "auto" });
+        const PW = 420, PH = 400, margin = 12;
+        let x = btnRect.left + btnRect.width / 2 - PW / 2;
+        let y = btnRect.top - PH - margin;
+        x = Math.max(margin, Math.min(x, window.innerWidth - PW - margin));
+        if (y < margin) y = btnRect.bottom + margin;
+
+        posRef.current = { x, y, width: PW };
+        if (popoutRef.current) {
+            popoutRef.current.style.left = `${x}px`;
+            popoutRef.current.style.top = `${y}px`;
+        }
     }, [btnRect, isModal]);
 
-    React.useEffect(() => {
-        focusTimerRef.current = setTimeout(() => {
-            focusTimerRef.current = null;
-            textareaRef.current?.focus();
-        }, 80);
-        return () => {
-            if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-            if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    // Hardware-Captured Direct Pointer Dragging
+    const handleHeaderPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (isModal || !popoutRef.current) return;
+        if ((e.target as HTMLElement).closest(".fakedm-close-btn")) return;
+
+        const target = e.currentTarget;
+        try { target.setPointerCapture(e.pointerId); } catch {}
+
+        const startMouseX = e.clientX;
+        const startMouseY = e.clientY;
+        const startX = posRef.current.x;
+        const startY = posRef.current.y;
+        const width = posRef.current.width;
+        const elem = popoutRef.current;
+
+        let currentX = startX;
+        let currentY = startY;
+
+        const handlePointerMove = (pe: PointerEvent) => {
+            const dx = pe.clientX - startMouseX;
+            const dy = pe.clientY - startMouseY;
+
+            currentX = Math.max(10, Math.min(window.innerWidth - width - 10, startX + dx));
+            currentY = Math.max(10, Math.min(window.innerHeight - 80, startY + dy));
+
+            elem.style.left = `${currentX}px`;
+            elem.style.top = `${currentY}px`;
         };
-    }, []);
+
+        const handlePointerUp = (pe: PointerEvent) => {
+            try { target.releasePointerCapture(pe.pointerId); } catch {}
+            target.removeEventListener("pointermove", handlePointerMove);
+            target.removeEventListener("pointerup", handlePointerUp);
+            target.removeEventListener("pointercancel", handlePointerUp);
+
+            posRef.current.x = currentX;
+            posRef.current.y = currentY;
+        };
+
+        target.addEventListener("pointermove", handlePointerMove);
+        target.addEventListener("pointerup", handlePointerUp);
+        target.addEventListener("pointercancel", handlePointerUp);
+    };
+
     React.useEffect(() => {
-        const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-        document.addEventListener("keydown", h, true);
-        return () => document.removeEventListener("keydown", h, true);
+        const timer = setTimeout(() => textareaRef.current?.focus(), 80);
+        return () => {
+            clearTimeout(timer);
+            if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+        };
+    }, [tab]);
+
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onClose();
+        };
+        document.addEventListener("keydown", handleKeyDown, true);
+        return () => document.removeEventListener("keydown", handleKeyDown, true);
     }, [onClose]);
 
-    function setMsg(msg: string, ok: boolean) {
-        setStatus({ msg, ok });
-        if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
-        statusTimerRef.current = setTimeout(() => {
-            statusTimerRef.current = null;
-            setStatus(null);
-        }, 2500);
+    function showNotice(msg: string, ok: boolean) {
+        setNotice({ msg, ok });
+        if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current);
+        noticeTimerRef.current = setTimeout(() => setNotice(null), 2200);
     }
 
-    function send() {
-        if (!text.trim() || !channelId) return;
-        const author = members.find(m => m.id === senderId) ?? me;
-        if (!author) return;
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) { setMsg("Invalid Date!", false); return; }
-        inject(channelId, author, text.trim(), date);
-        setText("");
-        setMsg("Message injected ✓", true);
-        setDateStr(toLocal(new Date(date.getTime() + 60_000)));
-        if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
-        focusTimerRef.current = setTimeout(() => {
-            focusTimerRef.current = null;
-            textareaRef.current?.focus();
-        }, 10);
+    function applyPreset(offsetMs: number) {
+        const target = new Date(Date.now() + offsetMs);
+        setDateStr(toLocalDatetimeString(target));
+        setTextTimeInput("");
     }
 
-    function sendCall() {
-        if (!channelId) return;
-        const callerUser = members.find(m => m.id === callerId);
-        const receiverUser = members.find(m => m.id === callReceiverId);
-        if (!callerUser || !receiverUser) return;
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) { setMsg("Invalid Date!", false); return; }
+    const parsedCustomDate = React.useMemo(() => {
+        if (textTimeInput.trim()) {
+            return parseFlexibleDate(textTimeInput);
+        }
+        const d = new Date(dateStr);
+        return isNaN(d.getTime()) ? null : d;
+    }, [dateStr, textTimeInput]);
+
+    function getActiveDate(): Date | null {
+        return parsedCustomDate;
+    }
+
+    function handleSendMessage() {
+        if (!content.trim() || !channelId || !sender) return;
+        const targetDate = getActiveDate();
+        if (!targetDate) {
+            showNotice("Invalid Date/Time", false);
+            return;
+        }
+        injectMessage(channelId, sender, content.trim(), targetDate);
+        setContent("");
+        showNotice("Message injected", true);
+        setDateStr(toLocalDatetimeString(new Date(targetDate.getTime() + 60_000)));
+        setTextTimeInput("");
+        textareaRef.current?.focus();
+    }
+
+    function handleSendCall() {
+        if (!channelId || !caller || !callReceiver) return;
+        const targetDate = getActiveDate();
+        if (!targetDate) {
+            showNotice("Invalid Date/Time", false);
+            return;
+        }
         const durSec = callMissed ? 0 : Math.max(1, Math.round((parseFloat(callDuration) || 0) * 60));
-        injectCall(channelId, callerUser, receiverUser, callMissed, durSec, date);
-        setMsg(callMissed ? "Missed call injected ✓" : "Call injected ✓", true);
-        setDateStr(toLocal(new Date(date.getTime() + 60_000)));
+        injectCall(channelId, caller, callReceiver, callMissed, durSec, targetDate);
+        showNotice(callMissed ? "Missed call injected" : "Call injected", true);
+        setDateStr(toLocalDatetimeString(new Date(targetDate.getTime() + 60_000)));
+        setTextTimeInput("");
     }
 
-    // For 1:1 DMs keep the simple two-button sender row; for groups use a select
-    const meName = (me as any)?.globalName || me?.username || "Me";
-    const otherName = other?.globalName || other?.username || "Other";
+    const activeChannelFakes = React.useMemo(() => {
+        return _persistedFakes.filter(f => f.channelId === channelId);
+    }, [channelId, notice]);
 
-    const SenderRow = isGroup ? (
-        <MemberSelect members={members} value={senderId} onChange={setSenderId} label="From :" />
-    ) : (
-        <div className="fdm-sender-row">
-            <button className={`fdm-sender-btn${senderId === me?.id ? " fdm-sender-btn--active" : ""}`} onClick={() => setSenderId(me?.id ?? "")}>
-                <UserAvatar user={me} /><span className="fdm-sender-name">{meName}</span>
-            </button>
-            <button className={`fdm-sender-btn${senderId !== me?.id ? " fdm-sender-btn--active" : ""}`} onClick={() => setSenderId(other?.id ?? "")}>
-                <UserAvatar user={other} /><span className="fdm-sender-name">{otherName}</span>
-            </button>
-        </div>
-    );
-
-    const CallerRow = isGroup ? (
-        <>
-            <MemberSelect members={members} value={callerId} onChange={setCallerId} label="Caller :" />
-            <MemberSelect members={members} value={callReceiverId} onChange={setCallReceiverId} label="Recvr :" />
-        </>
-    ) : (
-        <div className="fdm-sender-row">
-            <button className={`fdm-sender-btn${callerId === me?.id ? " fdm-sender-btn--active" : ""}`} onClick={() => { setCallerId(me?.id ?? ""); setCallReceiverId(other?.id ?? ""); }}>
-                <UserAvatar user={me} /><span className="fdm-sender-name">{meName}</span>
-            </button>
-            <button className={`fdm-sender-btn${callerId !== me?.id ? " fdm-sender-btn--active" : ""}`} onClick={() => { setCallerId(other?.id ?? ""); setCallReceiverId(me?.id ?? ""); }}>
-                <UserAvatar user={other} /><span className="fdm-sender-name">{otherName}</span>
-            </button>
-        </div>
-    );
+    const popoutStyle: React.CSSProperties = isModal
+        ? { position: "relative", display: "flex", flexDirection: "column" }
+        : {
+            position: "fixed",
+            width: "420px",
+            zIndex: 99999,
+            display: "flex",
+            flexDirection: "column"
+        };
 
     return (
         <>
-            {!isModal && <div className="fdm-backdrop" onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 999999, backgroundColor: "rgba(0,0,0,0.4)" }} />}
-            <div
-                ref={panelRef}
-                className="fdm-panel"
-                style={{ ...pos, backgroundColor: "#2b2d31", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "12px", boxShadow: "0 16px 48px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.4)", overflow: "hidden" }}
-                onClick={e => e.stopPropagation()}
-                onMouseDown={e => e.stopPropagation()}
-                onMouseUp={e => e.stopPropagation()}
-            >
-                <div className="fdm-header">
-                    <span className="fdm-title">{mode === "message" ? "✏ Fake DM" : "📞 Fake Call"}{isGroup ? " (Group)" : ""}</span>
-                    <button className="fdm-close" onClick={onClose}>✕</button>
+            {!isModal && <div className="fakedm-backdrop" onClick={onClose} />}
+            <div ref={popoutRef} className="fakedm-popout" style={popoutStyle} onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="fakedm-header" onPointerDown={handleHeaderPointerDown}>
+                    <div className="fakedm-header-title">
+                        FakeDM
+                        {currentCh?.name && <span className="fakedm-header-sub">#{currentCh.name}</span>}
+                    </div>
+                    <button
+                        className="fakedm-close-btn"
+                        onClick={onClose}
+                        onPointerDown={e => e.stopPropagation()}
+                        aria-label="Close"
+                    >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
                 </div>
 
-                {/* Mode tabs */}
-                <div style={{ display: "flex", gap: 6, padding: "0 12px 10px" }}>
-                    <button onClick={() => setMode("message")} style={{ flex: 1, padding: "5px 0", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: mode === "message" ? "#5865f2" : "rgba(255,255,255,0.07)", color: mode === "message" ? "#fff" : "rgba(255,255,255,0.5)" }}>💬 Message</button>
-                    <button onClick={() => setMode("call")} style={{ flex: 1, padding: "5px 0", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: mode === "call" ? "#5865f2" : "rgba(255,255,255,0.07)", color: mode === "call" ? "#fff" : "rgba(255,255,255,0.5)" }}>📞 Call</button>
+                {/* Tabs */}
+                <div className="fakedm-tab-bar">
+                    <button className={`fakedm-tab ${tab === "message" ? "fakedm-tab--active" : ""}`} onClick={() => setTab("message")}>
+                        Messages
+                    </button>
+                    <button className={`fakedm-tab ${tab === "call" ? "fakedm-tab--active" : ""}`} onClick={() => setTab("call")}>
+                        Calls
+                    </button>
+                    <button className={`fakedm-tab ${tab === "history" ? "fakedm-tab--active" : ""}`} onClick={() => setTab("history")}>
+                        Active Fakes {activeChannelFakes.length > 0 && <span className="fakedm-tab-badge">{activeChannelFakes.length}</span>}
+                    </button>
                 </div>
 
-                {!isInDMOrGroup ? (
-                    <div style={{ padding: "16px 14px", color: "rgba(255,255,255,0.45)", fontSize: 13, textAlign: "center" }}>Open a DM or group DM to use FakeDM.</div>
-                ) : mode === "message" ? (
-                    <>
-                        {SenderRow}
-                        <div className="fdm-date-row">
-                            <span className="fdm-date-label">Date :</span>
-                            <input type="datetime-local" className="fdm-date-input" value={dateStr} onChange={e => setDateStr(e.target.value)} />
-                            <button className="fdm-date-now" onClick={() => setDateStr(toLocal(new Date()))}>Now</button>
+                {/* Content Area */}
+                <div className="fakedm-content">
+                    {notice && (
+                        <div className={`fakedm-notice ${notice.ok ? "fakedm-notice--success" : "fakedm-notice--error"}`}>
+                            {notice.msg}
                         </div>
-                        <div className="fdm-input-row">
-                            <textarea
-                                ref={textareaRef}
-                                className="fdm-textarea"
-                                rows={2}
-                                placeholder={"Message… (↵ send)"}
-                                value={text}
-                                onChange={e => setText(e.target.value)}
-                                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-                            />
-                            <div className="fdm-actions">
-                                <button className="fdm-send-btn" disabled={!text.trim()} onClick={send}>Send</button>
-                                <button className="fdm-clear-btn" onClick={() => {
-                                    if (!channelId) return;
-                                    const n = clearFakes(channelId);
-                                    setMsg(`${n} msg${n !== 1 ? "s" : ""} deleted ✓`, true);
-                                }}>🗑 Clear</button>
+                    )}
+
+                    {tab === "message" && (
+                        <>
+                            {/* Author Selection */}
+                            <div className="fakedm-form-item">
+                                <span className="fakedm-form-label">Author</span>
+                                <div className="fakedm-user-toggle">
+                                    <button
+                                        className={`fakedm-toggle-btn ${sender?.id === me?.id ? "fakedm-toggle-btn--active" : ""}`}
+                                        onClick={() => setSender(me)}
+                                    >
+                                        <UserAvatar user={me} />
+                                        <span className="fakedm-user-name">{me?.globalName || me?.username || "Self"}</span>
+                                    </button>
+
+                                    {otherUser?.id !== me?.id && (
+                                        <button
+                                            className={`fakedm-toggle-btn ${sender?.id === otherUser?.id ? "fakedm-toggle-btn--active" : ""}`}
+                                            onClick={() => setSender(otherUser)}
+                                        >
+                                            <UserAvatar user={otherUser} />
+                                            <span className="fakedm-user-name">{otherUser?.globalName || otherUser?.username}</span>
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div style={{ marginTop: 4 }}>
+                                    <UserPicker
+                                        participants={participants}
+                                        selectedId={sender?.id || ""}
+                                        onSelect={u => setSender(u)}
+                                    />
+                                </div>
                             </div>
-                        </div>
-                    </>
-                ) : (
-                    <>
-                        {CallerRow}
 
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px" }}>
-                            <button onClick={() => setCallMissed(false)} style={{ flex: 1, padding: "4px 0", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: !callMissed ? "#3ba55c" : "rgba(255,255,255,0.07)", color: !callMissed ? "#fff" : "rgba(255,255,255,0.45)" }}>✅ Answered</button>
-                            <button onClick={() => setCallMissed(true)} style={{ flex: 1, padding: "4px 0", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: callMissed ? "#ed4245" : "rgba(255,255,255,0.07)", color: callMissed ? "#fff" : "rgba(255,255,255,0.45)" }}>❌ Missed</button>
+                            {/* Timestamp & Direct Text Time Input */}
+                            <div className="fakedm-form-item">
+                                <span className="fakedm-form-label">Timestamp</span>
+                                <div className="fakedm-date-row">
+                                    <input
+                                        type="datetime-local"
+                                        className="fakedm-date-input"
+                                        value={dateStr}
+                                        onChange={e => {
+                                            setDateStr(e.target.value);
+                                            setTextTimeInput("");
+                                        }}
+                                    />
+                                    <div className="fakedm-presets">
+                                        <button className="fakedm-preset-btn" onClick={() => applyPreset(0)}>Now</button>
+                                        <button className="fakedm-preset-btn" onClick={() => applyPreset(-5 * 60 * 1000)}>-5m</button>
+                                        <button className="fakedm-preset-btn" onClick={() => applyPreset(-60 * 60 * 1000)}>-1h</button>
+                                    </div>
+                                </div>
+
+                                <div className="fakedm-time-text-wrap" style={{ marginTop: 4 }}>
+                                    <input
+                                        type="text"
+                                        className="fakedm-input"
+                                        placeholder="Or type time (e.g. 14:30, -10m, -1h, now)..."
+                                        value={textTimeInput}
+                                        onChange={e => setTextTimeInput(e.target.value)}
+                                    />
+                                    {parsedCustomDate ? (
+                                        <span className="fakedm-time-preview fakedm-time-preview--valid">
+                                            Parsed: {parsedCustomDate.toLocaleString()}
+                                        </span>
+                                    ) : textTimeInput.trim() ? (
+                                        <span className="fakedm-time-preview fakedm-time-preview--invalid">
+                                            Invalid date string format
+                                        </span>
+                                    ) : null}
+                                </div>
+                            </div>
+
+                            {/* Message Text */}
+                            <div className="fakedm-form-item">
+                                <span className="fakedm-form-label">Message Content</span>
+                                <textarea
+                                    ref={textareaRef}
+                                    className="fakedm-textarea"
+                                    rows={3}
+                                    placeholder="Enter message content..."
+                                    value={content}
+                                    onChange={e => setContent(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === "Enter" && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSendMessage();
+                                        }
+                                    }}
+                                />
+                                <span className="fakedm-hint">Press Enter to send, Shift+Enter for new line</span>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="fakedm-actions">
+                                <button className="fakedm-btn-primary" disabled={!content.trim() || !parsedCustomDate} onClick={handleSendMessage}>
+                                    Inject Message
+                                </button>
+                                <button
+                                    className="fakedm-btn-danger"
+                                    onClick={() => {
+                                        if (!channelId) return;
+                                        const count = clearChannelFakes(channelId);
+                                        showNotice(`Cleared ${count} fake(s)`, true);
+                                    }}
+                                >
+                                    Clear Channel
+                                </button>
+                            </div>
+                        </>
+                    )}
+
+                    {tab === "call" && (
+                        <>
+                            <div className="fakedm-form-item">
+                                <span className="fakedm-form-label">Caller</span>
+                                <UserPicker
+                                    participants={participants}
+                                    selectedId={caller?.id || ""}
+                                    onSelect={u => setCaller(u)}
+                                />
+                            </div>
+
+                            <div className="fakedm-form-item">
+                                <span className="fakedm-form-label">Receiver</span>
+                                <UserPicker
+                                    participants={participants}
+                                    selectedId={callReceiver?.id || ""}
+                                    onSelect={u => setCallReceiver(u)}
+                                />
+                            </div>
+
+                            <div className="fakedm-form-item">
+                                <span className="fakedm-form-label">Status</span>
+                                <div className="fakedm-call-group">
+                                    <button
+                                        className={`fakedm-call-btn ${!callMissed ? "fakedm-call-btn--answered" : ""}`}
+                                        onClick={() => setCallMissed(false)}
+                                    >
+                                        Answered
+                                    </button>
+                                    <button
+                                        className={`fakedm-call-btn ${callMissed ? "fakedm-call-btn--missed" : ""}`}
+                                        onClick={() => setCallMissed(true)}
+                                    >
+                                        Missed
+                                    </button>
+                                </div>
+                            </div>
+
                             {!callMissed && (
-                                <>
-                                    <input type="number" min="0" step="1" className="fdm-date-input" style={{ width: 52, textAlign: "center", flexShrink: 0 }} value={callDuration} onChange={e => setCallDuration(e.target.value)} />
-                                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", flexShrink: 0 }}>min</span>
-                                </>
+                                <div className="fakedm-form-item">
+                                    <span className="fakedm-form-label">Duration (minutes)</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        className="fakedm-input"
+                                        value={callDuration}
+                                        onChange={e => setCallDuration(e.target.value)}
+                                    />
+                                </div>
+                            )}
+
+                            <div className="fakedm-form-item">
+                                <span className="fakedm-form-label">Timestamp</span>
+                                <div className="fakedm-date-row">
+                                    <input
+                                        type="datetime-local"
+                                        className="fakedm-date-input"
+                                        value={dateStr}
+                                        onChange={e => {
+                                            setDateStr(e.target.value);
+                                            setTextTimeInput("");
+                                        }}
+                                    />
+                                    <div className="fakedm-presets">
+                                        <button className="fakedm-preset-btn" onClick={() => applyPreset(0)}>Now</button>
+                                        <button className="fakedm-preset-btn" onClick={() => applyPreset(-5 * 60 * 1000)}>-5m</button>
+                                    </div>
+                                </div>
+
+                                <div className="fakedm-time-text-wrap" style={{ marginTop: 4 }}>
+                                    <input
+                                        type="text"
+                                        className="fakedm-input"
+                                        placeholder="Or type time (e.g. 14:30, -10m, -1h, now)..."
+                                        value={textTimeInput}
+                                        onChange={e => setTextTimeInput(e.target.value)}
+                                    />
+                                    {parsedCustomDate ? (
+                                        <span className="fakedm-time-preview fakedm-time-preview--valid">
+                                            Parsed: {parsedCustomDate.toLocaleString()}
+                                        </span>
+                                    ) : textTimeInput.trim() ? (
+                                        <span className="fakedm-time-preview fakedm-time-preview--invalid">
+                                            Invalid date string format
+                                        </span>
+                                    ) : null}
+                                </div>
+                            </div>
+
+                            <div className="fakedm-actions">
+                                <button className="fakedm-btn-primary" disabled={!parsedCustomDate} onClick={handleSendCall}>
+                                    Inject Call
+                                </button>
+                                <button
+                                    className="fakedm-btn-danger"
+                                    onClick={() => {
+                                        if (!channelId) return;
+                                        const count = clearChannelFakes(channelId);
+                                        showNotice(`Cleared ${count} fake(s)`, true);
+                                    }}
+                                >
+                                    Clear Channel
+                                </button>
+                            </div>
+                        </>
+                    )}
+
+                    {tab === "history" && (
+                        <div className="fakedm-form-item">
+                            <span className="fakedm-form-label">Active Channel Fakes ({activeChannelFakes.length})</span>
+
+                            {!activeChannelFakes.length ? (
+                                <div className="fakedm-empty">
+                                    No active fake messages or calls in this channel.
+                                </div>
+                            ) : (
+                                <div className="fakedm-list">
+                                    {activeChannelFakes.map(fake => {
+                                        const user = UserStore.getUser(fake.type === "message" ? fake.authorId : fake.callerId);
+                                        const date = new Date(fake.timestamp);
+                                        return (
+                                            <div key={fake.snowflakeId} className="fakedm-list-item">
+                                                <div className="fakedm-list-info">
+                                                    <UserAvatar user={user} size={20} />
+                                                    <span className="fakedm-list-text">
+                                                        {fake.type === "message"
+                                                            ? fake.content
+                                                            : `Call (${fake.missed ? "Missed" : `${fake.durationSec}s`})`}
+                                                    </span>
+                                                </div>
+                                                <span className="fakedm-list-time">{date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                <button
+                                                    className="fakedm-list-del"
+                                                    title="Delete fake message"
+                                                    onClick={() => {
+                                                        if (!channelId) return;
+                                                        clearSingleFake(channelId, fake.snowflakeId);
+                                                        showNotice("Deleted", true);
+                                                    }}
+                                                >
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {activeChannelFakes.length > 0 && (
+                                <div className="fakedm-actions" style={{ marginTop: 8 }}>
+                                    <button
+                                        className="fakedm-btn-danger"
+                                        style={{ width: "100%" }}
+                                        onClick={() => {
+                                            if (!channelId) return;
+                                            const count = clearChannelFakes(channelId);
+                                            showNotice(`Cleared ${count} fakes`, true);
+                                        }}
+                                    >
+                                        Clear All Channel Fakes
+                                    </button>
+                                </div>
                             )}
                         </div>
-
-                        <div className="fdm-date-row">
-                            <span className="fdm-date-label">Date :</span>
-                            <input type="datetime-local" className="fdm-date-input" value={dateStr} onChange={e => setDateStr(e.target.value)} />
-                            <button className="fdm-date-now" onClick={() => setDateStr(toLocal(new Date()))}>Now</button>
-                        </div>
-
-                        <div style={{ display: "flex", gap: 6, padding: "6px 12px 4px" }}>
-                            <button className="fdm-send-btn" style={{ flex: 1 }} onClick={sendCall}>Inject Call</button>
-                            <button className="fdm-clear-btn" onClick={() => {
-                                if (!channelId) return;
-                                const n = clearFakes(channelId);
-                                setMsg(`${n} msg${n !== 1 ? "s" : ""} deleted ✓`, true);
-                            }}>🗑 Clear</button>
-                        </div>
-                    </>
-                )}
-
-                <div className={`fdm-status${status ? (status.ok ? " fdm-status--ok" : " fdm-status--err") : ""}`}>
-                    {status?.msg ?? "\u00a0"}
+                    )}
                 </div>
             </div>
         </>
     );
 }
 
-// ─── Icon ─────────────────────────────────────────────────────────────────────
+// ─── SVG Icon ───────────────────────────────────────────────────────────────
 function FakeDMIcon({ height = 20, width = 20, className }: any) {
     return (
         <svg className={className} aria-hidden="true" role="img" xmlns="http://www.w3.org/2000/svg" width={width} height={height} fill="none" viewBox="0 0 24 24">
@@ -601,7 +1075,7 @@ function FakeDMIcon({ height = 20, width = 20, className }: any) {
     );
 }
 
-// ─── Header Bar Button ──────────────────────────────────────
+// ─── Header & Channel Buttons ───────────────────────────────────────────────
 function FakeDMHeaderButton() {
     return (
         <HeaderBarButton
@@ -624,7 +1098,6 @@ function FakeDMHeaderButton() {
     );
 }
 
-// ─── Channel Toolbar Button ──────────────────────────────────
 function FakeDMChannelButton() {
     return (
         <ChannelToolbarButton
@@ -647,17 +1120,16 @@ function FakeDMChannelButton() {
     );
 }
 
-// ─── Chat Bar Button ──────────────────────────────────────────────────────────
+// ─── Chat Bar Button ────────────────────────────────────────────────────────
 const FakeDMButton: ChatBarButtonFactory = (props: any) => {
-    const { isMainChat } = props;
     const [btnRect, setBtnRect] = React.useState<DOMRect | null>(null);
 
-    // Show in main chat AND in group DMs (type 3)
-    const ch = getCurrentDMChannel();
-    if ((!isMainChat && !ch) || fakeDMSettings.store.location !== "chatbar") return null;
+    if (fakeDMSettings.store.location !== "chatbar") return null;
 
     function handleClick(e: React.MouseEvent) {
-        if (btnRect) { setBtnRect(null); } else {
+        if (btnRect) {
+            setBtnRect(null);
+        } else {
             const el = (e.currentTarget as HTMLElement).closest("button") ?? e.currentTarget as HTMLElement;
             setBtnRect(el.getBoundingClientRect());
         }
@@ -665,7 +1137,7 @@ const FakeDMButton: ChatBarButtonFactory = (props: any) => {
 
     return (
         <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onMouseUp={e => e.stopPropagation()} style={{ display: "contents" }}>
-            <ChatBarButton tooltip="Fake DM — inject a fake message" onClick={handleClick}>
+            <ChatBarButton tooltip="FakeDM — Inject fake message or call" onClick={handleClick}>
                 <FakeDMIcon />
             </ChatBarButton>
             {btnRect && ReactDOM.createPortal(
@@ -676,12 +1148,12 @@ const FakeDMButton: ChatBarButtonFactory = (props: any) => {
     );
 };
 
-// ─── Plugin ───────────────────────────────────────────────────────────────────
+// ─── Plugin Export ──────────────────────────────────────────────────────────
 export default definePlugin({
     name: "FakeDM",
-    description: "Injects fake local messages and calls into a DM or group DM. Supports chat bar, header bar, and channel toolbar buttons. Persists across restarts.",
-    tags: ["Chat", "Privacy", "Nightcord"],
-    authors: [{ name: "Nightcord", id: 0n }],
+    description: "Injects fake local messages and calls into any channel or DM with persistence across client restarts.",
+    tags: ["Chat", "Utility"],
+    authors: [{ name: "Testcord", id: 0n }],
     dependencies: ["ChatInputButtonAPI", "HeaderBarAPI"],
     settings: fakeDMSettings,
 
@@ -697,19 +1169,15 @@ export default definePlugin({
         } else if (location === "channeltoolbar") {
             addChannelToolbarButton("FakeDM", () => <FakeDMChannelButton />, 5);
         }
-        scheduleRestore();
+        setupRestorationListeners();
     },
 
     stop() {
         removeHeaderBarButton("FakeDM");
         removeChannelToolbarButton("FakeDM");
-        if (_restoreHandler) {
-            FluxDispatcher.unsubscribe("CONNECTION_OPEN", _restoreHandler);
-            _restoreHandler = null;
-        }
-        if (_restoreTimer) {
-            clearTimeout(_restoreTimer);
-            _restoreTimer = null;
+        if (_unsubscribeOpen) {
+            _unsubscribeOpen();
+            _unsubscribeOpen = null;
         }
         fakeIds.clear();
         _idCounter = 0;

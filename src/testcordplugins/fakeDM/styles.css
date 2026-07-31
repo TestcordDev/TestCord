@@ -1,246 +1,557 @@
-/* ── FakeDM styles ── */
+/* FakeDM Discord Native Styles */
 
-/* Fond semi-transparent */
-.fdm-backdrop {
+.fakedm-popout {
     position: fixed;
-    inset: 0;
-    z-index: 9997;
-    background: rgba(0, 0, 0, 0.4);
-    animation: fdm-fade .12s ease;
-}
-@keyframes fdm-fade {
-    from { opacity: 0; }
-    to   { opacity: 1; }
-}
-
-/* Panneau principal — position calculée par JS près du bouton */
-.fdm-panel {
-    position: fixed;
-    /* left et top injectés inline par React */
-    z-index: 9998;
-    background: #2b2d31;
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 12px;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.4);
-    width: 430px;
+    z-index: 99999;
+    background: var(--background-floating, #18191c);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: 8px;
+    box-shadow: var(--elevation-high, 0 8px 16px rgba(0, 0, 0, 0.4));
+    width: 420px;
     max-width: 95vw;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    animation: fdm-up .15s cubic-bezier(.2,.8,.4,1);
-}
-@keyframes fdm-up {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
+    color: var(--text-normal, #dbdee1);
+    font-family: var(--font-primary, "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif);
 }
 
-/* Header */
-.fdm-header {
+.fakedm-popout--dragging {
+    user-select: none !important;
+    pointer-events: auto !important;
+    will-change: transform;
+}
+
+.fakedm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99998;
+    background: transparent;
+}
+
+/* Scrollbar Fixes for All Browsers / Discord Frames */
+.fakedm-popout *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.fakedm-popout *::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.fakedm-popout *::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thin-thumb, rgba(255, 255, 255, 0.16));
+    border-radius: 3px;
+}
+
+.fakedm-popout *::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thin-thumb, rgba(255, 255, 255, 0.28));
+}
+
+/* Header - Draggable */
+.fakedm-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 11px 14px 9px;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+    padding: 12px 16px;
+    background: var(--background-secondary-alt, #1e1f22);
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
 }
-.fdm-title {
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: .07em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,0.45) !important;
-    margin: 0;
-}
-.fdm-close {
-    background: none;
-    border: none;
-    color: rgba(255,255,255,0.4);
-    cursor: pointer;
-    font-size: 16px;
-    line-height: 1;
-    padding: 2px 4px;
-    border-radius: 4px;
-    transition: color .1s;
-}
-.fdm-close:hover { color: #fff; }
 
-/* Sélecteur expéditeur */
-.fdm-sender-row {
+.fakedm-header:active {
+    cursor: grabbing;
+}
+
+.fakedm-header-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--header-primary, #fff);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.fakedm-header-sub {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-muted, #949ba4);
+}
+
+.fakedm-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--interactive-normal, #b5bac1);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.1s ease, background-color 0.1s ease;
+}
+
+.fakedm-close-btn:hover {
+    color: var(--interactive-hover, #fff);
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+}
+
+/* Tabs */
+.fakedm-tab-bar {
+    display: flex;
+    gap: 16px;
+    padding: 0 16px;
+    background: var(--background-secondary-alt, #1e1f22);
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+
+.fakedm-tab {
+    position: relative;
+    padding: 10px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--interactive-normal, #b5bac1);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: color 0.1s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.fakedm-tab:hover {
+    color: var(--interactive-hover, #dbdee1);
+}
+
+.fakedm-tab--active {
+    color: var(--interactive-active, #fff) !important;
+}
+
+.fakedm-tab--active::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--brand-500, #5865f2);
+    border-radius: 2px 2px 0 0;
+}
+
+.fakedm-tab-badge {
+    background: var(--background-accent, rgba(255, 255, 255, 0.1));
+    color: var(--text-normal, #dbdee1);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 8px;
+}
+
+/* Form Container */
+.fakedm-content {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 460px;
+    overflow-y: auto;
+}
+
+.fakedm-form-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.fakedm-form-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--header-secondary, #b5bac1);
+}
+
+/* User Selection Toggle */
+.fakedm-user-toggle {
     display: flex;
     gap: 6px;
-    padding: 9px 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.fdm-sender-btn {
+
+.fakedm-toggle-btn {
     flex: 1;
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 7px 10px;
-    border-radius: 8px;
-    border: 1.5px solid rgba(255,255,255,0.06);
-    background: rgba(255,255,255,0.03);
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    background: var(--background-secondary, #2b2d31);
     cursor: pointer;
-    transition: all .1s;
+    color: var(--text-muted, #949ba4);
     font-size: 13px;
     font-weight: 500;
-    color: rgba(255,255,255,0.6) !important;
-    font-family: inherit;
+    transition: all 0.1s ease;
     text-align: left;
 }
-.fdm-sender-btn:hover {
-    background: rgba(255,255,255,0.07);
-    border-color: rgba(255,255,255,0.12);
+
+.fakedm-toggle-btn:hover {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.06));
+    color: var(--text-normal, #dbdee1);
 }
-.fdm-sender-btn--active {
-    border-color: var(--brand-500, #5865f2);
-    background: rgba(88,101,242,0.14);
-    color: #fff !important;
+
+.fakedm-toggle-btn--active {
+    border-color: var(--brand-500, #5865f2) !important;
+    background: rgba(88, 101, 242, 0.12) !important;
+    color: var(--interactive-active, #fff) !important;
 }
-.fdm-sender-avatar {
-    width: 24px;
-    height: 24px;
+
+.fakedm-avatar {
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
 }
-.fdm-sender-avatar--ph {
-    width: 24px;
-    height: 24px;
+
+.fakedm-avatar-placeholder {
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    background: rgba(88,101,242,0.4);
+    background: var(--brand-500, #5865f2);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 11px;
-    font-weight: 700;
-    color: #fff;
     flex-shrink: 0;
 }
-.fdm-sender-name {
+
+.fakedm-user-name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
 }
 
-/* Date */
-.fdm-date-row {
+/* User Picker Box & Robust Dropdown */
+.fakedm-picker {
+    position: relative;
+}
+
+.fakedm-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--input-background, rgba(0, 0, 0, 0.25));
+    border: 1px solid var(--input-border, rgba(0, 0, 0, 0.3));
+    border-radius: 4px;
+    color: var(--text-normal, #dbdee1);
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    color-scheme: dark;
+    transition: border-color 0.15s ease;
+}
+
+.fakedm-input:focus {
+    border-color: var(--brand-500, #5865f2);
+}
+
+.fakedm-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: var(--background-floating, #111214);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+    border-radius: 4px;
+    max-height: 170px;
+    overflow-y: auto;
+    box-shadow: var(--elevation-high, 0 8px 16px rgba(0, 0, 0, 0.5));
+}
+
+.fakedm-dropdown-item {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 7px 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    gap: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-normal, #dbdee1);
+    transition: background 0.1s ease;
+    user-select: none;
 }
-.fdm-date-label {
-    font-size: 11px;
-    color: rgba(255,255,255,0.38) !important;
-    white-space: nowrap;
-    flex-shrink: 0;
+
+.fakedm-dropdown-item:hover {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+    color: var(--interactive-active, #fff);
 }
-.fdm-date-input {
+
+/* Presets & Datetime & Text Time Field */
+.fakedm-date-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.fakedm-date-input {
     flex: 1;
-    min-width: 0;
-    background: rgba(0,0,0,0.3);
-    border: 1px solid rgba(255,255,255,0.09);
-    border-radius: 6px;
-    color: #fff !important;
-    padding: 4px 8px;
+    background: var(--input-background, rgba(0, 0, 0, 0.25));
+    border: 1px solid var(--input-border, rgba(0, 0, 0, 0.3));
+    border-radius: 4px;
+    color: var(--text-normal, #dbdee1);
+    padding: 6px 10px;
     font-size: 12px;
-    font-family: monospace;
+    font-family: inherit;
     outline: none;
-    transition: border-color .1s;
     color-scheme: dark;
 }
-.fdm-date-input:focus { border-color: var(--brand-500, #5865f2); }
-.fdm-date-now {
-    background: rgba(255,255,255,0.06);
-    border: none;
-    border-radius: 5px;
-    color: rgba(255,255,255,0.55) !important;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 4px 9px;
-    cursor: pointer;
-    white-space: nowrap;
-    font-family: inherit;
-    flex-shrink: 0;
-    transition: background .1s;
-}
-.fdm-date-now:hover { background: rgba(255,255,255,0.12); color: #fff !important; }
 
-/* Zone message */
-.fdm-input-row {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    padding: 9px 12px;
+.fakedm-date-input:focus {
+    border-color: var(--brand-500, #5865f2);
 }
-.fdm-textarea {
-    flex: 1;
-    min-width: 0;
-    background: rgba(0,0,0,0.22);
-    border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 8px;
-    color: #fff !important;
-    padding: 8px 10px;
-    font-size: 14px;
-    font-family: inherit;
-    outline: none;
-    resize: none;
-    min-height: 38px;
-    max-height: 110px;
-    transition: border-color .1s;
-    line-height: 1.45;
-}
-.fdm-textarea:focus { border-color: rgba(255,255,255,0.18); }
-.fdm-textarea::placeholder { color: rgba(255,255,255,0.28) !important; }
 
-/* Boutons */
-.fdm-actions {
+.fakedm-time-text-wrap {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    flex-shrink: 0;
+    gap: 4px;
 }
-.fdm-send-btn {
+
+.fakedm-time-preview {
+    font-size: 11px;
+    color: var(--text-muted, #949ba4);
+    padding-left: 2px;
+}
+
+.fakedm-time-preview--valid {
+    color: var(--status-positive, #23a55a);
+}
+
+.fakedm-time-preview--invalid {
+    color: var(--status-danger, #f23f43);
+}
+
+.fakedm-presets {
+    display: flex;
+    gap: 4px;
+}
+
+.fakedm-preset-btn {
+    background: var(--background-secondary, #2b2d31);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: 4px;
+    color: var(--text-muted, #949ba4);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 8px;
+    cursor: pointer;
+    transition: all 0.1s ease;
+}
+
+.fakedm-preset-btn:hover {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+    color: var(--interactive-active, #fff);
+}
+
+/* Textarea */
+.fakedm-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--input-background, rgba(0, 0, 0, 0.25));
+    border: 1px solid var(--input-border, rgba(0, 0, 0, 0.3));
+    border-radius: 4px;
+    color: var(--text-normal, #dbdee1);
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    resize: vertical;
+    min-height: 60px;
+    max-height: 120px;
+    line-height: 1.4;
+    color-scheme: dark;
+    transition: border-color 0.15s ease;
+}
+
+.fakedm-textarea:focus {
+    border-color: var(--brand-500, #5865f2);
+}
+
+.fakedm-hint {
+    font-size: 11px;
+    color: var(--text-muted, #949ba4);
+    margin-top: 2px;
+}
+
+/* Call Mode Buttons */
+.fakedm-call-group {
+    display: flex;
+    gap: 6px;
+}
+
+.fakedm-call-btn {
+    flex: 1;
+    padding: 7px 0;
+    border-radius: 4px;
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    background: var(--background-secondary, #2b2d31);
+    color: var(--text-muted, #949ba4);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    text-align: center;
+}
+
+.fakedm-call-btn--answered {
+    background: rgba(35, 165, 90, 0.15) !important;
+    color: var(--status-positive, #23a55a) !important;
+    border-color: rgba(35, 165, 90, 0.3) !important;
+}
+
+.fakedm-call-btn--missed {
+    background: rgba(242, 63, 67, 0.15) !important;
+    color: var(--status-danger, #f23f43) !important;
+    border-color: rgba(242, 63, 67, 0.3) !important;
+}
+
+/* Primary & Action Buttons */
+.fakedm-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.fakedm-btn-primary {
+    flex: 1;
     background: var(--brand-500, #5865f2);
+    color: #fff;
     border: none;
-    border-radius: 7px;
-    color: #fff !important;
-    padding: 7px 14px;
+    border-radius: 4px;
+    padding: 8px 14px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    font-family: inherit;
-    transition: opacity .1s;
-    white-space: nowrap;
+    transition: background-color 0.1s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-.fdm-send-btn:hover:not(:disabled) { opacity: .85; }
-.fdm-send-btn:disabled { opacity: .35; cursor: not-allowed; }
 
-.fdm-clear-btn {
-    background: rgba(237,66,69,0.1);
-    border: none;
-    border-radius: 7px;
-    color: #ed4245 !important;
-    padding: 5px 10px;
-    font-size: 11px;
-    font-weight: 700;
+.fakedm-btn-primary:hover:not(:disabled) {
+    background: var(--brand-560, #4752c4);
+}
+
+.fakedm-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.fakedm-btn-danger {
+    background: transparent;
+    color: var(--status-danger, #f23f43);
+    border: 1px solid rgba(242, 63, 67, 0.3);
+    border-radius: 4px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
-    font-family: inherit;
-    transition: background .1s;
-    white-space: nowrap;
+    transition: all 0.1s ease;
 }
-.fdm-clear-btn:hover { background: rgba(237,66,69,0.22); }
 
-/* Status */
-.fdm-status {
-    font-size: 11px;
-    color: rgba(255,255,255,0.35) !important;
-    text-align: center;
-    padding: 2px 12px 10px;
-    min-height: 20px;
-    transition: color .2s;
+.fakedm-btn-danger:hover {
+    background: rgba(242, 63, 67, 0.1);
+    border-color: var(--status-danger, #f23f43);
 }
-.fdm-status--ok  { color: #3ba55c !important; }
-.fdm-status--err { color: #ed4245 !important; }
+
+/* History / Active Fakes */
+.fakedm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.fakedm-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    background: var(--background-secondary, #2b2d31);
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.05));
+}
+
+.fakedm-list-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+}
+
+.fakedm-list-text {
+    font-size: 12px;
+    color: var(--text-normal, #dbdee1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fakedm-list-time {
+    font-size: 11px;
+    color: var(--text-muted, #949ba4);
+    flex-shrink: 0;
+}
+
+.fakedm-list-del {
+    background: transparent;
+    border: none;
+    color: var(--interactive-normal, #b5bac1);
+    cursor: pointer;
+    padding: 3px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.1s ease;
+}
+
+.fakedm-list-del:hover {
+    color: var(--status-danger, #f23f43);
+}
+
+.fakedm-empty {
+    padding: 20px 0;
+    text-align: center;
+    color: var(--text-muted, #949ba4);
+    font-size: 13px;
+}
+
+/* Notice */
+.fakedm-notice {
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.fakedm-notice--success {
+    background: rgba(35, 165, 90, 0.12);
+    color: var(--status-positive, #23a55a);
+    border: 1px solid rgba(35, 165, 90, 0.25);
+}
+
+.fakedm-notice--error {
+    background: rgba(242, 63, 67, 0.12);
+    color: var(--status-danger, #f23f43);
+    border: 1px solid rgba(242, 63, 67, 0.25);
+}
