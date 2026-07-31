@@ -605,7 +605,7 @@ function FakeDMHeaderButton() {
                 tooltip="FakeDM"
                 onClick={e => {
                     if (btnRect) { setBtnRect(null); } else {
-                        setBtnRect((e.currentTarget as HTMLElement).closest("button")?.getBoundingClientRect() ?? null);
+                        setBtnRect((e.currentTarget as HTMLElement).getBoundingClientRect());
                     }
                 }}
             />
@@ -627,7 +627,7 @@ function FakeDMChannelButton() {
                 tooltip="FakeDM"
                 onClick={e => {
                     if (btnRect) { setBtnRect(null); } else {
-                        setBtnRect((e.currentTarget as HTMLElement).closest("button")?.getBoundingClientRect() ?? null);
+                        setBtnRect((e.currentTarget as HTMLElement).getBoundingClientRect());
                     }
                 }}
             />
