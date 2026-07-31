@@ -1,0 +1,545 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+.vc-multi-instance-body {
+    --mi-accent: var(--interactive-normal, #b5bac1);
+    --mi-base: var(--background-base-lowest, var(--background-primary, #111214));
+    --mi-panel: var(--background-base-low, var(--background-secondary, #1e1f22));
+    --mi-line: var(--border-normal, var(--border-subtle, var(--interactive-muted, #4e5058)));
+    --mi-heading: var(--text-strong, var(--header-primary, #f2f3f5));
+    --mi-text: var(--text-default, var(--text-normal, #dbdee1));
+    --mi-muted: color-mix(in srgb, var(--mi-text) 74%, var(--mi-panel));
+    --mi-border: color-mix(in srgb, var(--mi-text) 12%, var(--mi-panel));
+    --mi-border-strong: color-mix(in srgb, var(--mi-text) 22%, var(--mi-panel));
+    --mi-surface: var(--mi-base);
+    --mi-surface-raised: var(--background-base-lower, var(--background-secondary-alt, var(--mi-panel)));
+    --mi-shadow: 0 12px 32px color-mix(in srgb, var(--black-500, #000) 22%, transparent);
+
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 2px 2px 8px;
+    overflow-x: clip;
+    isolation: isolate;
+}
+
+.vc-multi-instance-body *,
+.vc-multi-instance-body *::before,
+.vc-multi-instance-body *::after {
+    box-sizing: border-box;
+}
+
+.vc-multi-instance-hero {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    min-width: 0;
+    min-height: 80px;
+    padding: 16px 18px;
+    overflow: hidden;
+    border: 1px solid var(--mi-border-strong);
+    border-radius: 16px;
+    background:
+        radial-gradient(circle at 88% 0%, color-mix(in srgb, var(--mi-accent) 24%, transparent), transparent 45%),
+        linear-gradient(135deg, var(--mi-surface-raised), var(--mi-panel));
+    box-shadow:
+        var(--mi-shadow),
+        inset 0 1px 0 color-mix(in srgb, var(--mi-text) 13%, transparent);
+}
+
+.vc-multi-instance-hero::after {
+    position: absolute;
+    right: -48px;
+    bottom: -76px;
+    width: 210px;
+    height: 160px;
+    border: 30px solid color-mix(in srgb, var(--mi-accent) 8%, transparent);
+    border-radius: 50%;
+    content: "";
+    pointer-events: none;
+}
+
+.vc-multi-instance-current {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    min-width: 0;
+}
+
+.vc-multi-instance-current > :first-child {
+    flex: 0 0 auto;
+    border-radius: 50%;
+    box-shadow:
+        0 0 0 3px var(--mi-base),
+        0 0 0 5px color-mix(in srgb, var(--mi-accent) 65%, transparent);
+}
+
+.vc-multi-instance-current > div {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.vc-multi-instance-current strong {
+    overflow: hidden;
+    color: var(--mi-heading);
+    font-size: 18px;
+    line-height: 22px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-multi-instance-current-handle {
+    color: var(--mi-muted);
+    font-size: 13px;
+}
+
+.vc-multi-instance-kicker {
+    color: var(--mi-accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .07em;
+    line-height: 15px;
+    text-transform: uppercase;
+}
+
+.vc-multi-instance-active-badge {
+    flex: 0 0 auto;
+    margin-left: 5px;
+    padding: 5px 9px;
+    border: 1px solid color-mix(in srgb, var(--status-positive) 72%, var(--mi-line));
+    border-radius: 999px;
+    color: var(--status-positive-text);
+    background: color-mix(in srgb, var(--status-positive) 23%, var(--mi-panel));
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.vc-multi-instance-stats {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+}
+
+.vc-multi-instance-stats > div {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 76px;
+    padding: 9px 12px;
+    border: 1px solid var(--mi-border-strong);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--mi-panel) 84%, var(--mi-accent) 16%);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mi-text) 12%, transparent);
+}
+
+.vc-multi-instance-stats strong {
+    color: var(--mi-heading);
+    font-size: 20px;
+    line-height: 22px;
+}
+
+.vc-multi-instance-stats span {
+    color: var(--mi-muted);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.vc-multi-instance-modes {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    min-width: 0;
+}
+
+.vc-multi-instance-mode-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    min-height: 64px;
+    padding: 12px 14px;
+    overflow: hidden;
+    border: 1px solid var(--mi-border-strong);
+    border-radius: 14px;
+    background:
+        linear-gradient(115deg, color-mix(in srgb, var(--mi-accent) 8%, transparent), transparent 52%),
+        var(--mi-surface);
+    box-shadow:
+        0 4px 14px color-mix(in srgb, var(--black-500, #000) 15%, transparent),
+        inset 0 1px 0 color-mix(in srgb, var(--mi-text) 9%, transparent);
+    transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+
+.vc-multi-instance-mode-card::after {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--mi-accent);
+    content: "";
+    opacity: .8;
+}
+
+.vc-multi-instance-mode-card:hover {
+    border-color: color-mix(in srgb, var(--mi-accent) 78%, var(--mi-line));
+    background:
+        linear-gradient(115deg, color-mix(in srgb, var(--mi-accent) 13%, transparent), transparent 58%),
+        var(--mi-surface-raised);
+    box-shadow: 0 7px 20px color-mix(in srgb, var(--black-500, #000) 16%, transparent);
+}
+
+.vc-multi-instance-mode-icon {
+    display: grid;
+    flex: 0 0 auto;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border: 1px solid var(--mi-border-strong);
+    border-radius: 11px;
+    color: var(--mi-accent);
+    background: color-mix(in srgb, var(--mi-accent) 17%, var(--mi-base));
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mi-text) 13%, transparent);
+}
+
+.vc-multi-instance-mode-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.vc-multi-instance-mode-card strong {
+    color: var(--mi-heading);
+    font-size: 14px;
+}
+
+.vc-multi-instance-mode-card span {
+    color: var(--mi-muted);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.vc-multi-instance-warning {
+    padding: 11px 14px;
+    border: 1px solid color-mix(in srgb, var(--status-warning) 72%, var(--mi-line));
+    border-radius: 11px;
+    color: var(--mi-text);
+    background: color-mix(in srgb, var(--status-warning) 13%, var(--mi-panel));
+}
+
+.vc-multi-instance-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    padding: 2px 4px;
+}
+
+.vc-multi-instance-toolbar-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.vc-multi-instance-toolbar strong {
+    color: var(--mi-heading);
+    font-size: 15px;
+}
+
+.vc-multi-instance-toolbar span {
+    color: var(--mi-muted);
+    font-size: 12px;
+}
+
+.vc-multi-instance-toolbar-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+}
+
+.vc-multi-instance-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--mi-border);
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--mi-base) 92%, var(--mi-accent) 8%);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mi-text) 8%, transparent);
+}
+
+.vc-multi-instance-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-width: 0;
+    min-height: 78px;
+    padding: 12px 14px;
+    overflow: hidden;
+    border: 1px solid var(--mi-border-strong);
+    border-radius: 13px;
+    background:
+        linear-gradient(110deg, color-mix(in srgb, var(--mi-accent) 4%, transparent), transparent 46%),
+        var(--mi-surface);
+    box-shadow:
+        0 4px 14px color-mix(in srgb, var(--black-500, #000) 14%, transparent),
+        inset 0 1px 0 color-mix(in srgb, var(--mi-text) 8%, transparent);
+    cursor: context-menu;
+    transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+
+.vc-multi-instance-row:hover {
+    border-color: var(--mi-border-strong);
+    background:
+        linear-gradient(110deg, color-mix(in srgb, var(--mi-accent) 9%, transparent), transparent 54%),
+        var(--mi-surface-raised);
+    box-shadow: 0 7px 18px color-mix(in srgb, var(--black-500, #000) 14%, transparent);
+}
+
+.vc-multi-instance-row-open {
+    border-color: color-mix(in srgb, var(--mi-accent) 82%, var(--mi-line));
+    background:
+        linear-gradient(110deg, color-mix(in srgb, var(--mi-accent) 13%, transparent), transparent 58%),
+        var(--mi-surface-raised);
+    box-shadow:
+        inset 4px 0 0 var(--mi-accent),
+        0 8px 24px color-mix(in srgb, var(--mi-accent) 13%, transparent);
+}
+
+.vc-multi-instance-row-info,
+.vc-multi-instance-actions,
+.vc-multi-instance-rename,
+.vc-multi-instance-add-controls {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.vc-multi-instance-row-info {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.vc-multi-instance-avatar {
+    position: relative;
+    display: grid;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+}
+
+.vc-multi-instance-avatar-placeholder {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid var(--mi-border-strong);
+    border-radius: 50%;
+    color: var(--mi-text);
+    background:
+        radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--mi-accent) 32%, transparent), transparent 55%),
+        var(--mi-surface-raised);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mi-text) 13%, transparent);
+}
+
+.vc-multi-instance-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 12px;
+    height: 12px;
+    border: 3px solid var(--mi-panel);
+    border-radius: 50%;
+    background: var(--interactive-muted);
+}
+
+.vc-multi-instance-dot-open {
+    background: var(--status-positive);
+}
+
+.vc-multi-instance-profile {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.vc-multi-instance-name,
+.vc-multi-instance-id {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-multi-instance-name {
+    color: var(--mi-heading);
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 20px;
+}
+
+.vc-multi-instance-id {
+    color: var(--mi-muted);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.vc-multi-instance-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 6px;
+}
+
+.vc-multi-instance-tags span {
+    padding: 3px 7px;
+    border: 1px solid var(--mi-border);
+    border-radius: 999px;
+    color: var(--mi-muted);
+    background: color-mix(in srgb, var(--mi-base) 80%, var(--mi-accent) 20%);
+    font-size: 10px;
+    font-weight: 650;
+    line-height: 13px;
+}
+
+.vc-multi-instance-actions {
+    flex: 0 0 auto;
+}
+
+.vc-multi-instance-actions button,
+.vc-multi-instance-add-controls button,
+.vc-multi-instance-rename button {
+    min-height: 34px;
+}
+
+.vc-multi-instance-rename {
+    min-width: 0;
+    margin-bottom: 4px;
+}
+
+.vc-multi-instance-rename-input {
+    flex: 1 1 auto;
+    min-width: 140px;
+}
+
+.vc-multi-instance-add {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-width: 0;
+    padding: 14px 16px;
+    border: 1px dashed color-mix(in srgb, var(--mi-accent) 76%, var(--mi-line));
+    border-radius: 14px;
+    background:
+        linear-gradient(115deg, color-mix(in srgb, var(--mi-accent) 10%, transparent), transparent 60%),
+        var(--mi-surface);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mi-text) 10%, transparent);
+}
+
+.vc-multi-instance-add > div:first-child {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.vc-multi-instance-add strong {
+    color: var(--mi-heading);
+    font-size: 14px;
+}
+
+.vc-multi-instance-add span {
+    color: var(--mi-muted);
+    font-size: 12px;
+}
+
+.vc-multi-instance-add-controls {
+    flex: 0 1 390px;
+    min-width: 0;
+}
+
+.vc-multi-instance-add-input {
+    flex: 1 1 auto;
+    min-width: 140px;
+}
+
+@media (width <= 760px) {
+    .vc-multi-instance-hero,
+    .vc-multi-instance-toolbar,
+    .vc-multi-instance-row,
+    .vc-multi-instance-add {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .vc-multi-instance-stats {
+        width: 100%;
+    }
+
+    .vc-multi-instance-stats > div {
+        flex: 1 1 0;
+    }
+
+    .vc-multi-instance-modes {
+        grid-template-columns: 1fr;
+    }
+
+    .vc-multi-instance-actions {
+        justify-content: flex-end;
+    }
+
+    .vc-multi-instance-add-controls {
+        width: 100%;
+        flex-basis: auto;
+    }
+}
+
+@media (width <= 520px) {
+    .vc-multi-instance-current {
+        flex-wrap: wrap;
+    }
+
+    .vc-multi-instance-active-badge {
+        margin-left: 61px;
+    }
+
+    .vc-multi-instance-actions,
+    .vc-multi-instance-rename,
+    .vc-multi-instance-add-controls {
+        flex-wrap: wrap;
+    }
+
+    .vc-multi-instance-actions button,
+    .vc-multi-instance-add-controls button {
+        flex: 1 1 0;
+    }
+
+    .vc-multi-instance-rename-input,
+    .vc-multi-instance-add-input {
+        flex-basis: 100%;
+    }
+}
