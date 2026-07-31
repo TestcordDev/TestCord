@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import ErrorBoundary from "@components/ErrorBoundary";
 import { Logger } from "@utils/Logger";
 import { Menu, React } from "@webpack/common";
 import type { ReactElement } from "react";
@@ -235,7 +236,10 @@ function applyAllPatches(
         }
     }
 
-    return children;
+    return children.map(child => {
+        if (!React.isValidElement(child)) return child;
+        return React.createElement(ErrorBoundary, { noop: true }, child);
+    });
 }
 
 /**
