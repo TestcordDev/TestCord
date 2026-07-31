@@ -12,11 +12,13 @@ import SettingsPlugin from "@plugins/_core/settings";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import { removeFromArray } from "@utils/misc";
-import definePlugin, { OptionType } from "@utils/types";
+import definePlugin, { OptionType, type PluginNative } from "@utils/types";
 import { Message } from "@vencord/discord-types";
 import { NavigationRouter, RestAPI, showToast, Toasts, UserStore } from "@webpack/common";
 
 import { addLog, loadLogs, type RedeemType } from "./store";
+
+const Native = VencordNative?.pluginHelpers?.AutoRedeem as PluginNative<typeof import("./native")> | undefined;
 
 const logger = new Logger("AutoRedeem");
 
@@ -75,6 +77,19 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Show a desktop notification when failing to redeem a gift",
         default: true,
+    },
+    noneCapApiKey: {
+        type: OptionType.STRING,
+        description: "NoneCap API key for automatically solving CAPTCHAs. Leave empty to use Discord's CAPTCHA modal.",
+        default: "",
+        placeholder: "nc_live_...",
+        restartNeeded: false,
+    },
+    webhookUrl: {
+        type: OptionType.STRING,
+        description: "Discord webhook URL to notify after each redeem attempt. Leave empty to disable.",
+        default: "",
+        restartNeeded: false,
     },
 });
 
@@ -151,6 +166,31 @@ function notifyPaused(reason: string) {
     pauseToastShown = true;
     showToast(`AutoRedeem paused: ${reason}`, Toasts.Type.FAILURE);
     logger.warn(`Paused: ${reason}`);
+}
+
+async function trySolveCaptcha(captchaService: string, sitekey: string, rqdata: string | undefined, pageUrl: string): Promise<{ success: boolean; token?: string; error?: string }> {
+    const apiKey = settings.store.noneCapApiKey.trim();
+    if (!apiKey || !Native) return { success: false, error: "" };
+
+    return Native.solveCaptcha(apiKey, sitekey, rqdata, pageUrl, navigator.userAgent);
+}
+
+async function sendClaimWebhook(code: string, status: "claimed" | "failed", giftType: string | null, channelId: string, messageId: string, guildId: string | undefined, error?: string) {
+    const url = settings.store.webhookUrl.trim();
+    if (!url) return;
+
+    const payload = {
+        username: "AutoRedeem",
+        embeds: [{
+            title: status === "claimed" ? "Redeemed a gift! 🎉" : "Redeem Failed ❌",
+            color: status === "claimed" ? 0x57F287 : 0xED4245,
+            description: `Code: \`${code}\`${giftType ? `\nType: ${giftType}` : ""}${error ? `\nError: ${error}` : ""}`,
+            timestamp: new Date().toISOString(),
+            footer: { text: "AutoRedeem" }
+        }]
+    };
+
+    void Native?.sendWebhook(url, JSON.stringify(payload)).catch(() => { });
 }
 
 async function precheckGift(code: string): Promise<{ ok: boolean; data?: any; reason?: string; }> {
@@ -230,6 +270,7 @@ async function handleRedeem(item: QueueItem) {
             if (!fast && settings.store.notifyOnFail && reason !== "already claimed" && reason !== "invalid code" && reason !== "expired") {
                 showToast(`AutoRedeem skipped ${code}: ${reason}`, Toasts.Type.MESSAGE);
             }
+            await sendClaimWebhook(code, "failed", "other", channelId, messageId, guildId, reason);
             return;
         }
     }
@@ -257,20 +298,63 @@ async function handleRedeem(item: QueueItem) {
                 onClick: () => NavigationRouter.transitionTo(`/channels/${guildId ?? "@me"}/${channelId}/${messageId}`),
             });
         }
+        await sendClaimWebhook(code, "claimed", giftType, channelId, messageId, guildId);
     } catch (e: any) {
         if (isCaptchaError(e?.body)) {
+            const sitekey = e?.body?.captcha_sitekey;
+            if (sitekey && settings.store.noneCapApiKey.trim()) {
+                const rqdata = e?.body?.captcha_rqdata;
+                const solveResult = await trySolveCaptcha("hcaptcha", sitekey, rqdata, location.href);
+                if (solveResult.success && solveResult.token) {
+                    const retryBody = { channel_id: channelId, captcha_key: solveResult.token, captcha_rqtoken: rqdata };
+                    try {
+                        const { body } = await RestAPI.post({
+                            url: `/entitlements/gift-codes/${code}/redeem`,
+                            body: retryBody,
+                        });
+                        const giftType = classifyGift(body);
+                        addLog({ code, status: "success", type: giftType, channelId, messageId });
+                        if (!fast) showToast(`Redeemed gift: ${code}`, Toasts.Type.SUCCESS);
+                        logger.info(`Redeemed gift code: ${code}`);
+                        if (!fast && settings.store.notifyOnRedeem) {
+                            const user = UserStore.getCurrentUser();
+                            showNotification({
+                                title: "Gift Redeemed! 🎉",
+                                body: `Successfully redeemed: ${code}`,
+                                color: "#57F287",
+                                icon: user?.getAvatarURL(),
+                                onClick: () => NavigationRouter.transitionTo(`/channels/${guildId ?? "@me"}/${channelId}/${messageId}`),
+                            });
+                        }
+                        await sendClaimWebhook(code, "claimed", giftType, channelId, messageId, guildId);
+                        return;
+                    } catch (retryErr: any) {
+                        if (isCaptchaError(retryErr?.body)) {
+                            notifyPaused("captcha required");
+                            addLog({ code, status: "failed", type: "other", error: "captcha required", channelId, messageId });
+                            await sendClaimWebhook(code, "failed", null, channelId, messageId, guildId, "captcha required");
+                            return;
+                        }
+                    }
+                } else if (solveResult.error) {
+                    logger.warn(`NoneCap solve failed for ${code}: ${solveResult.error}`);
+                }
+            }
             notifyPaused("captcha required");
             addLog({ code, status: "failed", type: "other", error: "captcha required", channelId, messageId });
+            await sendClaimWebhook(code, "failed", null, channelId, messageId, guildId, "captcha required");
             return;
         }
         if (e?.status === 429) {
             const retryAfter = Number(e?.body?.retry_after ?? e?.headers?.["retry-after"] ?? 0);
             notifyPaused(`rate limited${retryAfter ? ` (retry after ${retryAfter}s)` : ""}`);
             addLog({ code, status: "failed", type: "other", error: "rate limited", channelId, messageId });
+            await sendClaimWebhook(code, "failed", "other", channelId, messageId, guildId, "rate limited");
             return;
         }
         const msg: string = e?.body?.message ?? "Unknown error";
         addLog({ code, status: "failed", type: "other", error: msg, channelId, messageId });
+        await sendClaimWebhook(code, "failed", "other", channelId, messageId, guildId, msg);
         if (!fast) {
             showToast(`Failed to redeem ${code}: ${msg}`, Toasts.Type.FAILURE);
         }
@@ -314,6 +398,7 @@ export default definePlugin({
         processing = false;
         captchaPaused = false;
         pauseToastShown = false;
+        void Native?.cancelAll();
     },
 
     flux: {
