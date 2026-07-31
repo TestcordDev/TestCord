@@ -14,6 +14,6 @@ export default definePlugin({
     enabledByDefault: true,
 
     isNightcordPlugin(name: string) {
-        return name === "LarpCord" || name === "StreamProofEnhanched";
+        return name === "StreamProofEnhanched";
     }
 });
