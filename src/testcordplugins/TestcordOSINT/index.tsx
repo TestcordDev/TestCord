@@ -685,7 +685,6 @@ function OSINTScanPanel({ userId, channelId, modalProps }: { userId: string; cha
                     </div>
                 </div>
                 <div className="vc-osint-header-right">
-                    {phase === "done" && <Button size={Button.Sizes.SMALL} onClick={copyResults}>Copy</Button>}
                     <ModalCloseButton onClick={modalProps.onClose} />
                 </div>
             </ModalHeader>

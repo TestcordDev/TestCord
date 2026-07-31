@@ -4,71 +4,41 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { definePluginSettings, migratePluginSettings } from "@api/Settings";
-import { TestcordDevs } from "@utils/constants";
-import definePlugin, { OptionType } from "@utils/types";
+import "@equicordplugins/discordDevBanner/styles.css";
 
-const settings = definePluginSettings({
-    removeCloseButton: {
-        type: OptionType.BOOLEAN,
-        default: true,
-        description: "Remove redundant close button, which might actually break plugin if accidentally pressed",
-        restartNeeded: true,
-    }
-}, {
-    removeCloseButton: {
-        disabled: () => true
-    }
-});
-
-// By default Discord only seems too displays 'Staging' so we map the names ourself
-const names: Record<string, string> = {
-    stable: "Stable",
-    ptb: "PTB",
-    canary: "Canary",
-    staging: "Staging"
-};
-
-// Useless for the normal User, but useful for me
-migratePluginSettings("DiscordDevBanner", "devBanner");
+import { makeDevBanner, settings } from "@equicordplugins/discordDevBanner/components";
+import { EquicordDevs, TestcordDevs } from "@utils/constants";
+import definePlugin from "@utils/types";
 
 export default definePlugin({
     name: "DiscordDevBanner",
-    description: "Enables the Discord developer banner, in which displays the build-ID",
+    description: "Enables the Discord developer banner, which displays build and client information",
     tags: ["Customisation", "Developers"],
     authors: [
-        (TestcordDevs as any).KrystalSkull
-    , TestcordDevs.x2b],
+        EquicordDevs.KrystalSkull,
+        TestcordDevs.x2b,
+        TestcordDevs.sirphantom89
+    ],
     settings,
 
     patches: [
         {
-            find: ".devBanner,",
+            find: '"isHideDevBanner"',
             replacement: [
                 {
                     match: '"staging"===window.GLOBAL_ENV.RELEASE_CHANNEL',
                     replace: "true"
                 },
                 {
-                    predicate:() => settings.store.removeCloseButton,
-                    match: /(\i=\(\)=>)\(.*?\}\);/,
-                    replace: "$1null;",
+                    match: /children:\[.{0,120}#{intl::BUILD_OVERRIDE}.{0,50}\]/,
+                    replace: "children:$self.makeDevBanner()"
                 },
                 {
-                    match: /\i\.\i\.format\(.{0,15},{buildNumber:(.{0,10})}\)/,
-                    replace: "$self.transform($1)"
-                }
+                    match: /children:\[.{0,120}#{intl::uyrfYF::raw}.{0,50}\]/,
+                    replace: "children:$self.makeDevBanner()"
+                },
             ]
         }
     ],
-
-    transform(buildNumber: string) {
-        const releaseChannel: string = window.GLOBAL_ENV.RELEASE_CHANNEL;
-
-        if (names[releaseChannel]) {
-            return `${names[releaseChannel]} ${buildNumber}`;
-        } else {
-            return `${releaseChannel.charAt(0).toUpperCase() + releaseChannel.slice(1)} ${buildNumber}`;
-        }
-    },
+    makeDevBanner,
 });

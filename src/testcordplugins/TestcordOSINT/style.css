@@ -595,3 +595,17 @@
     font-size: 12px;
     color: var(--text-muted);
 }
+
+.vc-osint-root .flex__7c0ba.horizontalReverse__7c0ba.justifyStart_abf706.alignStretch_abf706.noWrap_abf706.footer__49fc1.footerSeparator__49fc1 {
+    justify-content: flex-end;
+    flex-direction: unset;
+    gap: .4em;
+}
+
+.header__49fc1 {
+    justify-content: space-between;
+}
+
+.vc-osint-root .vc-btn-base.vc-btn-secondary.vc-btn-medium {
+    border-color: var(--control-primary-border-default);
+}

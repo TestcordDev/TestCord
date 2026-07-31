@@ -1252,3 +1252,5 @@ export function StarOutlined(props: IconProps) {
         </Icon>
     );
 }
+
+export { TestCordIcon } from "./TestCordLogo";

@@ -95,11 +95,11 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
     useEffect(() => {
         let cancelled = false;
         Promise.all(
-            plugin.authors.slice(0, 6).map(user =>
-                user.id
+            (plugin.authors ?? []).filter(Boolean).slice(0, 6).map(user =>
+                user?.id
                     ? UserUtils.getUser(String(user.id))
-                        .catch(() => makeDummyUser({ username: user.name }))
-                    : Promise.resolve(makeDummyUser({ username: user.name }))
+                        .catch(() => makeDummyUser({ username: user?.name ?? "Unknown" }))
+                    : Promise.resolve(makeDummyUser({ username: user?.name ?? "Unknown" }))
             )
         ).then(resolved => {
             if (!cancelled) setAuthors(resolved);

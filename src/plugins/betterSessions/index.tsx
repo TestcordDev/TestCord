@@ -70,8 +70,8 @@ export default definePlugin({
                     replace: "$1$self.renderName(arguments[0])}),"
                 },
                 {
-                    match: /("text-muted",children:)\i(?=\}\)\]\}\),.{0,120}\.client_info\?\.location)/,
-                    replace: "$1$self.renderDescription(arguments[0])"
+                    match: /("text-muted",children:)(\i)(?=\}\)\]\}\),.{0,120}\.client_info\?\.location)/,
+                    replace: "$1$self.renderDescription(arguments[0],$2)"
                 },
                 {
                     match: /:\i\(\i\.approx_last_used_time\).{0,40}\(0,\i\.jsxs?\)\(\i,\{/,
@@ -81,7 +81,10 @@ export default definePlugin({
         },
     ],
 
-    renderName: ErrorBoundary.wrap(({ session }: SessionInfo) => {
+    renderName: ErrorBoundary.wrap((props: SessionInfo) => {
+        const session = props?.session;
+        if (!session?.id_hash) return null;
+
         const savedSession = savedSessionsCache.get(session.id_hash);
 
         const state = React.useState(savedSession?.name ? `${savedSession.name}*` : getDefaultName(session.client_info));
@@ -100,7 +103,12 @@ export default definePlugin({
         );
     }, { noop: true }),
 
-    renderDescription: ErrorBoundary.wrap(({ session, description }: { session: Session, description: string; }) => {
+    renderDescription: ErrorBoundary.wrap((props: { session?: Session; description?: string; }, origDescription?: string) => {
+        const session = props?.session;
+        const description = typeof origDescription === "string" ? origDescription : (typeof props?.description === "string" ? props.description : null);
+
+        if (!description) return null;
+
         const [label, timeLabel] = description.split(" \xb7 ");
 
         return (
@@ -109,20 +117,33 @@ export default definePlugin({
                 {timeLabel && (
                     <>
                         {" \xb7 "}
-                        <Tooltip text={session.approx_last_used_time.toLocaleString()}>
-                            {props => (
-                                <span {...props} className={TimestampClasses.timestamp}>
-                                    {timeLabel}
-                                </span>
-                            )}
-                        </Tooltip>
+                        {session?.approx_last_used_time ? (
+                            <Tooltip text={new Date(session.approx_last_used_time).toLocaleString()}>
+                                {props => (
+                                    <span {...props} className={TimestampClasses.timestamp}>
+                                        {timeLabel}
+                                    </span>
+                                )}
+                            </Tooltip>
+                        ) : (
+                            <span className={TimestampClasses.timestamp}>
+                                {timeLabel}
+                            </span>
+                        )}
                     </>
                 )}
             </div>
         );
     }, { noop: true }),
 
-    renderIcon: ErrorBoundary.wrap(({ session, icon: DeviceIcon }: { session: Session; icon: React.ComponentType<any>; }) => {
+    renderIcon: ErrorBoundary.wrap((props: { session?: Session; icon?: React.ComponentType<any>; }) => {
+        const session = props?.session;
+        const DeviceIcon = props?.icon;
+
+        if (!session?.client_info) {
+            return DeviceIcon ? <DeviceIcon size="md" color="currentColor" /> : null;
+        }
+
         const PlatformIcon = GetPlatformIcon(session.client_info.platform);
 
         return (
@@ -144,7 +165,7 @@ export default definePlugin({
                     className={cl("icon")}
                     style={{ backgroundColor: GetOsColor(session.client_info.os) }}
                 >
-                    <DeviceIcon size="md" color="currentColor" />
+                    {DeviceIcon ? <DeviceIcon size="md" color="currentColor" /> : null}
                 </div>
             </BlobMask>
         );
@@ -155,13 +176,16 @@ export default definePlugin({
             url: Constants.Endpoints.AUTH_SESSIONS
         });
 
+        if (!Array.isArray(data?.body?.user_sessions)) return;
+
         for (const session of data.body.user_sessions) {
+            if (!session?.id_hash) continue;
             if (savedSessionsCache.has(session.id_hash)) continue;
 
             savedSessionsCache.set(session.id_hash, { name: "", isNew: true });
             showNotification({
                 title: "BetterSessions",
-                body: `New session:\n${session.client_info.os} · ${session.client_info.platform} · ${session.client_info.location}`,
+                body: `New session:\n${session.client_info?.os ?? "Unknown"} · ${session.client_info?.platform ?? "Unknown"} · ${session.client_info?.location ?? "Unknown"}`,
                 permanent: true,
                 onClick: () => SettingsRouter.openUserSettings("sessions_panel")
             });
@@ -172,7 +196,9 @@ export default definePlugin({
 
     flux: {
         USER_SETTINGS_ACCOUNT_RESET_AND_CLOSE_FORM() {
-            const lastFetchedHashes: string[] = AuthSessionsStore.getSessions().map((session: SessionInfo["session"]) => session.id_hash);
+            const rawSessions = AuthSessionsStore?.getSessions?.();
+            if (!Array.isArray(rawSessions)) return;
+            const lastFetchedHashes: string[] = rawSessions.map((session: SessionInfo["session"]) => session?.id_hash).filter(Boolean);
 
             // Add new sessions to cache
             lastFetchedHashes.forEach(idHash => {
@@ -190,7 +216,7 @@ export default definePlugin({
             // Since the only way for a session to be marked as "NEW" is going to the Devices tab,
             // closing the settings means they've been viewed and are no longer considered new.
             savedSessionsCache.forEach(data => {
-                data.isNew = false;
+                if (data) data.isNew = false;
             });
             saveSessionsToDataStore();
         }

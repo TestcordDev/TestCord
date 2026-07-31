@@ -43,6 +43,14 @@ let lastGuildId = null as string | null;
 let dispatchingFoldersClose = false;
 
 const STYLES = `
+.vc-betterFolders-sidebar,
+.vc-betterFolders-sidebar > div,
+.vc-betterFolders-sidebar nav,
+.vc-betterFolders-sidebar [class*="guilds"] {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
 .folderIcon__48112 {
     height: 32px !important;
     width: 32px !important;
@@ -417,11 +425,7 @@ export default definePlugin({
             return originalComponent();
         }
 
-        return (
-            <div style={{ display: "none" }}>
-                {originalComponent()}
-            </div>
-        );
+        return null;
     },
 
     makeGuildsBarGuildListFilter(isBetterFolders: boolean) {

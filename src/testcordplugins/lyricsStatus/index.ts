@@ -18,15 +18,18 @@ const settings = definePluginSettings({
         description: "Status template. {lyrics} = current lyric, {song} = track name, {artist} = artist name.",
         default: "🎵 {lyrics}",
     },
-    clearOnStop: {
+    customMessageOnStop: {
         type: OptionType.BOOLEAN,
-        description: "Clear your custom status when music stops or you disable the plugin.",
+        description: "Set a custom message as your status when music stops or you disable the plugin",
         default: true,
     },
-    customMessageOnStop: {
+    customMessage: {
         type: OptionType.STRING,
-        description: "Set a custom message as your status when music stops or you disable the plugin (overrides clear On Stop).",
+        description: "The custom message (leave blank to clear).",
         default: "",
+        hidden() {
+            return !settings.store.customMessageOnStop;
+        },
     },
 });
 
@@ -117,7 +120,7 @@ function setStatus(text: string) {
 function customStatus() {
     lastSentLine = null;
     CustomStatusSetting?.updateSetting({
-        text: settings.store.customMessageOnStop,
+        text: settings.store.customMessage,
         expiresAtMs: "0",
         emojiId: "0",
         emojiName: "",
@@ -180,7 +183,7 @@ function onSpotifyPlayerState(e: SpotifyPlayerState) {
         }
     }
 
-    if (!isPlaying && (settings.store.clearOnStop || settings.store.customMessageOnStop)) customStatus();
+    if (!isPlaying && (settings.store.customMessageOnStop)) customStatus();
 }
 
 export default definePlugin({
@@ -203,7 +206,7 @@ export default definePlugin({
         lyricsAbortController = null;
         FluxDispatcher.unsubscribe("SPOTIFY_PLAYER_STATE", onSpotifyPlayerState as any);
         if (intervalId !== null) { clearInterval(intervalId); intervalId = null; }
-        if (!isPlaying && (settings.store.clearOnStop || settings.store.customMessageOnStop)) customStatus();
+        if (!isPlaying && (settings.store.customMessageOnStop)) customStatus();
         currentLines = null;
         lyricsCache.clear();
         lastSentLine = null;
