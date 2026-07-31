@@ -5,7 +5,7 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
-import { BackupRestoreIcon, BookmarkIcon, CloudIcon, InfoIcon, LogIcon, MainSettingsIcon, PaintbrushIcon, PatchHelperIcon, PluginsIcon, SafetyIcon, UpdaterIcon } from "@components/Icons";
+import { BackupRestoreIcon, BookmarkIcon, CloudIcon, InfoIcon, LogIcon, PaintbrushIcon, PatchHelperIcon, PluginsIcon, SafetyIcon, TestCordIcon, UpdaterIcon } from "@components/Icons";
 import {
     BackupAndRestoreTab,
     ChangelogTab,
@@ -638,7 +638,7 @@ export default definePlugin({
                     />
                     <VencordTab />
                 </>,
-                Icon: MainSettingsIcon
+                Icon: TestCordIcon as any
             }),
             buildEntry({
                 key: "equicord_plugins",

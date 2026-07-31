@@ -10,9 +10,11 @@ export interface TestCordLogoProps extends React.SVGProps<SVGSVGElement> {
     size?: number | string;
 }
 
-export function TestCordIcon({ size = 24, className, ...props }: TestCordLogoProps) {
+export function TestCordIcon({ size = 24, width, height, className, ...props }: TestCordLogoProps) {
+    const w = width ?? size;
+    const h = height ?? size;
     return (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="100%" height="100%">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width={w} height={h} className={className} {...props}>
             <defs>
                 <clipPath id="circleClip">
                     <circle cx="500" cy="500" r="500" />
