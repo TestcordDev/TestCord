@@ -219,9 +219,9 @@ function makeHardenedNav(fn: NavPatch) {
         } catch (e) {
             const count = (failCounts.get(fn) ?? 0) + 1;
             failCounts.set(fn, count);
-            if (count >= 3) {
+            if (count >= 1) {
                 disabledPatches.add(fn);
-                logger.warn("Disabled a context menu patch after 3 consecutive failures.", e);
+                logger.warn("Disabled a context menu patch after 1 failure.", e);
             }
         }
     };
@@ -243,9 +243,9 @@ function makeHardenedGlobal(fn: GlobalPatch) {
         } catch (e) {
             const count = (failCounts.get(fn) ?? 0) + 1;
             failCounts.set(fn, count);
-            if (count >= 3) {
+            if (count >= 1) {
                 disabledPatches.add(fn);
-                logger.warn("Disabled a global context menu patch after 3 consecutive failures.", e);
+                logger.warn("Disabled a global context menu patch after 1 failure.", e);
             }
         }
     };
