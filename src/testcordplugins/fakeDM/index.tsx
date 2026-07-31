@@ -11,7 +11,7 @@ import { addChannelToolbarButton, addHeaderBarButton, ChannelToolbarButton, Head
 import { definePluginSettings } from "@api/Settings";
 import definePlugin, { OptionType } from "@utils/types";
 import { findStoreLazy } from "@webpack";
-import { FluxDispatcher, React, ReactDOM, SelectedChannelStore, showToast, Toasts, UserStore } from "@webpack/common";
+import { FluxDispatcher, React, ReactDOM, SelectedChannelStore, UserStore } from "@webpack/common";
 
 // ─── Unique IDs ─────────────────────────────────────────────────────────────
 let _idCounter = 0;
@@ -595,6 +595,50 @@ function FakeDMIcon({ height = 20, width = 20, className }: any) {
     );
 }
 
+// ─── Header Bar Button ──────────────────────────────────────
+function FakeDMHeaderButton() {
+    const [btnRect, setBtnRect] = React.useState<DOMRect | null>(null);
+    return (
+        <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onMouseUp={e => e.stopPropagation()} style={{ display: "contents" }}>
+            <HeaderBarButton
+                icon={FakeDMIcon}
+                tooltip="FakeDM"
+                onClick={e => {
+                    if (btnRect) { setBtnRect(null); } else {
+                        setBtnRect((e.currentTarget as HTMLElement).closest("button")?.getBoundingClientRect() ?? null);
+                    }
+                }}
+            />
+            {btnRect && ReactDOM.createPortal(
+                <FakeDMPanel onClose={() => setBtnRect(null)} btnRect={btnRect} />,
+                document.body
+            )}
+        </div>
+    );
+}
+
+// ─── Channel Toolbar Button ──────────────────────────────────
+function FakeDMChannelButton() {
+    const [btnRect, setBtnRect] = React.useState<DOMRect | null>(null);
+    return (
+        <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onMouseUp={e => e.stopPropagation()} style={{ display: "contents" }}>
+            <ChannelToolbarButton
+                icon={FakeDMIcon}
+                tooltip="FakeDM"
+                onClick={e => {
+                    if (btnRect) { setBtnRect(null); } else {
+                        setBtnRect((e.currentTarget as HTMLElement).closest("button")?.getBoundingClientRect() ?? null);
+                    }
+                }}
+            />
+            {btnRect && ReactDOM.createPortal(
+                <FakeDMPanel onClose={() => setBtnRect(null)} btnRect={btnRect} />,
+                document.body
+            )}
+        </div>
+    );
+}
+
 // ─── Chat Bar Button ──────────────────────────────────────────────────────────
 const FakeDMButton: ChatBarButtonFactory = (props: any) => {
     const { isMainChat } = props;
@@ -627,7 +671,7 @@ const FakeDMButton: ChatBarButtonFactory = (props: any) => {
 // ─── Plugin ───────────────────────────────────────────────────────────────────
 export default definePlugin({
     name: "FakeDM",
-    description: "Injects fake local messages into a DM or group DM. Button in the text bar. Persists across restarts.",
+    description: "Injects fake local messages and calls into a DM or group DM. Supports chat bar, header bar, and channel toolbar buttons. Persists across restarts.",
     tags: ["Chat", "Privacy", "Nightcord"],
     authors: [{ name: "Nightcord", id: 0n }],
     dependencies: ["ChatInputButtonAPI", "HeaderBarAPI"],
@@ -641,25 +685,9 @@ export default definePlugin({
     start() {
         const { location } = fakeDMSettings.store;
         if (location === "headerbar") {
-            addHeaderBarButton("FakeDM", () => (
-                <HeaderBarButton
-                    icon={FakeDMIcon}
-                    tooltip="FakeDM"
-                    onClick={() => {
-                        showToast("Use the chat bar button for FakeDM", Toasts.Type.FAILURE);
-                    }}
-                />
-            ), 5);
+            addHeaderBarButton("FakeDM", () => <FakeDMHeaderButton />, 5);
         } else if (location === "channeltoolbar") {
-            addChannelToolbarButton("FakeDM", () => (
-                <ChannelToolbarButton
-                    icon={FakeDMIcon}
-                    tooltip="FakeDM"
-                    onClick={() => {
-                        showToast("Use the chat bar button for FakeDM", Toasts.Type.FAILURE);
-                    }}
-                />
-            ), 5);
+            addChannelToolbarButton("FakeDM", () => <FakeDMChannelButton />, 5);
         }
         scheduleRestore();
     },

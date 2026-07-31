@@ -558,10 +558,12 @@ TestcordHelper's `start()` wraps all console methods (`log`, `warn`, `error`, `i
 
 ### Context menu crash in search (Discord hook error)
 
-Discord's canary build has a conditional-hook bug in `e_` (a context menu renderer component). When Equicord patches inject items into the context menu tree (`applyAllPatches`), React tries to render those items and `e_` throws `"Should have a queue"` / `"Invalid hook call"`. Previously the crash handler's recovery cycle dispatches CONTEXT_MENU_CLOSE which forcibly closed the context menu, making the right-click menu never appear.
+Discord's canary build has a conditional-hook bug in `e_` (a context menu renderer component). When Equicord patches inject items into the context menu tree, Discord's `e_` component throws `"Invalid hook call"` / `"Should have a queue"`.
 
-The fix is layered:
+### Current fix (crash handler + OrchestratorAPI)
 
-The `e_` hook error in Discord's context menu renderer remains a Discord-side bug triggered when Equicord patches inject items. OrchestratorAPI disables patches after 1 failure (threshold=1, down from original 3) — but note that hook errors happen during React's render phase (after patch application), so OrchestratorAPI's wrapped function never catches them. This means patches stay active across right-clicks and the hook error repeats each time unless Discord internally fixes `e_`.
+The crash handler (`src/plugins/crashHandler/index.ts`, `src/testcordplugins/crashHandlerEnhanched/index.ts`) now skips `handlePreventCrash` (no CONTEXT_MENU_CLOSE dispatch, no crash recovery cycle) when a Discord hook error is detected. This prevents full-screen crashes and auto-navigation to @me for context menu hook errors.
 
-1. **Crash handlers skip `handlePreventCrash` for Discord hook errors** (`src/plugins/crashHandler/index.ts`, `src/testcordplugins/crashHandlerEnhanched/index.ts`): the crash handler does not dispatch `CONTEXT_MENU_CLOSE` or trigger full crash recovery for hook errors, preventing the screen from going blank and auto-navigating to @me. The error boundary shows a brief error overlay in the context menu area instead.
+OrchestratorAPI (`src/testcordplugins/orchestratorAPI/index.tsx`) disables problematic context menu patches after 1 failure (threshold=1, down from original 3). Note: hook errors happen in Discord's render phase (after patch application succeeds), so they are not caught by OrchestratorAPI's wrapped function — they happen inside Discord's renderer instead.
+
+After the first right-click triggers the hook error and the patch gets disabled, subsequent right-clicks work normally with Discord's stock context menu (without Equicord's patched items in that menu). The first right-click will show Discord's error boundary overlay briefly in the context menu area.
