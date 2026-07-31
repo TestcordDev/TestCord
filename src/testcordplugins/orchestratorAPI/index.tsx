@@ -205,16 +205,6 @@ const disabledPatches = new Set<Function>();
 type NavPatch = (children: Array<any>, ...args: Array<any>) => void;
 type GlobalPatch = (navId: string, children: Array<any>, ...args: Array<any>) => void;
 
-function isDiscordSideError(e: unknown): boolean {
-    if (e instanceof Error) {
-        const msg = e.message;
-        return /invalid hook call/i.test(msg)
-            || /should have a queue/i.test(msg)
-            || /Cannot read properties of null \(reading 'current'\)/.test(msg);
-    }
-    return false;
-}
-
 function makeHardenedNav(fn: NavPatch) {
     const wrapped = function (children: Array<any>, ...args: Array<any>) {
         if (!hardeningActive) {
@@ -227,10 +217,6 @@ function makeHardenedNav(fn: NavPatch) {
             fn(children, ...args);
             failCounts.delete(fn);
         } catch (e) {
-            if (isDiscordSideError(e)) {
-                logger.debug("Discord-side error in context menu patch (not counting as failure):", e);
-                return;
-            }
             const count = (failCounts.get(fn) ?? 0) + 1;
             failCounts.set(fn, count);
             if (count >= 1) {
@@ -255,10 +241,6 @@ function makeHardenedGlobal(fn: GlobalPatch) {
             fn(navId, children, ...args);
             failCounts.delete(fn);
         } catch (e) {
-            if (isDiscordSideError(e)) {
-                logger.debug("Discord-side error in global context menu patch (not counting as failure):", e);
-                return;
-            }
             const count = (failCounts.get(fn) ?? 0) + 1;
             failCounts.set(fn, count);
             if (count >= 1) {

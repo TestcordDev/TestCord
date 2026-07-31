@@ -57,6 +57,16 @@ let hasCrashedOnce = false;
 let isRecovering = false;
 let shouldAttemptRecover = true;
 
+function isDiscordHookError(errorState: any): boolean {
+    if (errorState?.error instanceof Error) {
+        const msg = errorState.error.message;
+        return /invalid hook call/i.test(msg)
+            || /should have a queue/i.test(msg)
+            || /Cannot read properties of null \(reading 'current'\)/.test(msg);
+    }
+    return false;
+}
+
 export default definePlugin({
     name: "CrashHandler",
     description: "Utility plugin for handling and possibly recovering from crashes without a restart",
@@ -76,15 +86,6 @@ export default definePlugin({
     ],
 
     handleCrash(_this: any, errorState: any) {
-        const error = errorState?.error ?? errorState;
-        if (error instanceof Error) {
-            const msg = error.message;
-            if (/invalid hook call/i.test(msg) || /should have a queue/i.test(msg) || /Cannot read properties of null \(reading 'current'\)/.test(msg)) {
-                CrashHandlerLogger.debug("Discord hook error (non-fatal), ignoring:", msg);
-                return;
-            }
-        }
-
         DataStore.del("KeepCurrentChannel_previousData");
 
         if (IS_DEV) {
@@ -95,6 +96,11 @@ export default definePlugin({
             } catch { }
         }
         _this.setState(errorState);
+
+        if (isDiscordHookError(errorState)) {
+            CrashHandlerLogger.debug("Discord hook error detected, skipping crash recovery to avoid disrupting context menus.");
+            return;
+        }
 
         // Already recovering, prevent error which happens more than once too fast to trigger another recover
         if (isRecovering) return;

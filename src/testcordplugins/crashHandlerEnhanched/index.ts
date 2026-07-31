@@ -489,6 +489,16 @@ function stopPerformanceMonitoring(): void {
     }
 }
 
+function isDiscordHookError(errorState: any): boolean {
+    if (errorState?.error instanceof Error) {
+        const msg = errorState.error.message;
+        return /invalid hook call/i.test(msg)
+            || /should have a queue/i.test(msg)
+            || /Cannot read properties of null \(reading 'current'\)/.test(msg);
+    }
+    return false;
+}
+
 export default definePlugin({
     name: "CrashHandlerEnhanced",
     description: "Advanced crash handling with detailed logging, statistics, preventive measures, and intelligent recovery",
@@ -525,16 +535,12 @@ export default definePlugin({
     },
 
     handleCrash(_this: any, errorState: any) {
-        const error = errorState?.error ?? errorState;
-        if (error instanceof Error) {
-            const msg = error.message;
-            if (/invalid hook call/i.test(msg) || /should have a queue/i.test(msg) || /Cannot read properties of null \(reading 'current'\)/.test(msg)) {
-                CrashHandlerLogger.debug("Discord hook error (non-fatal), ignoring:", msg);
-                return;
-            }
-        }
-
         _this.setState(errorState);
+
+        if (isDiscordHookError(errorState)) {
+            CrashHandlerLogger.debug("Discord hook error detected, skipping crash recovery to avoid disrupting context menus.");
+            return;
+        }
 
         crashCount++;
         const now = Date.now();
