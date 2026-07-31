@@ -13,7 +13,7 @@ import { Logger } from "@utils/Logger";
 import { classes } from "@utils/misc";
 import { findComponentByCodeLazy } from "@webpack";
 import { useEffect, useState } from "@webpack/common";
-import type { ComponentType, CSSProperties, MouseEventHandler, ReactNode } from "react";
+import type { ComponentType, CSSProperties, MouseEventHandler, ReactNode, Ref } from "react";
 
 const PanelButton = findComponentByCodeLazy("tooltipPositionKey", "positionKeyStemOverride") as ComponentType<UserAreaButtonProps>;
 const TESTCORD_USER_AREA_ICON_COLOR_SETTING: ["plugins.TestcordHelper.userAreaButtonIconColor"] = ["plugins.TestcordHelper.userAreaButtonIconColor"];
@@ -32,6 +32,7 @@ export interface UserAreaButtonProps {
     plated?: boolean;
     redGlow?: boolean;
     orangeGlow?: boolean;
+    ref?: Ref<HTMLButtonElement>;
 }
 
 export interface UserAreaRenderProps {

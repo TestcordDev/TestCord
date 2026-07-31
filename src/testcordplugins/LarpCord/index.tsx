@@ -1451,7 +1451,7 @@ function CPDMNotice({ userId }: { userId: string; }) {
 export default definePlugin({
     name: "LarpCord",
     enabledByDefault: true,
-    description: t("Visually customize your local Discord profile preview with names, avatars, banners, badges and effects."),
+    description: "Visually customize your local Discord profile preview with names, avatars, banners, badges and effects.",
     authors: [{ name: "irritably", id: 928787166916640838n }],
     dependencies: ["HeaderBarAPI", "ContextMenuAPI"],
     settings,
