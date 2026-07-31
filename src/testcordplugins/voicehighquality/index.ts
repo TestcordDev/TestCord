@@ -97,14 +97,14 @@ export default definePlugin({
             find: "x-google-max-bitrate",
             replacement: {
                 match: /x-google-max-bitrate=\$\{(\i)\}/,
-                replace: (_, varName) => `x-google-max-bitrate=\${$self.getAudioBitrate()*1000}`
+                replace: (_, varName) => "x-google-max-bitrate=${$self.getAudioBitrate()*1000}"
             }
         },
         {
             find: "b=AS:${",
             replacement: {
                 match: /b=AS:\$\{Math\.floor\(this\.bitrate\/1e3\)\}/,
-                replace: `b=AS:\${$self.getAudioBitrate()}`
+                replace: "b=AS:${$self.getAudioBitrate()}"
             }
         },
         {

@@ -53,8 +53,8 @@ const COMPOSE_CTX_KEYS = ["isEnabled", "contextMenu"] as const;
 const COMPOSE_BUTTON_KEYS = ["isEnabled", "showIcon"] as const;
 
 const ContextMenuPatch: NavContextMenuPatchCallback = (children, props: any) => {
-    const isEnabled = settings.store.isEnabled;
-    const contextMenu = settings.store.contextMenu;
+    const { isEnabled } = settings.store;
+    const { contextMenu } = settings.store;
     const container = findGroupChildrenByChildId("submit-button", children);
     if (container && contextMenu) {
         const idx = container.findIndex(c => c?.props?.id === "submit-button");

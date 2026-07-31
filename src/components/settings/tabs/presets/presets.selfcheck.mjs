@@ -1,3 +1,9 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 // ponytail: standalone self-check for preset apply logic. Stubs the Settings
 // proxy (real one needs the Discord runtime) and re-implements the two functions
 // whose logic can break: apply with/without restoreSettings. Run: node presets.selfcheck.mjs
@@ -80,7 +86,7 @@ function updatePresetRaw(s, original, raw) {
     s[newName] = { name: newName, createdAt: 0, plugins: structuredClone(parsed.plugins) };
     return newName;
 }
-let bank = { a: { name: "a", plugins: {} }, b: { name: "b", plugins: {} } };
+const bank = { a: { name: "a", plugins: {} }, b: { name: "b", plugins: {} } };
 assert.strictEqual(updatePresetRaw(bank, "a", '{"name":"b","plugins":{}}'), null, "rename onto existing is refused");
 assert.ok(bank.a, "refused rename leaves original intact");
 assert.strictEqual(updatePresetRaw(bank, "a", '{"name":"c","plugins":{}}'), "c", "rename to free name succeeds");

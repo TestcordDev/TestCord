@@ -12,7 +12,6 @@ import { getUserSettingLazy } from "@api/UserSettings";
 import { BaseText } from "@components/BaseText";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { WarningIcon } from "@components/Icons";
-import { wrapFluxHandlers } from "../orchestratorAPI";
 import { AddonCard } from "@components/settings";
 import { ExcludedReasons, PluginDependencyList } from "@components/settings/tabs/plugins";
 import { PluginCard } from "@components/settings/tabs/plugins/PluginCard";
@@ -28,6 +27,8 @@ import { wreq } from "@webpack";
 import { Avatar, Button, ChannelStore, ColorPicker, FluxDispatcher, MessageActions, SelectedChannelStore, showToast, TextInput, Toasts, Tooltip, useEffect, useMemo, UserProfileStore, UserStore, useStateFromStores } from "@webpack/common";
 import { patches as allPatches, patchTimings } from "@webpack/patcher";
 import { JSX } from "react";
+
+import { wrapFluxHandlers } from "../orchestratorAPI";
 
 const NativeHelper = VencordNative.pluginHelpers.TestcordHelper as PluginNative<typeof import("./native")>;
 
@@ -99,7 +100,7 @@ function getPluginsForEvent(type: string): string[] {
 function buildHandlerPluginMap() {
     handlerPluginMap.clear();
     for (const name in plugins) {
-        const flux = plugins[name].flux;
+        const { flux } = plugins[name];
         if (!flux) continue;
         for (const eventType in flux) {
             const handler = flux[eventType];
@@ -270,12 +271,12 @@ function dumpFullReport() {
     try {
         dumpDispatchStats();
     } catch (e) {
-        console.warn(`[TestcordHelper ERROR] dumpDispatchStats threw:`, e);
+        console.warn("[TestcordHelper ERROR] dumpDispatchStats threw:", e);
     }
     try {
         dumpPatchTimings();
     } catch (e) {
-        console.warn(`[TestcordHelper ERROR] dumpPatchTimings threw:`, e);
+        console.warn("[TestcordHelper ERROR] dumpPatchTimings threw:", e);
     }
     console.group("%cMemory", "color: #ff4f4f; font-weight: bold;");
     console.log(getMemoryUsage());

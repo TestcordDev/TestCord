@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { IpcMainInvokeEvent } from "electron";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { app, IpcMainInvokeEvent } from "electron";
+import { existsSync, mkdirSync,readFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { app } from "electron";
 
 const FAKE_DM_FILE = join(
     app.getPath("userData"),

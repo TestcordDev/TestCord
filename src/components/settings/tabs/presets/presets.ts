@@ -180,7 +180,6 @@ export function hasPreset(name: string): boolean {
     return name in store();
 }
 
-
 /**
  * Snapshot the current config into a named preset (overwrites same name).
  * `scope` selects what to capture; defaults to plugins-only for back-compat.

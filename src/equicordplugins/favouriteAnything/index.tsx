@@ -7,6 +7,7 @@
 import { Devs, EquicordDevs } from "@utils/constants";
 import { getIntlMessage } from "@utils/discord";
 import definePlugin from "@utils/types";
+import { UserSettingsProtoStore } from "@webpack/common";
 import { ComponentType, ReactNode } from "react";
 
 import { AttachmentAccessory, AttachmentContextProvider, EmbedAccessory, EmbedContext, EmbedMosaicContext, FilePicker } from "./components";
@@ -14,7 +15,6 @@ import { SignedUrlsStore } from "./stores";
 import managedStyle from "./style.css?managed";
 import { AttachmentContextProviderProps, EmbedComponent, ExpressionPickerTabProps, ExpressionPickerView, FavouriteItem, FavouriteItemFormat } from "./types";
 import { getThumbnailUrl } from "./utils";
-import { UserSettingsProtoStore } from "@webpack/common";
 
 function hasFavourites() {
     try {

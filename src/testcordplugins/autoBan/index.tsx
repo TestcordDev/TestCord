@@ -269,7 +269,7 @@ function banAllUsersInCurrentVc(): void {
 function makeUserContextMenuPatch(): NavContextMenuPatchCallback {
     return (children, props) => {
         if (!props) return;
-        const id = props.user.id;
+        const { id } = props.user;
         if (UserStore.getCurrentUser().id === id) return;
 
         const isChecked = settings.store.users.split("/").filter(item => item !== "").includes(id);
@@ -350,8 +350,6 @@ function BulkAutoBanSubmenu() {
         </Menu.MenuItem>
     );
 }
-
-
 
 function banninguser(id) {
     const currentUserId = UserStore.getCurrentUser().id;

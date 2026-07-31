@@ -911,7 +911,7 @@ function OsintAnalysisPanel({ events, selectedUserId }: { events: SurveillanceEv
                         <div className={cl("osint-section-body")}>
                             {section.content.split("\n").map((line, j) => (
                                 <div key={j} className={cl("osint-line", { indent: line.startsWith("  -") })}>
-                                    {line.replace(/^  - /, "")}
+                                    {line.replace(/^ {2}- /, "")}
                                 </div>
                             ))}
                         </div>

@@ -27,7 +27,7 @@ import { classes } from "@utils/misc";
 import { formatDurationVerbose } from "@utils/text";
 import type { Channel, GuildMember, Role, RoleOrUserPermission, User } from "@vencord/discord-types";
 import { findByPropsLazy, findComponentByCodeLazy, findCssClassesLazy } from "@webpack";
-import { EmojiStore, FluxDispatcher, GuildMemberStore, GuildRoleStore, GuildStore, Parser, PermissionsBits, PermissionStore, showToast, SnowflakeUtils, Timestamp, Toasts, Tooltip, UserStore, useEffect, useState } from "@webpack/common";
+import { EmojiStore, FluxDispatcher, GuildMemberStore, GuildRoleStore, GuildStore, Parser, PermissionsBits, PermissionStore, showToast, SnowflakeUtils, Timestamp, Toasts, Tooltip, useEffect, UserStore, useState } from "@webpack/common";
 import { ComponentType } from "react";
 
 import { cl, settings } from "..";

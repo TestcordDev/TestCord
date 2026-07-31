@@ -321,12 +321,12 @@ function isExplicitlyDisallowed(channel: string | Channel): boolean {
 }
 
 const ChatBarContextCheckbox: NavContextMenuPatchCallback = children => {
-    const chatIcon = settings.store.chatIcon;
-    const chatContextMenu = settings.store.chatContextMenu;
-    const enabledGlobally = settings.store.enabledGlobally;
-    const defaultHidden = settings.store.defaultHidden;
-    const hideChatBoxTypingIndicators = settings.store.hideChatBoxTypingIndicators;
-    const hideMembersListTypingIndicators = settings.store.hideMembersListTypingIndicators;
+    const { chatIcon } = settings.store;
+    const { chatContextMenu } = settings.store;
+    const { enabledGlobally } = settings.store;
+    const { defaultHidden } = settings.store;
+    const { hideChatBoxTypingIndicators } = settings.store;
+    const { hideMembersListTypingIndicators } = settings.store;
 
     if (!chatContextMenu) return;
 

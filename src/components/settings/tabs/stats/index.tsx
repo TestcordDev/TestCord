@@ -18,10 +18,9 @@ import { Margins } from "@utils/margins";
 import { Plugin } from "@utils/types";
 import { React, showToast, Toasts } from "@webpack/common";
 
-import { PluginMeta } from "~plugins";
-
 import gitHash from "~git-hash";
 import gitRemote from "~git-remote";
+import { PluginMeta } from "~plugins";
 
 // Same filter venfetch uses: API/required plugins aren't user-facing.
 const isApiPlugin = (plugin: Plugin) => plugin.name?.endsWith("API") || plugin.required;
@@ -42,9 +41,9 @@ interface Stats {
     total: number;
     enabled: number;
     forks: Record<string, { enabled: number; total: number; }>;
-    categories: [string, number][];     // tag -> enabled count, sorted desc
-    caps: Record<string, number>;       // capability -> enabled count
-    authors: [string, number][];        // author name -> plugin count, sorted desc, top 10
+    categories: [string, number][]; // tag -> enabled count, sorted desc
+    caps: Record<string, number>; // capability -> enabled count
+    authors: [string, number][]; // author name -> plugin count, sorted desc, top 10
     restartNeeded: number;
     totalPatches: number;
     nightcord: number;
@@ -213,8 +212,8 @@ function StatsTab() {
 
             <StatCard title="Build" rows={[
                 ["Version", VERSION],
-                ["Commit", <Link href={`https://github.com/${gitRemote}/commit/${gitHash}`}>{gitHash}</Link>],
-                ["Repository", <Link href={`https://github.com/${gitRemote}`}>{gitRemote}</Link>],
+                ["Commit", <Link key="commit" href={`https://github.com/${gitRemote}/commit/${gitHash}`}>{gitHash}</Link>],
+                ["Repository", <Link key="repo" href={`https://github.com/${gitRemote}`}>{gitRemote}</Link>],
                 ["Built", buildDate],
                 ["Standalone", IS_STANDALONE ? "yes" : "no (dev)"],
             ]} />

@@ -1,3 +1,9 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { definePluginSettings } from "@api/Settings";
 import definePlugin, { OptionType } from "@utils/types";
 import { GuildMemberStore, GuildStore, RestAPI, showToast, Toasts, UserStore } from "@webpack/common";
@@ -107,4 +113,3 @@ export default definePlugin({
         knownNicks.clear();
     }
 });
-

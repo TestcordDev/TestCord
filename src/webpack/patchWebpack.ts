@@ -639,7 +639,6 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
                             moduleId: String(moduleId)
                         });
 
-
                         shouldRestorePrevious = true;
                         break;
                     }

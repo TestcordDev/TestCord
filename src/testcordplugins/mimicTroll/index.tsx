@@ -339,7 +339,7 @@ class MimicManager {
         if (!sendChannelId) return;
 
         // Process async to avoid blocking UI
-        const delay = settings.store.delay;
+        const { delay } = settings.store;
         setTimeout(() => {
             // Content filtering check. Blocked messages send the rejection on its own,
             // bypassing the template so it doesn't read like "someone really said <rejection>".

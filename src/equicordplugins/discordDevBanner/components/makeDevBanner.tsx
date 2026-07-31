@@ -11,7 +11,7 @@ import { gitHashShort } from "@shared/vencordUserAgent";
 import { React } from "@webpack/common";
 import { JSX } from "react";
 
-import { ChromiumIcon, ClientIcon, DevBannerIcon, DiscordIcon, ElectronIcon, EquicordIcon, names, settings } from ".";
+import { ChromiumIcon, ClientIcon, DevBannerIcon, DiscordIcon, ElectronIcon, names, settings } from ".";
 
 export function makeDevBanner(state?: string): string | JSX.Element {
     const { RELEASE_CHANNEL, BUILD_NUMBER, VERSION_HASH } = window.GLOBAL_ENV;

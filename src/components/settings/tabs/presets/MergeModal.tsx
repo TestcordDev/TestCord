@@ -10,7 +10,7 @@ import { Paragraph } from "@components/Paragraph";
 import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, type RenderModalProps } from "@utils/modal";
 import { React, showToast, TextInput, Toasts } from "@webpack/common";
 
-import { getMergePlan, hasPreset, mergePresets, type MergeConflict } from "./presets";
+import { getMergePlan, hasPreset, type MergeConflict,mergePresets } from "./presets";
 
 function uniqueMergeName(sourceName: string, targetName: string) {
     const base = `${targetName} + ${sourceName}`;

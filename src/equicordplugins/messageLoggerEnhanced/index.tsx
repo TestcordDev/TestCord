@@ -193,12 +193,12 @@ async function messageUpdateHandler(payload: MessageUpdatePayload) {
 function messageCreateHandler(payload: MessageCreatePayload) {
     if (!settings.store.cacheMessagesFromServers && payload.guildId != null) {
         const ids = [payload.channelId, payload.message?.author?.id, payload.guildId];
-        const whitelistedIds = settings.store.whitelistedIds;
+        const { whitelistedIds } = settings.store;
         const isWhitelisted = !whitelistedIds ? false : whitelistedIds.split(",").some(e => ids.includes(e));
         if (!isWhitelisted) return;
     }
 
-    const message = payload.message;
+    const { message } = payload;
     cacheSentMessages.set(`${message.channel_id},${message.id}`, cleanUpCachedMessage(message));
 }
 

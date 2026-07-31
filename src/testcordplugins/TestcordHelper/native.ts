@@ -1,6 +1,12 @@
-import { join } from "path";
-import { readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from "fs";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+import { existsSync, mkdirSync, readFileSync, unlinkSync,writeFileSync } from "fs";
 import { createServer } from "http";
+import { join } from "path";
 
 const QUEUE_DIR = "/tmp/opencode/livefix";
 const CMD_FILE = join(QUEUE_DIR, "command.json");
@@ -12,7 +18,7 @@ function ensureDir() {
     if (!existsSync(QUEUE_DIR)) mkdirSync(QUEUE_DIR, { recursive: true });
 }
 
-let queue: Array<{ body: string; res: import("http").ServerResponse; }> = [];
+const queue: Array<{ body: string; res: import("http").ServerResponse; }> = [];
 let inFlight = false;
 
 function processQueue() {
