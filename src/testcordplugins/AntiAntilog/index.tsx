@@ -19,6 +19,11 @@ const settings = definePluginSettings({
         description: "Block the nonce based antilog exploit so antilogged messages still show as deleted with their original content.",
         default: true
     },
+    includeOwnMessages: {
+        type: OptionType.BOOLEAN,
+        description: "Apply anti-antilogging to your own messages when anti-antilogged.",
+        default: false
+    },
     preserveRemovedEmbeds: {
         type: OptionType.BOOLEAN,
         description: "Keep image and video embeds visible when someone removes the embed from their message.",
@@ -61,10 +66,26 @@ interface MessageUpdateAction {
 function isLegitimateOptimisticConfirmation(action: MessageCreateAction): boolean {
     if (action.optimistic) return true;
 
+    const message = action?.message;
+    const nonce = message?.nonce;
+    const channelId = action.channelId ?? message?.channel_id;
+
+    if (channelId && nonce) {
+        const existing = MessageStore.getMessage(channelId, nonce) as any;
+        // If the existing message in store is currently sending/pending, this is a legitimate send confirmation
+        if (existing && (existing.state === "SENDING" || existing.isPending?.() === true)) {
+            return true;
+        }
+    }
+
     const currentUserId = UserStore.getCurrentUser()?.id;
     if (!currentUserId) return true;
 
-    return action.message?.author?.id === currentUserId;
+    if (message?.author?.id === currentUserId && !settings.store.includeOwnMessages) {
+        return true;
+    }
+
+    return false;
 }
 
 function maybeStripAntilogNonce(action: MessageCreateAction) {
@@ -72,21 +93,24 @@ function maybeStripAntilogNonce(action: MessageCreateAction) {
         if (!settings.store.blockNonceAntilog) return;
 
         const message = action?.message;
-        const nonce = message?.nonce;
-        if (!message || !nonce) return;
+        if (!message || !message.nonce) return;
+
+        // If message.id is equal to nonce, this is an optimistic local message, not an antilog payload
+        if (message.id === message.nonce) return;
 
         const channelId = action.channelId ?? message.channel_id;
         if (!channelId) return;
 
         if (isLegitimateOptimisticConfirmation(action)) return;
 
-        const existing = MessageStore.getMessage(channelId, nonce);
-        if (!existing || existing.id !== nonce) return;
+        const antilogNonce = message.nonce;
 
-        action.message = { ...message, nonce: null };
+        // Strip nonce directly from the message object so MessageStore/MessageLogger see null
+        message.nonce = null;
+        delete message.nonce;
 
         if (settings.store.logActivity) {
-            logger.info(`Blocked antilog nonce dedupe for ${channelId} (incoming ${message.id} → existing ${nonce}).`);
+            logger.info(`Blocked antilog nonce dedupe for ${channelId} (incoming ${message.id} → antilog nonce ${antilogNonce}).`);
         }
     } catch (error) {
         logger.error("Failed to evaluate incoming MESSAGE_CREATE for antilog.", error);

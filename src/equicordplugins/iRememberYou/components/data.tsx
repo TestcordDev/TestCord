@@ -82,7 +82,7 @@ export class Data {
         const processedGuilds = new Set<string>();
 
         for (const { user, source, extra } of array) {
-            if (user.bot) {
+            if (!user || user.bot) {
                 continue;
             }
 
@@ -120,13 +120,10 @@ export class Data {
     }
 
     writeMembersFromUserGuildsToCollection() {
-        const target: Set<{ user: User; source?: Guild, extra: IUserExtra; }> =
-            new Set();
-
         const now = Date.now();
         const LIMIT = 1_000;
 
-        const clientId = UserStore.getCurrentUser().id;
+        const clientId = UserStore.getCurrentUser()?.id;
         if (!clientId) {
             return;
         }
@@ -136,16 +133,17 @@ export class Data {
                 continue;
             }
 
+            const guildTarget: Set<{ user: User; source?: Guild; extra: IUserExtra; }> = new Set();
             const members = GuildMemberStore.getMembers(guild.id);
-            if (members.length > LIMIT) {
-                members.length = LIMIT;
-            }
-            for (const member of members) {
+            const slice = members.slice(0, LIMIT);
+            for (const member of slice) {
                 const user = UserStore.getUser(member.userId);
-                target.add({ user, source: guild, extra: { updatedAt: now } });
+                if (user) {
+                    guildTarget.add({ user, source: guild, extra: { updatedAt: now } });
+                }
             }
 
-            this.processUsersToCollection([...target]);
+            this.processUsersToCollection([...guildTarget]);
         }
     }
 

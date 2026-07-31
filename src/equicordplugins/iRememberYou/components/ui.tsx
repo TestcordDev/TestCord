@@ -107,14 +107,33 @@ function UserRow({ user, allowOwner = true }: { user: IStorageUser, allowOwner?:
 
 function SearchElement({ usersCollection }: { usersCollection: Data["usersCollection"]; }) {
     const [current, setCurrent] = React.useState("");
-    const list = Object.values(usersCollection).flatMap(col => Object.values(col.users)) as IStorageUser[];
+    const uniqueUsers = React.useMemo(() => {
+        const map = new Map<string, IStorageUser>();
+        if (!usersCollection) return [];
+        for (const col of Object.values(usersCollection)) {
+            if (!col?.users) continue;
+            for (const user of Object.values(col.users)) {
+                if (user?.id && !map.has(user.id)) {
+                    map.set(user.id, user);
+                }
+            }
+        }
+        return Array.from(map.values());
+    }, [usersCollection]);
+
+    const query = current.toLowerCase();
 
     return (
         <section className={cl("search")}>
             <TextInput placeholder="Filter by tag, username" name="Filter" onChange={setCurrent} />
             {current && (
                 <div className={cl("search-user")}>
-                    {list.filter(user => user.tag.includes(current) || user.username.includes(current))
+                    {uniqueUsers
+                        .filter(user =>
+                            (user.tag && user.tag.toLowerCase().includes(query)) ||
+                            (user.username && user.username.toLowerCase().includes(query)) ||
+                            (user.id && user.id.includes(query))
+                        )
                         .map(user => <UserRow key={user.id} user={user} allowOwner={false} />)}
                 </div>
             )}

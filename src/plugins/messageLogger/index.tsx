@@ -654,7 +654,7 @@ export default definePlugin({
     // This fixes that bypass
     normalizeNonce(msg: Message) {
         try {
-            if (!msg.nonce || msg.author.id === AuthenticationStore.getId()) return;
+            if (!msg.nonce) return;
 
             const prevMsg = MessageStore.getMessage(msg.channel_id, msg.nonce);
             if (!prevMsg || prevMsg.state !== "SENT") return;

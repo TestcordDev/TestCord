@@ -423,7 +423,7 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
                 />
                 <Menu.MenuItem
                     id="multi-instance-open-detached"
-                    label="Open separate Illegalcord window"
+                    label="Open separate Testcord window"
                     disabled={!!status || isBusy}
                     action={() => void openInstance(profile, "detached")}
                 />
@@ -522,8 +522,8 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
                     <div className="vc-multi-instance-mode-card">
                         <div className="vc-multi-instance-mode-icon"><MultiInstanceIcon /></div>
                         <div className="vc-multi-instance-mode-copy">
-                            <strong>Separate Illegalcord instance</strong>
-                            <span>Gets its own taskbar identity and the Illegalcord app icon.</span>
+                            <strong>Separate Testcord instance</strong>
+                            <span>Gets its own taskbar identity and the Testcord app icon.</span>
                         </div>
                     </div>
                 </div>
