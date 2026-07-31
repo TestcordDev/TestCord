@@ -75,21 +75,21 @@ export default definePlugin({
         {
             find: "noiseSuppression:",
             replacement: {
-                match: /noiseSuppression:!?\d/,
+                match: /noiseSuppression:!?[a-zA-Z0-9_$]+/,
                 replace: "noiseSuppression:$self.getNoiseSuppression()"
             }
         },
         {
             find: "echoCancellation:",
             replacement: {
-                match: /echoCancellation:!?\d/,
+                match: /echoCancellation:!?[a-zA-Z0-9_$]+/,
                 replace: "echoCancellation:$self.getEchoCancellation()"
             }
         },
         {
             find: "autoGainControl:",
             replacement: {
-                match: /autoGainControl:!?\d/,
+                match: /autoGainControl:!?[a-zA-Z0-9_$]+/,
                 replace: "autoGainControl:$self.getAutoGainControl()"
             }
         },
