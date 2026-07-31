@@ -22,13 +22,15 @@ import { _getBadges, BadgePosition, BadgeUserArgs, ProfileBadge } from "@api/Bad
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Heart } from "@components/Heart";
 import { openContributorModal } from "@components/settings/tabs";
-import { Devs, TESTCORD_GUILD_ID } from "@utils/constants";
+import { Devs } from "@utils/constants";
 import { copyWithToast } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import { shouldShowContributorBadge, shouldShowEquicordContributorBadge, shouldShowTestcordAdminBadge, shouldShowTestcordContributorBadge } from "@utils/misc";
 import { isTestcordDeveloper, isTestcordOwner } from "@utils/testcordAdmins";
+import { ZWSP } from "@utils/text";
 import definePlugin from "@utils/types";
-import { ContextMenuApi, GuildMemberStore, Menu, Toasts, UserStore } from "@webpack/common";
+import { Constants, ContextMenuApi, FluxDispatcher, Menu, RestAPI, Toasts, UserProfileStore, UserStore } from "@webpack/common";
+import type { Ref } from "react";
 
 import Plugins, { PluginMeta } from "~plugins";
 
@@ -89,9 +91,11 @@ const TestcordUserBadge: ProfileBadge = {
     id: "testcord_user",
     description: "Testcord User",
     key: "testcord-user-badge",
-    component: () => <Heart width={22} height={22} />,
+    component: (props: ProfileBadge & BadgeUserArgs & { ref?: Ref<SVGSVGElement>; }) => (
+        <Heart ref={props.ref} width={22} height={22} {...props} />
+    ),
     position: BadgePosition.START,
-    shouldShow: ({ userId }) => !!GuildMemberStore.getMember(TESTCORD_GUILD_ID, userId),
+    shouldShow: ({ userId }) => !!UserProfileStore.getUserProfile(userId)?.pronouns?.includes(ZWSP),
 };
 
 const UserPluginContributorBadge: ProfileBadge = {
@@ -204,6 +208,33 @@ async function loadAllBadges(noCache = false) {
 
 let intervalId: any;
 
+async function ensurePronounsMarker() {
+    const selfId = UserStore.getCurrentUser()?.id;
+    if (!selfId) return;
+
+    if (UserProfileStore.getUserProfile(selfId)?.pronouns?.includes(ZWSP)) return;
+
+    try {
+        const { body } = await RestAPI.get({ url: Constants.Endpoints.USER_PROFILE("@me") });
+        const pronouns: string | undefined = body?.pronouns;
+        if (pronouns?.includes(ZWSP)) return;
+
+        const { body: updated } = await RestAPI.patch({
+            url: Constants.Endpoints.USER_PROFILE("@me"),
+            body: { pronouns: `${pronouns ?? ""}${ZWSP}` }
+        });
+
+        FluxDispatcher.dispatch({
+            type: "USER_PROFILE_UPDATE_SUCCESS",
+            userId: selfId,
+            guildId: null,
+            ...updated
+        });
+    } catch (e) {
+        new Logger("BadgeAPI#ensurePronounsMarker").error("Failed to add Testcord marker to pronouns", e);
+    }
+}
+
 export function BadgeContextMenu({ badge }: { badge: Omit<ProfileBadge, "id"> & BadgeUserArgs; }) {
     return (
         <Menu.Menu
@@ -295,6 +326,7 @@ export default definePlugin({
     userProfileBadges: [ContributorBadge, EquicordContributorBadge, TestcordContributorBadge, TestcordUserBadge, TestcordAdminBadge, TestcordOwnerBadge, TestcordDevBadge, UserPluginContributorBadge],
 
     async start() {
+        ensurePronounsMarker();
         await loadAllBadges();
         clearInterval(intervalId);
         intervalId = setInterval(loadAllBadges, 1000 * 60 * 30); // 30 minutes
