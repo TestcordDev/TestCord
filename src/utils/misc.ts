@@ -19,7 +19,7 @@
 import { User } from "@vencord/discord-types";
 import { ChannelStore, GuildMemberStore, IconUtils } from "@webpack/common";
 
-import { EQUICORD_HELPERS, EquicordDevsById, GUILD_ID, KNOWN_ISSUES_CHANNEL_ID, SUPPORT_CHANNEL_ID, TESTCORD_GUILD_ID, TestcordDevsById, VencordDevsById } from "./constants";
+import { EQUICORD_GUILD_ID, EQUICORD_HELPERS, EquicordDevsById, KNOWN_ISSUES_CHANNEL_ID, SUPPORT_CHANNEL_ID, TESTCORD_GUILD_ID, TestcordDevsById, VencordDevsById } from "./constants";
 import { TestcordAdminsById } from "./testcordAdmins";
 
 /**
@@ -115,10 +115,10 @@ export function tryOrElse<T>(func: () => T, fallback: T): T {
 
 export function isEquicordGuild(id: string | null | undefined, isGuildId: boolean = false): boolean {
     if (!id) return false;
-    if (isGuildId) return id === GUILD_ID;
+    if (isGuildId) return id === EQUICORD_GUILD_ID;
     const channel = ChannelStore.getChannel(id);
     if (!channel) return false;
-    return channel.guild_id === GUILD_ID;
+    return channel.guild_id === EQUICORD_GUILD_ID;
 }
 
 export function isTestCordGuild(id: string | null | undefined, isGuildId: boolean = false): boolean {
@@ -141,7 +141,7 @@ export function isKnownIssuesCategory(channelId: string | null | undefined): boo
 export function isEquicordSupport(userId: string | null | undefined): boolean {
     if (!userId) return false;
 
-    const member = GuildMemberStore.getMember(GUILD_ID, userId);
+    const member = GuildMemberStore.getMember(EQUICORD_GUILD_ID, userId);
     if (!member) return false;
     return member.roles.includes(EQUICORD_HELPERS) || false;
 }

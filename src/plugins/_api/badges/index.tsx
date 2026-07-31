@@ -20,14 +20,15 @@ import "./fixDiscordBadgePadding.css";
 
 import { _getBadges, BadgePosition, BadgeUserArgs, ProfileBadge } from "@api/Badges";
 import ErrorBoundary from "@components/ErrorBoundary";
+import { Heart } from "@components/Heart";
 import { openContributorModal } from "@components/settings/tabs";
-import { Devs } from "@utils/constants";
+import { Devs, TESTCORD_GUILD_ID } from "@utils/constants";
 import { copyWithToast } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import { shouldShowContributorBadge, shouldShowEquicordContributorBadge, shouldShowTestcordAdminBadge, shouldShowTestcordContributorBadge } from "@utils/misc";
 import { isTestcordDeveloper, isTestcordOwner } from "@utils/testcordAdmins";
 import definePlugin from "@utils/types";
-import { ContextMenuApi, Menu, Toasts, UserStore } from "@webpack/common";
+import { ContextMenuApi, GuildMemberStore, Menu, Toasts, UserStore } from "@webpack/common";
 
 import Plugins, { PluginMeta } from "~plugins";
 
@@ -82,6 +83,15 @@ const TestcordContributorBadge: ProfileBadge = {
             transform: "scale(0.9)"
         }
     },
+};
+
+const TestcordUserBadge: ProfileBadge = {
+    id: "testcord_user",
+    description: "Testcord User",
+    key: "testcord-user-badge",
+    component: () => <Heart width={22} height={22} />,
+    position: BadgePosition.START,
+    shouldShow: ({ userId }) => !!GuildMemberStore.getMember(TESTCORD_GUILD_ID, userId),
 };
 
 const UserPluginContributorBadge: ProfileBadge = {
@@ -282,7 +292,7 @@ export default definePlugin({
         }
     },
 
-    userProfileBadges: [ContributorBadge, EquicordContributorBadge, TestcordContributorBadge, TestcordAdminBadge, TestcordOwnerBadge, TestcordDevBadge, UserPluginContributorBadge],
+    userProfileBadges: [ContributorBadge, EquicordContributorBadge, TestcordContributorBadge, TestcordUserBadge, TestcordAdminBadge, TestcordOwnerBadge, TestcordDevBadge, UserPluginContributorBadge],
 
     async start() {
         await loadAllBadges();
