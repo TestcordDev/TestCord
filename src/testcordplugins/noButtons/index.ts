@@ -99,14 +99,16 @@ export default definePlugin({
                 ];
                 for (const matcher of matchers) {
                     const selectors = [
-                        matcher,
-                        `div:has(> ${matcher})`,
-                        `button:has(${matcher})`,
-                        `[class*="buttonContainer"]:has(${matcher})`,
-                        `[class*="expressionPicker"]:has(${matcher})`,
+                        `[class*="channelTextArea"] ${matcher}`,
+                        `[class*="channelBottomBar"] ${matcher}`,
+                        `[class*="expressionPicker"] ${matcher}`,
+                        `[class*="channelTextArea"] div:has(> ${matcher})`,
+                        `[class*="channelBottomBar"] div:has(> ${matcher})`,
                         `[class*="channelTextArea"] button:has(${matcher})`,
-                        `[class*="channelBottomBar"] button:has(${matcher})`
-                    ].join(",");
+                        `[class*="channelBottomBar"] button:has(${matcher})`,
+                        `[class*="chat"] [class*="buttonContainer"]:has(${matcher})`,
+                        `[class*="chat"] [class*="expressionPicker"]:has(${matcher})`
+                    ].map(sel => `:not([class*="standardSidebarView"] *) ${sel}`).join(",");
                     css += `${selectors}{${hideStyles}}`;
                 }
             }
