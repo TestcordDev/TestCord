@@ -4,46 +4,79 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif"]);
+const IMAGE_EXTS = new Set([
+    "png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "heic", "heif", "tiff", "svg"
+]);
 
 function getExt(name?: string): string {
     if (!name) return "";
-    const idx = name.lastIndexOf(".");
+    const clean = name.split("?")[0].split("#")[0];
+    const idx = clean.lastIndexOf(".");
     if (idx === -1) return "";
-    return name.slice(idx + 1).toLowerCase();
-}
-
-function isSpoiler(attachment: any): boolean {
-    const filename = String(attachment?.filename ?? "");
-    return Boolean(attachment?.spoiler) || filename.startsWith("SPOILER_");
-}
-
-function isAllowedImageFilename(name: string | undefined, includeGifs: boolean) {
-    const ext = getExt(name);
-    if (!ext) return false;
-    if (!includeGifs && ext === "gif") return false;
-    return IMAGE_EXTS.has(ext);
+    const ext = clean.slice(idx + 1).toLowerCase();
+    if (ext.length > 5) return "";
+    return ext;
 }
 
 function isImageAttachment(att: any, includeGifs: boolean): boolean {
-    if (!att?.url) return false;
+    if (!att) return false;
+    const url = String(att.url ?? att.proxy_url ?? att.proxyUrl ?? "");
+    if (!url) return false;
 
-    const ct = String(att?.content_type ?? "").toLowerCase();
+    const ct = String(att.content_type ?? att.contentType ?? "").toLowerCase();
     if (ct.startsWith("image/")) {
-        if (!includeGifs && ct === "image/gif") return false;
+        if (!includeGifs && (ct === "image/gif" || url.toLowerCase().includes(".gif"))) return false;
         return true;
     }
 
-    return isAllowedImageFilename(att?.filename, includeGifs);
+    if (ct.startsWith("video/") || ct.startsWith("audio/")) return false;
+
+    const filename = String(att.filename ?? att.name ?? "");
+    const ext = getExt(filename) || getExt(url);
+
+    if (ext) {
+        if (!includeGifs && ext === "gif") return false;
+        if (IMAGE_EXTS.has(ext)) return true;
+    }
+
+    const hasDimensions = typeof att.width === "number" && typeof att.height === "number" && att.width > 0 && att.height > 0;
+    if (hasDimensions) {
+        return true;
+    }
+
+    return false;
 }
 
-function isImageUrl(url: string, includeGifs: boolean): boolean {
+function isImageUrl(url: string, includeGifs: boolean, isExplicitEmbedImage = false): boolean {
+    if (!url || typeof url !== "string") return false;
     if (!/^https?:\/\//i.test(url)) return false;
-    // Some embed URLs omit extensions; be conservative and require an image-like extension.
-    const ext = getExt(url.split("?")[0]);
-    if (!ext) return false;
-    if (!includeGifs && ext === "gif") return false;
-    return IMAGE_EXTS.has(ext);
+
+    const cleanUrl = url.split("?")[0].split("#")[0];
+    const ext = getExt(cleanUrl);
+
+    if (ext === "gif") {
+        return includeGifs;
+    }
+
+    if (ext && IMAGE_EXTS.has(ext)) {
+        return true;
+    }
+
+    try {
+        const parsed = new URL(url);
+        const format = parsed.searchParams.get("format")?.toLowerCase();
+        if (format) {
+            if (format === "gif") return includeGifs;
+            if (IMAGE_EXTS.has(format)) return true;
+        }
+    } catch { }
+
+    if (isExplicitEmbedImage) {
+        if (/\.(mp4|webm|mov|avi|mkv)$/i.test(cleanUrl)) return false;
+        return true;
+    }
+
+    return false;
 }
 
 export type GalleryItem = {
@@ -75,15 +108,16 @@ export function extractImages(messages: any[], channelId: string, opts: { includ
 
         for (const a of m?.attachments ?? []) {
             if (!isImageAttachment(a, opts.includeGifs)) continue;
-            const url = String(a.url);
-            const proxyUrl = a.proxy_url ? String(a.proxy_url) : undefined;
-            const filename = a.filename ? String(a.filename) : undefined;
+            const url = String(a.url ?? a.proxy_url ?? a.proxyUrl ?? "");
+            if (!url) continue;
+            const proxyUrl = (a.proxy_url ?? a.proxyUrl) ? String(a.proxy_url ?? a.proxyUrl) : undefined;
+            const filename = (a.filename ?? a.name) ? String(a.filename ?? a.name) : undefined;
             const width = typeof a.width === "number" ? a.width : undefined;
             const height = typeof a.height === "number" ? a.height : undefined;
 
             items.push({
                 ...base,
-                key: `${messageId}:${url}`,
+                key: `${messageId}:att:${url}`,
                 url,
                 proxyUrl,
                 filename,
@@ -94,21 +128,27 @@ export function extractImages(messages: any[], channelId: string, opts: { includ
 
         if (opts.includeEmbeds) {
             for (const e of m?.embeds ?? []) {
+                if (e?.type === "video") continue;
+
                 const image = e?.image;
                 const thumb = e?.thumbnail;
 
-                for (const source of [image, thumb]) {
+                for (const [source, sourceKind] of [[image, "img"], [thumb, "thumb"]] as const) {
                     if (!source?.url) continue;
                     const url = String(source.url);
-                    if (!isImageUrl(url, opts.includeGifs)) continue;
+                    if (!isImageUrl(url, opts.includeGifs, true)) continue;
+
+                    const proxyUrl = source.proxyURL ? String(source.proxyURL) : (source.proxy_url ? String(source.proxy_url) : undefined);
+                    const width = typeof source.width === "number" ? source.width : undefined;
+                    const height = typeof source.height === "number" ? source.height : undefined;
 
                     items.push({
                         ...base,
-                        key: `${messageId}:${url}`,
+                        key: `${messageId}:embed:${sourceKind}:${url}`,
                         url,
-                        proxyUrl: source.proxyURL ? String(source.proxyURL) : (source.proxy_url ? String(source.proxy_url) : undefined),
-                        width: typeof source.width === "number" ? source.width : undefined,
-                        height: typeof source.height === "number" ? source.height : undefined,
+                        proxyUrl,
+                        width,
+                        height,
                         filename: undefined
                     });
                 }

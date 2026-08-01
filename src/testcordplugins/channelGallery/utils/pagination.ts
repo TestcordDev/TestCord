@@ -6,7 +6,17 @@
 
 import { Constants, RestAPI } from "@webpack/common";
 
-const FETCH_TIMEOUT_MS = 10_000;
+const FETCH_TIMEOUT_MS = 15_000;
+
+function getMessagesEndpoint(channelId: string): string {
+    try {
+        if (typeof Constants?.Endpoints?.MESSAGES === "function") {
+            const ep = Constants.Endpoints.MESSAGES(channelId);
+            if (ep) return ep;
+        }
+    } catch {}
+    return `/channels/${channelId}/messages`;
+}
 
 export async function fetchMessagesPage(args: {
     channelId: string;
@@ -17,30 +27,39 @@ export async function fetchMessagesPage(args: {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
-    // Prefer caller-provided abort, but still apply a hard timeout.
     const { signal } = args;
     if (signal) {
         if (signal.aborted) controller.abort();
         else signal.addEventListener("abort", () => controller.abort(), { once: true });
     }
 
-    try {
-        const res = await (RestAPI.get as any)({
-            url: Constants.Endpoints.MESSAGES(args.channelId),
-            query: {
-                limit: args.limit,
-                ...(args.before ? { before: args.before } : {})
-            },
-            signal: controller.signal,
-            retries: 1
-        });
+    // Discord API enforces a maximum limit of 100 for messages requests.
+    const safeLimit = Math.min(100, Math.max(1, Math.floor(args.limit)));
 
-        const body = res?.body;
-        return Array.isArray(body) ? body : [];
+    try {
+        const url = getMessagesEndpoint(args.channelId);
+        let res: any;
+        if (RestAPI?.get) {
+            res = await (RestAPI.get as any)({
+                url,
+                query: {
+                    limit: safeLimit,
+                    ...(args.before ? { before: args.before } : {})
+                },
+                signal: controller.signal,
+                retries: 1
+            });
+        }
+
+        const raw = res?.body ?? res;
+        const list = Array.isArray(raw) ? raw : (Array.isArray(res?.body) ? res.body : (Array.isArray(res) ? res : []));
+        return list;
     } catch (e: any) {
         if (e?.name === "AbortError") throw e;
+        console.warn("[ChannelGallery] Failed to fetch messages page:", e);
         throw new Error("fetch_failed");
     } finally {
         clearTimeout(timeout);
     }
 }
+

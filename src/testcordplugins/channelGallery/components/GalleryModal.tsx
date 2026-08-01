@@ -6,7 +6,7 @@
 
 import { Heading } from "@components/Heading";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalProps, ModalRoot, ModalSize } from "@utils/modal";
-import { ChannelStore, React, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { ChannelStore, MessageStore, React, useEffect, useMemo, useRef, useState } from "@webpack/common";
 
 import { extractImages, GalleryItem } from "../utils/extractImages";
 import { fetchMessagesPage } from "../utils/pagination";
@@ -50,7 +50,33 @@ function pushCacheItem(cache: GalleryCache, item: GalleryItem) {
     cache.items.push(item);
 }
 
-function getOrCreateCache(channelId: string): GalleryCache {
+function seedCacheFromMessageStore(cache: GalleryCache, channelId: string, settings: PluginSettings) {
+    try {
+        const localMsgs = MessageStore?.getMessages?.(channelId);
+        const msgsArray: any[] = localMsgs?._array ?? localMsgs?.toArray?.() ?? (Array.isArray(localMsgs) ? localMsgs : []);
+
+        if (msgsArray.length > 0) {
+            const extracted = extractImages(msgsArray, channelId, {
+                includeEmbeds: settings.includeEmbeds,
+                includeGifs: settings.includeGifs
+            });
+
+            for (const it of extracted) {
+                if (cache.keys.has(it.key)) continue;
+                pushCacheItem(cache, it);
+            }
+
+            if (!cache.oldestMessageId && msgsArray.length > 0) {
+                const oldest = msgsArray[0]?.id ?? msgsArray[msgsArray.length - 1]?.id;
+                if (oldest) cache.oldestMessageId = String(oldest);
+            }
+        }
+    } catch (e) {
+        console.warn("[ChannelGallery] Failed to seed from MessageStore:", e);
+    }
+}
+
+function getOrCreateCache(channelId: string, settings: PluginSettings): GalleryCache {
     const existing = cacheByChannel.get(channelId);
     if (existing) {
         cacheByChannel.delete(channelId);
@@ -65,16 +91,18 @@ function getOrCreateCache(channelId: string): GalleryCache {
     };
     cacheByChannel.set(channelId, created);
     pruneChannelCaches();
+
+    seedCacheFromMessageStore(created, channelId, settings);
     return created;
 }
 
 export function GalleryModal(props: ModalProps & { channelId: string; settings: PluginSettings; }) {
     const { channelId, settings, ...modalProps } = props;
 
-    const channel = ChannelStore.getChannel(channelId);
+    const channel = ChannelStore?.getChannel?.(channelId);
     const title = channel?.name ? `Gallery — #${channel.name}` : "Gallery";
 
-    const cache = useMemo(() => getOrCreateCache(channelId), [channelId]);
+    const cache = useMemo(() => getOrCreateCache(channelId, settings), [channelId, settings]);
 
     const [items, setItems] = useState<GalleryItem[]>(() => cache.items);
     const [hasMore, setHasMore] = useState<boolean>(() => cache.hasMore);
@@ -107,7 +135,7 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
                 const msgs = await fetchMessagesPage({
                     channelId,
                     before,
-                    limit: Math.max(1, Math.floor(settings.pageSize)),
+                    limit: Math.max(1, Math.floor(settings.pageSize ?? 100)),
                     signal: controller.signal
                 });
 
@@ -137,15 +165,17 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
         } catch (e: any) {
             if (e?.name === "AbortError") return;
             setError("Unable to load gallery items");
+            setItems([...cache.items]);
         } finally {
             setLoading(false);
         }
     }
 
-    // Initial load/preload (lazy, only after modal opens).
     useEffect(() => {
-        if (cache.items.length) return;
-        void loadNextPages(Math.max(1, Math.floor(settings.preloadPages)));
+        if (cache.items.length) {
+            setItems([...cache.items]);
+        }
+        void loadNextPages(Math.max(1, Math.floor(settings.preloadPages ?? 2)));
     }, [channelId]);
 
     const onCloseAll = () => {
@@ -192,3 +222,4 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
         </ModalRoot>
     );
 }
+
