@@ -1,4 +1,4 @@
-/* ── Export DM Plugin ── */
+/* ── Unified Exporter Plugin ── */
 
 .edm-content {
     padding: 14px 16px 16px;
@@ -7,8 +7,51 @@
     gap: 12px;
 }
 
-/* ── Barre de recherche ── */
+/* ── Modal Tabs ── */
+.edm-tabs-bar {
+    display: flex;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.edm-tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 12px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.edm-tab-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.edm-tab-btn--active {
+    color: #fff;
+    background: var(--brand-500, #5865f2);
+}
+
+/* ── Search & Filter Bar ── */
+.edm-filter-row {
+    display: flex;
+    gap: 8px;
+}
+
 .edm-search-bar {
+    flex: 1;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -52,6 +95,23 @@
     color: rgba(255, 255, 255, 0.8);
 }
 
+.edm-role-select {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1.5px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: #fff;
+    padding: 0 10px;
+    font-size: 12px;
+    outline: none;
+    cursor: pointer;
+    max-width: 160px;
+}
+
+.edm-role-select option {
+    background: #1e1f22;
+    color: #fff;
+}
+
 /* ── Labels ── */
 .edm-label {
     margin: 0 !important;
@@ -60,27 +120,42 @@
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: rgba(255, 255, 255, 0.5) !important;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-/* ── Liste conversations ── */
+.edm-label-action {
+    color: var(--brand-500, #5865f2);
+    cursor: pointer;
+    font-size: 11px;
+    text-transform: none;
+    font-weight: 500;
+}
+
+.edm-label-action:hover {
+    text-decoration: underline;
+}
+
+/* ── Channel & Member List ── */
 .edm-channel-list {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 4px;
     max-height: 200px;
     overflow-y: auto;
     scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.15) transparent;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 .edm-channel-list::-webkit-scrollbar { width: 4px; }
-.edm-channel-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+.edm-channel-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 2px; }
 
 .edm-empty {
     text-align: center;
     color: rgba(255, 255, 255, 0.4);
     font-size: 13px;
-    padding: 16px;
+    padding: 20px;
 }
 
 .edm-channel-row {
@@ -104,15 +179,35 @@
     background: rgba(88, 101, 242, 0.12);
 }
 
+.edm-avatar-wrapper {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
 .edm-avatar {
     width: 28px;
     height: 28px;
     border-radius: 50%;
     object-fit: cover;
-    flex-shrink: 0;
 }
 
-/* Avatar placeholder (lettre) quand pas d'image */
+.edm-status-dot {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 2px solid #1e1f22;
+}
+
+.edm-status-online { background: #23a55a; }
+.edm-status-idle   { background: #f0b232; }
+.edm-status-dnd    { background: #f23f43; }
+.edm-status-offline{ background: #80848e; }
+
 .edm-avatar-placeholder {
     width: 28px;
     height: 28px;
@@ -128,10 +223,24 @@
     text-transform: uppercase;
 }
 
-.edm-channel-name {
+.edm-member-info {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.edm-channel-name {
     font-size: 13px;
     color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.edm-member-subtext {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -140,29 +249,33 @@
 .edm-check {
     color: var(--brand-500, #5865f2);
     font-weight: 700;
-    font-size: 16px;
+    font-size: 14px;
     flex-shrink: 0;
 }
 
-/* ── Options ── */
-.edm-options-row {
-    display: flex;
-    gap: 14px;
-    flex-wrap: wrap;
+/* ── Options Grid ── */
+.edm-options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
 }
 
 .edm-option {
     display: flex;
     align-items: center;
     gap: 7px;
-    font-size: 13px;
+    font-size: 12px;
     color: #fff;
     cursor: pointer;
     user-select: none;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.edm-option span {
-    color: #fff;
+.edm-option:hover {
+    background: rgba(255, 255, 255, 0.06);
 }
 
 .edm-option input[type="checkbox"] {
@@ -172,20 +285,18 @@
     cursor: pointer;
 }
 
-/* ── Formats ── */
+/* ── Formats Grid ── */
 .edm-format-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
     gap: 6px;
-    flex-wrap: wrap;
 }
 
 .edm-format-btn {
-    flex: 1;
-    min-width: 60px;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
     border: 1.5px solid rgba(255, 255, 255, 0.08);
     border-radius: 6px;
-    padding: 8px 6px;
+    padding: 7px 4px;
     cursor: pointer;
     display: flex;
     flex-direction: column;
@@ -205,13 +316,13 @@
 }
 
 .edm-fmt-key {
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     color: #fff;
 }
 
 .edm-fmt-desc {
-    font-size: 10px;
+    font-size: 9.5px;
     color: rgba(255, 255, 255, 0.5);
     text-align: center;
 }
@@ -220,26 +331,27 @@
 .edm-status {
     padding: 8px 12px;
     border-radius: 6px;
-    font-size: 13px;
+    font-size: 12px;
+    font-family: monospace;
 }
 
-.edm-status--fetching { background: rgba(250,166,26,0.12); color: #faa61a; }
-.edm-status--done    { background: rgba(59,165,92,0.12);  color: #3ba55c; }
-.edm-status--error   { background: rgba(237,66,69,0.12);  color: #ed4245; }
+.edm-status--fetching { background: rgba(250, 166, 26, 0.12); color: #faa61a; }
+.edm-status--done    { background: rgba(59, 165, 92, 0.12);  color: #3ba55c; }
+.edm-status--error   { background: rgba(237, 66, 69, 0.12);  color: #ed4245; }
 
-/* ── Bouton export ── */
+/* ── Export Action Button ── */
 .edm-export-btn {
     background: var(--brand-500, #5865f2);
     color: #fff;
     border: none;
     border-radius: 6px;
-    padding: 11px;
-    font-size: 14px;
+    padding: 10px;
+    font-size: 13.5px;
     font-weight: 600;
     cursor: pointer;
     width: 100%;
     transition: opacity 0.15s;
 }
 
-.edm-export-btn:hover { opacity: 0.85; }
+.edm-export-btn:hover { opacity: 0.88; }
 .edm-export-btn:disabled { opacity: 0.4; cursor: not-allowed; }
