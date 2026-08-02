@@ -474,8 +474,8 @@ function buildCSS(): string {
         lines.push(`
             ${S.panelButtons} button[role="switch"][aria-checked="true"] { background-color: var(--brand-experiment, #5865F2) !important; color: white !important; border-radius: 10px !important; }
             ${S.panelButtons} button[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
-            ${S.panelButtons} [data-deracul-label="Game Activity"] :is(button, [aria-checked="true"]), ${S.panelButtons} [data-deracul-label="Game Activity"][aria-checked="true"] button { background-color: var(--brand-experiment, #5865F2) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} [data-deracul-label="Game Activity"] :is(button, [aria-checked="true"]) svg, ${S.panelButtons} [data-deracul-label="Game Activity"][aria-checked="true"] button svg { color: white !important; fill: white !important; }
+            ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"] { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
+            ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"] svg { color: white !important; fill: white !important; }
             ${S.panelButtons} [data-deracul-label="Ban all in VC"] button { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
             ${S.panelButtons} [data-deracul-label="Ban all in VC"] button svg { color: white !important; fill: white !important; }
             ${S.panelButtons} [data-deracul-label="Fake States"] button[aria-checked="true"] { background-color: var(--status-positive, #23A559) !important; color: white !important; border-radius: 10px !important; }

@@ -128,7 +128,7 @@ function GameActivityToggleButton({ iconForeground, hideTooltips, nameplate }: U
         tooltipText: hideTooltips ? void 0 : (showCurrentGame ? "Disable Game Activity" : "Enable Game Activity"),
         icon: <Icon className={iconForeground} />,
         role: "switch",
-        "aria-checked": !showCurrentGame,
+        "aria-checked": showCurrentGame,
         redGlow: sameColorAsOtherButtons ? false : !showCurrentGame,
         plated: nameplate != null,
         onClick: () => ShowCurrentGame.updateSetting(old => !old)
