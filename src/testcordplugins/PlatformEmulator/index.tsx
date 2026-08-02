@@ -70,13 +70,6 @@ export default definePlugin({
                     replace: "{...$1,...$self.getData(true)}"
                 },
             ]
-        },
-        {
-            find: "os:e,browser:\"Discord Client\"",
-            replacement: {
-                match: "os:e,browser:\"Discord Client\"",
-                replace: "os:$self.getData().os,browser:$self.getData().browser"
-            }
         }
     ],
     getData(bypass?: boolean, userId?: any) {
