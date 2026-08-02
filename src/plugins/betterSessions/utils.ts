@@ -38,10 +38,20 @@ export function saveSessionsToDataStore() {
 }
 
 export async function fetchNamesFromDataStore() {
-    const savedSessions = await DataStore.get<Map<string, { name: string, isNew: boolean; }>>(getDataKey()) || new Map();
-    savedSessions.forEach((data, idHash) => {
-        savedSessionsCache.set(idHash, data);
-    });
+    const raw = await DataStore.get(getDataKey());
+    if (!raw) return;
+    const entries = raw instanceof Map
+        ? Array.from(raw.entries())
+        : Array.isArray(raw)
+            ? raw
+            : typeof raw === "object"
+                ? Object.entries(raw)
+                : [];
+    for (const [idHash, data] of entries) {
+        if (idHash && data) {
+            savedSessionsCache.set(idHash as string, data as any);
+        }
+    }
 }
 
 export function GetOsColor(os?: string) {

@@ -41,7 +41,7 @@ async function fetchTranslation(text: string, targetLang: string): Promise<Trans
         throw new Error(`Translation API returned ${response.status} ${response.statusText}`);
     }
 
-    return await response.json();
+    return await response.clone().json();
 }
 
 export async function translate(messageId: string, text: string): Promise<CachedTranslation | null> {

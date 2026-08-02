@@ -304,22 +304,32 @@ function generateUpdatePluginContent(meta: {
 }
 
 export async function getUserplugins() {
-    const folderContents = await readdir(join(vencordPath, "..", "src", "userplugins"), {
-        withFileTypes: true
-    });
-    const plugins = await Promise.allSettled(
-        folderContents
-            .filter(item => item.isDirectory())
-            .map(item => ({
-                path: join(item.parentPath, item.name),
-                directory: item.name
-            }))
-            .map(({ path, directory }) => getPluginMeta(path, { directory }))
-    );
+    const userpluginsDir = existsSync(join(vencordPath, "..", "src", "userplugins"))
+        ? join(vencordPath, "..", "src", "userplugins")
+        : join(process.cwd(), "src", "userplugins");
 
-    return plugins
-        .filter(p => p.status === "fulfilled")
-        .map(p => p.value);
+    if (!existsSync(userpluginsDir)) return [];
+
+    try {
+        const folderContents = await readdir(userpluginsDir, {
+            withFileTypes: true
+        });
+        const plugins = await Promise.allSettled(
+            folderContents
+                .filter(item => item.isDirectory())
+                .map(item => ({
+                    path: join(item.parentPath || userpluginsDir, item.name),
+                    directory: item.name
+                }))
+                .map(({ path, directory }) => getPluginMeta(path, { directory }))
+        );
+
+        return plugins
+            .filter(p => p.status === "fulfilled")
+            .map((p: any) => p.value);
+    } catch {
+        return [];
+    }
 }
 
 export async function updatePlugin(_, directory: string) {
