@@ -1,0 +1,305 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+@keyframes vc-note-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.vc-note-search-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    color: var(--text-normal);
+    width: 100%;
+    box-sizing: border-box;
+    animation: vc-note-fade-in 0.25s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.vc-note-search-header {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: radial-gradient(circle at top left, color-mix(in srgb, var(--brand-experiment, #5865f2) 10%, transparent), transparent 60%),
+                var(--background-secondary);
+    border: 1px solid color-mix(in srgb, var(--brand-experiment, #5865f2) 18%, var(--border-subtle, var(--background-modifier-accent)));
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 4px 20px rgb(0 0 0 / 12%), 0 1px 0 rgb(255 255 255 / 4%) inset;
+}
+
+.vc-note-search-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.vc-note-search-title-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.vc-note-search-title-group h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--header-primary);
+    letter-spacing: -0.01em;
+}
+
+/* 1. Count Indicator (NO GLOW) */
+.vc-note-search-count-badge {
+    background: color-mix(in srgb, var(--brand-experiment, #5865f2) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--brand-experiment, #5865f2) 35%, transparent);
+    color: var(--brand-experiment, #5865f2);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+    box-shadow: none; /* NO GLOW */
+}
+
+.vc-note-search-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.vc-note-search-input-wrapper {
+    flex: 1;
+    min-width: 240px;
+}
+
+/* 2. All / Friends / Blocked Selector (FLUID SLIDING PILL, NO GLOW) */
+.vc-note-search-filters {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    background: var(--background-tertiary);
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
+    box-shadow: none; /* NO GLOW */
+    user-select: none;
+}
+
+.vc-note-search-slider-pill {
+    position: absolute;
+    top: 4px;
+    background: var(--brand-experiment, #5865f2);
+    border-radius: 7px;
+    pointer-events: none;
+    z-index: 1;
+    box-shadow: none; /* NO GLOW */
+    transition: left 0.28s cubic-bezier(0.34, 1.25, 0.64, 1), width 0.28s cubic-bezier(0.34, 1.25, 0.64, 1), height 0.28s cubic-bezier(0.34, 1.25, 0.64, 1), opacity 0.15s ease;
+}
+
+.vc-note-search-filter-btn {
+    position: relative;
+    z-index: 2;
+    padding: 6px 14px;
+    border-radius: 7px;
+    border: none;
+    background: transparent !important;
+    color: var(--interactive-normal);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: none !important; /* NO GLOW */
+    transition: color 0.2s ease, transform 0.12s ease;
+}
+
+.vc-note-search-filter-btn:hover {
+    color: var(--interactive-hover);
+    transform: translateY(-1px);
+}
+
+.vc-note-search-filter-btn:active {
+    transform: translateY(0) scale(0.96);
+}
+
+.vc-note-search-filter-btn.active {
+    color: #ffffff;
+    font-weight: 600;
+    background: transparent !important;
+    box-shadow: none !important; /* NO GLOW */
+}
+
+/* Note Cards Grid */
+.vc-note-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.vc-note-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: radial-gradient(circle at top left, color-mix(in srgb, var(--brand-experiment, #5865f2) 8%, transparent), transparent 55%),
+                var(--background-secondary);
+    border: 1px solid color-mix(in srgb, var(--brand-experiment, #5865f2) 16%, var(--border-subtle, var(--background-modifier-accent)));
+    border-radius: 12px;
+    padding: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset, 0 4px 16px rgb(0 0 0 / 8%);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, filter 0.18s ease;
+    animation: vc-note-fade-in 0.2s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.vc-note-card::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: 0;
+    height: 3px;
+    border-radius: 0 0 999px 999px;
+    background: var(--brand-experiment, #5865f2);
+    opacity: 0.6;
+    transform: scaleX(0.4);
+    transition: opacity 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
+}
+
+.vc-note-card:hover {
+    border-color: color-mix(in srgb, var(--brand-experiment, #5865f2) 45%, var(--border-subtle, var(--background-modifier-accent)));
+    box-shadow: var(--elevation-medium, 0 8px 24px rgb(0 0 0 / 16%)), 0 1px 0 rgb(255 255 255 / 6%) inset;
+    filter: brightness(1.03);
+    transform: translateY(-2px);
+}
+
+.vc-note-card:hover::before {
+    opacity: 1;
+    transform: scaleX(1);
+}
+
+.vc-note-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.vc-note-card-user-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.vc-note-card-names {
+    display: flex;
+    flex-direction: column;
+}
+
+.vc-note-card-display-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--header-primary);
+}
+
+.vc-note-card-username {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.vc-note-card-id-tag {
+    font-size: 11px;
+    font-family: var(--font-code, monospace);
+    color: var(--text-muted);
+    background: var(--background-tertiary);
+    padding: 2px 7px;
+    border-radius: 5px;
+    margin-top: 3px;
+    width: fit-content;
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
+}
+
+.vc-note-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Button Interactivity */
+.vc-note-btn {
+    position: relative;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease !important;
+}
+
+.vc-note-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+}
+
+.vc-note-btn:active {
+    transform: translateY(0) scale(0.96) !important;
+}
+
+.vc-note-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.vc-note-textarea {
+    width: 100%;
+    min-height: 70px;
+    resize: vertical;
+    border-radius: 8px;
+    background: var(--background-tertiary);
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
+    color: var(--text-normal);
+    padding: 10px 14px;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1.45;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.vc-note-textarea:focus {
+    border-color: var(--brand-experiment, #5865f2);
+    outline: none;
+    background: var(--background-secondary);
+}
+
+.vc-note-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 56px 20px;
+    text-align: center;
+    background: var(--background-secondary);
+    border-radius: 14px;
+    border: 2px dashed color-mix(in srgb, var(--brand-experiment, #5865f2) 25%, var(--border-subtle, var(--background-modifier-accent)));
+    color: var(--text-muted);
+    gap: 10px;
+    animation: vc-note-fade-in 0.25s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.vc-note-empty-state h3 {
+    margin: 0;
+    color: var(--header-primary);
+    font-size: 17px;
+    font-weight: 600;
+}
