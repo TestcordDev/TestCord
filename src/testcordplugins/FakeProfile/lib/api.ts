@@ -71,16 +71,51 @@ export interface Decors {
     animated: boolean;
 }
 
-export const getEffects = async (): Promise<ProfileEffects[]> => fetch(BASE_URL + "/profile-effects").then(c => c.json());
-export const getBadges = async (): Promise<Badge[]> => fetch(BASE_URL + "/badges").then(c => c.json());
+export const getEffects = async (): Promise<ProfileEffects[]> => {
+    try {
+        const res = await fetch(BASE_URL + "/profile-effects");
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+    } catch {
+        return [];
+    }
+};
 
-export const getPresets = async (): Promise<Decors[]> => fetch(BASE_URL + "/decorations").then(c => c.json());
+export const getBadges = async (): Promise<Badge[]> => {
+    try {
+        const res = await fetch(BASE_URL + "/badges");
+        if (!res.ok) return {} as any;
+        const data = await res.json();
+        return data && typeof data === "object" ? data : ({} as any);
+    } catch {
+        return {} as any;
+    }
+};
+
+export const getPresets = async (): Promise<Decors[]> => {
+    try {
+        const res = await fetch(BASE_URL + "/decorations");
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+    } catch {
+        return [];
+    }
+};
 
 export const getUsers = async (ids?: string[]): Promise<Record<string, UserProfile | null>> => {
     if (ids?.length === 0) return {};
 
-    const url = new URL(BASE_URL + "/users");
-    if (ids && ids.length !== 0) url.searchParams.set("ids", JSON.stringify(ids));
+    try {
+        const url = new URL(BASE_URL + "/users");
+        if (ids && ids.length !== 0) url.searchParams.set("ids", JSON.stringify(ids));
 
-    return await fetch(url).then(c => c.json());
+        const res = await fetch(url);
+        if (!res.ok) return {};
+        const data = await res.json();
+        return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+    } catch {
+        return {};
+    }
 };

@@ -33,6 +33,7 @@ interface UsersDecorationsState {
     badges: Map<string, Badge[]>;
     addedBadges: any[];
     fetchQueue: Set<string>;
+    decorationsFetched: boolean;
     bulkFetch: () => Promise<void>;
     fetch: (userId: string, force?: boolean) => Promise<void>;
     fetchMany: (userIds: string[]) => Promise<void>;
@@ -68,6 +69,7 @@ export const useUsersProfileStore = proxyLazy(() => zustandCreate((set: any, get
     profileEffects: new Map<string, ProfileEffects>(),
     badges: new Map<string, Badge[]>(),
     addedBadges: [],
+    decorationsFetched: false,
     fetchBadges: debounce(async () => {
         if (!settings.store.enableCustomBadges) return;
 
@@ -75,62 +77,86 @@ export const useUsersProfileStore = proxyLazy(() => zustandCreate((set: any, get
 
         addedBadges.forEach(badge => removeProfileBadge(badge));
 
-        const fetchedBadges = await getBadges();
-        const newBadges = new Map(
-            Object.entries(fetchedBadges).map(([key, value]) => [key, value])
-        );
+        try {
+            const fetchedBadges = await getBadges();
+            if (!fetchedBadges || typeof fetchedBadges !== "object" || Array.isArray(fetchedBadges)) return;
 
-        const newAddedBadges: any[] = [];
+            const newBadges = new Map(
+                Object.entries(fetchedBadges).map(([key, value]) => [key, value])
+            );
 
-        newBadges.forEach((userBadges, userId) => {
-            if (Array.isArray(userBadges)) {
-                userBadges.forEach((badge, index) => {
-                    const iconSrc = typeof badge.badge === "string" ? badge.badge.trim() : "";
-                    if (!iconSrc) return;
+            const newAddedBadges: any[] = [];
 
-                    const description = typeof badge.tooltip === "string" && badge.tooltip.length
-                        ? badge.tooltip
-                        : "fakeProfile badge";
-                    const newBadge = {
-                        id: badge.badge_id ?? `fakeprofile-${userId}-${index}`,
-                        iconSrc,
-                        description,
-                        position: BadgePosition.START,
-                        shouldShow: ({ userId: badgeUserId }) => badgeUserId === userId,
-                    };
-                    addProfileBadge(newBadge);
-                    newAddedBadges.push(newBadge);
-                });
-            }
-        });
+            newBadges.forEach((userBadges, userId) => {
+                if (Array.isArray(userBadges)) {
+                    userBadges.forEach((badge, index) => {
+                        const iconSrc = typeof badge.badge === "string" ? badge.badge.trim() : "";
+                        if (!iconSrc) return;
 
-        set({
-            badges: newBadges,
-            addedBadges: newAddedBadges,
-        });
+                        const description = typeof badge.tooltip === "string" && badge.tooltip.length
+                            ? badge.tooltip
+                            : "fakeProfile badge";
+                        const newBadge = {
+                            id: badge.badge_id ?? `fakeprofile-${userId}-${index}`,
+                            iconSrc,
+                            description,
+                            position: BadgePosition.START,
+                            shouldShow: ({ userId: badgeUserId }: { userId: string }) => badgeUserId === userId,
+                        };
+                        addProfileBadge(newBadge);
+                        newAddedBadges.push(newBadge);
+                    });
+                }
+            });
+
+            set({
+                badges: newBadges,
+                addedBadges: newAddedBadges,
+            });
+        } catch (e) {
+            console.error("[FakeProfile] Failed to fetch badges:", e);
+        }
     }),
     fetchProfileEffects: debounce(async () => {
-        const fetchedProfileEffects = await getEffects();
-        const newProfileEffects = new Map(
-            fetchedProfileEffects.flatMap(effect => [
-                [effect.skuId, effect] as const,
-                [effect.id, effect] as const
-            ])
-        );
-        set({
-            profileEffects: newProfileEffects,
-        });
+        try {
+            const fetchedProfileEffects = await getEffects();
+            if (!Array.isArray(fetchedProfileEffects)) return;
 
+            const newProfileEffects = new Map(
+                fetchedProfileEffects.flatMap(effect => {
+                    if (!effect || typeof effect !== "object") return [];
+                    return [
+                        [effect.skuId, effect] as const,
+                        [effect.id, effect] as const
+                    ];
+                })
+            );
+            set({
+                profileEffects: newProfileEffects,
+            });
+        } catch (e) {
+            console.error("[FakeProfile] Failed to fetch profile effects:", e);
+        }
     }),
     fetchDecorations: debounce(async () => {
-        const fetchedDecorations = await getPresets();
-        const newDecorations = new Map(
-            fetchedDecorations.map(decoration => [decoration.asset, decoration])
-        );
-        set({
-            decorations: newDecorations,
-        });
+        try {
+            const fetchedDecorations = await getPresets();
+            if (!Array.isArray(fetchedDecorations)) {
+                set({ decorationsFetched: true });
+                return;
+            }
 
+            const newDecorations = new Map(
+                fetchedDecorations.map(decoration => [decoration.asset, decoration])
+            );
+            set({
+                decorations: newDecorations,
+                decorationsFetched: true,
+            });
+        } catch (e) {
+            console.error("[FakeProfile] Failed to fetch decorations:", e);
+            set({ decorationsFetched: true });
+        }
     }),
     fetchQueue: new Set(),
     bulkFetch: debounce(async () => {
@@ -141,16 +167,21 @@ export const useUsersProfileStore = proxyLazy(() => zustandCreate((set: any, get
         set({ fetchQueue: new Set() });
 
         const fetchIds = [...fetchQueue];
-        const fetchedUsers = await getUsers(fetchIds);
+        try {
+            const fetchedUsers = await getUsers(fetchIds);
+            if (!fetchedUsers || typeof fetchedUsers !== "object") return;
 
-        const newUsers = new Map<string, UserData | null>(users);
-        for (const fetchId of fetchIds) {
-            const newUser = fetchedUsers[fetchId] ?? null;
-            newUsers.set(fetchId, newUser);
+            const newUsers = new Map<string, UserData | null>(users);
+            for (const fetchId of fetchIds) {
+                const newUser = fetchedUsers[fetchId] ?? null;
+                newUsers.set(fetchId, newUser);
+            }
+            pruneUsers(newUsers);
+
+            set({ users: newUsers });
+        } catch (e) {
+            console.error("[FakeProfile] Failed to bulk fetch users:", e);
         }
-        pruneUsers(newUsers);
-
-        set({ users: newUsers });
     }),
     async fetch(userId: string, force: boolean = false) {
         const { users, fetchQueue, bulkFetch } = get();
@@ -209,6 +240,7 @@ export const useUsersProfileStore = proxyLazy(() => zustandCreate((set: any, get
 export function useUserAvatarDecoration(user?: User): Decoration | null | undefined {
     const avatarDecoration = useUsersProfileStore(state => user ? state.getDecorAsset(user.id) : undefined);
     const decoration = useUsersProfileStore(state => avatarDecoration ? state.decorations.get(avatarDecoration) : undefined);
+    const decorationsFetched = useUsersProfileStore(state => state.decorationsFetched);
 
     useEffect(() => {
         if (!user) return;
@@ -216,8 +248,10 @@ export function useUserAvatarDecoration(user?: User): Decoration | null | undefi
     }, [user?.id]);
 
     useEffect(() => {
-        if (avatarDecoration && !decoration) useUsersProfileStore.getState().fetchDecorations();
-    }, [avatarDecoration, decoration]);
+        if (avatarDecoration && !decoration && !decorationsFetched) {
+            useUsersProfileStore.getState().fetchDecorations();
+        }
+    }, [avatarDecoration, decoration, decorationsFetched]);
 
     if (!avatarDecoration) return null;
 
