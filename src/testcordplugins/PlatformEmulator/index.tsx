@@ -7,7 +7,6 @@
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { UserStore } from "@webpack/common";
 
 const infos: Record<string, { os: string; browser: string }> = {
     windows: { os: "Windows", browser: "Discord Client" },
@@ -67,21 +66,14 @@ export default definePlugin({
                 },
                 {
                     match: /(?<="GatewaySocket"\)\}\),properties:)(\i)/,
-                    replace: "{...$1,...$self.getData(true)}"
+                    replace: "{...$1,...$self.getData()}"
                 },
             ]
         }
     ],
-    getData(bypass?: boolean, userId?: any) {
+    getData() {
         const selected = settings.store.plateforme ?? "windows";
         const info = infos[selected] ?? infos.windows;
-
-        if (bypass || !userId || userId === UserStore?.getCurrentUser?.()?.id) {
-            return {
-                os: info.os,
-                browser: info.browser
-            };
-        }
 
         return {
             os: info.os,
