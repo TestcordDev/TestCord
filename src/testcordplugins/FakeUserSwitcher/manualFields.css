@@ -191,14 +191,16 @@
     color-scheme: dark;
 }
 
-/* Tint the native date-picker calendar icon so it's visible on the dark input. */
+/* Tint the native date-picker calendar icon so it's clearly visible on dark inputs. */
 .fus-mf-input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(1) opacity(0.6);
+    filter: brightness(0) invert(1);
+    opacity: 0.6;
     cursor: pointer;
+    transition: opacity 0.15s ease;
 }
 
 .fus-mf-input[type="date"]::-webkit-calendar-picker-indicator:hover {
-    filter: invert(1) opacity(0.9);
+    opacity: 1;
 }
 
 .fus-mf-input:focus {

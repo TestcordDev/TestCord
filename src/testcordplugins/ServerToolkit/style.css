@@ -781,12 +781,19 @@
 }
 
 .guild-toolkit-modal .gt-webhook-row:hover .gt-webhook-name {
-    color: var(--interactive-active) !important;
+    color: var(--header-primary, #ffffff) !important;
 }
 
-.guild-toolkit-modal .gt-webhook-row:hover .gt-webhook-channel,
+.guild-toolkit-modal .gt-webhook-row:hover .gt-webhook-channel {
+    color: var(--text-muted, #9598a6) !important;
+}
+
 .guild-toolkit-modal .gt-webhook-row:hover .gt-webhook-id {
-    color: var(--interactive-hover) !important;
+    color: var(--text-muted, #b5bac1) !important;
+}
+
+.guild-toolkit-modal .gt-webhook-id:hover {
+    color: var(--text-link, #00a8fc) !important;
 }
 
 /* ============================================================
