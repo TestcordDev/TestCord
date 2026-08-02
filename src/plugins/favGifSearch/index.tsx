@@ -94,13 +94,15 @@ export default definePlugin({
                     // https://regex101.com/r/07gpzP/1
                     // ($1 renderHeaderContent=function { ... switch (x) ... case FAVORITES:return) ($2) ($3 case default: ... return r.jsx(($<searchComp>), {...props}))
                     match: /(renderHeaderContent\(\).{1,150}FAVORITES:return)(.{1,150});(case.{1,200}default:.{0,50}?return\(0,\i\.jsx\)\((?<searchComp>\i\.\i),)/,
-                    replace: "$1 this?.state?.resultType === 'Favorites' ? $self.renderSearchBar(this, $<searchComp>) : $2;$3"
+                    replace: "$1 this?.state?.resultType === 'Favorites' ? $self.renderSearchBar(this, $<searchComp>) : $2;$3",
+                    noWarn: true
                 },
                 {
                     // to persist filtered favorites when component re-renders.
                     // when resizing the window the component rerenders and we loose the filtered favorites and have to type in the search bar to get them again
                     match: /(,suggestions:\i,favorites:)(\i),/,
-                    replace: "$1$self.getFav($2),favCopy:$2,"
+                    replace: "$1$self.getFav($2),favCopy:$2,",
+                    noWarn: true
                 }
 
             ]

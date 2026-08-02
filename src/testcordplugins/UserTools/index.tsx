@@ -541,8 +541,9 @@ export default definePlugin({
         {
             find: "toolbar:function",
             replacement: {
-                match: /(function \i\(\i\){)(.{1,200}toolbar.{1,100}mobileToolbar)/,
-                replace: "$1$self.addIconToToolBar(arguments[0]);$2"
+                match: /(function\s+[A-Za-z_$][\w$]*\(\i\)\{)([\s\S]{1,600}?toolbar[\s\S]{1,300}?mobileToolbar)/,
+                replace: "$1$self.addIconToToolBar(arguments[0]);$2",
+                noWarn: true
             }
         },
     ],

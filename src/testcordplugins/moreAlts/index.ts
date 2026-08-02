@@ -32,8 +32,9 @@ export default definePlugin({
             find: "\"multiaccount_cta_tooltip_seen\"",
             replacement: [{
                 // the first export seems to always be the amount of alts, we should find a better way to do this in the future
-                match: /(.{0,2}):function\(\){return .{1,2}\}/,
-                replace: "$1:function(){return $self.settings.amtOfAcounts}"
+                match: /([A-Za-z_$][\w$]*):(function\(\)\{return \d+|\(\)=>\d+)/,
+                replace: "$1:()=>$self.settings.store.amtOfAcounts",
+                noWarn: true
             }]
         }
     ]

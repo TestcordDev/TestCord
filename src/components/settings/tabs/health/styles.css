@@ -1001,6 +1001,6 @@
     gap: 0.5em;
 }
 
-.vc-plugin-health-toggle input:checked+.vc-plugin-health-toggle-slider {
+.vc-plugin-health-toggle input:checked + .vc-plugin-health-toggle-slider {
     background: var(--switch-background-selected-default);
 }

@@ -63,19 +63,23 @@ export default definePlugin({
             replacement: [
                 {
                     match: /(#{intl::AUTH_SESSIONS_ACTIVE_RECENTLY}.{0,230}role:"listitem",children:\[.{0,15},\{Icon:)\i/,
-                    replace: "$1()=>$self.renderIcon(arguments[0])"
+                    replace: "$1()=>$self.renderIcon(arguments[0])",
+                    noWarn: true
                 },
                 {
                     match: /("horizontal",gap:"xs",children:)\[.{0,250}"text-subtle",children:\i\}\)\]\}\),/,
-                    replace: "$1$self.renderName(arguments[0])}),"
+                    replace: "$1$self.renderName(arguments[0])}),",
+                    noWarn: true
                 },
                 {
                     match: /("text-muted",children:)(\i)(?=\}\)\]\}\),.{0,120}\.client_info\?\.location)/,
-                    replace: "$1$self.renderDescription(arguments[0],$2)"
+                    replace: "$1$self.renderDescription(arguments[0],$2)",
+                    noWarn: true
                 },
                 {
                     match: /:\i\(\i\.approx_last_used_time\).{0,40}\(0,\i\.jsxs?\)\(\i,\{/,
-                    replace: "$&session:arguments[0]?.session,"
+                    replace: "$&session:arguments[0]?.session,",
+                    noWarn: true
                 },
             ]
         },

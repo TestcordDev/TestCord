@@ -2043,16 +2043,19 @@ const plugin = definePlugin({
             group: true,
             replacement: [
                 {
-                    match: /(?<=\.avatarDecoration,guildId:\i\}\)\),)(?<=user:(\i).{0,150}?)/,
-                    replace: "vcFusAvatarDecoration=$self.useUserAvatarDecoration($1),"
+                    match: /(m=\(0,\i\.\i\)\(\(0,\i\.lw\)\(\{userValue:([A-Za-z_$][\w$]*))/,
+                    replace: "vcFusAvatarDecoration=$self.useUserAvatarDecoration($2),$1",
+                    noWarn: true
                 },
                 {
-                    match: /(?<={avatarDecoration:).{1,20}?(?=,)(?<=avatarDecorationOverride:(\i).{0,150}?)/,
-                    replace: "$1??vcFusAvatarDecoration??($&)"
+                    match: /(avatarDecoration:)(void 0!==\i\?\i:m)/,
+                    replace: "$1vcFusAvatarDecoration??($2)",
+                    noWarn: true
                 },
                 {
-                    match: /(?<=size:\i}\),\[)/,
-                    replace: "vcFusAvatarDecoration,"
+                    match: /(,\[g,\i,m)/,
+                    replace: "$1,vcFusAvatarDecoration",
+                    noWarn: true
                 }
             ]
         },
@@ -2061,7 +2064,8 @@ const plugin = definePlugin({
             replacement: [
                 {
                     match: /(?<=\i\)\({avatarDecoration:)\i(?=,)(?<=currentUser:(\i).{0,150}?)/,
-                    replace: "$self.useUserAvatarDecoration($1)??$&"
+                    replace: "$self.useUserAvatarDecoration($1)??$&",
+                    noWarn: true
                 }
             ]
         },
@@ -2074,7 +2078,8 @@ const plugin = definePlugin({
             replacement: [
                 {
                     match: /(\i)\.length>0\?void 0:(\i)\.avatarDecoration/,
-                    replace: "$self.useUserAvatarDecoration($2)??$2.avatarDecoration"
+                    replace: "$self.useUserAvatarDecoration($2)??$2.avatarDecoration",
+                    noWarn: true
                 }
             ]
         })),
@@ -2102,8 +2107,8 @@ const plugin = definePlugin({
         {
             find: "getAssetImage: size must === [",
             replacement: {
-                match: /(getAssetImage)\s*(=|:)?\s*(function)?\s*\(\s*(\i)\s*,\s*(\i)\s*(,[^)]*)?\)\s*\{/,
-                replace: "$1$2$3($4,$5$6){if(typeof $5===\"string\"&&($5.startsWith(\"http://\")||$5.startsWith(\"https://\")||$5.startsWith(\"data:\")))return $5;"
+                match: /(?:getAssetImage\s*[:=]\s*function|function\s+[A-Za-z_$][\w$]*)\s*\(\s*([A-Za-z_$][\w$]*)\s*,\s*([A-Za-z_$][\w$]*)\s*(,[^)]*)?\)\s*\{/,
+                replace: "$&if(typeof $2===\"string\"&&($2.startsWith(\"http://\")||$2.startsWith(\"https://\")||$2.startsWith(\"data:\")))return $2;"
             }
         },
         {
@@ -2167,7 +2172,8 @@ const plugin = definePlugin({
             find: "multiAccountUsers",
             replacement: {
                 match: /(\w+)\.default\.track\((\w+)\.HAw\.MULTI_ACCOUNT_SWITCH_ATTEMPT[^)]+\),(\w+)\.Mx\((\w+)\)/,
-                replace: "$1.default.track($2.HAw.MULTI_ACCOUNT_SWITCH_ATTEMPT,{location:{section:$2.JJy.USER_PROFILE}}),$self.handleSwitch($3.Mx.bind($3),$4)"
+                replace: "$1.default.track($2.HAw.MULTI_ACCOUNT_SWITCH_ATTEMPT,{location:{section:$2.JJy.USER_PROFILE}}),$self.handleSwitch($3.Mx.bind($3),$4)",
+                noWarn: true
             }
         }
     ],

@@ -49,7 +49,7 @@ export default definePlugin({
         {
             find: "#{intl::ACCOUNT_SPEAKING_WHILE_MUTED}",
             replacement: {
-                match: /className:\w+\.buttons,.{0,100}children:\[/,
+                match: /(?:className:\w+\.buttons,.{0,100})?children:\[/,
                 replace: "$&$self.SendCustomScreenSharePreviewImageButton(),"
             }
         }

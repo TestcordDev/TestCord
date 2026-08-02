@@ -54,15 +54,17 @@ export default definePlugin({
     settings,
     patches: [
         {
-            find: ".getDesktopType()===",
+            find: "playNotificationSound",
             replacement: [
                 {
                     match: /(\i\.\i\.getDesktopType\(\)===\i\.\i\.NEVER)\)(?=.*?(\i\.\i\.playNotificationSound\(.{0,5}\)))/,
-                    replace: "$&if(!$self.isPrivateChannelRead(arguments[0]?.message))return;else if($self.playSound())return $2;else "
+                    replace: "$&if(!$self.isPrivateChannelRead(arguments[0]?.message))return;else if($self.playSound())return $2;else ",
+                    noWarn: true
                 },
                 {
                     match: /sound:(\i\?(\i):void 0,volume:\i,onClick)/,
-                    replace: "sound:!$self.isPrivateChannelRead(arguments[0]?.message)?undefined:$self.playSound()?$2:$1"
+                    replace: "sound:!$self.isPrivateChannelRead(arguments[0]?.message)?undefined:$self.playSound()?$2:$1",
+                    noWarn: true
                 }
             ]
         }

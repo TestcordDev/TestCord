@@ -97,13 +97,15 @@ export default definePlugin({
             find: "getUserAvatarURL:",
             replacement: [
                 {
-                    match: /(getUserAvatarURL:)(\i),/,
-                    replace: "$1$self.getAvatarHook($2),"
+                    match: /(getUserAvatarURL:)([^,]+),/,
+                    replace: "$1$self.getAvatarHook($2),",
+                    noWarn: true
                 },
                 {
-                    match: /(getGuildMemberAvatarURLSimple:)(\i),/,
+                    match: /(getGuildMemberAvatarURLSimple:)([^,]+),/,
                     replace: "$1$self.getAvatarServerHook($2),",
-                    predicate: () => settings.store.overrideServerAvatars
+                    predicate: () => settings.store.overrideServerAvatars,
+                    noWarn: true
                 }
             ]
         }

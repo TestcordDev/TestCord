@@ -29,11 +29,13 @@ const plugin = definePlugin({
             replacement: [
                 {
                     match: /(switch\((.{0,10})\).{0,1000})(throw Error\(.{0,100}?Unknown resolution.{0,100}?\))(?=})/,
-                    replace: "$1return $2"
+                    replace: "$1return $2",
+                    noWarn: true
                 },
                 {
                     match: /(switch\((.{0,10})\).{0,1000})(throw Error\(.{0,100}?Unknown frame rate.{0,100}?\))(?=})/,
-                    replace: "$1return $2"
+                    replace: "$1return $2",
+                    noWarn: true
                 }
             ]
         }

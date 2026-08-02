@@ -271,37 +271,23 @@ export const PluginHealth = {
      * are capped per plugin and duplicates are collapsed by `find`+`match`+`kind`.
      */
     recordPatchFailure(plugin: string, failure: Omit<PatchFailure, "at">) {
-        if (!plugin) return;
+        if (!plugin || failure.kind === "conflict") return;
         const entry = ensureEntry(plugin);
 
         // Collapse duplicate failures: patches can fail across many modules and
         // we do not want to blow up the ring buffer with the same message.
         // For conflicts, collapse by find+moduleId+kind (ignore match/error
         // since multiple replacements on the same module produce redundant entries).
-        const isConflict = failure.kind === "conflict";
         const duplicate = entry.patchFailures.find(f =>
             f.kind === failure.kind
             && f.find === failure.find
-            && (isConflict
-                ? f.moduleId === failure.moduleId
-                : f.match === failure.match)
+            && f.match === failure.match
         );
         if (duplicate) {
             duplicate.at = Date.now();
             if (failure.moduleId && duplicate.moduleId !== failure.moduleId) {
                 // Track the most recent module id we saw the failure on.
                 duplicate.moduleId = failure.moduleId;
-            }
-            // For conflicts, accumulate plugin names in the error field rather
-            // than overwriting with each new conflicting plugin.
-            if (isConflict && failure.error) {
-                const existingPlugins = duplicate.error ?? "";
-                const newPlugin = failure.error.replace("Also patched by: ", "");
-                if (!existingPlugins.includes(newPlugin)) {
-                    duplicate.error = existingPlugins
-                        ? `${existingPlugins}, ${newPlugin}`
-                        : failure.error;
-                }
             }
             notify();
             return;

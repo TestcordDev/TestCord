@@ -662,28 +662,11 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
 
                 if (!patchedBy.has(patch.plugin)) {
                     // Conflict detection: if another plugin already patched this
-                    // module, record a warning. This doesn't mean the patches are
-                    // incompatible — many plugins intentionally patch the same
-                    // module — but it's useful for the user to know.
+                    // module, log for dev awareness. This doesn't mean the patches are
+                    // incompatible — many plugins intentionally patch the same module.
                     const otherPlugins = [...patchedBy].filter(p => p !== patch.plugin);
-                    if (otherPlugins.length > 0) {
-                        const otherList = otherPlugins.sort().join(", ");
-                        PluginHealth.recordPatchFailure(patch.plugin, {
-                            kind: "conflict",
-                            find: String(patch.find),
-                            match: String(replacement.match),
-                            moduleId: String(moduleId),
-                            error: `Also patched by: ${otherList}`
-                        });
-                        for (const other of otherPlugins) {
-                            PluginHealth.recordPatchFailure(other, {
-                                kind: "conflict",
-                                find: String(patch.find),
-                                match: String(replacement.match),
-                                moduleId: String(moduleId),
-                                error: `Also patched by: ${[patch.plugin, ...otherPlugins.filter(p => p !== other)].sort().join(", ")}`
-                            });
-                        }
+                    if (otherPlugins.length > 0 && IS_DEV) {
+                        logger.info(`Module ${String(moduleId)} (${String(patch.find)}) patched by ${patch.plugin} was also patched by: ${otherPlugins.sort().join(", ")}`);
                     }
 
                     patchedBy.add(patch.plugin);

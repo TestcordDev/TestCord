@@ -42,13 +42,12 @@ import { get as dsGet } from "./api/DataStore";
 import { popNotice, showNotice } from "./api/Notices";
 import { NotificationData, showNotification } from "./api/Notifications";
 import { PatchVersioning } from "./api/PatchVersioning";
-import { PluginHealth } from "./api/PluginHealth";
 import { initPluginManager, PMLogger, startAllPlugins } from "./api/PluginManager";
 import { PlainSettings, Settings, SettingsStore } from "./api/Settings";
 import { areLocalSettingsDirty, getCloudSettings, getCloudSyncDirection, markLocalSettingsDirty, putCloudSettings, shouldCloudSync } from "./api/SettingsSync/cloudSync";
 import { relaunch } from "./utils/native";
 import { changes, checkForUpdates, isOutdated as getIsOutdated, update, UpdateLogger } from "./utils/updater";
-import { addFactoryListener,onceReady, wreq } from "./webpack";
+import { onceReady, wreq } from "./webpack";
 import { patches } from "./webpack/patchWebpack";
 
 if (IS_REPORTER) {
@@ -305,84 +304,9 @@ async function init() {
 
             if (isInBundle) continue;
 
-            PluginHealth.recordPatchFailure(patch.plugin, {
-                kind: "noModule",
-                find: findStr
-            });
-            noModulePlugins.add(patch.plugin);
-            noModulePatches.push({
-                plugin: patch.plugin,
-                find: patch.find,
-                findStr
-            });
-        }
-
-        // Register a factory listener that checks newly loaded factories
-        // against the noModule entries. When Discord lazy-loads a chunk
-        // that contains a previously "missing" module, the false positive
-        // is automatically cleared.
-        if (noModulePatches.length > 0) {
-            const removeListener = addFactoryListener(factory => {
-                let factorySource: string;
-                try {
-                    factorySource = String(factory);
-                } catch {
-                    return;
-                }
-
-                for (let i = noModulePatches.length - 1; i >= 0; i--) {
-                    const { plugin, find, findStr } = noModulePatches[i];
-                    let matches = false;
-                    if (find instanceof RegExp) {
-                        if (find.global) find.lastIndex = 0;
-                        matches = find.test(factorySource);
-                    } else {
-                        matches = factorySource.includes(findStr);
-                    }
-
-                    if (matches) {
-                        PluginHealth.clearPatchFailures(
-                            plugin,
-                            f => f.kind === "noModule" && f.find === findStr
-                        );
-                        noModulePatches.splice(i, 1);
-                        if (!noModulePatches.some(patch => patch.plugin === plugin)) {
-                            noModulePlugins.delete(plugin);
-                        }
-                    }
-                }
-
-                if (noModulePatches.length === 0) {
-                    removeListener();
-                }
-            });
-        }
-
-        // Discord update detection: if 3+ plugins have missing modules
-        // with real code-level find strings (not CSS class hashes or intl
-        // keys from lazy-loaded chunks), it's very likely Discord shipped
-        // an update that broke things.
-        // Show a one-time notice pointing the user to the Health tab.
-        // Check if the user has dismissed this notice permanently.
-        const realNoModulePlugins = [...noModulePlugins].filter(p =>
-            noModulePatches.some(patch =>
-                patch.plugin === p
-                && !patch.findStr.startsWith(".")
-                && !patch.findStr.startsWith("[\"")
-            )
-        );
-        if (realNoModulePlugins.length >= 3) {
-            void dsGet<boolean>("PluginHealthNoticeDismissed_v1").then(dismissed => {
-                if (!dismissed) {
-                    showNotice(
-                        `Discord may have updated — ${realNoModulePlugins.length} plugins have missing modules. Check the Plugin Health tab for details.`,
-                        "View Health",
-                        () => {
-                            SettingsRouter.openUserSettings("testcord_health_panel");
-                        }
-                    );
-                }
-            });
+            if (IS_DEV) {
+                PMLogger.info(`Deferred scan: patch by ${patch.plugin} (${findStr}) has not been applied yet (module may be lazy-loaded).`);
+            }
         }
     }, 60_000);
 
