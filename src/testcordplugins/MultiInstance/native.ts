@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+// TODO: token signing in doesnt work
 import { app, BrowserWindow, nativeImage, session, shell } from "electron";
 import iconData from "file://../../../browser/icon.png?base64";
 import { join } from "path";
@@ -252,7 +253,8 @@ export async function openInstance(
     rawDomain: unknown = "discord.com",
     rawBlockExternalTokenAccess: unknown = false,
     rawPerformanceMode: unknown = false,
-    rawMode: unknown = "detached"
+    rawMode: unknown = "detached",
+    rawToken: unknown = null
 ): Promise<NativeResult> {
     const profileId = normalizeProfileId(rawProfileId);
     if (!profileId) return { ok: false, error: "Invalid instance profile." };
@@ -263,6 +265,7 @@ export async function openInstance(
     const saveSession = !blockExternalTokenAccess && rawSaveSession !== false;
     const domain = normalizeDomain(rawDomain);
     const mode = normalizeInstanceMode(rawMode);
+    const token = typeof rawToken === "string" && rawToken.trim() ? rawToken.trim() : null;
     const existing = openWindows.get(profileId);
 
     if (existing && !existing.win.isDestroyed()) {
@@ -310,6 +313,7 @@ export async function openInstance(
                 nodeIntegration: false,
                 sandbox: false,
                 backgroundThrottling: performanceMode,
+                partition,
                 session: ses
             }
         });
@@ -339,6 +343,74 @@ export async function openInstance(
         });
         win.on("enter-html-full-screen", () => win.setFullScreen(true));
         win.on("leave-html-full-screen", () => win.setFullScreen(false));
+
+        if (token && !blockExternalTokenAccess) {
+            const cleanToken = token.replace(/^["'\s]+|["'\s]+$/g, "");
+            if (cleanToken) {
+                const targetTokenValue = JSON.stringify(cleanToken);
+                const injectTokenScript = `
+                    (function() {
+                        try {
+                            const clean = ${JSON.stringify(cleanToken)};
+                            const formattedToken = ${JSON.stringify(targetTokenValue)};
+                            const isLoginPage = window.location.pathname.includes("/login") || window.location.pathname.includes("/register");
+
+                            try {
+                                window.localStorage.setItem("token", formattedToken);
+                                window.localStorage.token = formattedToken;
+                            } catch(e) {}
+
+                            let ticks = 0;
+                            const interval = setInterval(() => {
+                                try {
+                                    window.localStorage.setItem("token", formattedToken);
+                                    window.localStorage.token = formattedToken;
+
+                                    const iframe = document.querySelector("iframe[data-token-inject]");
+                                    if (!iframe) {
+                                        const f = document.createElement("iframe");
+                                        f.setAttribute("data-token-inject", "true");
+                                        f.style.display = "none";
+                                        document.body.appendChild(f);
+                                        if (f.contentWindow) {
+                                            f.contentWindow.localStorage.setItem("token", formattedToken);
+                                        }
+                                    }
+
+                                    const wp = window.Vencord?.Webpack || (window).VencordMain?.Webpack;
+                                    if (wp) {
+                                        const auth = wp.findByProps("loginToken");
+                                        if (auth && typeof auth.loginToken === "function") {
+                                            auth.loginToken({ token: clean });
+                                            clearInterval(interval);
+                                            return;
+                                        }
+                                        const tokenStore = wp.findByProps("getToken", "setToken");
+                                        if (tokenStore && typeof tokenStore.setToken === "function") {
+                                            tokenStore.setToken(clean);
+                                            clearInterval(interval);
+                                            return;
+                                        }
+                                    }
+                                } catch(e) {}
+
+                                ticks++;
+                                if (ticks >= 40) {
+                                    clearInterval(interval);
+                                    if (window.location.pathname.includes("/login")) {
+                                        window.location.href = "https://${domain}/channels/@me";
+                                    }
+                                }
+                            }, 50);
+                        } catch(e) {}
+                    })();
+                `;
+
+                webContents.on("dom-ready", () => {
+                    webContents.executeJavaScript(injectTokenScript).catch(() => { });
+                });
+            }
+        }
 
         webContents.on("will-navigate", (event, url) => {
             if (isDiscordAttachmentUrl(url)) {

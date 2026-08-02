@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+// TODO: token signing in doesnt work
 import "./style.css";
 
 import { HeaderBarButton } from "@api/HeaderBar";
@@ -42,6 +43,7 @@ interface InstanceProfile {
     domain?: DiscordDomain;
     mode?: InstanceMode;
     user?: InstanceUser;
+    token?: string;
 }
 
 interface PrivateSettings {
@@ -83,6 +85,7 @@ function isProfile(value: unknown): value is InstanceProfile {
         (!("domain" in value) || isDomain(value.domain)) &&
         (!("mode" in value) || value.mode === "detached" || value.mode === "grouped") &&
         (!("user" in value) || isInstanceUser(value.user)) &&
+        (!("token" in value) || typeof value.token === "string" || value.token == null) &&
         /^[a-z0-9_-]{1,32}$/i.test(value.id) &&
         value.name.trim().length > 0;
 }
@@ -99,7 +102,8 @@ function getProfiles(value: unknown) {
             saveSession: profile.saveSession,
             domain: getDomain(profile),
             mode: profile.mode ?? "detached",
-            user: profile.user
+            user: profile.user,
+            token: profile.token?.trim() || undefined
         }))
         .filter(profile => {
             if (seen.has(profile.id)) return false;
@@ -122,14 +126,15 @@ function makeProfileId(name: string, profiles: InstanceProfile[]) {
         .toLowerCase()
         .replace(/[^a-z0-9_-]+/g, "-")
         .replace(/^-+|-+$/g, "")
-        .slice(0, 24) || "instance";
+        .slice(0, 18) || "instance";
 
     const used = new Set(profiles.map(profile => profile.id));
-    let id = base;
+    const randomTag = Math.random().toString(36).slice(2, 6);
+    let id = `${base}-${randomTag}`;
     let suffix = 2;
 
     while (used.has(id)) {
-        id = `${base}-${suffix}`.slice(0, 32);
+        id = `${base}-${randomTag}-${suffix}`;
         suffix++;
     }
 
@@ -210,6 +215,68 @@ const settings = definePluginSettings({
     }
 }).withPrivateSettings<PrivateSettings>();
 
+function TokenModal({
+    profile,
+    onSave,
+    rootProps
+}: {
+    profile: InstanceProfile;
+    onSave: (token: string | undefined) => void;
+    rootProps: RenderModalProps;
+}) {
+    const [tokenVal, setTokenVal] = React.useState(profile.token ?? "");
+
+    return (
+        <Modal {...rootProps} title={`Account Token — ${profile.name}`} size="small">
+            <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div style={{ color: "var(--text-normal)", fontSize: "13px", lineHeight: "18px" }}>
+                    Enter a Discord account token to log into <strong>{profile.name}</strong> automatically when launching.
+                </div>
+                <TextInput
+                    value={tokenVal}
+                    placeholder="Discord User Token (e.g. OT...)"
+                    onChange={setTokenVal}
+                />
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "8px" }}>
+                    {profile.token && (
+                        <Button
+                            size="small"
+                            variant="secondary"
+                            color="danger"
+                            onClick={() => {
+                                onSave(undefined);
+                                rootProps.onClose();
+                                showToast(`Token removed from ${profile.name}.`, Toasts.Type.SUCCESS);
+                            }}
+                        >
+                            Remove Token
+                        </Button>
+                    )}
+                    <Button
+                        size="small"
+                        variant="secondary"
+                        onClick={rootProps.onClose}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        size="small"
+                        variant="positive"
+                        onClick={() => {
+                            const trimmed = tokenVal.trim();
+                            onSave(trimmed || undefined);
+                            rootProps.onClose();
+                            showToast(`Token saved for ${profile.name}.`, Toasts.Type.SUCCESS);
+                        }}
+                    >
+                        Save Token
+                    </Button>
+                </div>
+            </div>
+        </Modal>
+    );
+}
+
 function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
     const currentUser = useStateFromStores([UserStore], () => UserStore.getCurrentUser());
     const { blockExternalTokenAccess, performanceMode } = settings.use(SESSION_SETTING_KEYS);
@@ -218,6 +285,7 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
     const [instances, setInstances] = React.useState<InstanceStatus[]>([]);
     const [busyId, setBusyId] = React.useState<string | null>(null);
     const [newName, setNewName] = React.useState("");
+    const [newToken, setNewToken] = React.useState("");
     const [editingId, setEditingId] = React.useState<string | null>(null);
     const [editingName, setEditingName] = React.useState("");
     const refreshTick = useTimer({ interval: 1000 });
@@ -264,7 +332,7 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
         saveProfiles(nextProfiles);
     }
 
-    function updateProfile(profileId: string, patch: Partial<Pick<InstanceProfile, "name" | "saveSession" | "domain" | "mode" | "user">>) {
+    function updateProfile(profileId: string, patch: Partial<Pick<InstanceProfile, "name" | "saveSession" | "domain" | "mode" | "user" | "token">>) {
         changeProfiles(profiles => profiles.map(profile => profile.id === profileId ? { ...profile, ...patch } : profile));
     }
 
@@ -278,7 +346,7 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
         updateProfile(profile.id, { mode });
 
         const saveSession = shouldSaveSession(profile);
-        const result = await Native.openInstance(profile.id, profile.name, saveSession, getDomain(profile), blockExternalTokenAccess, performanceMode, mode)
+        const result = await Native.openInstance(profile.id, profile.name, saveSession, getDomain(profile), blockExternalTokenAccess, performanceMode, mode, profile.token)
             .catch(error => ({ ok: false, error: getErrorMessage(error) }));
 
         if (result.ok) {
@@ -361,14 +429,17 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
 
     function addInstance() {
         const requestedName = newName.trim();
+        const token = newToken.trim() || undefined;
 
         changeProfiles(profiles => {
             const name = requestedName || `Discord Instance ${profiles.length + 1}`;
             const id = makeProfileId(name, profiles);
 
-            return [...profiles, { id, name, saveSession: settings.store.saveSessionsByDefault, domain: DEFAULT_DOMAIN, mode: "detached" }];
+            return [...profiles, { id, name, saveSession: settings.store.saveSessionsByDefault, domain: DEFAULT_DOMAIN, mode: "detached", token }];
         });
         setNewName("");
+        setNewToken("");
+        showToast("Added new instance profile.", Toasts.Type.SUCCESS);
     }
 
     function toggleSessionSaving(profile: InstanceProfile) {
@@ -397,12 +468,17 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
         updateProfile(profile.id, { name });
         setEditingId(null);
         setEditingName("");
+        showToast("Renamed instance profile.", Toasts.Type.SUCCESS);
     }
 
     async function removeInstance(profile: InstanceProfile) {
         if (instances.some(instance => instance.id === profile.id)) await closeInstance(profile);
 
-        changeProfiles(profiles => profiles.filter(({ id }) => id !== profile.id));
+        changeProfiles(profiles => {
+            const filtered = profiles.filter(({ id }) => id !== profile.id);
+            return filtered.length ? filtered : DEFAULT_PROFILES;
+        });
+        showToast(`Removed profile ${profile.name}.`, Toasts.Type.SUCCESS);
     }
 
     function openInstanceMenu(event: ReactMouseEvent, profile: InstanceProfile, status?: InstanceStatus) {
@@ -451,6 +527,12 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
                     action={() => startRename(profile)}
                 />
                 <Menu.MenuItem
+                    id="multi-instance-token"
+                    label={profile.token ? "Edit saved token" : "Set account token"}
+                    disabled={isBusy}
+                    action={() => openModal(props => <TokenModal profile={profile} onSave={t => updateProfile(profile.id, { token: t })} rootProps={props} />)}
+                />
+                <Menu.MenuItem
                     id="multi-instance-session"
                     label={shouldSaveSession(profile) ? "Use a temporary session" : "Save this session"}
                     disabled={isBusy || !!status || blockExternalTokenAccess}
@@ -472,7 +554,7 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
                     id="multi-instance-remove"
                     label="Remove profile"
                     color="danger"
-                    disabled={isBusy || profiles.length === 1}
+                    disabled={isBusy}
                     action={() => void removeInstance(profile)}
                 />
             </Menu.Menu>
@@ -607,12 +689,19 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
                                             <span>{DOMAIN_LABELS[domain]}</span>
                                             <span>{sessionLabel}</span>
                                             <span>{mode === "grouped" ? "Grouped" : "Separate"}</span>
+                                            {profile.token && <span>🔑 Token Set</span>}
                                         </div>
                                     </div>
                                 </div>
-                                <div className="vc-multi-instance-actions">
+                                <div className="vc-multi-instance-actions" style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                                     <Button size="small" variant="positive" disabled={isBusy || isEditing} onClick={() => void openInstance(profile, mode)}>
                                         {isOpen ? "Focus" : "Open"}
+                                    </Button>
+                                    <Button size="small" variant="secondary" disabled={isBusy || isEditing} onClick={() => startRename(profile)}>
+                                        Rename
+                                    </Button>
+                                    <Button size="small" variant="secondary" color="danger" disabled={isBusy} onClick={() => void removeInstance(profile)}>
+                                        Remove
                                     </Button>
                                     <Button size="small" variant="secondary" disabled={isBusy} onClick={event => openInstanceMenu(event, profile, status)}>
                                         Options
@@ -628,12 +717,17 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
                         <strong>Create an alt profile</strong>
                         <span>Its login data remains isolated from every other profile.</span>
                     </div>
-                    <div className="vc-multi-instance-add-controls">
-                        <div className="vc-multi-instance-add-input">
+                    <div className="vc-multi-instance-add-controls" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        <div className="vc-multi-instance-add-input" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                             <TextInput
                                 value={newName}
                                 placeholder="Profile name"
                                 onChange={setNewName}
+                            />
+                            <TextInput
+                                value={newToken}
+                                placeholder="Token (optional)"
+                                onChange={setNewToken}
                             />
                         </div>
                         <Button size="small" variant="positive" onClick={addInstance}>
