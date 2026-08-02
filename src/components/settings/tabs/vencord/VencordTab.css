@@ -61,6 +61,7 @@
 }
 
 .vc-testcord-hidden-settings-tab {
+    display: none !important;
     min-height: 0 !important;
     max-height: 0 !important;
     padding-top: 0 !important;
