@@ -16,7 +16,6 @@ import { ChannelStore, FluxDispatcher, GuildMemberStore, MessageStore, React, Re
 
 const Native = VencordNative.pluginHelpers.fakeDM as PluginNative<typeof import("./native")>;
 const STORAGE_KEY = "fakedm_fakes";
-const LEGACY_STORAGE_KEY = "nightcord_fakedm_fakes";
 
 // ─── Unique Snowflake Generator ─────────────────────────────────────────────
 let _idCounter = 0;
@@ -110,27 +109,20 @@ let _persistedFakes: PersistedFake[] = [];
 
 async function loadPersisted(): Promise<PersistedFake[]> {
     try {
-        let stored = await DataStore.get<PersistedFake[]>(STORAGE_KEY);
-        if (!stored || !Array.isArray(stored)) {
-            const legacy = await DataStore.get<PersistedFake[]>(LEGACY_STORAGE_KEY);
-            if (legacy && Array.isArray(legacy)) {
-                stored = legacy;
-                await DataStore.set(STORAGE_KEY, legacy);
-            }
-        }
+        const stored = await DataStore.get<PersistedFake[]>(STORAGE_KEY);
         if (stored && Array.isArray(stored)) {
             _persistedFakes = stored;
             return stored;
         }
 
-        const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+        const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
             const parsed = JSON.parse(raw);
             _persistedFakes = parsed;
             return parsed;
         }
 
-        const nativeRaw = Native?.loadFakes();
+        const nativeRaw = await Native?.loadFakes();
         if (nativeRaw) {
             const parsed = JSON.parse(nativeRaw);
             _persistedFakes = parsed;
@@ -398,15 +390,15 @@ function restoreChannelFakes(channelId: string) {
                     id: f.authorId,
                     username: f.authorName || "User",
                     globalName: f.authorName || "User",
-                    avatar: f.authorAvatar || null,
-                };
+                    avatar: f.authorAvatar ?? null,
+                } as any;
             }
             injectMessage(f.channelId, author, f.content, new Date(f.timestamp), f.snowflakeId);
         } else {
             let caller = UserStore.getUser(f.callerId);
             let other = UserStore.getUser(f.otherId);
-            if (!caller) caller = { id: f.callerId, username: "Caller" };
-            if (!other) other = { id: f.otherId, username: "User" };
+            if (!caller) caller = { id: f.callerId, username: "Caller" } as any;
+            if (!other) other = { id: f.otherId, username: "User" } as any;
 
             injectCall(
                 f.channelId, caller, other,
@@ -612,13 +604,13 @@ function FakeDMPanel({ onClose, btnRect }: { onClose(): void; btnRect: DOMRect; 
         if ((e.target as HTMLElement).closest(".fakedm-close-btn")) return;
 
         const target = e.currentTarget;
-        try { target.setPointerCapture(e.pointerId); } catch {}
+        try { target.setPointerCapture(e.pointerId); } catch { }
 
         const startMouseX = e.clientX;
         const startMouseY = e.clientY;
         const startX = posRef.current.x;
         const startY = posRef.current.y;
-        const width = posRef.current.width;
+        const { width } = posRef.current;
         const elem = popoutRef.current;
 
         let currentX = startX;
@@ -636,7 +628,7 @@ function FakeDMPanel({ onClose, btnRect }: { onClose(): void; btnRect: DOMRect; 
         };
 
         const handlePointerUp = (pe: PointerEvent) => {
-            try { target.releasePointerCapture(pe.pointerId); } catch {}
+            try { target.releasePointerCapture(pe.pointerId); } catch { }
             target.removeEventListener("pointermove", handlePointerMove);
             target.removeEventListener("pointerup", handlePointerUp);
             target.removeEventListener("pointercancel", handlePointerUp);
@@ -1021,7 +1013,7 @@ function FakeDMPanel({ onClose, btnRect }: { onClose(): void; btnRect: DOMRect; 
                                                             : `Call (${fake.missed ? "Missed" : `${fake.durationSec}s`})`}
                                                     </span>
                                                 </div>
-                                                <span className="fakedm-list-time">{date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                <span className="fakedm-list-time">{date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                                                 <button
                                                     className="fakedm-list-del"
                                                     title="Delete fake message"
@@ -1137,7 +1129,7 @@ const FakeDMButton: ChatBarButtonFactory = (props: any) => {
 
     return (
         <div onClick={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onMouseUp={e => e.stopPropagation()} style={{ display: "contents" }}>
-            <ChatBarButton tooltip="FakeDM — Inject fake message or call" onClick={handleClick}>
+            <ChatBarButton tooltip="FakeDM" onClick={handleClick}>
                 <FakeDMIcon />
             </ChatBarButton>
             {btnRect && ReactDOM.createPortal(
