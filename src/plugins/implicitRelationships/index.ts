@@ -143,14 +143,22 @@ export default definePlugin({
         // Note: As we are using OP 8 here, implicit relationships who we do not share a guild
         // with will not be fetched; so, if they're not otherwise cached, they will not be shown
         // This should not be a big deal as these should be rare
+        let emitTimeout: any = null;
+        const debouncedEmit = () => {
+            if (emitTimeout) clearTimeout(emitTimeout);
+            emitTimeout = setTimeout(() => RelationshipStore.emitChange(), 50);
+        };
+
         const callback = ({ chunks }) => {
             try {
                 const chunkCount = chunks.filter(chunk => chunk.nonce === sentNonce).length;
                 if (chunkCount === 0) return;
 
                 count -= chunkCount;
-                RelationshipStore.emitChange();
+                debouncedEmit();
                 if (count <= 0) {
+                    if (emitTimeout) clearTimeout(emitTimeout);
+                    RelationshipStore.emitChange();
                     FluxDispatcher.unsubscribe("GUILD_MEMBERS_CHUNK_BATCH", callback);
                 }
             } catch (e) {

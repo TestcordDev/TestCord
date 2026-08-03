@@ -409,6 +409,7 @@ export default definePlugin({
             if (settings.store.ignoreBots && message.author?.bot) return;
             if (settings.store.ignoreSelf && message.author?.id === UserStore.getCurrentUser()?.id) return;
             if (!message.content) return;
+            if (!message.content.includes("gift")) return;
 
             const codes = [...message.content.matchAll(GIFT_REGEX)].map(m => m[1]);
             if (!codes.length) return;
