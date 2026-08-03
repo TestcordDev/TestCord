@@ -14,6 +14,7 @@ import {
     PatchHelperTab,
     PluginsTab,
     PresetsTab,
+    PrivacySecurityPanel,
     StatsTab,
     ThemesTab,
     UpdaterTab,
@@ -639,6 +640,13 @@ export default definePlugin({
                     <VencordTab />
                 </>,
                 Icon: TestCordIcon as any
+            }),
+            buildEntry({
+                key: "testcord_privacy_security",
+                title: "Privacy & Security",
+                panelTitle: "Privacy & Security Command Center",
+                Component: PrivacySecurityPanel,
+                Icon: SafetyIcon
             }),
             buildEntry({
                 key: "equicord_plugins",

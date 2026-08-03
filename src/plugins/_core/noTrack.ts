@@ -74,6 +74,9 @@ export default definePlugin({
 
     flux: {
         TRACK(event: { resolve?: () => void }) {
+            try {
+                VencordNative?.privacy?.incrementCounter?.("tracking");
+            } catch { }
             event?.resolve?.();
         }
     },

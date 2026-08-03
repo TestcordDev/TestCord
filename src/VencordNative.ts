@@ -109,5 +109,18 @@ export default {
         onRepair: (cb: () => void) => { ipcRenderer.on(IpcEvents.TRAY_REPAIR, cb); },
     },
 
+    privacy: {
+        getData: () => invoke<any>(IpcEvents.PRIVACY_GET_DATA),
+        toggleShield: (key: string, value: boolean) => invoke<any>(IpcEvents.PRIVACY_TOGGLE_SHIELD, key, value),
+        setDnsProvider: (name: string) => invoke<boolean>(IpcEvents.PRIVACY_SET_DNS_PROVIDER, name),
+        addCustomDns: (name: string, doh: string, fallback: string) => invoke<boolean>(IpcEvents.PRIVACY_ADD_CUSTOM_DNS, name, doh, fallback),
+        pingLatencies: () => invoke<Record<string, number>>(IpcEvents.PRIVACY_PING_LATENCIES),
+        runDiagnostic: (mode: "doh" | "dot" | "auto") => invoke<any[]>(IpcEvents.PRIVACY_RUN_DIAGNOSTIC, mode),
+        stopDiagnostic: () => invoke<any[]>(IpcEvents.PRIVACY_STOP_DIAGNOSTIC),
+        clearDnsCache: () => invoke<any>(IpcEvents.PRIVACY_CLEAR_DNS_CACHE),
+        clearLogs: () => invoke<any[]>(IpcEvents.PRIVACY_CLEAR_LOGS),
+        incrementCounter: (key: string, amount?: number) => invoke<any>(IpcEvents.PRIVACY_INCREMENT_COUNTER, key, amount)
+    },
+
     pluginHelpers: PluginHelpers
 };

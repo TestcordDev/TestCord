@@ -30,6 +30,7 @@ import { release } from "os";
 import { join } from "path";
 
 import { registerCspIpcHandlers } from "./csp/manager";
+import { registerPrivacyIpcHandlers } from "./privacy/ipc";
 import { getThemeInfo, stripBOM, UserThemeHeader } from "./themes";
 import { ALLOWED_PROTOCOLS, QUICK_CSS_PATH, SETTINGS_DIR, THEMES_DIR } from "./utils/constants";
 import { ensureSafePath } from "./utils/ensureSafePath";
@@ -40,6 +41,7 @@ const RENDERER_CSS_PATH = join(__dirname, "renderer.css");
 mkdirSync(THEMES_DIR, { recursive: true });
 
 registerCspIpcHandlers();
+registerPrivacyIpcHandlers();
 
 function readCss() {
     return readFile(QUICK_CSS_PATH, "utf-8").catch(() => "");

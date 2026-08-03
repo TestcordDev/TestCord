@@ -59,4 +59,16 @@ export const enum IpcEvents {
     TRAY_CHECK_UPDATES = "VencordTrayCheckUpdates",
     TRAY_ABOUT = "VencordTrayAbout",
     SUPPORTS_WINDOWS_MATERIAL = "VencordSupportsWindowsMaterial",
+
+    // Privacy & Security Command Center IPC Events
+    PRIVACY_GET_DATA = "TestCordPrivacyGetData",
+    PRIVACY_TOGGLE_SHIELD = "TestCordPrivacyToggleShield",
+    PRIVACY_SET_DNS_PROVIDER = "TestCordPrivacySetDnsProvider",
+    PRIVACY_ADD_CUSTOM_DNS = "TestCordPrivacyAddCustomDns",
+    PRIVACY_PING_LATENCIES = "TestCordPrivacyPingLatencies",
+    PRIVACY_RUN_DIAGNOSTIC = "TestCordPrivacyRunDiagnostic",
+    PRIVACY_STOP_DIAGNOSTIC = "TestCordPrivacyStopDiagnostic",
+    PRIVACY_CLEAR_DNS_CACHE = "TestCordPrivacyClearDnsCache",
+    PRIVACY_CLEAR_LOGS = "TestCordPrivacyClearLogs",
+    PRIVACY_INCREMENT_COUNTER = "TestCordPrivacyIncrementCounter",
 }
