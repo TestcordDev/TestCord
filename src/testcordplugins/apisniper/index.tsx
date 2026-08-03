@@ -156,10 +156,13 @@ function checkForCredentials(content: string): Array<{ type: string; value: stri
     return findings;
 }
 
-const PREFILTER_RE = /[A-Z0-9_-]{20,}/;
+const KEY_MARKERS = /\b(?:sk-|gh[opsu]_|github_pat_|AIza|GOCSPX-|AKIA|ABIA|ACCA|ASIA|xox[baprs]-|\d+:[A-Za-z0-9_-]{35}|(?:sk|pk|rk)_(?:live|test)_|SK[a-f0-9]{32}|SG\.|dop_v1_|glpat-|ATBB|npm_|pypi-|figd_|sh(?:pat|pca|ppa)_|sq0|key-[a-f0-9]{32}|gsk_|hf_|pplx-|fw_|r8_|esecret_|stability-|eyJ[A-Za-z0-9_-]+\.eyJ|ya29\.|ssh-(?:rsa|dss|ed25519)|-----BEGIN|\b(?:mongodb|postgres|mysql|redis)s?:\/\/|webhooks\/)/i;
+const KEYWORD_MARKERS = /(?:api[_-]?key|apikey|api[_-]?token|bot[_-]?token|secret[_-]?key|private[_-]?key|auth[_-]?token|authtoken|access[_-]?token|bearer|authorization|password|passwd|pwd)[=:\s]/i;
+const DISCORD_TOKEN_LIKE = /[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{27,}/;
 
 function couldContainCredential(content: string): boolean {
-    return content.length >= 30 && PREFILTER_RE.test(content);
+    if (content.length < 20) return false;
+    return KEY_MARKERS.test(content) || KEYWORD_MARKERS.test(content) || DISCORD_TOKEN_LIKE.test(content);
 }
 
 async function handleSnipedCredential(credential: SnipedCredential) {

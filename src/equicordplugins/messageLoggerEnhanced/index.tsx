@@ -190,17 +190,26 @@ async function messageUpdateHandler(payload: MessageUpdatePayload) {
     await addMessage(message, idb.DBMessageStatus.EDITED, currentChannelId);
 }
 
+let whitelistCacheRaw: string | undefined;
+let whitelistSetCache = new Set<string>();
+
+function getWhitelistSet(): Set<string> {
+    const raw = settings.store.whitelistedIds;
+    if (raw !== whitelistCacheRaw) {
+        whitelistCacheRaw = raw;
+        whitelistSetCache = new Set((raw ?? "").split(",").map(s => s.trim()).filter(Boolean));
+    }
+    return whitelistSetCache;
+}
+
 function messageCreateHandler(payload: MessageCreatePayload) {
     const { message } = payload ?? {};
     if (!message?.id || !message?.channel_id) return;
 
     if (!settings.store.cacheMessagesFromServers && payload.guildId != null) {
-        const { whitelistedIds } = settings.store;
-        if (!whitelistedIds) return;
-
-        const ids = [payload.channelId, message.author?.id, payload.guildId];
-        const isWhitelisted = whitelistedIds.split(",").some(e => ids.includes(e));
-        if (!isWhitelisted) return;
+        const set = getWhitelistSet();
+        if (set.size === 0) return;
+        if (!set.has(payload.channelId) && !set.has(message.author?.id) && !set.has(payload.guildId)) return;
     }
 
     cacheSentMessages.set(`${message.channel_id},${message.id}`, cleanUpCachedMessage(message));
