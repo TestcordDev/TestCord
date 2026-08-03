@@ -102,7 +102,9 @@ export default definePlugin({
         },
 
         VOICE_STATE_UPDATES({ voiceStates }: { voiceStates: VoiceState[]; }) {
-            const clientUserId = UserStore.getCurrentUser().id;
+            if (!voiceStates?.length) return;
+            const clientUserId = UserStore.getCurrentUser()?.id;
+            if (!clientUserId) return;
             const suppressJoins = Date.now() - clientJoinedAt < 5000;
 
             for (const state of voiceStates) {

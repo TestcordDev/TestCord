@@ -4,16 +4,19 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import * as DataStore from "@api/DataStore";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
 import { User } from "@vencord/discord-types";
+import { React } from "@webpack/common";
 
 const fs = (window as any).require?.("fs");
 const os = (window as any).require?.("os");
 const pathModule = (window as any).require?.("path");
 
 const log = new Logger("LastOnline");
+const DATASTORE_KEY = "LastOnline_onlineList";
 
 interface PresenceStatus {
     hasBeenOnline: boolean;
@@ -26,7 +29,11 @@ let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function getFilePath() {
     if (!fs || !os || !pathModule) return null;
-    return pathModule.join(os.homedir(), "Downloads", "onlinelist.json");
+    try {
+        return pathModule.join(os.homedir(), "Downloads", "onlinelist.json");
+    } catch {
+        return null;
+    }
 }
 
 function pruneOnlineList() {
@@ -40,6 +47,7 @@ function pruneOnlineList() {
 
 function writeOnlineList() {
     const data = Object.fromEntries(recentlyOnlineList);
+    void DataStore.set(DATASTORE_KEY, data).catch(e => log.error("Failed to save to DataStore:", e));
     const filePath = getFilePath();
     if (fs && filePath) {
         try {
@@ -62,14 +70,27 @@ function saveOnlineList() {
     }, 2000);
 }
 
-function loadOnlineList() {
+async function loadOnlineList() {
+    try {
+        const storedData = await DataStore.get<Record<string, PresenceStatus>>(DATASTORE_KEY);
+        if (storedData && typeof storedData === "object") {
+            for (const [userId, status] of Object.entries(storedData)) {
+                recentlyOnlineList.set(userId, status);
+            }
+        }
+    } catch (e) {
+        log.error("Failed to load from DataStore:", e);
+    }
+
     const filePath = getFilePath();
     if (fs && filePath) {
         try {
             if (fs.existsSync(filePath)) {
                 const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
                 for (const [userId, status] of Object.entries(data)) {
-                    recentlyOnlineList.set(userId, status as PresenceStatus);
+                    if (!recentlyOnlineList.has(userId)) {
+                        recentlyOnlineList.set(userId, status as PresenceStatus);
+                    }
                 }
             }
         } catch (e) {
@@ -121,10 +142,13 @@ export default definePlugin({
     tags: ["Friends", "Utility"],
     authors: [TestcordDevs.x2b],
     flux: {
-        PRESENCE_UPDATES({ updates }) {
+        PRESENCE_UPDATES({ updates }: { updates?: Array<{ user?: { id?: string; }; status?: string; }>; }) {
+            if (!Array.isArray(updates)) return;
             log.debug(`Received PRESENCE_UPDATES with ${updates.length} updates`);
             updates.forEach(update => {
-                handlePresenceUpdate(update.status, update.user.id);
+                if (update?.user?.id) {
+                    handlePresenceUpdate(update.status ?? "offline", update.user.id);
+                }
             });
         }
     },
@@ -132,7 +156,7 @@ export default definePlugin({
     start() {
         log.info("LastOnline plugin started");
 
-        loadOnlineList();
+        void loadOnlineList();
 
         try {
             // Lazy import to avoid early execution
@@ -212,14 +236,17 @@ export default definePlugin({
             text = `${formattedTime} ago`;
         }
 
-        const { React } = (globalThis as any).Vencord.Webpack.Common;
-        return React.createElement("div", {
-            style: {
-                color: "var(--text-muted)",
-                fontSize: "12px",
-                lineHeight: "16px",
-                marginTop: "2px"
-            }
-        }, "Last online ", React.createElement("strong", null, text));
+        return (
+            <div
+                style={{
+                    color: "var(--text-muted)",
+                    fontSize: "12px",
+                    lineHeight: "16px",
+                    marginTop: "2px"
+                }}
+            >
+                Last online <strong>{text}</strong>
+            </div>
+        );
     }
 });

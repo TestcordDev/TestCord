@@ -2523,7 +2523,6 @@ const plugin = definePlugin({
             // tier (rendered by the dynamic profile badge) remains.
             const spoofingNitroTier = isManual && (manualData?.manualNitroLevel ?? -1) >= 0;
             const spoofingBoostTier = isManual && (manualData?.manualBoostMonths ?? -1) >= 0;
-            logger.info("[FUS-BADGE] profileHook badges — spoofNitro=", spoofingNitroTier, "spoofBoost=", spoofingBoostTier, "rawBadges=", JSON.stringify((Array.isArray(baseBadges) ? baseBadges : []).map((b: any) => ({ id: b?.id, desc: b?.description }))));
             if (Array.isArray(baseBadges) && (spoofingNitroTier || spoofingBoostTier)) {
                 baseBadges = baseBadges.filter((b: any) => {
                     const id = String(b?.id ?? "");
@@ -2532,8 +2531,8 @@ const plugin = definePlugin({
                         || id.startsWith("premium") || /\bnitro\b/i.test(desc) || /\bnitro\b/i.test(id);
                     const isNativeBoost = id.startsWith("guild_booster") || id === "premium_guild"
                         || id.startsWith("guild_boost") || /boosting|server boost/i.test(desc) || /boost/i.test(id);
-                    if (spoofingNitroTier && isNativeNitro) { logger.info("[FUS-BADGE] stripping native nitro:", id, desc); return false; }
-                    if (spoofingBoostTier && isNativeBoost) { logger.info("[FUS-BADGE] stripping native boost:", id, desc); return false; }
+                    if (spoofingNitroTier && isNativeNitro) return false;
+                    if (spoofingBoostTier && isNativeBoost) return false;
                     return true;
                 });
                 overrides.badges = baseBadges;

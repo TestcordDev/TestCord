@@ -17,10 +17,10 @@ import type { Activity, Channel, Guild, GuildMember, Message, OnlineStatus, Role
 import { ActivityType } from "@vencord/discord-types/enums";
 import { ChannelStore, GuildStore, IconUtils, Menu, PresenceStore, SettingsRouter, UserStore, VoiceStateStore } from "@webpack/common";
 
-import { recordEvent, trimEvents } from "./store";
+import { loadEvents, recordEvent, trimEvents } from "./store";
 import type { IdentityHistoryEntry, MessageAttachmentSnapshot, MessageSnapshot, SurveillanceEvent, SurveillanceEventType, SurveillanceScope, VoiceParticipantSnapshot, VoiceState, VoiceStateFlag } from "./types";
 
-const SETTINGS_ENTRY_KEY = "illegalcord_surveillance";
+const SETTINGS_ENTRY_KEY = "surveillance";
 const NOTIFICATION_COLOR = "#5865f2";
 const MESSAGE_PREVIEW_LIMIT = 220;
 const TYPING_COOLDOWN = 15_000;
@@ -1290,6 +1290,7 @@ export default definePlugin({
         updateTargets(settings.store.targets);
         updateServerTargets(settings.store.serverTargets);
         seedPresence();
+        void loadEvents(settings.store.maxEvents);
         PresenceStore.addChangeListener(handlePresenceChange);
 
         if (!SettingsPlugin.customEntries.some(entry => entry.key === SETTINGS_ENTRY_KEY)) {
@@ -1320,42 +1321,55 @@ export default definePlugin({
 
     flux: {
         MESSAGE_CREATE({ message }: { message: Message; }) {
-            logMessage(message);
+            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (message) logMessage(message);
         },
 
         MESSAGE_UPDATE({ message }: { message: Message; }) {
-            logMessageUpdate(message);
+            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (message) logMessageUpdate(message);
         },
 
         MESSAGE_DELETE({ id, channelId }: { id: string; channelId: string; }) {
-            logMessageDelete(id, channelId);
+            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (id && channelId) logMessageDelete(id, channelId);
         },
 
-        MESSAGE_DELETE_BULK({ ids, channelId }: { ids: string[]; channelId: string; }) {
-            for (const id of ids) {
-                logMessageDelete(id, channelId);
+        MESSAGE_DELETE_BULK({ ids = [], channelId }: { ids: string[]; channelId: string; }) {
+            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (Array.isArray(ids) && channelId) {
+                for (const id of ids) {
+                    logMessageDelete(id, channelId);
+                }
             }
         },
 
         MESSAGE_REACTION_ADD(event: MessageReactionFluxEvent) {
-            logReaction("reaction_add", event);
+            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (event) logReaction("reaction_add", event);
         },
 
         MESSAGE_REACTION_REMOVE(event: MessageReactionFluxEvent) {
-            logReaction("reaction_remove", event);
+            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (event) logReaction("reaction_remove", event);
         },
 
         MESSAGE_REACTION_REMOVE_ALL(event: { channelId: string; messageId: string; }) {
-            logReactionClear(event);
+            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (event) logReactionClear(event);
         },
 
         TYPING_START({ userId, channelId }: { userId: string; channelId: string; }) {
-            logTyping(userId, channelId);
+            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (userId && channelId) logTyping(userId, channelId);
         },
 
-        VOICE_STATE_UPDATES({ voiceStates }: { voiceStates: VoiceState[]; }) {
-            for (const voiceState of voiceStates) {
-                handleVoiceState(voiceState);
+        VOICE_STATE_UPDATES({ voiceStates = [] }: { voiceStates: VoiceState[]; }) {
+            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (Array.isArray(voiceStates)) {
+                for (const voiceState of voiceStates) {
+                    handleVoiceState(voiceState);
+                }
             }
         },
 

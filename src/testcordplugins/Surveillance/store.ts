@@ -9,7 +9,7 @@ import { Logger } from "@utils/Logger";
 
 import type { SurveillanceEvent } from "./types";
 
-const STORE_KEY = "Illegalcord_Surveillance_events";
+const STORE_KEY = "Surveillance_events";
 const MIN_EVENTS = 50;
 const SAVE_DELAY = 750;
 const logger = new Logger("Surveillance");

@@ -32,7 +32,7 @@ export function stripTransientRenderState(message: any) {
 }
 
 export function cleanupMessage(message: any, removeDetails: boolean = true): LoggedMessageJSON {
-    const ret: LoggedMessageJSON = typeof message.toJS === "function" ? JSON.parse(JSON.stringify(message.toJS())) : { ...message };
+    const ret: LoggedMessageJSON = typeof message.toJS === "function" ? message.toJS() : { ...message };
     stripTransientRenderState(ret);
     if (removeDetails) {
         ret.author.phone = undefined;

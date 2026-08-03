@@ -146,7 +146,9 @@ export default definePlugin({
 
     flux: {
         VOICE_STATE_UPDATES({ voiceStates }: { voiceStates: VoiceState[]; }) {
-            const myId = UserStore.getCurrentUser().id;
+            if (!voiceStates?.length) return;
+            const myId = UserStore.getCurrentUser()?.id;
+            if (!myId) return;
 
             for (const state of voiceStates) {
                 const { userId, channelId, guildId } = state;
