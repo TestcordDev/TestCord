@@ -226,7 +226,9 @@ export default definePlugin({
 
     start() {
         // DeveloperMode needs to be enabled for the context menu to be shown
-        DeveloperMode.updateSetting(true);
+        if (!DeveloperMode.getSetting()) {
+            DeveloperMode.updateSetting(true);
+        }
     },
 
     contextMenus: {

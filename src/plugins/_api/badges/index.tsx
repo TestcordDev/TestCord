@@ -327,9 +327,11 @@ export default definePlugin({
 
     userProfileBadges: [ContributorBadge, EquicordContributorBadge, TestcordContributorBadge, TestcordUserBadge, TestcordAdminBadge, TestcordOwnerBadge, TestcordDevBadge, UserPluginContributorBadge],
 
-    async start() {
-        ensurePronounsMarker();
-        await loadAllBadges();
+    start() {
+        setTimeout(() => {
+            ensurePronounsMarker();
+            loadAllBadges();
+        }, 100);
         clearInterval(intervalId);
         intervalId = setInterval(loadAllBadges, 1000 * 60 * 30); // 30 minutes
     },
