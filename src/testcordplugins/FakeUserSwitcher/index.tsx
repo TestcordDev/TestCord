@@ -2005,7 +2005,7 @@ const plugin = definePlugin({
     flux: {
         CONNECTION_OPEN() {
             if (settings.store.spoofActive && (settings.store.manualMode || getCachedTarget())) {
-                syncSpoofState();
+                queueMicrotask(() => syncSpoofState());
             }
         },
         MULTI_ACCOUNT_SWITCH_ATTEMPT(action: any) {

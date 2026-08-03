@@ -64,13 +64,13 @@ export default definePlugin({
             replacement: [
                 // Patch the central context menu handler
                 {
-                    match: /(?=let{navId:)(?<=function \i\((\i)\).+?)/,
-                    replace: "$1=Vencord.Api.ContextMenu._usePatchContextMenu($1);"
+                    match: /(function \i\((\i)\)\{)(?=let\{navId:)/,
+                    replace: "$1$2=Vencord.Api.ContextMenu._usePatchContextMenu($2);"
                 },
 
                 // Demangle Discord's Menu Item module
                 {
-                    match: /(?<=(\(\i\.type===(\i\.\i)\).{0,50}?navigable:.+Menu API).+?)}$/s,
+                    match: /(?<=(\(\i\.type===(\i\.\i)\).{0,500}?navigable:.+Menu API).+?)}$/s,
                     replace: (_, m) => {
                         const registerCalls = [] as string[];
 

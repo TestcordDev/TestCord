@@ -917,6 +917,10 @@ function HealthTab() {
         return profiles.find(p => p.pluginName === selectedPluginName) || profiles[0];
     }, [profiles, selectedPluginName]);
 
+    const allCollapsed = useMemo(() => {
+        return filtered.length > 0 && filtered.every(([name]) => collapsed.has(name));
+    }, [filtered, collapsed]);
+
     return (
         <SettingsTab>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
@@ -1232,7 +1236,7 @@ function HealthTab() {
             {/* TAB 3: IMPACT ANALYSIS */}
             {activeTab === "impact" && (
                 <div className="vc-health-tab-content">
-                    <HeadingSecondary className={Margins.bottom12}>Ranked Lag Impact Score</HeadingSecondary>
+                    <HeadingSecondary className={Margins.bottom16}>Ranked Lag Impact Score</HeadingSecondary>
                     {profiles
                         .sort((a, b) => b.impactScore - a.impactScore)
                         .map(p => (

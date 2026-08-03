@@ -120,17 +120,23 @@ export default definePlugin({
     },
 
     flux: {
-        async CONNECTION_OPEN() {
-            const { body } = await RestAPI.get({ url: Constants.Endpoints.CONNECTIONS });
-            if (!body) return;
+        CONNECTION_OPEN() {
+            setTimeout(async () => {
+                try {
+                    const { body } = await RestAPI.get({ url: Constants.Endpoints.CONNECTIONS });
+                    if (!body) return;
 
-            const spotifyConn = body.find((c: { type: string; }) => c.type === "spotify");
-            if (spotifyConn) {
-                spotifyId = spotifyConn.id;
-                showActivity = spotifyConn.show_activity;
-            }
-            isLoaded = true;
-            forceUpdate?.();
+                    const spotifyConn = body.find((c: { type: string; }) => c.type === "spotify");
+                    if (spotifyConn) {
+                        spotifyId = spotifyConn.id;
+                        showActivity = spotifyConn.show_activity;
+                    }
+                    isLoaded = true;
+                    forceUpdate?.();
+                } catch {
+                    /* ignore network error during initial dispatch */
+                }
+            }, 500);
         }
     },
 });
