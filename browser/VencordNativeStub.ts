@@ -147,6 +147,7 @@ window.VencordNative = {
     },
 
     pluginHelpers: {} as any,
+    privacy: {} as any,
     csp: {} as any,
     tray: {
         setUpdateState: NOOP,

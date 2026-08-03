@@ -69,7 +69,9 @@ class TrafficGuardEngine {
         clipboard: 0,
         webhooks: 0,
         remoteCode: 0,
-        updateRefusals: 0
+        updateRefusals: 0,
+        sentry: 0,
+        metrics: 0
     };
     private logs: BlockedEventLog[] = [];
     private maxLogs = 500;

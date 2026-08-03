@@ -27,6 +27,7 @@ import { addMessageClickListener, addMessagePreEditListener, addMessagePreSendLi
 import { addMessagePopoverButton, removeMessagePopoverButton } from "@api/MessagePopover";
 import { addNicknameIcon, removeNicknameIcon } from "@api/NicknameIcons";
 import { PluginHealth } from "@api/PluginHealth";
+import { PluginProfiler } from "@api/PluginProfiler";
 import { Settings, SettingsStore } from "@api/Settings";
 import { disableStyle, enableStyle, removeStyle } from "@api/Styles";
 import { traceFunction } from "@debug/Tracer";
@@ -58,8 +59,11 @@ let enabledPluginsSubscribedFlux = false;
 const subscribedFluxEventsPlugins = new Set<string>();
 
 export function isPluginEnabled(p: string) {
+    if (Plugins[p]?.required) return true;
+    if (PluginHealth.isSafeModeEnabled()) return false;
+    if (PluginHealth.isQuarantined(p)) return false;
+
     return (
-        Plugins[p]?.required ||
         Plugins[p]?.isDependency ||
         Settings.plugins[p]?.enabled
     ) ?? false;
@@ -200,8 +204,11 @@ export function subscribePluginFluxEvents(p: Plugin, fluxDispatcher: typeof Flux
             if (p.name === "Encryptcord" && event === "MESSAGE_CREATE") continue;
 
             const wrappedHandler = p.flux[event] = function () {
+                const startTime = performance.now();
                 try {
-                    const res = handler!.apply(p, arguments as any);
+                    const res = PluginProfiler.profileExecution(p.name, `flux:${event}`, () => handler!.apply(p, arguments as any));
+                    const duration = performance.now() - startTime;
+                    PluginProfiler.profileFluxAction(p.name, event, duration);
                     return res instanceof Promise
                         ? res.catch(e => {
                             logger.error(`${p.name}: Error while handling ${event}\n`, e);
@@ -209,6 +216,8 @@ export function subscribePluginFluxEvents(p: Plugin, fluxDispatcher: typeof Flux
                         })
                         : res;
                 } catch (e) {
+                    const duration = performance.now() - startTime;
+                    PluginProfiler.profileFluxAction(p.name, event, duration);
                     logger.error(`${p.name}: Error while handling ${event}\n`, e);
                     PluginHealth.recordRuntimeError(p.name, `flux:${event}`, e);
                 }
@@ -262,10 +271,15 @@ export const startPlugin = traceFunction("startPlugin", function startPlugin(p: 
             return finish(false);
         }
         try {
-            p.start();
-        } catch (e) {
+            PluginProfiler.profileExecution(name, "start", () => p.start!());
+        } catch (e: any) {
             logger.error(`Failed to start ${name}\n`, e);
             PluginHealth.recordRuntimeError(name, "start", e);
+            PluginHealth.recordCrash({
+                pluginName: name,
+                reason: `Failed to start: ${e?.message ?? String(e)}`,
+                stack: e?.stack
+            });
             return finish(false);
         }
     }
@@ -347,7 +361,7 @@ export const stopPlugin = traceFunction("stopPlugin", function stopPlugin(p: Plu
             return false;
         }
         try {
-            p.stop();
+            PluginProfiler.profileExecution(name, "stop", () => p.stop!());
         } catch (e) {
             logger.error(`Failed to stop ${name}\n`, e);
             PluginHealth.recordRuntimeError(name, "stop", e);

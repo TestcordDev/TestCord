@@ -105,6 +105,33 @@ const UNSTABLE_RATIO = 0.4;
 /** Debounce delay before flushing session summary to DataStore. */
 const FLUSH_DEBOUNCE_MS = 5_000;
 
+export interface CrashLogEntry {
+    timestamp: number;
+    pluginName?: string;
+    reason: string;
+    stack?: string;
+}
+
+export interface PluginStateChangeEntry {
+    timestamp: number;
+    pluginName: string;
+    enabled: boolean;
+}
+
+const DB_KEY_SAFE_MODE = "TestCord_SafeMode_v1";
+const DB_KEY_QUARANTINE = "TestCord_Quarantine_v1";
+const DB_KEY_CRASH_LOGS = "TestCord_CrashLogs_v1";
+const DB_KEY_PLUGIN_CHANGES = "TestCord_PluginChanges_v1";
+
+let safeModeEnabled = false;
+let safeModeLoaded = false;
+let quarantinedPlugins: string[] = [];
+let quarantineLoaded = false;
+let crashHistory: CrashLogEntry[] = [];
+let crashLogsLoaded = false;
+let pluginStateChanges: PluginStateChangeEntry[] = [];
+let pluginChangesLoaded = false;
+
 const DB_KEY_HISTORY = "PluginHealthHistory_v1";
 
 const registry = new Map<string, PluginHealthEntry>();
@@ -271,7 +298,7 @@ export const PluginHealth = {
      * are capped per plugin and duplicates are collapsed by `find`+`match`+`kind`.
      */
     recordPatchFailure(plugin: string, failure: Omit<PatchFailure, "at">) {
-        if (!plugin || failure.kind === "conflict") return;
+        if (!plugin) return;
         const entry = ensureEntry(plugin);
 
         // Collapse duplicate failures: patches can fail across many modules and
@@ -452,6 +479,165 @@ export const PluginHealth = {
     subscribe(listener: () => void): () => void {
         listeners.add(listener);
         return () => listeners.delete(listener);
+    },
+
+    // ─── Safe Mode & Crash Recovery ─────────────────────────
+
+    async loadSafeMode(): Promise<boolean> {
+        if (!safeModeLoaded) {
+            try {
+                safeModeEnabled = (await DataStore.get<boolean>(DB_KEY_SAFE_MODE)) ?? false;
+            } catch {
+                safeModeEnabled = false;
+            }
+            safeModeLoaded = true;
+        }
+        return safeModeEnabled;
+    },
+
+    isSafeModeEnabled(): boolean {
+        return safeModeEnabled;
+    },
+
+    async setSafeMode(enabled: boolean): Promise<void> {
+        safeModeEnabled = enabled;
+        safeModeLoaded = true;
+        try {
+            await DataStore.set(DB_KEY_SAFE_MODE, enabled);
+        } catch (err) {
+            console.warn("[PluginHealth] Failed to persist safe mode state:", err);
+        }
+        notify();
+    },
+
+    // ─── Plugin Quarantine ──────────────────────────────────
+
+    async loadQuarantine(): Promise<string[]> {
+        if (!quarantineLoaded) {
+            try {
+                const stored = await DataStore.get<string[]>(DB_KEY_QUARANTINE);
+                if (Array.isArray(stored)) quarantinedPlugins = stored;
+            } catch {
+                quarantinedPlugins = [];
+            }
+            quarantineLoaded = true;
+        }
+        return [...quarantinedPlugins];
+    },
+
+    getQuarantinedPlugins(): string[] {
+        return [...quarantinedPlugins];
+    },
+
+    isQuarantined(pluginName: string): boolean {
+        return quarantinedPlugins.includes(pluginName);
+    },
+
+    async quarantinePlugin(pluginName: string): Promise<void> {
+        if (!quarantinedPlugins.includes(pluginName)) {
+            quarantinedPlugins.push(pluginName);
+            quarantineLoaded = true;
+            try {
+                await DataStore.set(DB_KEY_QUARANTINE, quarantinedPlugins);
+            } catch (err) {
+                console.warn("[PluginHealth] Failed to persist quarantine state:", err);
+            }
+            notify();
+        }
+    },
+
+    async unquarantinePlugin(pluginName: string): Promise<void> {
+        if (quarantinedPlugins.includes(pluginName)) {
+            quarantinedPlugins = quarantinedPlugins.filter(p => p !== pluginName);
+            quarantineLoaded = true;
+            try {
+                await DataStore.set(DB_KEY_QUARANTINE, quarantinedPlugins);
+            } catch (err) {
+                console.warn("[PluginHealth] Failed to persist quarantine state:", err);
+            }
+            notify();
+        }
+    },
+
+    // ─── Crash History Log ──────────────────────────────────
+
+    async loadCrashHistory(): Promise<CrashLogEntry[]> {
+        if (!crashLogsLoaded) {
+            try {
+                const stored = await DataStore.get<CrashLogEntry[]>(DB_KEY_CRASH_LOGS);
+                if (Array.isArray(stored)) crashHistory = stored;
+            } catch {
+                crashHistory = [];
+            }
+            crashLogsLoaded = true;
+        }
+        return [...crashHistory];
+    },
+
+    getCrashHistory(): CrashLogEntry[] {
+        return [...crashHistory];
+    },
+
+    async recordCrash(entry: Omit<CrashLogEntry, "timestamp">): Promise<void> {
+        const fullEntry: CrashLogEntry = {
+            ...entry,
+            timestamp: Date.now()
+        };
+        crashHistory.unshift(fullEntry);
+        if (crashHistory.length > 50) crashHistory.pop();
+        crashLogsLoaded = true;
+        try {
+            await DataStore.set(DB_KEY_CRASH_LOGS, crashHistory);
+        } catch (err) {
+            console.warn("[PluginHealth] Failed to persist crash log:", err);
+        }
+        notify();
+    },
+
+    async clearCrashHistory(): Promise<void> {
+        crashHistory = [];
+        try {
+            await DataStore.set(DB_KEY_CRASH_LOGS, []);
+        } catch (err) {
+            console.warn("[PluginHealth] Failed to clear crash history:", err);
+        }
+        notify();
+    },
+
+    // ─── Plugin State Change Log ────────────────────────────
+
+    async loadPluginChanges(): Promise<PluginStateChangeEntry[]> {
+        if (!pluginChangesLoaded) {
+            try {
+                const stored = await DataStore.get<PluginStateChangeEntry[]>(DB_KEY_PLUGIN_CHANGES);
+                if (Array.isArray(stored)) pluginStateChanges = stored;
+            } catch {
+                pluginStateChanges = [];
+            }
+            pluginChangesLoaded = true;
+        }
+        return [...pluginStateChanges];
+    },
+
+    getRecentPluginChanges(): PluginStateChangeEntry[] {
+        return [...pluginStateChanges];
+    },
+
+    async recordPluginChange(pluginName: string, enabled: boolean): Promise<void> {
+        const entry: PluginStateChangeEntry = {
+            timestamp: Date.now(),
+            pluginName,
+            enabled
+        };
+        pluginStateChanges.unshift(entry);
+        if (pluginStateChanges.length > 50) pluginStateChanges.pop();
+        pluginChangesLoaded = true;
+        try {
+            await DataStore.set(DB_KEY_PLUGIN_CHANGES, pluginStateChanges);
+        } catch (err) {
+            console.warn("[PluginHealth] Failed to persist plugin change log:", err);
+        }
+        notify();
     }
 };
 
