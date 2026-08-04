@@ -203,10 +203,23 @@ function buildOverrides(active: any): Record<string, unknown> {
             return 2;
         })();
         if (target.accentColor != null) ov.accentColor = target.accentColor;
+        ov.verified = true;
+        ov.isClaimed = () => true;
+        ov.isUnclaimed = () => false;
+        ov.hasVerifiedEmailOrPhone = () => true;
         return ov;
     }
 
     const banner = target.banner ?? profile?.banner ?? null;
+    const realUser = getRealCurrentUser();
+    const effectiveEmail = (isManual && manualData?.manualEmail && manualData.manualEmail.trim() !== "")
+        ? manualData.manualEmail.trim()
+        : (settings.store.manualEmail && settings.store.manualEmail.trim() !== "")
+            ? settings.store.manualEmail.trim()
+            : (realUser?.email && typeof realUser.email === "string" && realUser.email.trim() !== "")
+                ? realUser.email.trim()
+                : "user@discord.com";
+
     const overrides: Record<string, unknown> = {
         username: target.username,
         globalName: target.globalName ?? target.global_name ?? target.username,
@@ -236,8 +249,10 @@ function buildOverrides(active: any): Record<string, unknown> {
         accentColor: target.accentColor ?? profile?.accentColor ?? null,
         usernameNormalized: typeof target.username === "string" ? target.username.toLowerCase() : undefined,
         bot: target.bot ?? false,
+        email: effectiveEmail,
         verified: true,
         isClaimed: () => true,
+        isUnclaimed: () => false,
         hasVerifiedEmailOrPhone: () => true,
     };
     if (target.primaryGuild !== undefined) overrides.primaryGuild = target.primaryGuild;
@@ -255,9 +270,6 @@ function buildOverrides(active: any): Record<string, unknown> {
     if (isManual) {
         if (manualData?.manualEmail) {
             overrides.email = manualData.manualEmail;
-            overrides.verified = true;
-            overrides.isClaimed = () => true;
-            overrides.hasVerifiedEmailOrPhone = () => true;
         }
         if (manualData?.manualPhone) {
             overrides.phone = manualData.manualPhone;
@@ -456,7 +468,6 @@ let memberPatched = false;
 let apiPatched = false;
 
 const SWITCHER_DROPDOWN_SELECTORS = [
-    "[class*='accountProfileCard']",
     "[class*='accountOption']",
     "[class*='accountSwitcher']",
     "[class*='multiAccount']"
@@ -467,9 +478,7 @@ let switcherDropdownObserver: ReturnType<typeof setInterval> | null = null;
 let switcherDropdownCheckQueued = false;
 let accountSwitcherRenderUntil = 0;
 
-// One comma-joined query instead of four separate document walks. These are substring
-// class matches, which skip the browser's fast selector path, so each one is a full
-// traversal — running four of them twice a second was pure overhead.
+// One comma-joined query instead of separate document walks.
 const SWITCHER_DROPDOWN_SELECTOR = SWITCHER_DROPDOWN_SELECTORS.join(", ");
 
 function readSwitcherDropdownOpen(): boolean {
@@ -512,15 +521,6 @@ function markAccountSwitcherRendering() {
 }
 
 function isAccountSwitcherCall(): boolean {
-    // switcherDropdownOpen is updated async (rAF-coalesced), so for up to a frame
-    // after the dropdown opens it's still false — during which getCurrentUser/getUser
-    // would hand the switcher a wrapped (fake) user and Discord renders the row as an
-    // "Unclaimed Account". The render window stamped synchronously by injectFakes
-    // (getUsers is the earliest reliable signal the switcher is rendering) closes that
-    // gap. Do NOT do a synchronous DOM querySelector here: this runs inside the patched
-    // getCurrentUser/getUser on every call, and the hover tooltip's layer matches the
-    // broad switcher selectors → flips the result mid-render → re-entrant render loop
-    // that freezes Discord on hover.
     return switcherDropdownOpen || (accountSwitcherRenderUntil > 0 && Date.now() < accountSwitcherRenderUntil);
 }
 
@@ -538,7 +538,7 @@ function patchStore() {
     try { _setOriginalGetCurrentUser(originalGetCurrentUser); } catch { /* ignore */ }
 
     UserStore.getUser = function (userId: string) {
-        if (isGettingUsers || isAccountSwitcherCall()) {
+        if (isGettingUsers || (settings.store.patchInternalAccountSwitcher && isAccountSwitcherCall())) {
             return originalGetUser!.call(this, userId);
         }
         if (isActive()) {
@@ -573,16 +573,13 @@ function patchStore() {
 
     UserStore.getCurrentUser = function () {
         const u = originalGetCurrentUser!.call(this);
-        if (isGettingUsers || isAccountSwitcherCall()) {
+        if (isGettingUsers || (settings.store.patchInternalAccountSwitcher && isAccountSwitcherCall())) {
             return u;
         }
         if (!isActive()) {
             if (u && settings.store.fakeNitroMonths && settings.store.fakeNitroMonths > 0) {
                 return wrapUser(u);
             }
-            return u;
-        }
-        if (settings.store.patchInternalAccountSwitcher && isAccountSwitcherCall()) {
             return u;
         }
         return wrapUser(u);
