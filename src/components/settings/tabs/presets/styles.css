@@ -238,9 +238,9 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     flex-direction: column;
     gap: 12px;
     padding: 14px 16px;
-    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 18%, var(--border-subtle));
+    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 18%, var(--border-subtle));
     background:
-        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 10%, transparent), transparent 42%),
+        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 10%, transparent), transparent 42%),
         var(--background-base-lower-alt);
     box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset, 0 8px 24px rgb(0 0 0 / 10%);
     overflow: hidden;
@@ -256,7 +256,7 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     bottom: 0;
     width: 3px;
     border-radius: 8px 0 0 8px;
-    background: var(--brand, var(--brand-experiment, var(--background-brand)));
+    background: var(--brand, var(--brand-experiment, #5865f2));
     opacity: .45;
     transform: scaleY(.34);
     transform-origin: center;
@@ -264,7 +264,7 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
 }
 
 .vc-presets-row:hover {
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 38%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 38%, var(--border-subtle));
     box-shadow: var(--elevation-medium), 0 1px 0 rgb(255 255 255 / 6%) inset;
     transform: translateY(-1px);
 }
@@ -858,7 +858,7 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     right: 0;
     bottom: -1px;
     height: 2px;
-    background: var(--brand, var(--brand-experiment, var(--background-brand)));
+    background: var(--brand, var(--brand-experiment, #5865f2));
     transform: scaleX(0);
     transition: transform .2s ease;
 }
@@ -898,7 +898,7 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     justify-content: space-between;
     gap: 16px;
     padding: 9px 14px;
-    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 14%, var(--border-subtle));
+    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 14%, var(--border-subtle));
     border-radius: 8px;
     background: var(--background-base-lower-alt);
     cursor: pointer;
@@ -915,7 +915,7 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     bottom: 0;
     width: 3px;
     border-radius: 8px 0 0 8px;
-    background: var(--brand, var(--brand-experiment, var(--background-brand)));
+    background: var(--brand, var(--brand-experiment, #5865f2));
     opacity: .35;
     transform: scaleY(.35);
     transform-origin: center;
@@ -924,7 +924,7 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
 
 .vc-presets-stat:hover {
     background: var(--background-base-low);
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 32%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 32%, var(--border-subtle));
     box-shadow: var(--elevation-low), 0 1px 0 rgb(255 255 255 / 5%) inset;
     transform: translateY(-1px);
 }

@@ -115,7 +115,7 @@
     bottom: 7px;
     width: 3px;
     border-radius: 999px;
-    background: var(--brand, var(--brand-experiment, var(--background-brand)));
+    background: var(--brand, var(--brand-experiment, #5865f2));
     opacity: 0;
     transform: scaleY(.35);
     transition: opacity .12s ease, transform .12s ease;
@@ -123,7 +123,7 @@
 
 .vc-stats-row:hover {
     background: var(--background-base-low, var(--background-modifier-hover));
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 24%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, var(--border-subtle));
     box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset;
     transform: translateX(2px);
 }
