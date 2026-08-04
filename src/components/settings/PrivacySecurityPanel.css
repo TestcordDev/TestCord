@@ -820,7 +820,7 @@
 .ps-page-btn {
     background: var(--background-tertiary);
     border: 1px solid var(--border-subtle);
-    color: var(--white-500, #ffffff);
+    color: var(--text-normal, #dbdee1);
     padding: 2px 7px;
     border-radius: 4px;
     font-size: 10px;
