@@ -213,10 +213,6 @@ function messageCreateHandler(payload: MessageCreatePayload) {
     }
 
     cacheSentMessages.set(`${message.channel_id},${message.id}`, cleanUpCachedMessage(message));
-    if (cacheSentMessages.map.size > 500) {
-        const firstKey = cacheSentMessages.map.keys().next().value;
-        if (firstKey) cacheSentMessages.delete(firstKey);
-    }
 }
 
 async function processMessageFetch(response: FetchMessagesResponse) {

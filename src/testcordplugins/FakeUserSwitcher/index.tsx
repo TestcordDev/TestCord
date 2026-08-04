@@ -207,7 +207,8 @@ function buildOverrides(active: any): Record<string, unknown> {
         ov.isClaimed = () => true;
         ov.isUnclaimed = () => false;
         ov.hasVerifiedEmailOrPhone = () => true;
-        return ov;    }
+        return ov;
+    }
 
     const banner = target.banner ?? profile?.banner ?? null;
     const realUser = getRealCurrentUser();
@@ -576,9 +577,7 @@ function patchStore() {
         }
         const u = originalGetUser!.call(this, userId);
         if (!isActive()) {
-            if (u && isCurrentUser(userId) && settings.store.fakeNitroMonths && settings.store.fakeNitroMonths > 0) {
-                return wrapUser(u);
-            }
+            if (u && isCurrentUser(userId)) return wrapUser(u);
             return u;
         }
         if (!u) return u;
@@ -592,9 +591,7 @@ function patchStore() {
             return u;
         }
         if (!isActive()) {
-            if (u && settings.store.fakeNitroMonths && settings.store.fakeNitroMonths > 0) {
-                return wrapUser(u);
-            }
+            if (u) return wrapUser(u);
             return u;
         }
         return wrapUser(u);
