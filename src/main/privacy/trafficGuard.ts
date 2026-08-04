@@ -138,11 +138,17 @@ class TrafficGuardEngine {
         // 1. Network Level Telemetry & Surface Dropper
         session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
             const { url } = details;
+
+            // Do not intercept or block internal protocols (chrome-devtools://, devtools://, chrome-extension://, vencord://, etc.)
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                return callback({ cancel: false });
+            }
+
             this.trackOutboundRoute(url, false);
 
             // Check if blocked by telemetry patterns or shields
-            const isScienceTrack = (url.includes("/science") || url.includes("/track")) && this.shields.scienceAnalytics;
-            const isMetrics = url.includes("/metrics") && this.shields.metrics;
+            const isScienceTrack = (url.includes("/api/") && (url.includes("/science") || url.includes("/track"))) && this.shields.scienceAnalytics;
+            const isMetrics = (url.includes("/api/") && url.includes("/metrics")) && this.shields.metrics;
             const isSentry = url.includes("sentry.io") && this.shields.sentry;
             const isPatternMatch = BLOCKED_PATTERNS.some(p => {
                 if (p.includes("*")) {
@@ -178,9 +184,14 @@ class TrafficGuardEngine {
         // 2. Token Guard Header Sanitizer
         session.defaultSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
             const { url } = details;
+
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                return callback({ requestHeaders: details.requestHeaders });
+            }
+
             const isDiscordDomain = url.includes("discord.com") || url.includes("discordapp.com");
 
-            if (!isDiscordDomain && details.requestHeaders.Authorization && this.shields.tokenGuard) {
+            if (details.requestHeaders && !isDiscordDomain && details.requestHeaders.Authorization && this.shields.tokenGuard) {
                 delete details.requestHeaders.Authorization;
                 this.counters.totalBlocked++;
                 this.counters.tokens++;
