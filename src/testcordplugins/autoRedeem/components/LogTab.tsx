@@ -62,7 +62,7 @@ function AutoRedeemTab() {
                     />
                 </div>
                 <button
-                    className="vc-settings-theme-links-reset"
+                    className="vc-btn-base vc-btn-small vc-settings-theme-links-reset"
                     style={{ marginLeft: "auto" }}
                     onClick={() => { if (confirm("Clear all logs?")) void clearLogs(); }}
                 >
