@@ -46,6 +46,55 @@ const settings = definePluginSettings({
     }
 });
 
+const BUTTON_CONFIG = [
+    {
+        setting: "hideGiftButton",
+        selectors: [
+            '[aria-label="Send a gift"]',
+            '[aria-label="Gift Nitro"]',
+            '[aria-label="Gift"]',
+            '[aria-label="Upgrade to Nitro"]',
+            '[aria-label="Give Nitro"]',
+            '[aria-label="Gift Nitro to a friend"]',
+            '[aria-label="Nitro Gift"]',
+            '[aria-label*="gift" i]',
+            '[class*="giftButton"]',
+            '[class*="nitroGift"]'
+        ]
+    },
+    {
+        setting: "hideBoostButton",
+        selectors: [
+            '[aria-label="Boost this server"]',
+            '[aria-label="Boost"]'
+        ]
+    },
+    {
+        setting: "hideStickerButton",
+        selectors: [
+            '[aria-label="Open sticker picker"]',
+            '[aria-label="Sticker picker"]',
+            '[aria-label="Stickers"]'
+        ]
+    },
+    {
+        setting: "hideGifButton",
+        selectors: [
+            '[aria-label="Open GIF picker"]',
+            '[aria-label="GIF picker"]',
+            '[aria-label="GIFs"]'
+        ]
+    },
+    {
+        setting: "hideAppsButton",
+        selectors: [
+            '[aria-label="Apps"]',
+            '[aria-label="Launch App"]',
+            '[aria-label="App Launcher"]'
+        ]
+    }
+];
+
 export default definePlugin({
     name: "NoButtons",
     description: "Removes annoying buttons that you don't need",
@@ -56,81 +105,44 @@ export default definePlugin({
     start() {
         logger.info("Plugin is starting");
 
-        const oldStyle = document.querySelector(`[id="${STYLE_ELEMENT_ID}"]`);
+        const oldStyle = document.getElementById(STYLE_ELEMENT_ID);
         if (oldStyle) oldStyle.remove();
 
-        const buttonsToHide = [
-            {
-                setting: "hideGiftButton",
-                labels: ["Send a gift", "Gift Nitro", "Gift", "Upgrade to Nitro", "Give Nitro", "Gift Nitro to a friend", "Nitro Gift"],
-                patterns: ["gift"]
-            },
-            {
-                setting: "hideBoostButton",
-                labels: ["Boost this server", "Boost"],
-                patterns: ["boost"]
-            },
-            {
-                setting: "hideStickerButton",
-                labels: ["Open sticker picker", "Sticker picker", "Stickers"],
-                patterns: ["sticker"]
-            },
-            {
-                setting: "hideGifButton",
-                labels: ["Open GIF picker", "GIF picker", "GIFs"],
-                patterns: ["gif picker"]
-            },
-            {
-                setting: "hideAppsButton",
-                labels: ["Apps", "Launch App", "App Launcher"],
-                patterns: ["launch app", "app launcher"]
-            }
-        ];
-        let css = "";
+        const activeSelectors: string[] = [];
 
-        const hideStyles = "display:none !important;width:0 !important;height:0 !important;padding:0 !important;margin:0 !important;min-width:0 !important;min-height:0 !important;max-width:0 !important;max-height:0 !important;flex:0 0 0 !important;border:none !important;overflow:hidden !important;";
-
-        for (const { labels, patterns, setting } of buttonsToHide) {
-            const shouldHideButton = settings.store[setting];
-            if (shouldHideButton) {
-                const matchers = [
-                    ...labels.map(l => `[aria-label="${l}" i]`),
-                    ...patterns.map(p => `[aria-label*="${p}" i]`)
-                ];
-                for (const matcher of matchers) {
-                    const selectors = [
-                        `[class*="channelTextArea"] ${matcher}`,
-                        `[class*="channelBottomBar"] ${matcher}`,
-                        `[class*="expressionPicker"] ${matcher}`,
-                        `[class*="channelTextArea"] div:has(> ${matcher})`,
-                        `[class*="channelBottomBar"] div:has(> ${matcher})`,
-                        `[class*="channelTextArea"] button:has(${matcher})`,
-                        `[class*="channelBottomBar"] button:has(${matcher})`,
-                        `[class*="chat"] [class*="buttonContainer"]:has(${matcher})`,
-                        `[class*="chat"] [class*="expressionPicker"]:has(${matcher})`
-                    ].map(sel => `:not([class*="standardSidebarView"] *) ${sel}`).join(",");
-                    css += `${selectors}{${hideStyles}}`;
+        for (const { setting, selectors } of BUTTON_CONFIG) {
+            if (settings.store[setting]) {
+                for (const sel of selectors) {
+                    activeSelectors.push(
+                        sel,
+                        `[class*="buttonContainer"]:has(${sel})`,
+                        `[class*="expressionPicker"]:has(${sel})`,
+                        `[class*="button-"]:has(${sel})`
+                    );
                 }
             }
-            logger.debug(`Hide button (Labels: "${labels.join(", ")}", Setting: "${setting}"): ${shouldHideButton}`);
         }
-        css += `[id="channel-attach-THREAD"]{${hideStyles}}`;
+
+        activeSelectors.push('[id="channel-attach-THREAD"]');
+
+        if (activeSelectors.length === 0) return;
+
+        const hideStyles = "display: none !important; width: 0 !important; height: 0 !important; margin: 0 !important; padding: 0 !important; min-width: 0 !important; flex: 0 0 0 !important;";
+        const css = `${activeSelectors.join(", ")} { ${hideStyles} }`;
 
         logger.debug(`Final css:\n${css}`);
 
         const style = document.createElement("style");
-        style.innerHTML = css;
         style.id = STYLE_ELEMENT_ID;
+        style.textContent = css;
         document.body.appendChild(style);
     },
     stop() {
         logger.info("Plugin is stopping");
 
-        const styleElement = document.querySelector(`[id="${STYLE_ELEMENT_ID}"]`);
+        const styleElement = document.getElementById(STYLE_ELEMENT_ID);
         if (styleElement) {
             styleElement.remove();
-        } else {
-            logger.warn("Cannot remove style element: Style element is null");
         }
     },
 });

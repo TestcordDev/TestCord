@@ -122,9 +122,26 @@ if (!IS_VANILLA) {
                 options.backgroundColor = "#00000000";
             }
 
+            options.webPreferences.devTools = true;
+
             process.env.DISCORD_PRELOAD = original;
 
             super(options);
+
+            this.webContents.on("before-input-event", (event, input) => {
+                if (input.type === "keyDown") {
+                    const isCtrl = input.control || input.meta;
+                    const key = input.key.toLowerCase();
+                    if ((isCtrl && input.shift && key === "i") || (isCtrl && input.alt && key === "i") || key === "f12") {
+                        if (this.webContents.isDevToolsOpened()) {
+                            this.webContents.closeDevTools();
+                        } else {
+                            this.webContents.openDevTools({ mode: "detach" });
+                        }
+                        event.preventDefault();
+                    }
+                }
+            });
 
             if (disableMinSize) {
                 // Disable the Electron call entirely so that Discord can't dynamically change the size
@@ -148,6 +165,7 @@ if (!IS_VANILLA) {
 
     // Patch appSettings to force enable devtools
     onceDefined(global, "appSettings", s => {
+        s.set("DANGEROUS_ENABLE_DEVTOOLS_ONLY_ENABLE_IF_YOU_KNOW_WHAT_YOU_ARE_DOING", true);
         s.set("DANGEROUS_ENABLE_DEVTOOLS_ONLY_ENABLE_IF_YOU_KNOW_WHAT_YOURE_DOING", true);
     });
 

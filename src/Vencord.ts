@@ -351,6 +351,23 @@ initStyles();
 startAllPlugins(StartAt.Init);
 init();
 
+window.addEventListener("keydown", e => {
+    const isCtrl = e.ctrlKey || e.metaKey;
+    const key = e.key?.toLowerCase();
+    if ((isCtrl && e.shiftKey && key === "i") || (isCtrl && e.altKey && key === "i") || key === "f12") {
+        try {
+            const winApi = (window as any).DiscordNative?.window || (window as any).VencordNative?.window;
+            if (typeof winApi?.openDevTools === "function") {
+                winApi.openDevTools();
+            } else if (typeof winApi?.toggleDevTools === "function") {
+                winApi.toggleDevTools();
+            }
+        } catch (err) {
+            console.error("[TestCord] Failed to open DevTools:", err);
+        }
+    }
+}, true);
+
 document.addEventListener("DOMContentLoaded", () => {
     startAllPlugins(StartAt.DOMContentLoaded);
 
