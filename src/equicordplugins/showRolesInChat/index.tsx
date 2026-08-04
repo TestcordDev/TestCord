@@ -92,14 +92,6 @@ function EyeSlashIcon() {
     );
 }
 
-function ShieldUserIcon({ color }: { color: string; }) {
-    return (
-        <svg className={cl("icon")} aria-hidden="true" width="14" height="14" viewBox="0 0 24 24">
-            <path fill={color} d="M20.3 5.41h-.39c-.84 0-1.52-.65-1.52-1.46v-.3c0-.9-.77-1.65-1.71-1.65H7.31c-.94 0-1.71.74-1.71 1.65v.3c0 .81-.68 1.46-1.52 1.46H3.7c-.94 0-1.7.73-1.7 1.64v3.52l.01.49c.05 3.11.94 4.69 2.92 6.63C6.72 19.46 11.58 22 11.99 22c.41 0 5.27-2.54 7.06-4.31 1.98-1.95 2.92-3.53 2.92-6.63L22 7.05c0-.9-.76-1.64-1.7-1.64Zm-8.32.03a3.15 3.15 0 1 1-.01 6.3 3.15 3.15 0 0 1 .01-6.3Zm4.52 11.67c-.97.68-2.86 1.62-3.87 2.11-.42.2-.91.2-1.33 0a40.17 40.17 0 0 1-3.82-2.1.87.87 0 0 1-.37-.85c.42-2.69 2.46-3.21 4.89-3.21 2.43 0 4.4.68 4.87 3.08a.97.97 0 0 1-.38.98l.01-.01Z" />
-        </svg>
-    );
-}
-
 const HighestRoleIndicator = ErrorBoundary.wrap(({ user, channelId, isCompact }: { user: User; channelId: string; isCompact?: boolean; }) => {
     const { showBots, useRoleColor, excludedRoles } = settings.use(SETTINGS_KEYS);
 
@@ -144,11 +136,11 @@ const HighestRoleIndicator = ErrorBoundary.wrap(({ user, channelId, isCompact }:
                     {...tooltipProps}
                     className={classes(cl("indicator"), isCompact && cl("indicator-compact"))}
                     onContextMenu={handleContextMenu}
+                    style={useRoleColor && cached.colorString
+                        ? { "--vc-sric-icon-color": cached.colorString } as React.CSSProperties
+                        : undefined}
                 >
-                    <ShieldUserIcon color={(useRoleColor && cached.colorString) || "currentColor"} />
-                    <span className={cl("name")}>
-                        {cached.name}
-                    </span>
+                    {isCompact ? null : cached.name}
                 </span>
             )}
         </Tooltip>
