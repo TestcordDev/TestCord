@@ -144,7 +144,6 @@ export default definePlugin({
     flux: {
         PRESENCE_UPDATES({ updates }: { updates?: Array<{ user?: { id?: string; }; status?: string; }>; }) {
             if (!Array.isArray(updates)) return;
-            log.debug(`Received PRESENCE_UPDATES with ${updates.length} updates`);
             updates.forEach(update => {
                 if (update?.user?.id) {
                     handlePresenceUpdate(update.status ?? "offline", update.user.id);
