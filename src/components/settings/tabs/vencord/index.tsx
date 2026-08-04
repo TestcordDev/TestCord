@@ -49,9 +49,14 @@ type KeysOfType<Object, Type> = {
 }[keyof Object];
 
 function Switches() {
-    const settings = useSettings(["useQuickCss", "enableReactDevtools", "mainWindowFrameless", "frameless", "winNativeTitleBar", "transparent", "winCtrlQ", "disableMinSize"]);
+    const settings = useSettings(["useQuickCss", "enableReactDevtools", "mainWindowFrameless", "frameless", "winNativeTitleBar", "transparent", "winCtrlQ", "disableMinSize", "useTestcordIcon"]);
 
     const Switches = [
+        {
+            key: "useTestcordIcon",
+            title: "Use TestCord Icon",
+            description: "Replace the standard Discord logo icon with the custom TestCord icon.",
+        },
         {
             key: "useQuickCss",
             title: "Enable Custom CSS",

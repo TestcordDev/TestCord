@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { definePluginSettings } from "@api/Settings";
+import { definePluginSettings, useSettings } from "@api/Settings";
 import { BackupRestoreIcon, BookmarkIcon, CloudIcon, InfoIcon, LogIcon, PaintbrushIcon, PatchHelperIcon, PluginsIcon, SafetyIcon, TestCordIcon, UpdaterIcon } from "@components/Icons";
 import {
     BackupAndRestoreTab,
@@ -589,6 +589,13 @@ export default definePlugin({
                 match: /(\i)\.buildLayout\(\)(?=\.map)/,
                 replace: "$self.buildLayout($1)"
             }
+        },
+        {
+            find: "#{intl::DISCODO_DISABLED}",
+            replacement: {
+                match: /(?<=BUTTON_HOME.{0,10}children:)(\(0,\i.jsxs?\)\(\i,{}\))/,
+                replace: "$self.renderDiscordIcon($1)"
+            }
         }
     ],
 
@@ -818,5 +825,14 @@ export default definePlugin({
                 {text}
             </Component>
         ));
+    },
+
+    TestCordDiscordIcon({ original }: { original: any; }) {
+        const { useTestcordIcon } = useSettings(["useTestcordIcon"]);
+        return useTestcordIcon ? <TestCordIcon size={24} /> : original;
+    },
+
+    renderDiscordIcon(originalIcon: any) {
+        return <this.TestCordDiscordIcon original={originalIcon} />;
     },
 });

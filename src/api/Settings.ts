@@ -105,6 +105,7 @@ export interface Settings {
     ignoreResetWarning: boolean;
     hideThemeMarketplace?: boolean;
     hideSnippetMarketplace?: boolean;
+    useTestcordIcon: boolean;
 }
 
 const DefaultSettings: Settings = {
@@ -112,6 +113,7 @@ const DefaultSettings: Settings = {
     autoUpdateNotification: true,
     updaterBranch: "main",
     useQuickCss: true,
+    useTestcordIcon: false,
     hideThemeMarketplace: false,
     hideSnippetMarketplace: false,
     themeLinks: [],
