@@ -500,7 +500,7 @@
     z-index: 999;
     max-height: 220px;
     overflow-y: auto;
-    background: var(--input-background-default);
+    background: var(--background-secondary-alt, #2b2d31) !important;
     border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
     border-radius: 8px;
     padding: 4px;
