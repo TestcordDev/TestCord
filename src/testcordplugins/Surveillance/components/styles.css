@@ -60,10 +60,10 @@
     justify-content: space-between;
     gap: 12px;
     padding: 12px;
-    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 18%, var(--border-subtle));
+    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 18%, var(--border-subtle));
     border-radius: 8px;
     background:
-        radial-gradient(circle at top, color-mix(in srgb, var(--vc-stats-accent, var(--brand, #5865f2)) 18%, transparent), transparent 58%),
+        radial-gradient(circle at top, color-mix(in srgb, var(--vc-stats-accent, var(--brand, var(--background-brand))) 18%, transparent), transparent 58%),
         var(--background-secondary);
     box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset, 0 4px 16px rgb(0 0 0 / 8%);
     overflow: hidden;
@@ -78,14 +78,14 @@
     top: 0;
     height: 3px;
     border-radius: 0 0 999px 999px;
-    background: var(--vc-stats-accent, var(--brand, #5865f2));
+    background: var(--vc-stats-accent, var(--brand, var(--background-brand)));
     opacity: .7;
     transform: scaleX(.45);
     transition: opacity .15s ease, transform .15s ease;
 }
 
 .vc-surveillance-user-stat:hover {
-    border-color: color-mix(in srgb, var(--vc-stats-accent, var(--brand, #5865f2)) 42%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--vc-stats-accent, var(--brand, var(--background-brand))) 42%, var(--border-subtle));
     box-shadow: var(--elevation-medium), 0 1px 0 rgb(255 255 255 / 6%) inset;
     filter: brightness(1.04);
     transform: translateY(-2px);
@@ -278,7 +278,7 @@
 .vc-surveillance-text-action:hover,
 .vc-surveillance-event-action:hover {
     background: var(--background-base-low, var(--background-modifier-hover));
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 24%, var(--border-subtle));
     box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset;
     filter: brightness(1.04);
     transform: translateY(-1px);
@@ -405,7 +405,7 @@
     bottom: 7px;
     width: 3px;
     border-radius: 999px;
-    background: var(--brand, var(--brand-experiment, #5865f2));
+    background: var(--brand, var(--brand-experiment, var(--background-brand)));
     opacity: 0;
     transform: scaleY(.35);
     transition: opacity .12s ease, transform .12s ease;
@@ -413,7 +413,7 @@
 
 .vc-surveillance-event-row:hover {
     background: var(--background-base-low, var(--background-modifier-hover));
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 24%, var(--border-subtle));
     box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset;
     transform: translateX(2px);
 }
@@ -428,7 +428,7 @@
 }
 
 .vc-surveillance-event-row:focus-visible {
-    outline: 2px solid var(--brand, var(--brand-experiment, #5865f2));
+    outline: 2px solid var(--brand, var(--brand-experiment, var(--background-brand)));
     outline-offset: 2px;
 }
 
