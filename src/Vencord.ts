@@ -312,26 +312,6 @@ async function init() {
 
     // Defer non-critical IPC init to not block the critical startup path
     setTimeout(initTrayIpc, 0);
-
-    // Native default background channel memory purging
-    setInterval(() => {
-        try {
-            const SelectedChannelStore = wreq?.("SelectedChannelStore") || (window as any).Vencord?.Webpack?.Common?.SelectedChannelStore;
-            const MessageStore = wreq?.("MessageStore") || (window as any).Vencord?.Webpack?.Common?.MessageStore;
-            const currentChannelId = SelectedChannelStore?.getChannelId?.();
-
-            if (MessageStore?._channelMessages && currentChannelId) {
-                for (const channelId of Object.keys(MessageStore._channelMessages)) {
-                    if (channelId !== currentChannelId) {
-                        delete MessageStore._channelMessages[channelId];
-                    }
-                }
-            }
-            if (typeof globalThis.gc === "function") {
-                globalThis.gc();
-            }
-        } catch { }
-    }, 30_000);
 }
 
 initPluginManager();

@@ -114,10 +114,10 @@ export default definePlugin({
             if (settings.store[setting]) {
                 for (const sel of selectors) {
                     activeSelectors.push(
-                        sel,
-                        `[class*="buttonContainer"]:has(${sel})`,
-                        `[class*="expressionPicker"]:has(${sel})`,
-                        `[class*="button-"]:has(${sel})`
+                        `[class*="channelTextArea"] ${sel}`,
+                        `[class*="channelBottomBar"] ${sel}`,
+                        `[class*="channelTextArea"] div:has(> ${sel})`,
+                        `[class*="channelBottomBar"] div:has(> ${sel})`
                     );
                 }
             }

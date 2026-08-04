@@ -207,8 +207,7 @@ function buildOverrides(active: any): Record<string, unknown> {
         ov.isClaimed = () => true;
         ov.isUnclaimed = () => false;
         ov.hasVerifiedEmailOrPhone = () => true;
-        return ov;
-    }
+        return ov;    }
 
     const banner = target.banner ?? profile?.banner ?? null;
     const realUser = getRealCurrentUser();
@@ -351,6 +350,17 @@ function mergeUser(base: any, overrides: Record<string, unknown>): any {
 
 let wrappedUsers = new WeakMap<any, any>();
 
+// Own-property shadows of the User prototype methods. Without these, an
+// unclaimed account keeps reporting isUnclaimed() and Discord blocks chat
+// and paints the "Unclaimed" badge. Applied whenever we touch the current
+// user, spoof active or not.
+const CLAIM_OVERRIDES = {
+    verified: true,
+    isClaimed: () => true,
+    isUnclaimed: () => false,
+    hasVerifiedEmailOrPhone: () => true,
+};
+
 function cloneWithPremium(user: any, months: number): any {
     const clone = Object.create(Object.getPrototypeOf(user));
     for (const key of Object.getOwnPropertyNames(user)) {
@@ -396,10 +406,15 @@ function wrapUser(base: any): any {
     if (!base) return base;
 
     if (!active || !isActive()) {
-        if (settings.store.fakeNitroMonths && settings.store.fakeNitroMonths > 0 && isCurrentUser(base.id)) {
+        if (isCurrentUser(base.id)) {
+            const unclaimed = base.isUnclaimed?.();
+            const needPremium = settings.store.fakeNitroMonths && settings.store.fakeNitroMonths > 0;
+            if (!unclaimed && !needPremium) return base;
             let wrapped = wrappedUsers.get(base);
             if (!wrapped) {
-                wrapped = cloneWithPremium(base, settings.store.fakeNitroMonths);
+                wrapped = base;
+                if (unclaimed) wrapped = mergeUser(wrapped, CLAIM_OVERRIDES);
+                if (needPremium) wrapped = cloneWithPremium(wrapped, settings.store.fakeNitroMonths);
                 wrappedUsers.set(base, wrapped);
             }
             return wrapped;
@@ -1576,6 +1591,7 @@ function buildSwitcherUser(user: any, extra?: Record<string, unknown>) {
         getAvatarURL: (_guildId?: string, size?: number) => getAvatarUrlForSwitcher(user, size) ?? undefined,
         tokenStatus: user?.tokenStatus ?? 1,
         pushSyncToken: user?.pushSyncToken ?? null,
+        ...CLAIM_OVERRIDES,
     };
 }
 
