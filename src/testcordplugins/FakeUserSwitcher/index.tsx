@@ -236,6 +236,9 @@ function buildOverrides(active: any): Record<string, unknown> {
         accentColor: target.accentColor ?? profile?.accentColor ?? null,
         usernameNormalized: typeof target.username === "string" ? target.username.toLowerCase() : undefined,
         bot: target.bot ?? false,
+        verified: true,
+        isClaimed: () => true,
+        hasVerifiedEmailOrPhone: () => true,
     };
     if (target.primaryGuild !== undefined) overrides.primaryGuild = target.primaryGuild;
     if (target.avatarDecorationData !== undefined) overrides.avatarDecorationData = target.avatarDecorationData;
@@ -252,6 +255,9 @@ function buildOverrides(active: any): Record<string, unknown> {
     if (isManual) {
         if (manualData?.manualEmail) {
             overrides.email = manualData.manualEmail;
+            overrides.verified = true;
+            overrides.isClaimed = () => true;
+            overrides.hasVerifiedEmailOrPhone = () => true;
         }
         if (manualData?.manualPhone) {
             overrides.phone = manualData.manualPhone;
