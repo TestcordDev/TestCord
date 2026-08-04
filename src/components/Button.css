@@ -12,7 +12,6 @@
     transition-property: background-color, color, border-color, opacity;
     background: var(--control-secondary-background-default);
     color: var(--text-default);
-    white-space: nowrap;
 
     &:hover {
         transition: .15s ease-out;

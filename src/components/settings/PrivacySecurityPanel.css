@@ -291,7 +291,7 @@
     bottom: 6px;
     width: 3px;
     border-radius: 999px;
-    background: var(--brand, var(--brand-experiment, #5865f2));
+    background: var(--brand, var(--brand-experiment, var(--background-brand)));
     opacity: 0;
     transform: scaleY(.35);
     transition: opacity .12s ease, transform .12s ease;
@@ -302,7 +302,7 @@
 .ps-meta-row:hover,
 .ps-integ-row:hover {
     background: var(--background-base-low, var(--background-modifier-hover));
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 24%, var(--border-subtle));
     box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset;
     transform: translateX(2px);
 }
@@ -344,7 +344,7 @@
 
 .ps-btn:hover {
     background: var(--background-base-low, var(--background-modifier-hover));
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 24%, var(--border-subtle));
     box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset;
     filter: brightness(1.04);
     transform: translateY(-1px);
@@ -366,14 +366,13 @@
 }
 
 .ps-btn-active-blue {
-    background: var(--brand-experiment, #5865f2);
+    background: var(--brand-experiment, var(--background-brand));
     color: #ffffff;
-    border-color: var(--brand-experiment, #5865f2);
+    border-color: var(--brand-experiment, var(--background-brand));
 }
 
 .ps-btn-active-blue:hover {
-    background: var(--brand-experiment-hover, #4752c4);
-    border-color: var(--brand-experiment-hover, #4752c4);
+    background: var(--brand-experiment-hover, color-mix(in srgb, var(--background-brand) 81%, #000));
 }
 
 /* Summary Counter Badges */
@@ -395,7 +394,7 @@
 
 .ps-summary-badge:hover {
     transform: translateY(-1px);
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 30%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 30%, var(--border-subtle));
 }
 
 .ps-summary-num {
@@ -449,7 +448,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: var(--background-tertiary, #1e1f22);
+    background: var(--input-background-default);
     border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
     border-radius: 6px;
     padding: 8px 12px;
@@ -463,11 +462,11 @@
 
 .ps-custom-select-trigger:hover {
     background: var(--background-secondary-alt, #2b2d31);
-    border-color: color-mix(in srgb, var(--brand-experiment, #5865f2) 40%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand-experiment, var(--background-brand)) 40%, var(--border-subtle));
 }
 
 .ps-custom-select-open {
-    border-color: var(--brand-experiment, #5865f2) !important;
+    border-color: var(--brand-experiment, var(--background-brand)) !important;
     box-shadow: 0 0 0 2px rgba(88, 101, 242, 0.3) !important;
     background: var(--background-secondary-alt, #2b2d31) !important;
 }
@@ -490,7 +489,7 @@
 
 .ps-chevron-rotated {
     transform: rotate(180deg);
-    color: var(--brand-experiment, #5865f2);
+    color: var(--brand-experiment, var(--background-brand));
 }
 
 .ps-custom-select-menu {
@@ -501,7 +500,7 @@
     z-index: 999;
     max-height: 220px;
     overflow-y: auto;
-    background: var(--background-floating, #111214);
+    background: var(--input-background-default);
     border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
     border-radius: 8px;
     padding: 4px;
@@ -558,14 +557,14 @@
 }
 
 .ps-custom-select-item-selected {
-    background: color-mix(in srgb, var(--brand-experiment, #5865f2) 20%, transparent);
-    color: var(--brand-experiment, #5865f2);
+    background: color-mix(in srgb, var(--brand-experiment, var(--background-brand)) 20%, transparent);
+    color: var(--brand-experiment, var(--background-brand));
     font-weight: 600;
 }
 
 .ps-custom-select-item-selected:hover {
-    background: color-mix(in srgb, var(--brand-experiment, #5865f2) 30%, transparent);
-    color: var(--brand-experiment, #5865f2);
+    background: color-mix(in srgb, var(--brand-experiment, var(--background-brand)) 30%, transparent);
+    color: var(--brand-experiment, var(--background-brand));
 }
 
 .ps-meta-table {
@@ -734,13 +733,13 @@
 }
 
 .ps-tag-pill-active {
-    background: var(--brand-experiment, #5865f2);
-    border-color: var(--brand-experiment, #5865f2);
+    background: var(--brand-experiment, var(--background-brand));
+    border-color: var(--brand-experiment, var(--background-brand));
     color: #ffffff;
 }
 
 .ps-tag-pill-active:hover {
-    background: var(--brand-experiment-hover, #4752c4);
+    background: var(--brand-experiment, color-mix(in srgb, var(--background-brand) 81%, #000));
     color: #ffffff;
 }
 
@@ -759,10 +758,16 @@
 }
 
 .ps-search-input {
-    background: var(--background-tertiary, #1e1f22);
-    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.1));
+    position: relative;
+    align-items: center;
+    background-color: var(--input-background-default);
+    box-sizing: border-box;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    border: 1px solid var(--input-border-default);
     border-radius: 4px;
-    color: var(--text-normal, #dbdee1);
+     color: var(--input-text-default);
     font-size: 11px;
     padding: 3px 20px 3px 8px;
     width: 130px;
@@ -771,7 +776,7 @@
 }
 
 .ps-search-input:focus {
-    border-color: var(--brand-experiment, #5865f2);
+    border-color: var(--input-border-active);
     width: 150px;
 }
 
@@ -858,7 +863,7 @@
 }
 
 .ps-page-input:focus {
-    border-color: var(--brand-experiment, #5865f2);
+    border-color: var(--brand-experiment, var(--background-brand));
 }
 
 .ps-page-input::-webkit-outer-spin-button,
