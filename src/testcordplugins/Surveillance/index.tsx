@@ -30,6 +30,21 @@ const IDENTITY_HISTORY_LIMIT = 24;
 
 let targets: string[] = [];
 let serverTargets: string[] = [];
+let targetSet = new Set<string>();
+let serverTargetSet = new Set<string>();
+let isStartupPhase = true;
+let startupTimer: ReturnType<typeof setTimeout> | null = null;
+let cachedTodayPrefix = "";
+let lastPrefixUpdate = 0;
+
+const getTodayPrefix = () => {
+    const now = Date.now();
+    if (now - lastPrefixUpdate > 60_000) {
+        cachedTodayPrefix = new Date(now).toISOString().slice(0, 10);
+        lastPrefixUpdate = now;
+    }
+    return cachedTodayPrefix;
+};
 const targetListeners = new Set<() => void>();
 const serverTargetListeners = new Set<() => void>();
 const messageCache = new Map<string, MessageSnapshot>();
@@ -133,12 +148,14 @@ const voiceStateLabels: Array<[VoiceStateFlag, string, string]> = [
 
 const updateTargets = (value: string): string[] => {
     targets = [...new Set(value.match(/\d+/g) ?? [])];
+    targetSet = new Set(targets);
     targetListeners.forEach(listener => listener());
     return targets;
 };
 
 const updateServerTargets = (value: string): string[] => {
     serverTargets = [...new Set(value.match(/\d+/g) ?? [])];
+    serverTargetSet = new Set(serverTargets);
     serverTargetListeners.forEach(listener => listener());
     return serverTargets;
 };
@@ -340,14 +357,14 @@ const shouldIgnoreUser = (userId: string, user?: User) =>
     settings.store.ignoreBots && isBotUser(userId, user);
 
 const shouldTrackUser = (userId: string) => {
-    if (!targets.includes(userId)) return false;
+    if (!targetSet.has(userId)) return false;
     if (shouldIgnoreUser(userId)) return false;
     if (settings.store.trackSelf) return true;
     return !isCurrentUser(userId);
 };
 
 const shouldTrackServer = (guildId?: string) =>
-    guildId != null && serverTargets.includes(guildId);
+    guildId != null && serverTargetSet.has(guildId);
 
 const getScope = (userId: string, guildId?: string): SurveillanceScope | undefined => {
     if (shouldIgnoreUser(userId)) return;
@@ -757,6 +774,7 @@ const seedPresence = () => {
 };
 
 const handlePresenceChange = () => {
+    if (targets.length === 0 && serverTargets.length === 0) return;
     const statuses = PresenceStore.getState()?.statuses ?? {};
 
     for (const userId of getPresenceUserIds()) {
@@ -953,6 +971,9 @@ const logMessage = (message: Message) => {
     if (!settings.store.logMessages && !settings.store.logMessageChanges) return;
     if (shouldIgnoreUser(author.id, author)) return;
 
+    const isTargetUser = targetSet.has(author.id);
+    if (!isTargetUser && serverTargetSet.size === 0) return;
+
     const info = getChannelInfo(message.channel_id);
     if (!shouldTrackEvent(author.id, info.guildId)) return;
 
@@ -1097,6 +1118,9 @@ const logTyping = (userId: string, channelId: string) => {
     if (!settings.store.logTyping) return;
     if (shouldIgnoreUser(userId)) return;
 
+    const isTargetUser = targets.includes(userId);
+    if (!isTargetUser && serverTargets.length === 0) return;
+
     const info = getChannelInfo(channelId);
     if (!shouldTrackEvent(userId, info.guildId)) return;
 
@@ -1197,15 +1221,33 @@ const logGuildMemberEvent = (
 ) => {
     if (type === "guild_member_update" && !settings.store.logMemberUpdates) return;
 
-    const guildId = event.guildId ?? event.guild_id ?? event.member?.guildId;
-    if (!shouldTrackServer(guildId)) return;
-
     const userId = event.user?.id ?? event.userId ?? event.member?.userId;
+    const guildId = event.guildId ?? event.guild_id ?? event.member?.guildId;
+
+    const isTargetUser = Boolean(userId && targetSet.has(userId));
+    const isTargetServer = Boolean(guildId && serverTargetSet.has(guildId));
+
+    if (!isTargetUser && !isTargetServer) return;
+
+    if (type === "guild_member_add" && !isTargetUser) {
+        const joinedAtStr = event.member?.joinedAt;
+        if (!joinedAtStr) return;
+
+        const todayPrefix = getTodayPrefix();
+        if (!joinedAtStr.startsWith(todayPrefix)) return;
+
+        const joinedAt = Date.parse(joinedAtStr);
+        if (isNaN(joinedAt) || Date.now() - joinedAt >= MEMBER_JOIN_FRESHNESS) {
+            return;
+        }
+    }
+
     if (userId && isCurrentUser(userId)) return;
     if (userId && shouldIgnoreUser(userId, event.user)) return;
 
     const joinedAt = event.member?.joinedAt ? Date.parse(event.member.joinedAt) : undefined;
     const isFreshJoin = joinedAt != null && Date.now() - joinedAt < MEMBER_JOIN_FRESHNESS;
+
     const username = userId ? getUsername(userId, event.user?.username) : "Unknown user";
     const details =
         type === "guild_member_add"
@@ -1287,6 +1329,12 @@ export default definePlugin({
     },
 
     start() {
+        isStartupPhase = true;
+        if (startupTimer) clearTimeout(startupTimer);
+        startupTimer = setTimeout(() => {
+            isStartupPhase = false;
+        }, 15_000);
+
         updateTargets(settings.store.targets);
         updateServerTargets(settings.store.serverTargets);
         seedPresence();
@@ -1304,6 +1352,11 @@ export default definePlugin({
     },
 
     stop() {
+        isStartupPhase = false;
+        if (startupTimer) {
+            clearTimeout(startupTimer);
+            startupTimer = null;
+        }
         PresenceStore.removeChangeListener(handlePresenceChange);
         removeFromArray(SettingsPlugin.customEntries, entry => entry.key === SETTINGS_ENTRY_KEY);
         previousVoiceStates.clear();
@@ -1321,22 +1374,25 @@ export default definePlugin({
 
     flux: {
         MESSAGE_CREATE({ message }: { message: Message; }) {
-            if (targets.length === 0 && serverTargets.length === 0) return;
-            if (message) logMessage(message);
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
+            if (!message || !message.author) return;
+            const isTargetUser = targetSet.has(message.author.id);
+            if (!isTargetUser && serverTargetSet.size === 0) return;
+            logMessage(message);
         },
 
         MESSAGE_UPDATE({ message }: { message: Message; }) {
-            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
             if (message) logMessageUpdate(message);
         },
 
         MESSAGE_DELETE({ id, channelId }: { id: string; channelId: string; }) {
-            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
             if (id && channelId) logMessageDelete(id, channelId);
         },
 
         MESSAGE_DELETE_BULK({ ids = [], channelId }: { ids: string[]; channelId: string; }) {
-            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
             if (Array.isArray(ids) && channelId) {
                 for (const id of ids) {
                     logMessageDelete(id, channelId);
@@ -1345,27 +1401,30 @@ export default definePlugin({
         },
 
         MESSAGE_REACTION_ADD(event: MessageReactionFluxEvent) {
-            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
             if (event) logReaction("reaction_add", event);
         },
 
         MESSAGE_REACTION_REMOVE(event: MessageReactionFluxEvent) {
-            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
             if (event) logReaction("reaction_remove", event);
         },
 
         MESSAGE_REACTION_REMOVE_ALL(event: { channelId: string; messageId: string; }) {
-            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
             if (event) logReactionClear(event);
         },
 
         TYPING_START({ userId, channelId }: { userId: string; channelId: string; }) {
-            if (targets.length === 0 && serverTargets.length === 0) return;
-            if (userId && channelId) logTyping(userId, channelId);
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
+            if (!userId || !channelId) return;
+            const isTargetUser = targetSet.has(userId);
+            if (!isTargetUser && serverTargetSet.size === 0) return;
+            logTyping(userId, channelId);
         },
 
         VOICE_STATE_UPDATES({ voiceStates = [] }: { voiceStates: VoiceState[]; }) {
-            if (targets.length === 0 && serverTargets.length === 0) return;
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
             if (Array.isArray(voiceStates)) {
                 for (const voiceState of voiceStates) {
                     handleVoiceState(voiceState);
@@ -1374,83 +1433,119 @@ export default definePlugin({
         },
 
         CHANNEL_CREATE(event: ChannelFluxEvent) {
+            if (serverTargetSet.size === 0) return;
             logChannelEvent("channel_create", event);
         },
 
         CHANNEL_DELETE(event: ChannelFluxEvent) {
+            if (serverTargetSet.size === 0) return;
             logChannelEvent("channel_delete", event);
         },
 
         CHANNEL_UPDATE(event: ChannelFluxEvent) {
+            if (serverTargetSet.size === 0) return;
             logChannelEvent("channel_update", event);
         },
 
         CHANNEL_UPDATES({ channels }: { channels: Channel[]; }) {
-            // With no server targeted every channel in the batch is a guaranteed no-op,
-            // so skip the loop entirely rather than paying per-channel guard cost.
-            if (serverTargets.length === 0) return;
+            if (serverTargetSet.size === 0) return;
             for (const channel of channels) {
                 logChannelEvent("channel_update", { channel });
             }
         },
 
         THREAD_CREATE(event: ChannelFluxEvent) {
+            if (serverTargetSet.size === 0) return;
             logThreadEvent("thread_create", event);
         },
 
         THREAD_DELETE(event: ChannelFluxEvent) {
+            if (serverTargetSet.size === 0) return;
             logThreadEvent("thread_delete", event);
         },
 
         THREAD_UPDATE(event: ChannelFluxEvent) {
+            if (serverTargetSet.size === 0) return;
             logThreadEvent("thread_update", event);
         },
 
         GUILD_MEMBER_ADD(event: GuildMemberFluxEvent) {
+            if (isStartupPhase || (targetSet.size === 0 && serverTargetSet.size === 0)) return;
+            const joinedAtStr = event.member?.joinedAt;
+            if (!joinedAtStr) return;
+            const joinedAt = Date.parse(joinedAtStr);
+            if (isNaN(joinedAt) || Date.now() - joinedAt > MEMBER_JOIN_FRESHNESS) return;
+
+            const userId = event.user?.id ?? event.userId ?? event.member?.userId;
+            const guildId = event.guildId ?? event.guild_id ?? event.member?.guildId;
+            const isTargetUser = Boolean(userId && targetSet.has(userId));
+            const isTargetServer = Boolean(guildId && serverTargetSet.has(guildId));
+            if (!isTargetUser && !isTargetServer) return;
             logGuildMemberEvent("guild_member_add", event);
         },
 
         GUILD_MEMBER_REMOVE(event: GuildMemberFluxEvent) {
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
+            const userId = event.user?.id ?? event.userId ?? event.member?.userId;
+            const guildId = event.guildId ?? event.guild_id ?? event.member?.guildId;
+            const isTargetUser = Boolean(userId && targetSet.has(userId));
+            const isTargetServer = Boolean(guildId && serverTargetSet.has(guildId));
+            if (!isTargetUser && !isTargetServer) return;
             logGuildMemberEvent("guild_member_remove", event);
         },
 
         GUILD_MEMBER_UPDATE(event: GuildMemberFluxEvent) {
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
+            const userId = event.user?.id ?? event.userId ?? event.member?.userId;
+            const guildId = event.guildId ?? event.guild_id ?? event.member?.guildId;
+            const isTargetUser = Boolean(userId && targetSet.has(userId));
+            const isTargetServer = Boolean(guildId && serverTargetSet.has(guildId));
+            if (!isTargetUser && !isTargetServer) return;
             logGuildMemberEvent("guild_member_update", event);
         },
 
         GUILD_MEMBER_PROFILE_UPDATE(event: GuildMemberProfileFluxEvent) {
+            if (targetSet.size === 0 && serverTargetSet.size === 0) return;
             logGuildMemberProfile(event);
         },
 
         USER_UPDATE(event: UserUpdateFluxEvent) {
+            if (targetSet.size === 0) return;
             logUserUpdate(event);
         },
 
         USER_PROFILE_FETCH_SUCCESS(event: UserProfileFluxEvent) {
+            if (targetSet.size === 0) return;
             logUserProfile(event);
         },
 
         USER_PROFILE_UPDATE_SUCCESS(event: UserProfileFluxEvent) {
+            if (targetSet.size === 0) return;
             logUserProfile(event);
         },
 
         CURRENT_USER_UPDATE(event: UserUpdateFluxEvent) {
+            if (targetSet.size === 0) return;
             logUserUpdate(event);
         },
 
         GUILD_UPDATE(event: GuildFluxEvent) {
+            if (serverTargetSet.size === 0) return;
             logGuildEvent(event);
         },
 
         GUILD_ROLE_CREATE(event: RoleFluxEvent) {
+            if (serverTargetSet.size === 0) return;
             logRoleEvent("role_create", event);
         },
 
         GUILD_ROLE_DELETE(event: RoleFluxEvent) {
+            if (serverTargetSet.size === 0) return;
             logRoleEvent("role_delete", event);
         },
 
         GUILD_ROLE_UPDATE(event: RoleFluxEvent) {
+            if (serverTargetSet.size === 0) return;
             logRoleEvent("role_update", event);
         },
     },

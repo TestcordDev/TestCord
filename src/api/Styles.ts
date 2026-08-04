@@ -63,6 +63,30 @@ export function initStyles() {
     const rendererCssNode = addStyle("vencord-css-core");
     const vesktopCssNode = (IS_VESKTOP || IS_EQUIBOP) ? addStyle("vesktop-css-core") : null;
     addStyle("vencord-margins").textContent = generateMarginCss();
+    addStyle("vencord-viewport-cull").textContent = `
+        [class*="messageListItem-"] {
+            content-visibility: auto;
+            contain-intrinsic-size: 1px 60px;
+            contain: layout style paint;
+        }
+        [class*="embedWrapper-"],
+        [class*="mediaAttachmentsContainer-"],
+        [class*="userPopout-"],
+        [class*="member-"] {
+            content-visibility: auto;
+            contain-intrinsic-size: 1px 180px;
+            contain: layout style paint;
+        }
+        .vc-changelog-entry,
+        .vc-changelog-new-plugin-card,
+        .vc-changelog-log,
+        [class*="vc-plugins-grid"] > div,
+        [class*="settingCard-"] {
+            content-visibility: auto;
+            contain-intrinsic-size: 1px 70px;
+            contain: layout style paint;
+        }
+    `;
     coreStyleRootNode.replaceChildren(...styles);
 
     VencordNative.native.getRendererCss().then(css => rendererCssNode.textContent = css);

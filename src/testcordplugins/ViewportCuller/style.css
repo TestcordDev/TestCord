@@ -1,0 +1,13 @@
+/* Viewport Culler - Layout & Paint Containment */
+
+[class*="messageListItem-"] {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 60px;
+}
+
+[class*="embedWrapper-"],
+[class*="mediaAttachmentsContainer-"],
+[class*="userPopout-"] {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 180px;
+}
