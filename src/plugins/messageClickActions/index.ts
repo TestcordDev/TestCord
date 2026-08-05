@@ -457,7 +457,8 @@ async function executeAction(
     action: ClickAction,
     msg: Message,
     channel: Channel,
-    event: MouseEvent
+    event: MouseEvent,
+    triggerModifier: Modifier = "NONE"
 ) {
     const myId = AuthenticationStore.getId();
     const isMe = msg.author.id === myId;
@@ -510,7 +511,7 @@ async function executeAction(
             if (!canReply(msg)) return;
             if (!canSend(channel)) return;
 
-            const isShiftPress = event.shiftKey;
+            const isShiftPress = event.shiftKey && triggerModifier !== "SHIFT";
             const shouldMention = isPluginEnabled(NoReplyMentionPlugin.name)
                 ? NoReplyMentionPlugin.shouldMention(msg, isShiftPress)
                 : !isShiftPress;
@@ -657,7 +658,7 @@ export default definePlugin({
             }
 
             if (isModifierPressed(tripleClickModifier) && tripleClickAction !== "NONE") {
-                executeAction(tripleClickAction, msg, channel, event);
+                executeAction(tripleClickAction, msg, channel, event, tripleClickModifier);
                 pressedModifiers.clear();
             }
             doubleClickFired = false;
@@ -688,7 +689,7 @@ export default definePlugin({
                 if (!canSend(channel)) return;
                 if (msg.deleted === true) return;
                 if (canDoubleClick && isQuickDoubleClick) {
-                    executeAction(doubleClickAction, msg, channel, event);
+                    executeAction(doubleClickAction, msg, channel, event, doubleClickModifier);
                     pressedModifiers.clear();
                 }
             };
@@ -720,7 +721,7 @@ export default definePlugin({
 
             const executeSingleClick = () => {
                 if (!doubleClickFired && !doubleClickDetected && isModifierPressed(singleClickModifier) && singleClickAction !== "NONE") {
-                    executeAction(singleClickAction, msg, channel, event);
+                    executeAction(singleClickAction, msg, channel, event, singleClickModifier);
                     pressedModifiers.clear();
                 }
                 resetClickState();

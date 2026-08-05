@@ -17,8 +17,7 @@
 */
 
 import { Settings } from "@api/Settings";
-import { findStoreLazy } from "@webpack";
-import { ChannelStore, SelectedChannelStore, UserStore } from "@webpack/common";
+import { ChannelStore, SelectedChannelStore, UserGuildSettingsStore, UserStore } from "@webpack/common";
 
 import { settings } from "../index";
 import { LoggedMessageJSON } from "../types";
@@ -107,8 +106,6 @@ interface ShouldIgnoreArguments {
 
 const EPHEMERAL = 64;
 
-const UserGuildSettingsStore = findStoreLazy("UserGuildSettingsStore");
-
 /**
   * the function `shouldIgnore` evaluates whether a message should be ignored or kept, following a priority hierarchy: User > Channel > Server.
   * In this hierarchy, whitelisting takes priority; if any element (User, Channel, or Server) is whitelisted, the message is kept.
@@ -163,8 +160,8 @@ export function shouldIgnore({ channelId, authorId, guildId, flags, bot, ghostPi
     if (isCachedByUs && (!settings.store.cacheMessagesFromServers && guildId != null && !isGuildWhitelisted)) return true;
     if (isBlacklisted && (!isAuthorWhitelisted || !isChannelWhitelisted)) return true;
     if (guildId != null && settings.store.ignoreMutedGuilds && UserGuildSettingsStore.isMuted(guildId)) return true;
-    if (channelId != null && settings.store.ignoreMutedCategories && UserGuildSettingsStore.isCategoryMuted(guildId, channelId)) return true;
-    if (channelId != null && settings.store.ignoreMutedChannels && UserGuildSettingsStore.isChannelMuted(guildId, channelId)) return true;
+    if (channelId != null && guildId != null && settings.store.ignoreMutedCategories && UserGuildSettingsStore.isCategoryMuted(guildId, channelId)) return true;
+    if (channelId != null && guildId != null && settings.store.ignoreMutedChannels && UserGuildSettingsStore.isChannelMuted(guildId, channelId)) return true;
 
     return false;
 }

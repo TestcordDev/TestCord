@@ -19,14 +19,13 @@ import { Devs, EquicordDevs } from "@utils/constants";
 import { classNameFactory } from "@utils/index";
 import definePlugin, { OptionType } from "@utils/types";
 import { GuildMember, Message, RenderModalProps, User } from "@vencord/discord-types";
-import { findByCodeLazy, findStoreLazy } from "@webpack";
-import { ChannelStore, GuildMemberStore, GuildStore, Menu, MessageStore, Modal, openModal, RelationshipStore, StreamerModeStore, TextInput, useMemo, UserStore, useState } from "@webpack/common";
+import { findByCodeLazy } from "@webpack";
+import { AccessibilityStore, ChannelStore, GuildMemberStore, GuildStore, Menu, MessageStore, Modal, openModal, RelationshipStore, StreamerModeStore, TextInput, useMemo, UserStore, useState } from "@webpack/common";
 import { JSX } from "react";
 
 const SMYNC = classNameFactory();
 const wrapEmojis = findByCodeLazy("lastIndex;return");
 const adjustColor = findByCodeLazy("light1", '.get("hsl.s"))');
-const AccessibilityStore = findStoreLazy("AccessibilityStore");
 
 const roleColorPattern = /^role((?:\+|-)\d{0,4})?$/iu;
 const symbolPattern = /^[\p{S}\p{P}]{1,3}$/iu;
@@ -1161,8 +1160,8 @@ export default definePlugin({
             // Replace name in solo DM title bar and tooltip.
             find: "channel.isSystemDM(),",
             replacement: {
-                match: /(?<=length>0,\i=\i&&null!=\i&&!\i,)(\i=)(.{0,125}?"aria-label":)(\i.\i.getName\(\i\).{0,1700}?text:)(?=\i,position)/,
-                replace: "smynName=arguments[0].channel.recipients.length===1?$self.getTypingMemberListProfilesReactionsVoiceNameText({user:$self.UserStore.getUser(arguments[0].channel.recipients[0]),type:\"profilesPopout\"})??null:null,$1smynName??$2smynName??$3smynName??"
+                match: /(?<=(\i\.\i\.getUser).{650,750}length>0,\i=\i&&null!=\i&&!\i,)(\i=)(.{0,125}?"aria-label":)(\i.\i.getName\(\i\).{0,1700}?text:)(?=\i,position)/,
+                replace: "smynName=arguments[0].channel.recipients.length===1?$self.getTypingMemberListProfilesReactionsVoiceNameText({user:$1(arguments[0].channel.recipients[0]),type:\"profilesPopout\"})??null:null,$2smynName??$3smynName??$4smynName??"
             },
         },
         {

@@ -54,7 +54,7 @@ export default definePlugin({
     settings,
     patches: [
         {
-            find: "playNotificationSound",
+            find: "playNotificationSound(",
             replacement: [
                 {
                     match: /(\i\.\i\.getDesktopType\(\)===\i\.\i\.NEVER)\)(?=.*?(\i\.\i\.playNotificationSound\(.{0,5}\)))/,

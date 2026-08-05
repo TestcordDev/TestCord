@@ -34,16 +34,15 @@ export interface ForwardOptionsState {
     setOpts: Dispatch<SetStateAction<ForwardOptions>>;
     defaultOpts: Required<ForwardOptions>;
     hasOpts: boolean;
-    message: Message;
+    message?: Message;
 }
 
 export const ForwardOptionsContext = proxyLazyWebpack(() =>
-    React.createContext<ForwardOptionsState & { message: Message }>({
+    React.createContext<ForwardOptionsState>({
         opts: {},
-        setOpts: () => {},
+        setOpts: () => { },
         defaultOpts: { onlyAttachmentIds: [], onlyEmbedIndices: [] },
         hasOpts: false,
-        message: {} as Message
     })
 );
 
@@ -148,7 +147,7 @@ export default definePlugin({
         }
     ],
 
-    async sendForward(additionalMessage: string | null, channels: { id: string; type: string }[], message: Message, options: ForwardOptions) {
+    async sendForward(additionalMessage: string | null, channels: { id: string; type: string; }[], message: Message, options: ForwardOptions) {
         const contentMessage = message.messageSnapshots[0]?.message ?? message;
 
         const newLine = `\n${settings.store.forwardPreface} `;
@@ -188,7 +187,7 @@ export default definePlugin({
         ignore = !!event?.shiftKey;
     },
 
-    renderForwardFooter({ message }: { message: Message }) {
+    renderForwardFooter({ message }: { message: Message; }) {
         if (!message.messageReference) return null;
 
         const { guild_id, channel_id, message_id } = message.messageReference;
@@ -204,8 +203,9 @@ export default definePlugin({
         );
     },
 
-    useProps(props: { message: Message; forwardOptions?: ForwardOptions }) {
-        const message = props.message.messageSnapshots[0]?.message ?? props.message;
+    useProps(props: { message?: Message; forwardOptions?: ForwardOptions; }) {
+        // Message is undefined in certain forward contexts (e.g. forwarding an item from the shop)
+        const message = props.message?.messageSnapshots[0]?.message ?? props.message;
 
         const [opts, setOpts] = useState(() => {
             if (!props.forwardOptions || !props.forwardOptions.onlyEmbedIndices)
@@ -215,18 +215,18 @@ export default definePlugin({
             const embedsIds = new Set(props.forwardOptions.onlyEmbedIndices as number[]);
 
             // Discord incorrectly assumes that embed indices directly map to whole embeds, this is an attempt to fix that
-            const onlyEmbedIndices = message.embeds
+            const onlyEmbedIndices = message?.embeds
                 .flatMap((e, i) => e.images?.map(() => ({ id: id++, eId: i })) ?? { id: id++, eId: i })
                 .filter(({ eId }) => embedsIds.has(eId))
-                .map(({ id }) => id);
+                .map(({ id }) => id) ?? [];
 
             return { ...props.forwardOptions, onlyEmbedIndices };
         });
 
         const defaultOpts = useMemo(
             () => ({
-                onlyAttachmentIds: message.attachments.map(a => a.id),
-                onlyEmbedIndices: message.embeds.flatMap(e => e.images ?? [{}]).map((_, i) => i)
+                onlyAttachmentIds: message?.attachments.map(a => a.id) ?? [],
+                onlyEmbedIndices: message?.embeds.flatMap(e => e.images ?? [{}]).map((_, i) => i) ?? []
             }),
             [message]
         );
@@ -261,7 +261,7 @@ export default definePlugin({
             <ErrorBoundary noop>
                 <ForwardOptionsContext.Provider value={state}>
                     {children}
-                    {(message.embeds.length + message.attachments.length > 0) && (
+                    {message && message.embeds.length + message.attachments.length > 0 && (
                         <>
                             <ForwardPicker />
                             <Flex className={Margins.top16}>

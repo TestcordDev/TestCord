@@ -24,14 +24,13 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import { Paragraph } from "@components/Paragraph";
 import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { findComponentByCodeLazy, findCssClassesLazy, findStoreLazy } from "@webpack";
-import { Constants, React, RestAPI, SettingsRouter, Tooltip } from "@webpack/common";
+import { findComponentByCodeLazy, findCssClassesLazy } from "@webpack";
+import { AuthSessionsStore, Constants, React, RestAPI, SettingsRouter, Tooltip } from "@webpack/common";
 
 import { NewButton, RenameButton } from "./components/RenameButton";
 import { Session, SessionInfo } from "./types";
 import { cl, fetchNamesFromDataStore, getDefaultName, GetOsColor, GetPlatformIcon, savedSessionsCache, saveSessionsToDataStore } from "./utils";
 
-const AuthSessionsStore = findStoreLazy("AuthSessionsStore");
 const TimestampClasses = findCssClassesLazy("timestamp", "blockquoteContainer");
 const BlobMask = findComponentByCodeLazy("!1,lowerBadgeSize:");
 
@@ -202,7 +201,7 @@ export default definePlugin({
         USER_SETTINGS_ACCOUNT_RESET_AND_CLOSE_FORM() {
             const rawSessions = AuthSessionsStore?.getSessions?.();
             if (!Array.isArray(rawSessions)) return;
-            const lastFetchedHashes: string[] = rawSessions.map((session: SessionInfo["session"]) => session?.id_hash).filter(Boolean);
+            const lastFetchedHashes: string[] = rawSessions.map(session => session?.id_hash).filter(Boolean);
 
             // Add new sessions to cache
             lastFetchedHashes.forEach(idHash => {

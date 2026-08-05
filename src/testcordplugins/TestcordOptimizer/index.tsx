@@ -9,17 +9,27 @@ import { resetCacheLimits } from "@utils/cacheLimits";
 import { TestcordDevs } from "@utils/constants";
 import { classNameToSelector } from "@utils/css";
 import { Logger } from "@utils/Logger";
+import { escapeRegExp } from "@utils/text";
 import definePlugin, { OptionType } from "@utils/types";
-import { filters, find, findAll, mapMangledCssClasses, proxyLazyWebpack } from "@webpack";
-import { FluxDispatcher, MessageStore, SelectedChannelStore } from "@webpack/common";
+import { filters, find, findAll, findByPropsLazy, proxyLazyWebpack } from "@webpack";
+import { FluxDispatcher, MessageStore, SelectedChannelStore, showToast, Toasts, useEffect, useRef, useState } from "@webpack/common";
 
 const logger = new Logger("TestcordOptimizer");
 
+// Resolve each class token independently. Discord splits CSS modules across
+// builds (e.g. messageListItem in one module, messageContent in another), so a
+// single-module lookup silently fails for groups whose tokens stopped sharing a module.
 function findCssClassesLazy<S extends string>(...classes: S[]): Record<S, string | undefined> {
     return proxyLazyWebpack(() => {
-        const res = find(filters.byClassNames(...classes), { isIndirect: true, topLevelOnly: true });
-        if (!res) return {} as Record<S, string>;
-        return mapMangledCssClasses(res, classes);
+        const res = {} as Record<S, string | undefined>;
+        for (const cls of classes) {
+            const mod = find(filters.byClassNames(cls), { isIndirect: true, topLevelOnly: true });
+            if (!mod) continue;
+            const re = new RegExp(`(?<=^|\\s)${escapeRegExp(cls)}(?:_\\S*)?(?=$|\\s)`);
+            const val = Object.values(mod).find(v => typeof v === "string" && re.test(v));
+            if (typeof val === "string") res[cls] = val;
+        }
+        return res;
     }) as Record<S, string | undefined>;
 }
 
@@ -87,6 +97,8 @@ const AttachmentWrapClasses = findCssClassesLazy("attachment");
 const FilterClasses = findCssClassesLazy("filter");
 const CardClasses = findCssClassesLazy("card");
 const TextClasses = findCssClassesLazy("text");
+
+const MemberListStore = findByPropsLazy("getMemberListSections", "getMemberListVersion");
 
 function sel(cls: string | undefined): string {
     if (!cls) return "";
@@ -751,6 +763,25 @@ const settings = definePluginSettings({
         description: "Freeze member list DOM with paint/layout containment so presence changes, voice states, and status updates don't trigger repaints. Unfreezes briefly every 3 minutes to batch-refresh. Massive smoothness gain in large servers.",
         default: false
     },
+    throttleMemberList: {
+        type: OptionType.BOOLEAN,
+        description: "Batch member list updates. Discord re-renders the whole member list for every presence change in the server; this coalesces those re-renders. Biggest win in large servers.",
+        default: true,
+        restartNeeded: true
+    },
+    memberListThrottleMs: {
+        type: OptionType.SLIDER,
+        description: "Max delay in ms before member list changes appear. Higher values smooth out presence churn more but delay status changes slightly.",
+        markers: [50, 100, 150, 250, 500],
+        default: 150,
+        stickToMarkers: false
+    },
+    preventAudioResetReload: {
+        type: OptionType.BOOLEAN,
+        description: "Stop Discord from reloading the whole app when the audio engine resets itself (Krisp errors, audio device failures). Audio may need a voice channel rejoin, but the client no longer reloads mid-session.",
+        default: true,
+        restartNeeded: true
+    },
     freezeWhenUnfocused: {
         type: OptionType.BOOLEAN,
         description: "Pause all CSS animations and transitions while the window is hidden/backgrounded. Stops the client burning CPU+GPU on offscreen animation; everything resumes on refocus.",
@@ -795,7 +826,7 @@ migratePluginSettings("TestcordOptimizer", "optimizerPremium");
 
 export default definePlugin({
     name: "TestcordOptimizer",
-    description: "All-in-one performance suite: webpack patches (tooltip, emoji, spinner, confetti, analytics, reactions, Sentry), bounded image cache, react-spring skip, offscreen media pause, MutationObserver DOM throttle, CSS containment (messages, members, DMs, embeds, servers, channels, forum, guild list, search), backdrop-blur/sticker/effect/upsell/spoiler/box-shadow/text-shadow/filter/backdrop suppression, lazy images/iframes, rAF reduction, passive listeners, console suppression (log/debug/info/warn/group/count/assert/dir/timers), ResizeObserver throttle, memory manager, GIF freeze (canvas/css), concurrency limit, message cache trimmer, animated avatar freeze, avatar quality reducer, cache limits, idle callback optimizer, drag-and-drop suppression, spellcheck opt-out, overscroll contain, link preview suppress, canvas effects hide, chat input containment (typing lag), large text attachment containment, attachment image grid containment.",
+    description: "All-in-one performance suite: webpack patches (tooltip, emoji, spinner, confetti, analytics, reactions, Sentry, member list throttle, audio reset reload prevention), bounded image cache, react-spring skip, offscreen media pause, MutationObserver DOM throttle, CSS containment (messages, members, DMs, embeds, servers, channels, forum, guild list, search), backdrop-blur/sticker/effect/upsell/spoiler/box-shadow/text-shadow/filter/backdrop suppression, lazy images/iframes, rAF reduction, passive listeners, console suppression (log/debug/info/warn/group/count/assert/dir/timers), ResizeObserver throttle, memory manager, GIF freeze (canvas/css), concurrency limit, message cache trimmer, animated avatar freeze, avatar quality reducer, cache limits, idle callback optimizer, drag-and-drop suppression, spellcheck opt-out, overscroll contain, link preview suppress, canvas effects hide, chat input containment (typing lag), large text attachment containment, attachment image grid containment.",
     tags: ["Utility", "Developers"],
     authors: [TestcordDevs.x2b, TestcordDevs.SirPhantom89],
     settings,
@@ -848,6 +879,22 @@ export default definePlugin({
                 replace: 'Sentry.init({$1dsn:""'
             },
             noWarn: true
+        },
+        {
+            find: "getMemberListSections",
+            predicate: () => settings.store.throttleMemberList,
+            replacement: {
+                match: /\(0,\i\.\i\)\(\[\i\.\i\],\(\)=>\(\{version:\i\.\i\.getMemberListVersion\((\i)\),members:\i\.\i\.getMemberListSections\(\1\)\}\)\)/,
+                replace: "$self.useThrottledMemberList($1)"
+            }
+        },
+        {
+            find: "AUDIO_RESET:function(){",
+            predicate: () => settings.store.preventAudioResetReload,
+            replacement: {
+                match: /AUDIO_RESET:function\(\)\{(\i\.\i\.remove\(\i\)),location\.reload\(\)\}/,
+                replace: "AUDIO_RESET:function(){$1,$self.onAudioReset()}"
+            }
         },
     ],
 
@@ -3191,4 +3238,34 @@ ${base}:not(:hover){opacity:.6}
             this.unfocusedFreezeStyleEl = null;
         }
     },
+
+    useThrottledMemberList(guildId: string) {
+        const [state, setState] = useState(() => ({
+            version: MemberListStore.getMemberListVersion(guildId),
+            members: MemberListStore.getMemberListSections(guildId)
+        }));
+        const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+        useEffect(() => {
+            const read = () => setState({
+                version: MemberListStore.getMemberListVersion(guildId),
+                members: MemberListStore.getMemberListSections(guildId)
+            });
+            const onChange = () => {
+                if (timer.current !== undefined) clearTimeout(timer.current);
+                timer.current = setTimeout(read, settings.store.memberListThrottleMs);
+            };
+            MemberListStore.addChangeListener(onChange);
+            return () => {
+                if (timer.current !== undefined) clearTimeout(timer.current);
+                timer.current = undefined;
+                MemberListStore.removeChangeListener(onChange);
+            };
+        }, [guildId]);
+        return state;
+    },
+
+    onAudioReset() {
+        logger.warn("Audio engine reset, skipped Discord's auto reload");
+        showToast("Audio engine reset, skipped reload", Toasts.Type.MESSAGE);
+    }
 });

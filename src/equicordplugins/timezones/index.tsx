@@ -280,7 +280,7 @@ export default definePlugin({
     patches: [
         // stolen from ViewIcons
         {
-            find: 'backgroundColor:"COMPLETE"',
+            find: '"--custom-cutout-radius":',
             replacement: {
                 match: /(?<=backgroundImage.+?children:)!\i.{0,100}className:\i\.\i\}\)/,
                 replace: "[$self.renderProfileTimezone(arguments[0]),$&]",
@@ -351,11 +351,16 @@ export default definePlugin({
     settings,
     getTime,
 
-    renderProfileTimezone: (props?: { user?: User; }) => {
-        if (!settings.store.showProfileTime || !props?.user?.id) return null;
-        if (props.user.id === UserStore.getCurrentUser().id && !settings.store.showOwnTimezone) return null;
+    renderProfileTimezone: props => {
+        if (!settings.store.showProfileTime || !props?.bannerSrc) return null;
 
-        return <TimestampComponent userId={props.user.id} type="profile" />;
+        const match = /\/banners\/(\d+)\//.exec(props.bannerSrc);
+        const userId = match?.[1];
+        if (!userId) return null;
+
+        if (userId === UserStore.getCurrentUser().id && !settings.store.showOwnTimezone) return null;
+
+        return <TimestampComponent userId={userId} type="profile" />;
     },
 
     renderMessageTimezone: (props?: { message?: Message; }) => {

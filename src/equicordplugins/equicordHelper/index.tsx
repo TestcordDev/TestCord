@@ -15,8 +15,8 @@ import { Devs, EQUICORD_GUILD_ID, EQUICORD_SUPPORT_CHANNEL_ID, EquicordDevs, SUP
 import { isAnyPluginDev, isEquicordGuild } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { StandingState } from "@vencord/discord-types/enums";
-import { findByCodeLazy, findStoreLazy } from "@webpack";
-import { Alerts, ApplicationCommandIndexStore, NavigationRouter, React, SettingsRouter, UserGuildSettingsStore, UserStore, useStateFromStores, VoiceStateStore } from "@webpack/common";
+import { findByCodeLazy } from "@webpack";
+import { Alerts, ApplicationCommandIndexStore, NavigationRouter, React, SafetyHubStore, SettingsRouter, UserGuildSettingsStore, UserStore, useStateFromStores, VoiceStateStore } from "@webpack/common";
 import { ComponentType } from "react";
 
 import { PluginButtons } from "./pluginButtons";
@@ -28,7 +28,6 @@ migratePluginToSettings(true, "EquicordHelper", "GuildTagSettings", "disableAdop
 
 let clicked = false;
 
-const SafetyHubStore = findStoreLazy("SafetyHubStore");
 const fetchSafetyHub: () => Promise<void> = findByCodeLazy("SAFETY_HUB_FETCH_START");
 
 const StandingConfig: Record<number, { label: string; hoverColor: string; Icon: ComponentType<any>; }> = {
