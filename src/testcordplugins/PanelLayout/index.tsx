@@ -6,7 +6,6 @@
 
 import * as DataStore from "@api/DataStore";
 import { definePluginSettings, SettingsStore } from "@api/Settings";
-import { getTestcordIconColor } from "@testcordplugins/TestcordHelper/iconColors";
 import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
@@ -15,6 +14,7 @@ import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
+import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, RenderModalProps } from "@utils/modal";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
 import { React, Select, Slider } from "@webpack/common";
@@ -84,6 +84,7 @@ const settings = definePluginSettings({
     panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#0e1852", onChange: () => apply() },
     glowColor: { type: OptionType.STRING, description: "Glow hover color", default: "#ffffff", onChange: () => apply() },
     colorfulActiveButtons: { type: OptionType.BOOLEAN, default: true, description: "Use distinct colored blobs for active plugin buttons", onChange: () => apply() },
+    forceNativeButtonColor: { type: OptionType.BOOLEAN, default: false, description: "Force the icon color on Discord's native buttons (Mute, Deafen, Settings) even when no custom icon color is set", onChange: () => apply() },
     // Chevrons & Lock
     hideChevrons: { type: OptionType.BOOLEAN, default: false, description: "Hide dropdown chevrons next to Mute and Deafen", onChange: () => apply() },
     lockButtonPosition: { type: OptionType.BOOLEAN, default: false, description: "Lock Button Position (prevents buttons dropping down on long status)", onChange: () => apply() },
@@ -347,8 +348,8 @@ function buildCSS(): string {
     lines.push(`
         .deracul-scrollbar::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
         .deracul-scrollbar::-webkit-scrollbar-track { background: var(--scrollbar-thin-track, transparent) !important; border-radius: 4px !important; }
-        .deracul-scrollbar::-webkit-scrollbar-thumb { background: var(--scrollbar-thin-thumb, var(--background-tertiary)) !important; border-radius: 4px !important; }
-        .deracul-scrollbar { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, var(--background-tertiary)) transparent; }
+        .deracul-scrollbar::-webkit-scrollbar-thumb { background: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) !important; border-radius: 4px !important; }
+        .deracul-scrollbar { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) transparent; }
     `);
 
     // Icon color theming
@@ -356,25 +357,29 @@ function buildCSS(): string {
     // cascade it to the whole panel via --vc-plugin-icon-color so both plugin
     // buttons and native Mute/Deafen/Settings icons honor it. When no custom
     // color is set, leave the panel untouched so buttons keep their theme's
-    // default colors.
+    // default colors. forceNativeButtonColor extends the same coloring to the
+    // native buttons even without a custom color, using the icon color fallback.
     const iconColor = getTestcordIconColor("userAreaButtonIconColor");
-    if (iconColor) lines.push(`
-        ${S.panelContainer} { --vc-plugin-icon-color: ${iconColor}; }
+    if (iconColor || st.forceNativeButtonColor) {
+        const color = iconColor ?? ICON_COLOR_FALLBACK;
+        lines.push(`
+            ${S.panelContainer} { --vc-plugin-icon-color: ${color}; }
 
-        [title="Open Soundboard"] *,
-        [title="User Settings"] *,
-        [title="Deafen"] *,
-        [title="Mute"] * {
-            fill: var(--vc-plugin-icon-color);
-        }
+            [title="Open Soundboard"] *,
+            [title="User Settings"] *,
+            [title="Deafen"] *,
+            [title="Mute"] * {
+                fill: var(--vc-plugin-icon-color);
+            }
 
-        [title="Open Soundboard"] [stroke="rgb(88,101,242)"],
-        [title="User Settings"] [stroke="rgb(88,101,242)"],
-        [title="Deafen"] [stroke="rgb(88,101,242)"],
-        [title="Mute"] [stroke="rgb(88,101,242)"] {
-            stroke: var(--vc-plugin-icon-color);
-        }
-    `);
+            [title="Open Soundboard"] [stroke="rgb(88,101,242)"],
+            [title="User Settings"] [stroke="rgb(88,101,242)"],
+            [title="Deafen"] [stroke="rgb(88,101,242)"],
+            [title="Mute"] [stroke="rgb(88,101,242)"] {
+                stroke: var(--vc-plugin-icon-color);
+            }
+        `);
+    }
 
     // Base fixes
     lines.push(`${S.panelContainer} { height: auto !important; min-height: unset !important; }`);
@@ -383,7 +388,7 @@ function buildCSS(): string {
     lines.push(`
         :not(title="AntiMove&Deco").deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
             width: 22px !important; height: 22px !important;
-            color: var(--interactive-normal) !important; fill: currentColor !important;
+            color: var(--interactive-normal, var(--interactive-text-default)) !important; fill: currentColor !important;
         }
     `);
 
@@ -412,7 +417,7 @@ function buildCSS(): string {
                 }
                 ${S.panelContainer}::before {
                     content: "" !important; order: 20000 !important; width: 100% !important;
-                    height: 1px !important; background: var(--background-modifier-accent) !important; margin: 2px 0 !important;
+                    height: 1px !important; background: var(--background-modifier-accent, var(--border-muted)) !important; margin: 2px 0 !important;
                 }
                 ${S.accountWrapper} {
                     order: 30000 !important; flex: 1 1 auto !important; min-width: 0 !important; margin-right: auto !important;
@@ -481,19 +486,19 @@ function buildCSS(): string {
     lines.push(`${S.panelButtons} ${S.panelButton} { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }`);
     switch (st.buttonStyle) {
         case "filled":
-            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover) !important; border-radius: 8px !important; }
-                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active) !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 8px !important; }
+                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         case "outlined":
-            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent) !important; border-radius: 8px !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
             break;
         case "pill":
-            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover) !important; border-radius: 20px !important; }
-                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active) !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 20px !important; }
+                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         case "square":
-            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover) !important; border-radius: 2px !important; }
-                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active) !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 2px !important; }
+                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         default:
             // Keep plugin toggle buttons from showing Discord's own fill (colorBrand
@@ -589,10 +594,10 @@ function buildCSS(): string {
 
     lines.push(`
         /* Fix active effect background pill visibility when hovering with scale up */
-        [class*="item"]:hover [class*="pill"],
-        [class*="wrapper"]:hover [class*="pill"],
-        [class*="pill_"]:hover,
-        [class*="pill"] > [class*="item"] {
+        ${S.panelContainer} [class*="item"]:hover [class*="pill"],
+        ${S.panelContainer} [class*="wrapper"]:hover [class*="pill"],
+        ${S.panelContainer} [class*="pill_"]:hover,
+        ${S.panelContainer} [class*="pill"] > [class*="item"] {
             opacity: 1 !important;
             visibility: visible !important;
             z-index: 10 !important;
@@ -745,7 +750,7 @@ function MiniToggle({ value, onChange }: { value: boolean; onChange: (v: boolean
             onClick={() => onChange(!value)}
             style={{
                 width: "26px", height: "14px", borderRadius: "7px",
-                backgroundColor: value ? "var(--brand-experiment, var(--switch-background-selected-default))" : "var(--background-modifier-accent)",
+                backgroundColor: value ? "var(--brand-experiment, var(--switch-background-selected-default))" : "var(--background-modifier-accent, var(--border-muted))",
                 position: "relative", cursor: "pointer", transition: "background 0.15s ease"
             }}
         >
@@ -876,8 +881,8 @@ function ButtonsDragTab() {
             ) : (
                 <div className="deracul-scrollbar" style={{
                     display: "flex", flexDirection: "row", gap: "12px", overflowX: "auto",
-                    padding: "16px", backgroundColor: "var(--background-secondary)", borderRadius: "12px",
-                    border: "1px solid var(--background-modifier-accent)", position: "relative"
+                    padding: "16px", backgroundColor: "var(--background-secondary, var(--background-surface-higher))", borderRadius: "12px",
+                    border: "1px solid var(--background-modifier-accent, var(--border-muted))", position: "relative"
                 }}>
                     {items.map((item, index) => {
                         const cfg = getBtnCfg(item.id);
@@ -908,7 +913,7 @@ function ButtonsDragTab() {
                                     className="deracul-btn-preview"
                                     dangerouslySetInnerHTML={{ __html: item.iconHTML }}
                                     style={{
-                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary)",
+                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
                                         display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-default)",
                                         boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
                                     }}
@@ -934,7 +939,7 @@ function ButtonsDragTab() {
                             const cfg = getBtnCfg(item.id);
                             const listening = listeningId === item.id;
                             return (
-                                <Flex key={item.id} justifyContent="space-between" alignItems="center" style={{ padding: "8px 12px", backgroundColor: "var(--background-secondary)", borderRadius: "6px" }}>
+                                <Flex key={item.id} justifyContent="space-between" alignItems="center" style={{ padding: "8px 12px", backgroundColor: "var(--background-secondary, var(--background-surface-higher))", borderRadius: "6px" }}>
                                     <BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>
                                     <Flex gap={8} alignItems="center">
                                         <Button size="small" variant="secondary" onClick={() => setListeningId(listening ? null : item.id)}>
@@ -1029,7 +1034,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                     </div>
                 </Flex>
 
-                <Flex gap={24} style={{ marginTop: "24px", borderBottom: "1px solid var(--background-modifier-accent)", width: "100%" }}>
+                <Flex gap={24} style={{ marginTop: "24px", borderBottom: "1px solid var(--background-modifier-accent, var(--border-muted))", width: "100%" }}>
                     {tabsList.map(t => (
                         <div
                             key={t.id}
@@ -1108,6 +1113,11 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <Card variant="primary">
                                 <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} />
                                 <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} />
+                            </Card>
+
+                            <Heading tag="h5">Native Buttons</Heading>
+                            <Card variant="primary">
+                                <FormSwitch title="Force Icon Color" description="Applies the icon color to Discord's native Mute, Deafen, and Settings buttons even when no custom icon color is set in TestcordHelper." value={s.forceNativeButtonColor} onChange={v => set("forceNativeButtonColor", v)} hideBorder />
                             </Card>
                         </>}
 

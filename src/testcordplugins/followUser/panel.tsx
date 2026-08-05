@@ -48,7 +48,7 @@ function SectionLabel({ children }: { children: React.ReactNode; }) {
             fontWeight: 700,
             letterSpacing: "0.07em",
             textTransform: "uppercase",
-            color: "var(--header-secondary)",
+            color: "var(--text-muted)",
             marginBottom: "8px",
             marginTop: "4px"
         }}>
@@ -115,7 +115,7 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
     return (
         <ModalRoot {...modalProps} title="Follow User" size={ModalSize.MEDIUM}>
             <ModalHeader>
-                <span style={{ fontSize: "20px", fontWeight: 700, color: "var(--header-primary)" }}>
+                <span style={{ fontSize: "20px", fontWeight: 700, color: "#ffffff" }}>
                     Follow User
                 </span>
             </ModalHeader>
@@ -136,7 +136,7 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             }}>
                                 <UserAvatar userId={followUserId} size="SIZE_48" />
                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--header-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    <div style={{ fontSize: "16px", fontWeight: 700, color: "#ffffff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                         {UserStore.getUser(followUserId)?.username ?? followedUsername ?? followUserId}
                                     </div>
                                     <div style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "4px" }}>
@@ -192,7 +192,7 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                         >
                                             <UserAvatar userId={friend.userId} size="SIZE_40" />
                                             <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--header-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-normal)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                     {friend.username}
                                                 </div>
                                                 <div style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -260,7 +260,7 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                         backgroundColor: value ? "var(--status-positive)" : "var(--status-danger)"
                                     }} />
                                     <span style={{ color: "var(--text-muted)" }}>{label}:</span>
-                                    <span style={{ color: "var(--header-primary)", fontWeight: 600 }}>{value ? "On" : "Off"}</span>
+                                    <span style={{ color: "var(--text-normal)", fontWeight: 600 }}>{value ? "On" : "Off"}</span>
                                 </div>
                             ))}
                         </div>

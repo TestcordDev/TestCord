@@ -78,6 +78,12 @@ function hasDragifyTransfer(dataTransfer?: DataTransfer | null) {
     return dataTransfer?.types?.includes("application/dragify");
 }
 
+function isInsideGuildFolder(event: DragEvent): boolean {
+    const { target } = event;
+    if (!(target instanceof Element)) return false;
+    return target.closest('[aria-owns^="folder-items-"], .vc-betterFolders-sidebar') != null;
+}
+
 function buildDropKey(entity: DropEntity, channelId: string) {
     return `${entity.kind}:${entity.id}:${channelId}`;
 }
@@ -418,6 +424,11 @@ export default definePlugin({
     },
 
     onGuildDragStart(event: DragEvent, guildId: string) {
+        // Discord's native guild drag-and-drop handles moves into, out of, and
+        // reorders inside server folders. When a drag starts on a folder's own
+        // row or its member rows (mini icons / BetterFolders rows), defer to the
+        // native DnD and skip dragify, or the folder drags never resolve.
+        if (isInsideGuildFolder(event)) return;
         this.beginDrag(event, { kind: "guild", id: guildId }, { effectAllowed: "copyMove" });
     },
 
