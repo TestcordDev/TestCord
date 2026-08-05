@@ -352,12 +352,13 @@ function buildCSS(): string {
     `);
 
     // Icon color theming
-    // User-chosen icon color (TestcordHelper -> user area buttons) cascades to
-    // the whole panel via --vc-plugin-icon-color, so both plugin buttons and
-    // native Mute/Deafen/Settings icons honor it. Defaults to Discord brand
-    // when unset (Discord's native preferred blue).
-    const iconColor = getTestcordIconColor("userAreaButtonIconColor") ?? "var(--interactive-normal)";
-    lines.push(`
+    // When a custom icon color is chosen (TestcordHelper -> user area buttons),
+    // cascade it to the whole panel via --vc-plugin-icon-color so both plugin
+    // buttons and native Mute/Deafen/Settings icons honor it. When no custom
+    // color is set, leave the panel untouched so buttons keep their theme's
+    // default colors.
+    const iconColor = getTestcordIconColor("userAreaButtonIconColor");
+    if (iconColor) lines.push(`
         ${S.panelContainer} { --vc-plugin-icon-color: ${iconColor}; }
 
         [title="Open Soundboard"] *,
