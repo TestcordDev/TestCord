@@ -91,6 +91,7 @@ function AntiMoveDecoButton() {
         <UserAreaButton
             onClick={toggle}
             aria-checked={enabled}
+            className="plated__67645"
             tooltipText={enabled ? "Disable AntiMove&Deco" : "Enable AntiMove&Deco"}
             icon={<AntiMoveDecoIcon enabled={enabled} />}
         />
