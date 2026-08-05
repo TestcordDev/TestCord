@@ -22,6 +22,7 @@ import { Flex } from "@components/Flex";
 import { CopyIcon, ImageIcon, LinkIcon, OpenExternalIcon } from "@components/Icons";
 import { Paragraph } from "@components/Paragraph";
 import { Span } from "@components/Span";
+import { TooltipContainer } from "@components/TooltipContainer";
 import { debounce } from "@shared/debounce";
 import { classNameFactory } from "@utils/css";
 import { copyWithToast, openImageModal } from "@utils/discord";
@@ -60,6 +61,7 @@ const SkipPrev = Svg("M7 6c.55 0 1 .45 1 1v10c0 .55-.45 1-1 1s-1-.45-1-1V7c0-.55
 const SkipNext = Svg("M7.58 16.89l5.77-4.07c.56-.4.56-1.24 0-1.63L7.58 7.11C6.91 6.65 6 7.12 6 7.93v8.14c0 .81.91 1.28 1.58.82zM16 7v10c0 .55.45 1 1 1s1-.45 1-1V7c0-.55-.45-1-1-1s-1 .45-1 1z", "next");
 const Repeat = Svg("M7 7h10v1.79c0 .45.54.67.85.35l2.79-2.79c.2-.2.2-.51 0-.71l-2.79-2.79c-.31-.31-.85-.09-.85.36V5H6c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1s1-.45 1-1V7zm10 10H7v-1.79c0-.45-.54-.67-.85-.35l-2.79 2.79c-.2.2-.2.51 0 .71l2.79 2.79c.31.31.85.09.85-.36V19h11c.55 0 1-.45 1-1v-4c0-.55-.45-1-1-1s-1 .45-1 1v3z", "repeat");
 const Shuffle = Svg("M10.59 9.17L6.12 4.7c-.39-.39-1.02-.39-1.41 0-.39.39-.39 1.02 0 1.41l4.46 4.46 1.42-1.4zm4.76-4.32l1.19 1.19L4.7 17.88c-.39.39-.39 1.02 0 1.41.39.39 1.02.39 1.41 0L17.96 7.46l1.19 1.19c.31.31.85.09.85-.36V4.5c0-.28-.22-.5-.5-.5h-3.79c-.45 0-.67.54-.36.85zm-.52 8.56l-1.41 1.41 3.13 3.13-1.2 1.2c-.31.31-.09.85.36.85h3.79c.28 0 .5-.22.5-.5v-3.79c0-.45-.54-.67-.85-.35l-1.19 1.19-3.13-3.14z", "shuffle");
+const LyricsButtonIcon = Svg("M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10H7v-2h10v2zm0-4H7V7h10v2zm-4 8H7v-2h6v2z", "lyrics");
 
 function Button(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
     return (
@@ -102,6 +104,7 @@ function CopyContextMenu({ name, type, path }: { type: string; name: string; pat
 }
 
 function Controls() {
+    const { showSpotifyLyrics } = settings.use(["showSpotifyLyrics"]);
     const [isPlaying, shuffle, repeat] = useStateFromStores(
         [SpotifyStore],
         () => [SpotifyStore.isPlaying, SpotifyStore.shuffle, SpotifyStore.repeat]
@@ -118,7 +121,7 @@ function Controls() {
 
     // the 1 is using position absolute so it does not make the button jump around
     return (
-        <Flex className={cl("button-row")} gap="0">
+        <Flex className={cl("button-row")} gap="0" style={{ position: "relative" }}>
             <Button
                 className={classes(cl("button"), cl("shuffle"), cl(shuffle ? "shuffle-on" : "shuffle-off"))}
                 onClick={() => SpotifyStore.setShuffle(!shuffle)}
@@ -144,6 +147,16 @@ function Controls() {
                 {repeat === "track" && <span className={cl("repeat-1")}>1</span>}
                 <Repeat />
             </Button>
+            <div className={cl("lyrics-toggle-wrapper")}>
+                <TooltipContainer text={showSpotifyLyrics ? "Disable Lyrics" : "Enable Lyrics"}>
+                    <Button
+                        className={classes(cl("button"), cl("lyrics"), cl(showSpotifyLyrics ? "repeat-context" : ""))}
+                        onClick={() => { settings.store.showSpotifyLyrics = !showSpotifyLyrics; }}
+                    >
+                        <LyricsButtonIcon />
+                    </Button>
+                </TooltipContainer>
+            </div>
         </Flex>
     );
 }
