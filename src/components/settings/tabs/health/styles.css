@@ -156,7 +156,7 @@
 
 .vc-health-nav-item-active {
     color: var(--interactive-active, #fff);
-    border-bottom-color: var(--brand-experiment, #5865f2);
+    border-bottom-color: var(--brand-experiment, var(--background-brand));
     background: var(--background-modifier-selected, rgb(255 255 255 / 6%));
 }
 
@@ -484,7 +484,7 @@
 }
 
 .vc-plugin-health-summary[data-color="positive"] .vc-plugin-health-summary-fill {
-    background: var(--status-positive-text, #23a55a);
+    background: var(--status-positive-background, #23a55a);
 }
 
 .vc-plugin-health-summary[data-color="idle"] .vc-plugin-health-summary-fill {
@@ -824,7 +824,7 @@
 }
 
 .vc-plugin-health-session-current {
-    color: var(--status-positive-text, #23a55a);
+    color: var(--status-positive-background, #23a55a);
     font-weight: 600;
 }
 
@@ -973,7 +973,7 @@
 }
 
 .vc-plugin-health-toggle input:checked + .vc-plugin-health-toggle-slider {
-    background: var(--status-positive-text, #23a55a);
+    background: var(--switch-background-selected-default, #23a55a);
 }
 
 .vc-plugin-health-toggle input:checked + .vc-plugin-health-toggle-slider::before {

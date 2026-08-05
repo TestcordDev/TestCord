@@ -14,7 +14,7 @@
     text-align: center;
     min-height: 112px;
     padding: 1em 0.5em;
-    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 18%, var(--border-subtle));
+    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, var(--vc-stats-accent))) 18%, var(--border-subtle));
     background:
         radial-gradient(circle at top, color-mix(in srgb, var(--vc-stats-accent, var(--brand, #5865f2)) 20%, transparent), transparent 58%),
         var(--background-base-lower-alt);

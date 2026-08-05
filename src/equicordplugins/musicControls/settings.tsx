@@ -14,6 +14,7 @@ import { makeRange, OptionType } from "@utils/types";
 import { MaskedLink, Select, showToast, TextInput, Toasts } from "@webpack/common";
 
 import hoverOnlyStyle from "./hoverOnly.css?managed";
+import betterSpotifyControlsStyle from "./spotify/betterSpotifyControls.css?managed";
 import { clearLyricsCache, removeTranslations } from "./spotify/lyrics/api";
 import languages from "./spotify/lyrics/providers/translator/languages";
 import { Provider } from "./spotify/lyrics/providers/types";
@@ -25,6 +26,10 @@ const sliderOptions = {
 
 export function toggleHoverControls(value: boolean) {
     (value ? enableStyle : disableStyle)(hoverOnlyStyle);
+}
+
+export function toggleBetterSpotifyControls(value: boolean) {
+    (value ? enableStyle : disableStyle)(betterSpotifyControlsStyle);
 }
 
 function InstallInstructions() {
@@ -183,6 +188,12 @@ export const settings = definePluginSettings({
         description: "Show Spotify Controls",
         type: OptionType.BOOLEAN,
         default: false,
+    },
+    betterSpotifyControls: {
+        description: "Use album cover as SpotifyControls background",
+        type: OptionType.BOOLEAN,
+        default: false,
+        onChange: v => toggleBetterSpotifyControls(v),
     },
     showSpotifyLyrics: {
         description: "Show Spotify Lyrics",

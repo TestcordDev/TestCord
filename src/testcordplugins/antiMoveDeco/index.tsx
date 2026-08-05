@@ -47,7 +47,7 @@ function onVoiceStateUpdate({ voiceStates }: { voiceStates: any[]; }) {
 }
 
 function AntiMoveDecoIcon({ enabled }: { enabled: boolean; }) {
-    const color = enabled ? "#39FF14" : "currentColor"; // Neon green if enabled
+    const color = enabled ? "var(--status-positive, #23A559)" : "currentColor"; // Neon green if enabled
     return (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="2.5" />
@@ -80,6 +80,8 @@ function AntiMoveDecoButton() {
     return (
         <UserAreaButton
             onClick={toggle}
+            aria-checked={enabled}
+            role="switch"
             tooltipText={enabled ? "Disable AntiMove&Deco" : "Enable AntiMove&Deco"}
             icon={<AntiMoveDecoIcon enabled={enabled} />}
         />

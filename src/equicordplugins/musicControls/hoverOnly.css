@@ -1,25 +1,45 @@
-.vc-spotify-button-row {
-    height: 0;
-    opacity: 0;
-    pointer-events: none;
-    transition: 0.2s;
-    transition-property: height;
+/* Hardware-accelerated 120 FPS swap controls for Spotify and Tidal players.
+   Fades out the progress bar on hover to reveal playback controls in the exact same card space,
+   eliminating all layout reflows and sidebar height changes completely. */
+
+#vc-spotify-player,
+#eq-tdl-player {
+    position: relative !important;
 }
 
-.eq-tdl-button-row {
-    height: 0;
-    opacity: 0;
-    pointer-events: none;
-    transition: 0.2s;
-    transition-property: height;
-}
-
-#eq-tdl-player:hover .eq-tdl-button-row,
-#vc-spotify-player:hover .vc-spotify-button-row {
+#vc-spotify-progress-bar,
+#eq-tdl-progress-bar {
     opacity: 1;
-    height: 32px;
-    pointer-events: auto;
+    transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+    will-change: opacity, transform;
+}
 
-    /* only transition opacity on show to prevent clipping */
-    transition-property: height, opacity;
+.vc-spotify-button-row,
+.eq-tdl-button-row {
+    position: absolute !important;
+    bottom: 8px !important;
+    left: 12px !important;
+    right: 12px !important;
+    margin: 0 !important;
+    height: 32px !important;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(4px);
+    transition: opacity 0.15s ease-out, transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+    will-change: opacity, transform;
+    z-index: 10;
+}
+
+#vc-spotify-player:hover #vc-spotify-progress-bar,
+#eq-tdl-player:hover #eq-tdl-progress-bar {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-2px);
+}
+
+#vc-spotify-player:hover .vc-spotify-button-row,
+#eq-tdl-player:hover .eq-tdl-button-row {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
 }

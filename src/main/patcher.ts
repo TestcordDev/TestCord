@@ -136,7 +136,7 @@ if (!IS_VANILLA) {
                         if (this.webContents.isDevToolsOpened()) {
                             this.webContents.closeDevTools();
                         } else {
-                            this.webContents.openDevTools({ mode: "detach" });
+                            this.webContents.openDevTools({ mode: "right" });
                         }
                         event.preventDefault();
                     }

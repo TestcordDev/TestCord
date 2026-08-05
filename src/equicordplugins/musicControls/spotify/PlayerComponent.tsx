@@ -357,6 +357,7 @@ export function SpotifyPlayer() {
     );
 
     const isPlaying = useStateFromStores([SpotifyStore], () => SpotifyStore.isPlaying);
+
     const [shouldHide, setShouldHide] = useState(false);
 
     // Hide player after 5 minutes of inactivity
@@ -377,7 +378,10 @@ export function SpotifyPlayer() {
     } as React.CSSProperties;
 
     return (
-        <div id={cl("player")} style={exportTrackImageStyle}>
+        <div
+            id={cl("player")}
+            style={exportTrackImageStyle}
+        >
             <Info track={track} />
             <SpotifySeekBar />
             <Controls />

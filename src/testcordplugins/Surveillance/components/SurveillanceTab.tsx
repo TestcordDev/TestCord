@@ -6,17 +6,18 @@
 
 import "./styles.css";
 
+import { plugins } from "@api/PluginManager";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { HeadingPrimary, HeadingTertiary } from "@components/Heading";
-import { HeadphonesIcon, Microphone, ScreenshareIcon, VideoIcon } from "@components/Icons";
-import { SettingsTab, wrapTab } from "@components/settings";
+import { CogWheel, HeadphonesIcon, Microphone, ScreenshareIcon, VideoIcon } from "@components/Icons";
+import { openPluginModal, SettingsTab, wrapTab } from "@components/settings";
 import { copyToClipboard } from "@utils/clipboard";
 import { classNameFactory } from "@utils/css";
 import { openUserProfile } from "@utils/discord";
 import { classes } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalHeader, type ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import { formatDurationMs } from "@utils/text";
-import { ChannelStore, GuildStore, IconUtils, NavigationRouter, React, Select, TextInput, Toasts, useEffect, useMemo, UserStore, useState, useStateFromStores } from "@webpack/common";
+import { ChannelStore, GuildStore, IconUtils, NavigationRouter, React, Select, TextInput, Toasts, Tooltip, useEffect, useMemo, UserStore, useState, useStateFromStores } from "@webpack/common";
 
 import { addServerTarget, getServerTargets, getTargets, removeServerTarget, removeTarget, setTargets, settings, subscribeServerTargets, subscribeTargets } from "..";
 import { analyzeSurveillanceEvents, OsintAnalysisResult } from "../osintAnalysis";
@@ -1013,7 +1014,23 @@ function SurveillanceTab() {
         <SettingsTab>
             <div className={cl("root")}>
                 <div className={cl("header")}>
-                    <HeadingPrimary>Surveillance</HeadingPrimary>
+                    <div className={cl("header-top")}>
+                        <HeadingPrimary>Surveillance</HeadingPrimary>
+                        <Tooltip text="Surveillance Settings">
+                            {props => (
+                                <button
+                                    {...props}
+                                    className={cl("settings-btn")}
+                                    onClick={() => {
+                                        if (plugins.Surveillance) openPluginModal(plugins.Surveillance);
+                                    }}
+                                    aria-label="Surveillance Settings"
+                                >
+                                    <CogWheel width={20} height={20} className={cl("settings-icon")} />
+                                </button>
+                            )}
+                        </Tooltip>
+                    </div>
                     <div className={cl("actions")}>
                         <span className={cl("summary")}>{stats.events} events · {stats.users} users · {stats.guilds} servers · {stats.channels} channels</span>
                         {SECTION_NAV.map(section => (

@@ -355,7 +355,7 @@ function buildCSS(): string {
 
     // Ensure cloned config SVGs display correctly
     lines.push(`
-        .deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
+        :not(title="AntiMove&Deco").deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
             width: 22px !important; height: 22px !important;
             color: var(--interactive-normal) !important; fill: currentColor !important;
         }
@@ -456,8 +456,7 @@ function buildCSS(): string {
                         ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active) !important; }`);
             break;
         case "outlined":
-            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent) !important; border-radius: 8px !important; }
-                        ${S.panelButtons} ${S.panelButton}:hover { border-color: var(--interactive-normal) !important; background: var(--background-modifier-hover) !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent) !important; border-radius: 8px !important; }`);
             break;
         case "pill":
             lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover) !important; border-radius: 20px !important; }
@@ -473,7 +472,7 @@ function buildCSS(): string {
     if (st.colorfulActiveButtons) {
         lines.push(`
             ${S.panelButtons} button[role="switch"][aria-checked="true"] { background-color: var(--brand-experiment, #5865F2) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} button[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
+            ${S.panelButtons} :not(title="AntiMove&Deco")button[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
             ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"] { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
             ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"] svg { color: white !important; fill: white !important; }
             ${S.panelButtons} [data-deracul-label="Ban all in VC"] button { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
