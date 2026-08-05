@@ -77,6 +77,14 @@
 .vc-spotify-button-row {
     justify-content: center;
     margin-top: 14px;
+    position: relative;
+}
+
+.vc-spotify-lyrics-toggle-wrapper {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
 }
 
 .vc-spotify-secondary-song-info {

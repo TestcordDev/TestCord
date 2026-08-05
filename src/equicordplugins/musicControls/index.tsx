@@ -87,7 +87,13 @@ export default definePlugin({
     ],
 
     PanelWrapper({ VencordOriginal, ...props }) {
-        const { showTidalControls, showTidalLyrics, showSpotifyLyrics, showSpotifyControls, lyricsPosition } = settings.store;
+        const { showTidalControls, showTidalLyrics, showSpotifyLyrics, showSpotifyControls, lyricsPosition } = settings.use([
+            "showTidalControls",
+            "showTidalLyrics",
+            "showSpotifyLyrics",
+            "showSpotifyControls",
+            "lyricsPosition",
+        ]);
         return (
             <>
                 <ErrorBoundary

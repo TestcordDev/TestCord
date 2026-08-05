@@ -46,12 +46,11 @@ function onVoiceStateUpdate({ voiceStates }: { voiceStates: any[]; }) {
     }
 }
 
-function AntiMoveDecoIcon({ enabled }: { enabled: boolean; }) {
-    const color = enabled ? "var(--status-positive, #23A559)" : "currentColor"; // Neon green if enabled
+function AntiMoveDecoIcon() {
     return (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" stroke={color} strokeWidth="2.5" />
-            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" stroke={color} strokeWidth="2.5" />
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" />
+            <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" stroke="currentColor" strokeWidth="2.5" />
         </svg>
     );
 }
@@ -81,9 +80,8 @@ function AntiMoveDecoButton() {
         <UserAreaButton
             onClick={toggle}
             aria-checked={enabled}
-            role="switch"
             tooltipText={enabled ? "Disable AntiMove&Deco" : "Enable AntiMove&Deco"}
-            icon={<AntiMoveDecoIcon enabled={enabled} />}
+            icon={<AntiMoveDecoIcon/>}
         />
     );
 }
@@ -95,7 +93,7 @@ export default definePlugin({
     authors: [{ name: "Nightcord", id: 0n }],
 
     userAreaButton: {
-        icon: () => <AntiMoveDecoIcon enabled={enabled} />,
+        icon: () => <AntiMoveDecoIcon/>,
         render: AntiMoveDecoButton
     },
 

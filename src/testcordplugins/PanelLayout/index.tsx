@@ -350,6 +350,23 @@ function buildCSS(): string {
         .deracul-scrollbar { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, var(--background-tertiary)) transparent; }
     `);
 
+    // Theming buttons
+    lines.push(`
+        [title="Open Soundboard"] *,
+        [title="User Settings"] *,
+        [title="Deafen"] *,
+        [title="Mute"] * {
+            fill: var(--background-brand);
+        }
+
+        [title="Open Soundboard"] [stroke="rgb(88,101,242)"],
+        [title="User Settings"] [stroke="rgb(88,101,242)"],
+        [title="Deafen"] [stroke="rgb(88,101,242)"],
+        [title="Mute"] [stroke="rgb(88,101,242)"] {
+            stroke: var(--background-brand);
+        }
+    `);
+
     // Base fixes
     lines.push(`${S.panelContainer} { height: auto !important; min-height: unset !important; }`);
 
@@ -478,7 +495,7 @@ function buildCSS(): string {
     if (st.colorfulActiveButtons) {
         lines.push(`
             ${S.panelButtons} button[role="switch"][aria-checked="true"] { background-color: var(--brand-experiment, #5865F2) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} :not(title="AntiMove&Deco")button[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
+            ${S.panelButtons} button[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
             ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"] { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
             ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"] svg { color: white !important; fill: white !important; }
             ${S.panelButtons} [data-deracul-label="Ban all in VC"] button { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
@@ -486,6 +503,7 @@ function buildCSS(): string {
             ${S.panelButtons} [data-deracul-label="Fake States"] button[aria-checked="true"] { background-color: var(--status-positive, #23A559) !important; color: white !important; border-radius: 10px !important; }
             ${S.panelButtons} [data-deracul-label="Fake States"] button[aria-checked="true"] svg { color: white !important; fill: white !important; }
             ${S.panelButtons} [data-deracul-label="Mute"] button[role="switch"][aria-checked="true"], ${S.panelButtons} [data-deracul-label="Deafen"] button[role="switch"][aria-checked="true"] { background-color: transparent !important; color: var(--status-danger, #DA373C) !important; }
+            ${S.panelButtons} [data-deracul-label="AntiMove&Deco"][aria-checked="true"] { background-color: var(--brand-experiment, #bdb32b) !important; color: white !important; border-radius: 10px !important; }
         `);
     }
 
@@ -717,7 +735,7 @@ function MiniToggle({ value, onChange }: { value: boolean; onChange: (v: boolean
             onClick={() => onChange(!value)}
             style={{
                 width: "26px", height: "14px", borderRadius: "7px",
-                backgroundColor: value ? "var(--brand-experiment, #5865f2)" : "var(--background-modifier-accent)",
+                backgroundColor: value ? "var(--brand-experiment, var(--switch-background-selected-default))" : "var(--background-modifier-accent)",
                 position: "relative", cursor: "pointer", transition: "background 0.15s ease"
             }}
         >
@@ -870,7 +888,7 @@ function ButtonsDragTab() {
                                     cursor: isDragging ? "grabbing" : "grab",
                                     opacity: isDragging ? 0.35 : 1,
                                     transform: isDragging ? "scale(0.94)" : "scale(1)",
-                                    borderLeft: isOver ? "3px solid var(--brand-experiment, #5865f2)" : "3px solid transparent",
+                                    borderLeft: isOver ? "3px solid var(--brand-experiment, #5865F2)" : "3px solid transparent",
                                     paddingLeft: isOver ? "6px" : "0px",
                                     transition: "border 0.1s ease, padding 0.1s ease, opacity 0.1s ease, transform 0.1s ease",
                                 }}
@@ -987,7 +1005,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                     <div style={{
                         display: "flex", alignItems: "center", justifyContent: "center",
                         width: "40px", height: "40px", borderRadius: "12px",
-                        background: "var(--brand-experiment, #5865f2)", color: "white"
+                        background: "var(--brand-experiment, var(--background-brand))", color: "white"
                     }}>
                         <PanelLayoutIcon />
                     </div>
@@ -1009,7 +1027,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             style={{
                                 paddingBottom: "12px",
                                 cursor: "pointer",
-                                borderBottom: tab === t.id ? "2px solid var(--brand-experiment, #5865f2)" : "2px solid transparent",
+                                borderBottom: tab === t.id ? "2px solid var(--brand-experiment, var(--background-brand))" : "2px solid transparent",
                                 transition: "all 0.15s ease",
                             }}
                         >

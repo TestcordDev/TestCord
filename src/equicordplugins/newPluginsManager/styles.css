@@ -30,6 +30,7 @@
 .vc-new-plugins-grid {
     display: grid;
     gap: 16px;
+    padding-top: 1px;
     grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
 }
 
