@@ -1,0 +1,35 @@
+/**
+  * @name Better SpotifyControls
+  * @author Vendicated
+  * @version 1.0.0
+  * @description Use album cover as SpotifyControls background
+*/
+
+#vc-spotify-player {
+    --blur-amount: 2px; /* higher px = stronger blur, 0 = no blur */
+    --darken-percent: 0.8; /* 0 = album cover is not darkened, 1 = album cover is darkened fully (black) */
+}
+
+#vc-spotify-player {
+    background: transparent !important;
+    position: relative;
+}
+
+#vc-spotify-player > * {
+    position: relative;
+    z-index: 1;
+}
+
+#vc-spotify-player::after {
+    content: "";
+    position: absolute;
+    display: block;
+    height: 100%;
+    width: 100%;
+    top: 0;
+    left: 0;
+    background: linear-gradient(rgba(0, 0, 0, var(--darken-percent)), rgba(0, 0, 0, var(--darken-percent))), var(--vc-spotify-track-image);
+    background-size: cover;
+    filter: blur(var(--blur-amount));
+    clip-path: inset(0);
+}

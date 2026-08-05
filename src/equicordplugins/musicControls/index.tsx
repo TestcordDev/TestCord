@@ -22,7 +22,7 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import { Devs, EquicordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
 
-import { settings, toggleHoverControls } from "./settings";
+import { settings, toggleBetterSpotifyControls, toggleHoverControls } from "./settings";
 import { migrateOldLyrics } from "./spotify/lyrics/api";
 import { SpotifyLyrics } from "./spotify/lyrics/components/lyrics";
 import { SpotifyPlayer } from "./spotify/PlayerComponent";
@@ -114,5 +114,11 @@ export default definePlugin({
     async start() {
         await migrateOldLyrics();
         toggleHoverControls(settings.store.hoverControls);
+        toggleBetterSpotifyControls(settings.store.betterSpotifyControls);
+    },
+
+    stop() {
+        toggleHoverControls(false);
+        toggleBetterSpotifyControls(false);
     },
 });
