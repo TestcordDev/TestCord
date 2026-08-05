@@ -5,7 +5,8 @@
  */
 
 import * as DataStore from "@api/DataStore";
-import { definePluginSettings } from "@api/Settings";
+import { definePluginSettings, SettingsStore } from "@api/Settings";
+import { getTestcordIconColor } from "@testcordplugins/TestcordHelper/iconColors";
 import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
@@ -350,20 +351,27 @@ function buildCSS(): string {
         .deracul-scrollbar { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, var(--background-tertiary)) transparent; }
     `);
 
-    // Theming buttons
+    // Icon color theming
+    // User-chosen icon color (TestcordHelper -> user area buttons) cascades to
+    // the whole panel via --vc-plugin-icon-color, so both plugin buttons and
+    // native Mute/Deafen/Settings icons honor it. Defaults to Discord brand
+    // when unset (Discord's native preferred blue).
+    const iconColor = getTestcordIconColor("userAreaButtonIconColor") ?? "var(--background-brand)";
     lines.push(`
+        ${S.panelContainer} { --vc-plugin-icon-color: ${iconColor}; }
+
         [title="Open Soundboard"] *,
         [title="User Settings"] *,
         [title="Deafen"] *,
         [title="Mute"] * {
-            fill: var(--background-brand);
+            fill: var(--vc-plugin-icon-color);
         }
 
         [title="Open Soundboard"] [stroke="rgb(88,101,242)"],
         [title="User Settings"] [stroke="rgb(88,101,242)"],
         [title="Deafen"] [stroke="rgb(88,101,242)"],
         [title="Mute"] [stroke="rgb(88,101,242)"] {
-            stroke: var(--background-brand);
+            stroke: var(--vc-plugin-icon-color);
         }
     `);
 
@@ -499,8 +507,6 @@ function buildCSS(): string {
         lines.push(`
             ${S.panelButtons} button[role="switch"][aria-checked="true"] { background-color: var(--brand-experiment, #5865F2) !important; color: white !important; border-radius: 10px !important; }
             ${S.panelButtons} button[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
-            ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"] { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} [data-deracul-label="Game Activity"] button[aria-checked="true"] svg { color: white !important; fill: white !important; }
             ${S.panelButtons} [data-deracul-label="Ban all in VC"] button { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
             ${S.panelButtons} [data-deracul-label="Ban all in VC"] button svg { color: white !important; fill: white !important; }
             ${S.panelButtons} [data-deracul-label="Fake States"] button[aria-checked="true"] { background-color: var(--status-positive, #23A559) !important; color: white !important; border-radius: 10px !important; }
@@ -1173,10 +1179,12 @@ export default definePlugin({
         await loadConfigs();
         apply();
         startObserver();
+        SettingsStore.addChangeListener("plugins.TestcordHelper.userAreaButtonIconColor", apply);
         document.addEventListener("keydown", onGlobalKeydown, true);
     },
     stop() {
         stopObserver();
+        SettingsStore.removeChangeListener("plugins.TestcordHelper.userAreaButtonIconColor", apply);
         document.getElementById(STYLE_ID)?.remove();
         document.getElementById(CUSTOM_STYLE_ID)?.remove();
         document.removeEventListener("keydown", onGlobalKeydown, true);
