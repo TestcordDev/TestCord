@@ -64,6 +64,7 @@ const settings = definePluginSettings({
             { label: "Default (no background)", value: "default", default: true },
             { label: "Rounded filled", value: "filled" },
             { label: "Outlined", value: "outlined" },
+            { label: "Outlined (old)", value: "outlineold" },
             { label: "Pill", value: "pill" },
             { label: "Square filled", value: "square" },
         ],
@@ -384,11 +385,15 @@ function buildCSS(): string {
     // Base fixes
     lines.push(`${S.panelContainer} { height: auto !important; min-height: unset !important; }`);
 
-    // Ensure cloned config SVGs display correctly
+// Ensure cloned config SVGs display correctly
     lines.push(`
         :not(title="AntiMove&Deco").deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
             width: 22px !important; height: 22px !important;
             color: var(--interactive-normal, var(--interactive-text-default)) !important; fill: currentColor !important;
+        }
+        [title="Game Activity"] .deracul-btn-preview svg {
+            --vc-plugin-icon-color: var(--status-danger) !important;
+            color: var(--status-danger) !important;
         }
     `);
 
@@ -491,6 +496,12 @@ function buildCSS(): string {
             break;
         case "outlined":
             lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
+            break;
+        case "outlineold":
+            // Pre-fallback replica: relies on var(--background-modifier-accent) which
+            // new Discord tokens dropped, so the border doesn't actually render.
+            // People liked that buggy look, so it's kept as its own option.
+            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }`);
             break;
         case "pill":
             lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 20px !important; }
@@ -669,7 +680,8 @@ const CALL_LAYOUTS = [
 ];
 const BUTTON_STYLES = [
     { value: "default", label: "Default (None)" }, { value: "filled", label: "Rounded Filled" },
-    { value: "outlined", label: "Outlined" }, { value: "pill", label: "Pill Shape" },
+    { value: "outlined", label: "Outlined" }, { value: "outlineold", label: "Outlined (old)" },
+    { value: "pill", label: "Pill Shape" },
     { value: "square", label: "Square Filled" },
 ];
 const HOVER_EFFECTS = [
@@ -914,7 +926,7 @@ function ButtonsDragTab() {
                                     dangerouslySetInnerHTML={{ __html: item.iconHTML }}
                                     style={{
                                         width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                        display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-default)",
+                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
                                         boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
                                     }}
                                 />

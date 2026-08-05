@@ -81,7 +81,7 @@ function hasDragifyTransfer(dataTransfer?: DataTransfer | null) {
 function isInsideGuildFolder(event: DragEvent): boolean {
     const { target } = event;
     if (!(target instanceof Element)) return false;
-    return target.closest('[aria-owns^="folder-items-"], .vc-betterFolders-sidebar') != null;
+    return target.closest('[aria-owns^="folder-items-"], [id^="folder-items-"], .vc-betterFolders-sidebar') != null;
 }
 
 function buildDropKey(entity: DropEntity, channelId: string) {

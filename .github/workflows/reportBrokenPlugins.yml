@@ -59,7 +59,7 @@ jobs:
               run: pnpm buildReporter
 
             - name: Run Reporter
-              timeout-minutes: 10
+              timeout-minutes: 15
               run: |
                   export PATH="$PWD/node_modules/.bin:$PATH"
                   export CHROMIUM_BIN=/usr/bin/google-chrome

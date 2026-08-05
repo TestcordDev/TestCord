@@ -33,6 +33,11 @@ const settings = definePluginSettings({
         description: "Use the old icon style before Discord icon redesign",
         default: false
     },
+    oldLogic: {
+        type: OptionType.BOOLEAN,
+        description: "Use the old state styling (red glow and red icon when game activity is off)",
+        default: false
+    },
     location: {
         type: OptionType.SELECT,
         description: "Where to show the game activity toggle button",
@@ -47,7 +52,7 @@ const settings = definePluginSettings({
 });
 
 function Icon({ className }: { className?: string; }) {
-    const { oldIcon } = settings.use(["oldIcon"]);
+    const { oldIcon, oldLogic } = settings.use(["oldIcon", "oldLogic"]);
     const showCurrentGame = ShowCurrentGame.useSetting();
 
     const redLinePath = !oldIcon
@@ -58,15 +63,22 @@ function Icon({ className }: { className?: string; }) {
         ? "M23.27 4.73 19.27 .73 -.27 20.27 3.73 24.27Z"
         : "M23.27 4.54 19.46.73 .73 19.46 4.54 23.27 23.27 4.54Z";
 
+    const mainFill = oldLogic
+        ? (!showCurrentGame && !oldIcon ? "var(--status-danger)" : "currentColor")
+        : "var(--vc-plugin-icon-color, currentColor)";
+    const lineFill = oldLogic
+        ? "var(--status-danger)"
+        : "var(--vc-plugin-icon-color, currentColor)";
+
     return (
         <svg className={className} width="20" height="20" viewBox="0 0 24 24">
             <path
-                fill="var(--vc-plugin-icon-color, currentColor)"
+                fill={mainFill}
                 mask={!showCurrentGame ? "url(#gameActivityMask)" : void 0}
                 d="M3.06 20.4q-1.53 0-2.37-1.065T.06 16.74l1.26-9q.27-1.8 1.605-2.97T6.06 3.6h11.88q1.8 0 3.135 1.17t1.605 2.97l1.26 9q.21 1.53-.63 2.595T20.94 20.4q-.63 0-1.17-.225T18.78 19.5l-2.7-2.7H7.92l-2.7 2.7q-.45.45-.99.675t-1.17.225Zm14.94-7.2q.51 0 .855-.345T19.2 12q0-.51-.345-.855T18 10.8q-.51 0-.855.345T16.8 12q0 .51.345 .855T18 13.2Zm-2.4-3.6q.51 0 .855-.345T16.8 8.4q0-.51-.345-.855T15.6 7.2q-.51 0-.855.345T14.4 8.4q0 .51.345 .855T15.6 9.6ZM6.9 13.2h1.8v-2.1h2.1v-1.8h-2.1v-2.1h-1.8v2.1h-2.1v1.8h2.1v2.1Z"
             />
             {!showCurrentGame && <>
-                <path fill="var(--vc-plugin-icon-color, currentColor)" d={redLinePath} />
+                <path fill={lineFill} d={redLinePath} />
                 <mask id="gameActivityMask">
                     <rect fill="white" x="0" y="0" width="24" height="24" />
                     <path fill="black" d={maskBlackPath} />
@@ -77,7 +89,7 @@ function Icon({ className }: { className?: string; }) {
 }
 
 function GameActivityToggleButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
-    const { location } = settings.use(["location"]);
+    const { location, oldLogic } = settings.use(["location", "oldLogic"]);
     const showCurrentGame = ShowCurrentGame.useSetting();
 
     if (location !== "PANEL" && isPluginEnabled(testcordToolbox.name)) return null;
@@ -88,6 +100,7 @@ function GameActivityToggleButton({ iconForeground, hideTooltips, nameplate }: U
             tooltipText={hideTooltips ? void 0 : showCurrentGame ? "Disable Game Activity" : "Enable Game Activity"}
             role="switch"
             aria-checked={showCurrentGame}
+            redGlow={oldLogic && !showCurrentGame}
             plated={nameplate != null}
             onClick={() => ShowCurrentGame.updateSetting(old => !old)}
             icon={<Icon className={iconForeground} />}

@@ -48,7 +48,7 @@ function SectionLabel({ children }: { children: React.ReactNode; }) {
             fontWeight: 700,
             letterSpacing: "0.07em",
             textTransform: "uppercase",
-            color: "var(--text-muted)",
+            color: "#ffffff",
             marginBottom: "8px",
             marginTop: "4px"
         }}>
@@ -139,7 +139,7 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                     <div style={{ fontSize: "16px", fontWeight: 700, color: "#ffffff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                         {UserStore.getUser(followUserId)?.username ?? followedUsername ?? followUserId}
                                     </div>
-                                    <div style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "4px" }}>
+                                    <div style={{ fontSize: "13px", color: "#ffffff", marginTop: "4px" }}>
                                         {followedChannel
                                             ? `#${followedChannel.name}${followedGuild ? ` — ${followedGuild.name}` : ""}`
                                             : "Not in voice right now"}
@@ -162,7 +162,7 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                 backgroundColor: "var(--background-secondary)",
                                 borderRadius: "10px",
                                 border: "1px dashed var(--background-modifier-accent)",
-                                color: "var(--text-muted)",
+                                color: "#ffffff",
                                 fontSize: "14px",
                                 textAlign: "center"
                             }}>
@@ -192,10 +192,10 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                         >
                                             <UserAvatar userId={friend.userId} size="SIZE_40" />
                                             <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--text-normal)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                <div style={{ fontSize: "15px", fontWeight: 600, color: "#ffffff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                     {friend.username}
                                                 </div>
-                                                <div style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                <div style={{ fontSize: "13px", color: "#ffffff", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                                     #{friend.channelName} — {friend.guildName}
                                                 </div>
                                             </div>
@@ -223,7 +223,7 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                 backgroundColor: "var(--background-secondary)",
                                 borderRadius: "8px",
                                 border: "1px dashed var(--background-modifier-accent)",
-                                color: "var(--text-muted)",
+                                color: "#ffffff",
                                 fontSize: "14px",
                                 textAlign: "center"
                             }}>
@@ -259,8 +259,8 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                         flexShrink: 0,
                                         backgroundColor: value ? "var(--status-positive)" : "var(--status-danger)"
                                     }} />
-                                    <span style={{ color: "var(--text-muted)" }}>{label}:</span>
-                                    <span style={{ color: "var(--text-normal)", fontWeight: 600 }}>{value ? "On" : "Off"}</span>
+                                    <span style={{ color: "#ffffff" }}>{label}:</span>
+                                    <span style={{ color: "#ffffff", fontWeight: 600 }}>{value ? "On" : "Off"}</span>
                                 </div>
                             ))}
                         </div>

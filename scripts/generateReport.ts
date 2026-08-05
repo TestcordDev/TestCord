@@ -359,6 +359,18 @@ page.on("pageerror", (e: any) => {
     }
 });
 
+// The reporter can hang indefinitely on stalled chunk fetches or webpack finds.
+// Give GH Actions a hard self-imposed deadline so the step fails with a partial
+// report (and exits cleanly) instead of being force-killed at the workflow timeout.
+const REPORT_TIMEOUT_MS = 9 * 60_000;
+setTimeout(() => {
+    logStderr(`[Reporter] Failed to finish within ${REPORT_TIMEOUT_MS / 60_000} minutes, printing partial report`);
+    process.exitCode = 1;
+    browser.close().finally(() => {
+        printReport().then(() => process.exit(1));
+    });
+}, REPORT_TIMEOUT_MS);
+
 await page.evaluateOnNewDocument(`
     if (location.host.endsWith("discord.com")) {
         ${readFileSync("./dist/browser/browser.js", "utf-8")};

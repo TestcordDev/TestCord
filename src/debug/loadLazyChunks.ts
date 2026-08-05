@@ -6,11 +6,19 @@
 
 import { Logger } from "@utils/Logger";
 import { canonicalizeMatch } from "@utils/patches";
+import { sleep } from "@utils/misc";
 import { ModuleFactory } from "@vencord/discord-types/webpack";
 import * as Webpack from "@webpack";
 import { wreq } from "@webpack";
 import { AnyModuleFactory } from "@webpack/types";
 import pLimit from "p-limit";
+
+async function fetchChunkText(id: PropertyKey): Promise<string> {
+    return Promise.race([
+        fetch(wreq.p + wreq.u(id)).then(r => r.text()),
+        sleep(20_000).then(() => { throw new Error(`Timed out fetching chunk ${String(id)}`); })
+    ]);
+}
 
 function getWebpackChunkMap() {
     const sym = Symbol();
@@ -94,8 +102,7 @@ export async function loadLazyChunks() {
                     if (wreq.u(id) == null || wreq.u(id) === "undefined.js") continue;
 
                     const isWorkerAsset = await queue(() =>
-                        fetch(wreq.p + wreq.u(id))
-                            .then(r => r.text())
+                        fetchChunkText(id)
                             .then(t => /importScripts\(|self\.postMessage/.test(t))
                     );
 
@@ -198,8 +205,7 @@ export async function loadLazyChunks() {
         });
 
         await Promise.all(chunksLeft.map(async id => queue(async () => {
-            const isWorkerAsset = await fetch(wreq.p + wreq.u(id))
-                .then(r => r.text())
+            const isWorkerAsset = await fetchChunkText(id)
                 .then(t => /importScripts\(|self\.postMessage/.test(t));
 
             // Loads the chunk. Currently this only happens with the language packs which are loaded differently
