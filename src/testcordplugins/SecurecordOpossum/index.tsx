@@ -358,12 +358,14 @@ const EncryptionToggleButton: ChatBarButtonFactory = ({ channel, type }) => {
                 settings.store.encryptionEnabled = newValue;
 
                 // Show confirmation
-                sendBotMessage(
-                    channel?.id ?? "",
-                    {
-                        content: `🔐 Encryption ${newValue ? "enabled" : "disabled"}!`
-                    }
-                );
+                if (settings.store.enableBotConfirmation) {
+                    sendBotMessage(
+                        channel?.id ?? "",
+                        {
+                            content: `🔐 Encryption ${newValue ? "enabled" : "disabled"}!`
+                        }
+                    );
+                }
             }}
         >
             {encryptionEnabled ? <EncryptionEnabledIcon /> : <EncryptionDisabledIcon />}
@@ -399,6 +401,11 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Enable/disable message encryption",
         default: false
+    },
+    enableBotConfirmation: {
+        type: OptionType.BOOLEAN,
+        description: "Enable/disable bot confirmation",
+        default: true
     },
     enableLogging: {
         type: OptionType.BOOLEAN,
