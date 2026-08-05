@@ -35,8 +35,7 @@ export function cleanupMessage(message: any, removeDetails: boolean = true): Log
     const ret: LoggedMessageJSON = typeof message.toJS === "function" ? message.toJS() : { ...message };
     stripTransientRenderState(ret);
     if (removeDetails) {
-        ret.author.phone = undefined;
-        ret.author.email = undefined;
+        ret.author = { ...ret.author, phone: undefined, email: undefined } as User;
     }
 
     ret.ghostPinged = ret.mentioned ?? isGhostPinged(message);

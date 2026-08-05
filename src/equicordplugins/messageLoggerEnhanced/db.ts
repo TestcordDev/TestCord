@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import * as DataStore from "@api/DataStore";
 import { CACHED_MESSAGES_MAX } from "@utils/cacheLimits";
 import { ChannelStore, Toasts } from "@webpack/common";
 import { DBSchema, IDBPDatabase, openDB } from "idb";
@@ -85,7 +86,7 @@ export async function initIDB() {
         }
     });
 }
-initIDB();
+initIDB().then(() => migrateDateTimestamps());
 
 export async function hasMessageIDB(message_id: string) {
     return cachedMessages.has(message_id) || (await db.count("messages", message_id)) > 0;
@@ -217,6 +218,8 @@ export async function getMessagesByChannelAndAfterTimestampIDB(channel_id: strin
 
 export async function addMessageIDB(message: LoggedMessageJSON, status: DBMessageStatus) {
     stripTransientRenderState(message);
+    if (typeof message.timestamp !== "string")
+        message.timestamp = (message.timestamp as Date).toISOString();
 
     if (!db) await initIDB();
     await db.put("messages", {
@@ -230,7 +233,11 @@ export async function addMessageIDB(message: LoggedMessageJSON, status: DBMessag
 }
 
 export async function addMessagesBulkIDB(messages: LoggedMessageJSON[], status?: DBMessageStatus) {
-    messages.forEach(stripTransientRenderState);
+    messages.forEach(message => {
+        stripTransientRenderState(message);
+        if (typeof message.timestamp !== "string")
+            message.timestamp = (message.timestamp as Date).toISOString();
+    });
 
     const tx = db.transaction("messages", "readwrite");
     const { store } = tx;
@@ -246,6 +253,30 @@ export async function addMessagesBulkIDB(messages: LoggedMessageJSON[], status?:
     ]);
 
     messages.forEach(message => cachedMessages.set(message.id, message));
+}
+
+const TIMESTAMP_MIGRATION_KEY = "MessageLoggerEnhanced_timestampMigration";
+
+export async function migrateDateTimestamps() {
+    if (!db) await initIDB();
+    if (await DataStore.get(TIMESTAMP_MIGRATION_KEY)) return;
+
+    const keys = await db.getAllKeys("messages");
+    let migrated = 0;
+    for (let i = 0; i < keys.length; i += 2000) {
+        const records = await db.getAll("messages", IDBKeyRange.bound(keys[i], keys[Math.min(i + 1999, keys.length - 1)]));
+        for (const record of records) {
+            const { timestamp } = record.message;
+            if (typeof timestamp === "string") continue;
+            record.message.timestamp = (timestamp as Date).toISOString();
+            await db.put("messages", record);
+            migrated++;
+        }
+    }
+
+    await DataStore.set(TIMESTAMP_MIGRATION_KEY, Date.now());
+    if (migrated > 0)
+        console.log(`[MessageLoggerEnhanced] Migrated ${migrated} records with Date timestamps to ISO strings`);
 }
 
 export async function deleteMessageIDB(message_id: string) {

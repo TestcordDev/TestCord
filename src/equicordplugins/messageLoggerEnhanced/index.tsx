@@ -14,7 +14,7 @@ import { classNameFactory } from "@utils/css";
 import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
 import { findByPropsLazy } from "@webpack";
-import { FluxDispatcher, MessageStore, SelectedChannelStore, UserStore } from "@webpack/common";
+import { FluxDispatcher, MessageActions, MessageStore, SelectedChannelStore, UserStore } from "@webpack/common";
 
 import { OpenLogsButton } from "./components/LogsButton";
 import { openLogModal } from "./components/LogsModal";
@@ -423,7 +423,18 @@ export default definePlugin({
         "MESSAGE_DELETE": messageDeleteHandler as any,
         "MESSAGE_DELETE_BULK": messageDeleteBulkHandler,
         "MESSAGE_UPDATE": messageUpdateHandler,
-        "MESSAGE_CREATE": messageCreateHandler
+        "MESSAGE_CREATE": messageCreateHandler,
+        "CHANNEL_SELECT": (payload: { channelId?: string }) => {
+            const { channelId } = payload;
+            if (channelId == null) return;
+            const collection = MessageStore.getMessages(channelId);
+            if (!collection?.hasFetched) return;
+
+            // Discord skips refetching already-loaded channels, so the LOAD_MESSAGES_SUCCESS getter
+            // never runs for them and messages deleted while away never reappear. Force a fetch
+            // without focus so it goes through the patched dispatch path that re-adds them.
+            MessageActions.fetchMessages(channelId, { limit: 50 });
+        },
     },
 
     async start() {
