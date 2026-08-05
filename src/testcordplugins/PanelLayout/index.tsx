@@ -373,7 +373,9 @@ function buildCSS(): string {
         case "split_grid2":
         case "split_grid3":
         case "split_grid4": {
-            let flexSize = "1 1 auto";
+            // Keep plugin buttons at their configured size (buttonContainerSize) instead
+            // of stretching them to fill the row; the surrounding container provides the gap.
+            let flexSize = "0 1 auto";
             if (st.userPanelLayout === "split_grid2") flexSize = `0 0 calc(50% - (${gap}px / 2))`;
             if (st.userPanelLayout === "split_grid3") flexSize = `0 0 calc(33.333% - (${gap}px * 2 / 3))`;
             if (st.userPanelLayout === "split_grid4") flexSize = `0 0 calc(25% - (${gap}px * 3 / 4))`;
@@ -396,7 +398,7 @@ function buildCSS(): string {
                     order: 10000 !important; display: flex !important; justify-content: center !important; align-items: center !important; flex: ${flexSize} !important;
                 }
                 ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) > button {
-                    width: 100% !important; display: flex !important; justify-content: center !important; align-items: center !important;
+                    width: ${st.buttonContainerSize}px !important; display: flex !important; justify-content: center !important; align-items: center !important;
                 }
                 ${S.panelButtons} > ${S.audioParent},
                 ${S.panelButtons} > [data-deracul-label="User Settings"] {
@@ -452,7 +454,8 @@ function buildCSS(): string {
     // Button Base style
     // Neutralize Discord's nameplate backdrop blur / status fills on panel buttons
     // (plateMuted / plateState classes paint them even with transparent background).
-    lines.push(`${S.panelButtons} ${S.panelButton} { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }`);
+    // Later style-case rules override the background again where they paint their own.
+    lines.push(`${S.panelButtons} ${S.panelButton} { background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }`);
     switch (st.buttonStyle) {
         case "filled":
             lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover) !important; border-radius: 8px !important; }
@@ -468,12 +471,6 @@ function buildCSS(): string {
         case "square":
             lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover) !important; border-radius: 2px !important; }
                         ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active) !important; }`);
-            break;
-        default:
-            // Keep plugin toggle buttons from showing Discord's own fill (colorBrand
-            // hover background) underneath the glow/scale hover effects.
-            lines.push(`${S.panelButtons} ${S.panelButton} { background: transparent !important; }
-                        ${S.panelButtons} ${S.panelButton}:hover { background: transparent !important; }`);
             break;
     }
 
