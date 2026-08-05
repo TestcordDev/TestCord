@@ -495,7 +495,7 @@ function buildCSS(): string {
                         ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         case "outlined":
-            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; background: transparent !important; }`);
             break;
         case "outlineold":
             // Pre-fallback replica: relies on var(--background-modifier-accent) which
@@ -547,7 +547,7 @@ function buildCSS(): string {
     // Hover
     switch (st.hoverEffect) {
         case "scale": lines.push(`${S.panelButtons} ${S.panelButton}:hover { transform: scale(1.15) !important; transition: transform 0.15s ease !important; }`); break;
-        case "glow": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: drop-shadow(0 0 6px ${st.glowColor}) !important; transition: filter 0.15s ease !important; background: transparent !important; }`); break;
+        case "glow": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: drop-shadow(0 0 6px ${st.glowColor}) !important; transition: filter 0.15s ease !important; }`); break;
         case "bright": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: brightness(1.3) !important; transition: filter 0.15s ease !important; }`); break;
     }
 
