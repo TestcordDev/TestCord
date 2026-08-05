@@ -30,6 +30,7 @@
         "guildsList betterFoldersSidebar notice notice"
         "guildsList betterFoldersSidebar channelsList page";
 }
+
 .vc-betterFolders-sidebar div:empty,
 .vc-betterFolders-sidebar div[style*="display: none"] {
     display: none !important;

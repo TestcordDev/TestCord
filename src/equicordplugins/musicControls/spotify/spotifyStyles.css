@@ -23,6 +23,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    transition: color 0.15s ease, background-color 0.15s ease;
 }
 
 .vc-spotify-button:hover {

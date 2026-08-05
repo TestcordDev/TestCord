@@ -326,6 +326,7 @@ export function TidalPlayer() {
     );
 
     const isPlaying = useStateFromStores([TidalStore], () => TidalStore.isPlaying);
+
     const [shouldHide, setShouldHide] = useState(false);
 
     React.useEffect(() => {
@@ -343,7 +344,10 @@ export function TidalPlayer() {
     } as React.CSSProperties;
 
     return (
-        <div id={cl("player")} style={exportTrackImageStyle}>
+        <div
+            id={cl("player")}
+            style={exportTrackImageStyle}
+        >
             <Info track={track} />
             <TdlSeekBar />
             <Controls />
