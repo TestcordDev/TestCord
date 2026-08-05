@@ -19,7 +19,7 @@ const prevCl = cl("prev");
 const nextCl = cl("next");
 const currentCl = cl("current");
 
-function LyricsDisplay({ scroll = true }: { scroll?: boolean; }) {
+function LyricsDisplay({ scroll = true, style }: { scroll?: boolean; style?: React.CSSProperties; }) {
     const { showMusicNoteOnNoLyrics } = settings.use(["showMusicNoteOnNoLyrics"]);
     const { lyricsInfo, lyricRefs, currLrcIndex } = useLyrics({ scroll });
 
@@ -37,23 +37,26 @@ function LyricsDisplay({ scroll = true }: { scroll?: boolean; }) {
     return (
         <div
             className="vc-spotify-lyrics"
+            style={style}
             onClick={() => openModal(props => <LyricsModal props={props} />)}
             onContextMenu={e => ContextMenuApi.openContextMenu(e, () => <LyricsContextMenu />)}
         >
-            {currentLyrics ? currentLyrics.map((line, i) => (
-                <div ref={lyricRefs[i]} key={i}>
-                    <BaseText
-                        size={currLrcIndex === i ? "sm" : "xs"}
-                        className={makeClassName(i)}
-                    >
-                        {line.text || NoteSvg()}
-                    </BaseText>
-                </div>
-            )) : showMusicNoteOnNoLyrics ? (
-                <TooltipContainer text="No synced lyrics found">
-                    <NoteSvg />
-                </TooltipContainer>
-            ) : null}
+            <div className="vc-spotify-lyrics-inner">
+                {currentLyrics ? currentLyrics.map((line, i) => (
+                    <div ref={lyricRefs[i]} key={i}>
+                        <BaseText
+                            size={currLrcIndex === i ? "sm" : "xs"}
+                            className={makeClassName(i)}
+                        >
+                            {line.text || NoteSvg()}
+                        </BaseText>
+                    </div>
+                )) : showMusicNoteOnNoLyrics ? (
+                    <TooltipContainer text="No synced lyrics found">
+                        <NoteSvg />
+                    </TooltipContainer>
+                ) : null}
+            </div>
         </div>
     );
 }
@@ -87,5 +90,9 @@ export function SpotifyLyrics({ scroll = true }: { scroll?: boolean; } = {}) {
 
     if (!track || !device?.is_active || shouldHide) return null;
 
-    return <LyricsDisplay scroll={scroll} />;
+    const exportTrackImageStyle = {
+        "--vc-spotify-track-image": `url(${track?.album?.image?.url || ""})`,
+    } as React.CSSProperties;
+
+    return <LyricsDisplay scroll={scroll} style={exportTrackImageStyle} />;
 }

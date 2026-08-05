@@ -5,6 +5,15 @@
     overflow: hidden;
     max-height: 60px;
     cursor: pointer;
+    position: relative;
+}
+
+.vc-spotify-lyrics-inner {
+    max-height: 60px;
+    overflow: hidden;
+    width: 100%;
+    position: relative;
+    z-index: 1;
 }
 
 .vc-spotify-lyrics-music-note {

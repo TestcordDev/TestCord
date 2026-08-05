@@ -5,22 +5,26 @@
   * @description Use album cover as SpotifyControls background
 */
 
-#vc-spotify-player {
+#vc-spotify-player,
+.vc-spotify-lyrics {
     --blur-amount: 2px; /* higher px = stronger blur, 0 = no blur */
     --darken-percent: 0.8; /* 0 = album cover is not darkened, 1 = album cover is darkened fully (black) */
 }
 
-#vc-spotify-player {
+#vc-spotify-player,
+.vc-spotify-lyrics {
     background: transparent !important;
     position: relative;
 }
 
-#vc-spotify-player > * {
+#vc-spotify-player > *,
+.vc-spotify-lyrics > * {
     position: relative;
     z-index: 1;
 }
 
-#vc-spotify-player::after {
+#vc-spotify-player::after,
+.vc-spotify-lyrics::after {
     content: "";
     position: absolute;
     display: block;
@@ -32,4 +36,9 @@
     background-size: cover;
     filter: blur(var(--blur-amount));
     clip-path: inset(0);
+}
+
+#vc-spotify-player + .vc-spotify-lyrics::after {
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
 }
