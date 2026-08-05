@@ -356,7 +356,7 @@ function buildCSS(): string {
     // the whole panel via --vc-plugin-icon-color, so both plugin buttons and
     // native Mute/Deafen/Settings icons honor it. Defaults to Discord brand
     // when unset (Discord's native preferred blue).
-    const iconColor = getTestcordIconColor("userAreaButtonIconColor") ?? "var(--background-brand)";
+    const iconColor = getTestcordIconColor("userAreaButtonIconColor") ?? "var(--interactive-normal)";
     lines.push(`
         ${S.panelContainer} { --vc-plugin-icon-color: ${iconColor}; }
 
