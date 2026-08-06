@@ -7,7 +7,8 @@
 import { UserAreaButton } from "@api/UserArea";
 import definePlugin from "@utils/types";
 import { findByPropsLazy } from "@webpack";
-import { FluxDispatcher, React, UserStore } from "@webpack/common";
+import { FluxDispatcher, React, UserStore, Toasts } from "@webpack/common";
+
 
 // Webpack Modules
 const ChannelActions = findByPropsLazy("selectVoiceChannel", "disconnect");
@@ -107,6 +108,13 @@ function AntiMoveDecoButton() {
             targetChannelId = null;
             console.log("[AntiMoveDeco] Disabled.");
         }
+
+        Toasts.show({
+            message: enabled ? "Anti Move Deco Enabled" : "Anti Move Deco Disabled",
+            id: "AntiMoveDecoToast",
+            type: Toasts.Type.MESSAGE
+        });
+
         forceUpdate();
     };
 
