@@ -1221,7 +1221,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                             </Forms.FormTitle>
                             <ScrollerThin style={{
                                 maxHeight: 180,
-                                background: "var(--background-secondary, #2b2d31)",
+                                background: "var(--background-secondary, var(--background-secondary-alt))",
                                 borderRadius: "var(--radius-sm, 4px)",
                                 padding: "8px",
                                 display: "flex",
@@ -1233,7 +1233,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                                     const isSel = selectedChannels.has(c.id);
                                     const isHov = hoveredId === c.id;
                                     const bg = isSel
-                                        ? (isHov ? "var(--background-modifier-selected-hover, rgba(88, 101, 242, 0.28))" : "var(--background-modifier-selected, rgba(88, 101, 242, 0.18))")
+                                        ? (isHov ? "var(--background-modifier-selected-hover, color-mix(in hsl, var(--background-brand) 28%, transparent)))" : "var(--background-modifier-selected, color-mix(in hsl, var(--background-brand) 18%, transparent))")
                                         : (isHov ? "var(--background-modifier-hover, rgba(255, 255, 255, 0.08))" : "transparent");
                                     return (
                                         <div
@@ -1249,7 +1249,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                                             onMouseLeave={() => setHoveredId(null)}
                                         >
                                             <Text variant="text-sm/medium">{c.name}</Text>
-                                            {isSel && <Text variant="text-sm/bold" style={{ color: "var(--brand-experiment, #5865f2)" }}>✓</Text>}
+                                            {isSel && <Text variant="text-sm/bold" style={{ color: "var(--brand-experiment, var(--background-brand))" }}>✓</Text>}
                                         </div>
                                     );
                                 })}
@@ -1261,7 +1261,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                             </Forms.FormTitle>
                             <ScrollerThin style={{
                                 maxHeight: 180,
-                                background: "var(--background-secondary, #2b2d31)",
+                                background: "var(--background-secondary, var(--background-secondary-alt))",
                                 borderRadius: "var(--radius-sm, 4px)",
                                 padding: "8px",
                                 display: "flex",
@@ -1273,7 +1273,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                                     const isSel = selectedMembers.has(user.id);
                                     const isHov = hoveredId === user.id;
                                     const bg = isSel
-                                        ? (isHov ? "var(--background-modifier-selected-hover, rgba(88, 101, 242, 0.28))" : "var(--background-modifier-selected, rgba(88, 101, 242, 0.18))")
+                                        ? (isHov ? "var(--background-modifier-selected-hover, color-mix(in hsl, var(--background-brand) 28%, transparent)))" : "var(--background-modifier-selected, color-mix(in hsl, var(--background-brand) 18%, transparent))")
                                         : (isHov ? "var(--background-modifier-hover, rgba(255, 255, 255, 0.08))" : "transparent");
                                     return (
                                         <div
@@ -1292,7 +1292,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                                                 <Text variant="text-sm/medium">{member.nick || user.globalName || user.username}{user.bot ? " [BOT]" : ""}</Text>
                                                 <Text variant="text-xs/normal" style={{ color: "var(--text-muted)" }}>@{user.username}</Text>
                                             </div>
-                                            {isSel && <Text variant="text-sm/bold" style={{ color: "var(--brand-experiment, #5865f2)" }}>✓</Text>}
+                                            {isSel && <Text variant="text-sm/bold" style={{ color: "var(--brand-experiment, var(--background-brand))" }}>✓</Text>}
                                         </div>
                                     );
                                 })}
@@ -1305,7 +1305,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                     >
                         <ScrollerThin style={{
                             maxHeight: 180,
-                            background: "var(--background-secondary, #2b2d31)",
+                            background: "var(--background-secondary, var(--background-secondary-alt))",
                             borderRadius: "var(--radius-sm, 4px)",
                             padding: "8px",
                             display: "flex",
@@ -1319,7 +1319,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                                         const isSel = selectedChannels.has(c.id);
                                         const isHov = hoveredId === c.id;
                                         const bg = isSel
-                                            ? (isHov ? "var(--background-modifier-selected-hover, rgba(88, 101, 242, 0.28))" : "var(--background-modifier-selected, rgba(88, 101, 242, 0.18))")
+                                            ? (isHov ? "var(--background-modifier-selected-hover, color-mix(in hsl, var(--background-brand) 28%, transparent)))" : "var(--background-modifier-selected, color-mix(in hsl, var(--background-brand) 18%, transparent))")
                                             : (isHov ? "var(--background-modifier-hover, rgba(255, 255, 255, 0.08))" : "transparent");
                                         return (
                                             <div
@@ -1335,7 +1335,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                                                 onMouseLeave={() => setHoveredId(null)}
                                             >
                                                 <Text variant="text-sm/medium">{c.name}</Text>
-                                                {isSel && <Text variant="text-sm/bold" style={{ color: "var(--brand-experiment, #5865f2)" }}>✓</Text>}
+                                                {isSel && <Text variant="text-sm/bold" style={{ color: "var(--brand-experiment, var(--background-brand))" }}>✓</Text>}
                                             </div>
                                         );
                                     })}
@@ -1348,7 +1348,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                                         const isSel = selectedMembers.has(user.id);
                                         const isHov = hoveredId === user.id;
                                         const bg = isSel
-                                            ? (isHov ? "var(--background-modifier-selected-hover, rgba(88, 101, 242, 0.28))" : "var(--background-modifier-selected, rgba(88, 101, 242, 0.18))")
+                                            ? (isHov ? "var(--background-modifier-selected-hover, color-mix(in hsl, var(--background-brand) 28%, transparent)))" : "var(--background-modifier-selected, color-mix(in hsl, var(--background-brand) 18%, transparent))")
                                             : (isHov ? "var(--background-modifier-hover, rgba(255, 255, 255, 0.08))" : "transparent");
                                         return (
                                             <div
@@ -1367,7 +1367,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                                                     <Text variant="text-sm/medium">{member.nick || user.globalName || user.username}{user.bot ? " [BOT]" : ""}</Text>
                                                     <Text variant="text-xs/normal" style={{ color: "var(--text-muted)" }}>@{user.username} • ID: {user.id}</Text>
                                                 </div>
-                                                {isSel && <Text variant="text-sm/bold" style={{ color: "var(--brand-experiment, #5865f2)" }}>✓</Text>}
+                                                {isSel && <Text variant="text-sm/bold" style={{ color: "var(--brand-experiment, var(--background-brand))" }}>✓</Text>}
                                             </div>
                                         );
                                     })}
