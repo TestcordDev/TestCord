@@ -59,10 +59,10 @@ function suppressDefaultDragPreview(event: DragEvent) {
     event.dataTransfer.setDragImage(image, 0, 0);
 }
 
-function setDragifyDataTransfer(dataTransfer: DataTransfer | null, entity: DropEntity) {
+function setDragifyDataTransfer(dataTransfer: DataTransfer | null, entity: DropEntity, clearNative?: boolean) {
     if (!dataTransfer) return;
 
-    if (dataTransfer.clearData) {
+    if (clearNative && dataTransfer.clearData) {
         dataTransfer.clearData("text/plain");
         dataTransfer.clearData("text/uri-list");
         dataTransfer.clearData("text/html");
@@ -71,7 +71,7 @@ function setDragifyDataTransfer(dataTransfer: DataTransfer | null, entity: DropE
     const payload = serializeDragEntity(entity);
     dataTransfer.setData("application/json", payload);
     dataTransfer.setData("application/dragify", payload);
-    dataTransfer.setData("text/plain", "");
+    if (clearNative) dataTransfer.setData("text/plain", "");
 }
 
 function hasDragifyTransfer(dataTransfer?: DataTransfer | null) {
@@ -348,13 +348,13 @@ export default definePlugin({
         }
     },
 
-    beginDrag(event: DragEvent, entity: DropEntity, options?: { effectAllowed?: DataTransfer["effectAllowed"]; }) {
+    beginDrag(event: DragEvent, entity: DropEntity, options?: { effectAllowed?: DataTransfer["effectAllowed"]; clearNative?: boolean; }) {
         if (!event.dataTransfer) return;
-        suppressDefaultDragPreview(event);
+        if (options?.clearNative !== false) suppressDefaultDragPreview(event);
         if (options?.effectAllowed) event.dataTransfer.effectAllowed = options.effectAllowed;
         beginSessionDrag(entity);
         this.showGhost(entity, event);
-        setDragifyDataTransfer(event.dataTransfer, entity);
+        setDragifyDataTransfer(event.dataTransfer, entity, options?.clearNative);
         if (entity.kind === "user") event.dataTransfer.setData("data-user-id", entity.id);
     },
 
@@ -425,11 +425,11 @@ export default definePlugin({
 
     onGuildDragStart(event: DragEvent, guildId: string) {
         // Discord's native guild drag-and-drop handles moves into, out of, and
-        // reorders inside server folders. When a drag starts on a folder's own
-        // row or its member rows (mini icons / BetterFolders rows), defer to the
-        // native DnD and skip dragify, or the folder drags never resolve.
+        // reorders inside server folders. Preserve the native drag data and
+        // preview so Discord's folder drop logic still resolves; dragify only
+        // augments the payload so chat drops can still insert server invites.
         if (isInsideGuildFolder(event)) return;
-        this.beginDrag(event, { kind: "guild", id: guildId }, { effectAllowed: "copyMove" });
+        this.beginDrag(event, { kind: "guild", id: guildId }, { effectAllowed: "copyMove", clearNative: false });
     },
 
     start() {
