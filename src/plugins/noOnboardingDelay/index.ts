@@ -26,10 +26,10 @@ export default definePlugin({
     authors: [Devs.nekohaxx],
     patches: [
         {
-            find: "#{intl::ONBOARDING_COVER_WELCOME_SUBTITLE}",
+            find: "step:-1,required:!0",
             replacement: {
-                match: "3e3",
-                replace: "0"
+                match: /(setTimeout\(\(\)=>\{\i\.current=!0,\i\(\)\},)3e3\)/,
+                replace: "$10)"
             },
         },
     ],
