@@ -18,31 +18,41 @@ const settings = definePluginSettings({
         description: "Hide the gift button in the message bar",
         type: OptionType.BOOLEAN,
         default: true,
-        restartNeeded: true
+        onChange() {
+            injectCSS();
+        }
     },
     hideBoostButton: {
         description: "Hide the boost button",
         type: OptionType.BOOLEAN,
         default: true,
-        restartNeeded: true
+        onChange() {
+            injectCSS();
+        }
     },
     hideStickerButton: {
         description: "Hide the sticker button in the message bar",
         type: OptionType.BOOLEAN,
         default: true,
-        restartNeeded: true
+        onChange() {
+            injectCSS();
+        }
     },
     hideGifButton: {
         description: "Hide the GIF button",
         type: OptionType.BOOLEAN,
         default: true,
-        restartNeeded: true
+        onChange() {
+            injectCSS();
+        }
     },
     hideAppsButton: {
         description: "Hide the Apps button",
         type: OptionType.BOOLEAN,
         default: true,
-        restartNeeded: true
+        onChange() {
+            injectCSS();
+        }
     }
 });
 
@@ -59,7 +69,8 @@ const BUTTON_CONFIG = [
             '[aria-label="Nitro Gift"]',
             '[aria-label*="gift" i]',
             '[class*="giftButton"]',
-            '[class*="nitroGift"]'
+            '[class*="nitroGift"]',
+            '[class*="container__5287f"]'
         ]
     },
     {
@@ -95,6 +106,40 @@ const BUTTON_CONFIG = [
     }
 ];
 
+function injectCSS(){
+    const oldStyle = document.getElementById(STYLE_ELEMENT_ID);
+    if (oldStyle) oldStyle.remove();
+
+    const activeSelectors: string[] = [];
+
+    for (const { setting, selectors } of BUTTON_CONFIG) {
+        if (settings.store[setting]) {
+            for (const sel of selectors) {
+                activeSelectors.push(
+                    `[class*="channelTextArea"] ${sel}`,
+                    `[class*="channelBottomBar"] ${sel}`,
+                    `[class*="channelTextArea"] div:has(> ${sel})`,
+                    `[class*="channelBottomBar"] div:has(> ${sel})`
+                );
+            }
+        }
+    }
+
+    activeSelectors.push('[id="channel-attach-THREAD"]');
+
+    if (activeSelectors.length === 0) return;
+
+    const hideStyles = "display: none !important; width: 0 !important; height: 0 !important; margin: 0 !important; padding: 0 !important; min-width: 0 !important; flex: 0 0 0 !important;";
+    const css = `${activeSelectors.join(", ")} { ${hideStyles} }`;
+
+    logger.debug(`Final css:\n${css}`);
+
+    const style = document.createElement("style");
+    style.id = STYLE_ELEMENT_ID;
+    style.textContent = css;
+    document.body.appendChild(style);
+}
+
 export default definePlugin({
     name: "NoButtons",
     description: "Removes annoying buttons that you don't need",
@@ -105,37 +150,7 @@ export default definePlugin({
     start() {
         logger.info("Plugin is starting");
 
-        const oldStyle = document.getElementById(STYLE_ELEMENT_ID);
-        if (oldStyle) oldStyle.remove();
-
-        const activeSelectors: string[] = [];
-
-        for (const { setting, selectors } of BUTTON_CONFIG) {
-            if (settings.store[setting]) {
-                for (const sel of selectors) {
-                    activeSelectors.push(
-                        `[class*="channelTextArea"] ${sel}`,
-                        `[class*="channelBottomBar"] ${sel}`,
-                        `[class*="channelTextArea"] div:has(> ${sel})`,
-                        `[class*="channelBottomBar"] div:has(> ${sel})`
-                    );
-                }
-            }
-        }
-
-        activeSelectors.push('[id="channel-attach-THREAD"]');
-
-        if (activeSelectors.length === 0) return;
-
-        const hideStyles = "display: none !important; width: 0 !important; height: 0 !important; margin: 0 !important; padding: 0 !important; min-width: 0 !important; flex: 0 0 0 !important;";
-        const css = `${activeSelectors.join(", ")} { ${hideStyles} }`;
-
-        logger.debug(`Final css:\n${css}`);
-
-        const style = document.createElement("style");
-        style.id = STYLE_ELEMENT_ID;
-        style.textContent = css;
-        document.body.appendChild(style);
+        injectCSS();
     },
     stop() {
         logger.info("Plugin is stopping");
