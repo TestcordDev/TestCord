@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { ChatBarButton } from "@api/ChatButtons";
+import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
 import { addChannelToolbarButton, addHeaderBarButton, ChannelToolbarButton, HeaderBarButton, removeChannelToolbarButton, removeHeaderBarButton } from "@api/HeaderBar";
 import { TestcordRequestCoordinator } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
@@ -1536,9 +1536,8 @@ function openCurrentChannelMenu(e: React.MouseEvent) {
     ContextMenuApi.openContextMenu(e, () => <ExporterMenu channelId={channelId} />);
 }
 
-const ExporterChatBarButton = (({ channel, isMainChat }: any) => {
-    const loc = settings.store.location;
-    if (loc === "disabled" || loc === "headerbar" || loc === "channeltoolbar") return null;
+const ExporterChatBarButton: ChatBarButtonFactory = ({ isMainChat }) => {
+    if (!isMainChat || settings.store.location !== "chatbar") return null;
 
     return (
         <ChatBarButton
@@ -1549,7 +1548,7 @@ const ExporterChatBarButton = (({ channel, isMainChat }: any) => {
             <ExportIcon width={20} height={20} />
         </ChatBarButton>
     );
-}) as any;
+};
 
 export default definePlugin({
     name: "Exporter",
