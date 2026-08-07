@@ -24,8 +24,8 @@ const Patches: Record<string, ConfigurablePatchDefinition> = {
         patches: {
             find: '"sticker")',
             replacement: {
-                match: /=\i\.gifts?/g,
-                replace: "=null"
+                match: /f\.gifts\?\.button!=null/,
+                replace: "false"
             }
         }
     },
@@ -71,10 +71,6 @@ const Patches: Record<string, ConfigurablePatchDefinition> = {
             {
                 find: "#{intl::PRIVATE_CHANNELS_A11Y_LABEL}",
                 replacement: [
-                    {
-                        match: /\i\?\(0,\i\.\i\)\(.{0,250}?\},"premium"\):null,/,
-                        replace: ""
-                    },
                     {
                         match: /\(0,\i\.\i\)\(.{0,250}?\},"discord-shop"\),/,
                         replace: ""
