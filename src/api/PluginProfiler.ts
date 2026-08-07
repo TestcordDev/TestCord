@@ -7,6 +7,30 @@ import { Logger } from "@utils/Logger";
 
 const logger = new Logger("PluginProfiler", "#3498db");
 
+// Best-effort plugin attribution from the call stack, mirroring the approach
+// used by NetworkMonitor. When a plugin calls setInterval / addEventListener
+// the synchronous call stack still contains the plugin's own source frame, so
+// the folder name is recoverable.
+const PLUGIN_PATH_PATTERNS = [
+    /testcordplugins[/\\]([^/\\]+?)[/\\]/,
+    /equicordplugins[/\\]([^/\\]+?)[/\\]/,
+    /userplugins[/\\]([^/\\]+?)[/\\]/,
+    /[/\\]plugins[/\\]([^/\\]+?)[/\\]/
+];
+
+function guessPluginFromStack(): string | null {
+    try {
+        const stack = new Error().stack ?? "";
+        for (const pattern of PLUGIN_PATH_PATTERNS) {
+            const match = stack.match(pattern);
+            if (match) return match[1];
+        }
+    } catch {
+        // Stack inspection is best-effort.
+    }
+    return null;
+}
+
 export interface FluxSurfaceMetric {
     action: string;
     calls: number;
@@ -34,7 +58,7 @@ export interface PluginProfileData {
     fluxSurfaces: FluxSurfaceMetric[];
 }
 
-export type SignalFlag = "Noticeable CPU" | "Slow spike" | "Slow calls" | "Growing heap" | "Active listeners";
+export type SignalFlag = "Noticeable CPU" | "Slow spike" | "Slow calls" | "Active listeners";
 
 interface RawPluginMetrics {
     totalCpuTimeMs: number;
@@ -54,6 +78,19 @@ const metricsRegistry = new Map<string, RawPluginMetrics>();
 const listeners = new Set<() => void>();
 
 let slowCallThresholdMs = 16; // configurable threshold for slow call spikes
+
+// ─── Auto-instrumentation state ─────────────────────────────
+// Set once init() patches the globals, so we can restore them and avoid
+// double-patching (e.g. across HMR reloads in dev).
+let instrumented = false;
+let originalSetInterval: typeof window.setInterval | null = null;
+let originalClearInterval: typeof window.clearInterval | null = null;
+let originalAddEventListener: typeof EventTarget.prototype.addEventListener | null = null;
+let originalRemoveEventListener: typeof EventTarget.prototype.removeEventListener | null = null;
+
+// Maps a live interval id to the plugin it was attributed to, so clearInterval
+// can decrement the right plugin without re-walking the (now unrelated) stack.
+const intervalOwners = new Map<number, string>();
 
 function ensureMetrics(pluginName: string): RawPluginMetrics {
     let metrics = metricsRegistry.get(pluginName);
@@ -95,16 +132,20 @@ function notifySubscribers() {
 }
 
 /**
- * Calculates Composite Impact Score:
- * Impact Score = (CPU_ms * 0.4) + (Extra_RAM_MB * 4.0) + (Slow_Spikes * 25) + (Active_Resources * 5)
+ * Calculates Composite Impact Score from measurable signals only.
+ *
+ * Impact Score = (CPU_ms * 0.5) + (Slow_Spikes * 25) + (Active_Resources * 5)
+ *
+ * Per-plugin RAM was previously a term here but has been removed: the browser
+ * exposes no per-caller heap attribution, so the old Extra_RAM_MB value was
+ * process-wide GC noise. The remaining terms are all real measurements.
  */
 export function calculateImpactScore(
     cpuMs: number,
-    heapMb: number,
     slowSpikes: number,
     activeResources: number
 ): number {
-    const score = (cpuMs * 0.4) + (heapMb * 4.0) + (slowSpikes * 25) + (activeResources * 5);
+    const score = (cpuMs * 0.5) + (slowSpikes * 25) + (activeResources * 5);
     return Math.round(score * 10) / 10;
 }
 
@@ -113,7 +154,6 @@ export function calculateImpactScore(
  */
 export function computeAdvisoriesAndSignals(
     cpuMs: number,
-    heapMb: number,
     slowSpikes: number,
     maxCallMs: number,
     callCount: number,
@@ -124,11 +164,10 @@ export function computeAdvisoriesAndSignals(
     if (cpuMs > 50) signals.push("Noticeable CPU");
     if (slowSpikes > 0) signals.push("Slow spike");
     if (maxCallMs > 30 || callCount > 200) signals.push("Slow calls");
-    if (heapMb > 2.0) signals.push("Growing heap");
     if (activeResources > 5) signals.push("Active listeners");
 
     let advisory: string | null = null;
-    if (signals.includes("Slow spike") || cpuMs > 100 || heapMb > 10) {
+    if (signals.includes("Slow spike") || cpuMs > 100) {
         advisory = "Temporarily disabling this plugin is recommended to compare client smoothness.";
     } else if (signals.length >= 2) {
         advisory = "Moderate overhead detected; monitor performance during intensive UI actions.";
@@ -140,6 +179,113 @@ export function computeAdvisoriesAndSignals(
 }
 
 export const PluginProfiler = {
+    /**
+     * Patch global timer and event-listener APIs so that intervals and
+     * listeners created by plugins are attributed automatically. Without this,
+     * `activeResources` only reflects the handful of plugins that manually call
+     * `registerInterval` / `registerEventListener`, which made the column read
+     * as a near-constant 0.
+     *
+     * Attribution is best-effort via the synchronous call stack at creation
+     * time (same technique as NetworkMonitor). Calls from Discord's own code or
+     * unattributable frames are left untouched so we never miscount them
+     * against a plugin. Idempotent.
+     */
+    init() {
+        if (instrumented || typeof window === "undefined") return;
+        instrumented = true;
+
+        originalSetInterval = window.setInterval;
+        originalClearInterval = window.clearInterval;
+        originalAddEventListener = EventTarget.prototype.addEventListener;
+        originalRemoveEventListener = EventTarget.prototype.removeEventListener;
+
+        const setIntervalOrig = originalSetInterval;
+        const clearIntervalOrig = originalClearInterval;
+        const addOrig = originalAddEventListener;
+        const removeOrig = originalRemoveEventListener;
+
+        window.setInterval = function (this: unknown, ...args: any[]) {
+            const id = setIntervalOrig.apply(this, args as any) as unknown as number;
+            const plugin = guessPluginFromStack();
+            if (plugin) {
+                intervalOwners.set(id, plugin);
+                const metrics = ensureMetrics(plugin);
+                metrics.activeIntervals.add(id);
+                notifySubscribers();
+            }
+            return id as any;
+        } as typeof window.setInterval;
+
+        window.clearInterval = function (this: unknown, id?: number) {
+            if (id != null) {
+                const plugin = intervalOwners.get(id);
+                if (plugin != null) {
+                    intervalOwners.delete(id);
+                    const metrics = metricsRegistry.get(plugin);
+                    if (metrics) {
+                        metrics.activeIntervals.delete(id);
+                        notifySubscribers();
+                    }
+                }
+            }
+            return clearIntervalOrig.call(this, id as any);
+        } as typeof window.clearInterval;
+
+        EventTarget.prototype.addEventListener = function (
+            this: EventTarget,
+            type: string,
+            listener: EventListenerOrEventListenerObject | null,
+            options?: boolean | AddEventListenerOptions
+        ) {
+            const ret = addOrig.call(this, type, listener, options);
+            if (listener) {
+                const plugin = guessPluginFromStack();
+                if (plugin) {
+                    const metrics = ensureMetrics(plugin);
+                    metrics.activeListeners.add({ target: this, type, listener });
+                    notifySubscribers();
+                }
+            }
+            return ret;
+        };
+
+        EventTarget.prototype.removeEventListener = function (
+            this: EventTarget,
+            type: string,
+            listener: EventListenerOrEventListenerObject | null,
+            options?: boolean | EventListenerOptions
+        ) {
+            const ret = removeOrig.call(this, type, listener, options);
+            if (listener) {
+                for (const metrics of metricsRegistry.values()) {
+                    for (const item of metrics.activeListeners) {
+                        if (item.target === this && item.type === type && item.listener === listener) {
+                            metrics.activeListeners.delete(item);
+                            notifySubscribers();
+                            break;
+                        }
+                    }
+                }
+            }
+            return ret;
+        };
+    },
+
+    /**
+     * Restore the original global APIs and stop auto-instrumenting. Mainly for
+     * teardown / tests; the tracked sets are left intact so existing profiles
+     * remain readable.
+     */
+    teardown() {
+        if (!instrumented || typeof window === "undefined") return;
+        if (originalSetInterval) window.setInterval = originalSetInterval;
+        if (originalClearInterval) window.clearInterval = originalClearInterval;
+        if (originalAddEventListener) EventTarget.prototype.addEventListener = originalAddEventListener;
+        if (originalRemoveEventListener) EventTarget.prototype.removeEventListener = originalRemoveEventListener;
+        instrumented = false;
+    },
+
     setSlowCallThreshold(ms: number) {
         slowCallThresholdMs = ms;
     },
@@ -299,10 +445,12 @@ export const PluginProfiler = {
      */
     getProfile(pluginName: string): PluginProfileData {
         const metrics = metricsRegistry.get(pluginName);
-        const allocatedBytes = metrics?.allocatedHeapBytes ?? 0;
-        const extraRAMMB = Math.round((allocatedBytes / (1024 * 1024)) * 100) / 100;
         const heapBytes = metrics?.lastHeapBytes ?? 0;
-        const heapMB = extraRAMMB;
+        const heapMB = Math.round((heapBytes / (1024 * 1024)) * 100) / 100;
+        // extraRAMMB is retained for backwards compatibility with the export
+        // schema but is no longer used for scoring — per-plugin heap cannot be
+        // reliably attributed via the process-wide usedJSHeapSize counter.
+        const extraRAMMB = 0;
 
         const cpuMs = Math.round((metrics?.totalCpuTimeMs ?? 0) * 10) / 10;
         const callCount = metrics?.callCount ?? 0;
@@ -314,9 +462,9 @@ export const PluginProfiler = {
         const activeResources = activeIntervals + activeListeners;
         const lastHeapDeltaMB = metrics?.lastHeapDeltaMB ?? 0;
 
-        const impactScore = calculateImpactScore(cpuMs, extraRAMMB, slowSpikes, activeResources);
+        const impactScore = calculateImpactScore(cpuMs, slowSpikes, activeResources);
         const { signals, advisory } = computeAdvisoriesAndSignals(
-            cpuMs, extraRAMMB, slowSpikes, maxCallMs, callCount, activeResources
+            cpuMs, slowSpikes, maxCallMs, callCount, activeResources
         );
 
         const fluxSurfaces: FluxSurfaceMetric[] = [];

@@ -769,7 +769,21 @@ function HealthTab() {
     // Diagnostic & profiling states
     const [diagSearchQuery, setDiagSearchQuery] = useState("");
     const [sortColumn, setSortColumn] = useState<keyof PluginProfileData>("impactScore");
-    const [sortDirection] = useState<"asc" | "desc">("desc");
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+    // Clicking a header sorts by that column. Clicking the already-active
+    // column toggles direction; switching to a new column resets to "desc".
+    const handleSortColumn = (column: keyof PluginProfileData) => {
+        if (column === sortColumn) {
+            setSortDirection(d => (d === "desc" ? "asc" : "desc"));
+        } else {
+            setSortColumn(column);
+            setSortDirection("desc");
+        }
+    };
+
+    const sortIndicator = (column: keyof PluginProfileData) =>
+        column === sortColumn ? (sortDirection === "desc" ? " ▼" : " ▲") : "";
     const [selectedPluginName, setSelectedPluginName] = useState<string | null>(null);
     const [safeMode, setSafeModeState] = useState(PluginHealth.isSafeModeEnabled());
 
@@ -820,9 +834,23 @@ function HealthTab() {
         return sortSnapshot(result, sort);
     }, [snapshot, searchQuery, filter, sort]);
 
-    const totalEnabled = useMemo(() => {
-        return new Set(PluginHealth.getCurrentSession().enabledPlugins.filter(name => !Plugins[name]?.required)).size;
+    const enabledSet = useMemo(() => {
+        return new Set(PluginHealth.getCurrentSession().enabledPlugins.filter(name => !Plugins[name]?.required));
     }, [tick]);
+
+    const totalEnabled = enabledSet.size;
+
+    // Count broken plugins from the SAME population as `totalEnabled` (plugins
+    // enabled this session), so the summary bar can never report more broken
+    // than total. `snapshot` spans the whole runtime registry, so intersect it
+    // with the current session's enabled set.
+    const brokenEnabled = useMemo(() => {
+        let count = 0;
+        for (const [name] of snapshot) {
+            if (enabledSet.has(name)) count++;
+        }
+        return count;
+    }, [snapshot, enabledSet]);
 
     const noModuleCount = useMemo(() => {
         let count = 0;
@@ -1059,7 +1087,7 @@ function HealthTab() {
                         </div>
                     </Card>
 
-                    <HealthSummaryBar total={totalEnabled} broken={snapshot.length} />
+                    <HealthSummaryBar total={totalEnabled} broken={brokenEnabled} />
 
                     <Divider className={Margins.top16 + " " + Margins.bottom16} />
 
@@ -1165,7 +1193,7 @@ function HealthTab() {
                     <div className="vc-health-stats-grid">
                         <div className="vc-health-stat-card">
                             <div className="vc-health-stat-value">{totalHeapMB.toFixed(1)} MB</div>
-                            <div className="vc-health-stat-label">Heap used</div>
+                            <div className="vc-health-stat-label">Renderer heap (all code)</div>
                         </div>
                         <div className="vc-health-stat-card">
                             <div className="vc-health-stat-value">{profiles.length}</div>
@@ -1193,13 +1221,13 @@ function HealthTab() {
                         <table className="vc-health-table">
                             <thead>
                                 <tr>
-                                    <th onClick={() => setSortColumn("pluginName")}>Plugin</th>
-                                    <th onClick={() => setSortColumn("impactScore")}>Impact Score</th>
-                                    <th onClick={() => setSortColumn("totalCpuTimeMs")}>CPU (ms)</th>
-                                    <th onClick={() => setSortColumn("callCount")}>Calls</th>
-                                    <th onClick={() => setSortColumn("slowSpikes")}>Slow Spikes</th>
-                                    <th onClick={() => setSortColumn("heapMB")}>Heap (MB)</th>
-                                    <th onClick={() => setSortColumn("activeResources")}>Resources</th>
+                                    <th onClick={() => handleSortColumn("pluginName")}>Plugin{sortIndicator("pluginName")}</th>
+                                    <th onClick={() => handleSortColumn("impactScore")}>Impact Score{sortIndicator("impactScore")}</th>
+                                    <th onClick={() => handleSortColumn("totalCpuTimeMs")}>CPU (ms){sortIndicator("totalCpuTimeMs")}</th>
+                                    <th onClick={() => handleSortColumn("callCount")}>Calls{sortIndicator("callCount")}</th>
+                                    <th onClick={() => handleSortColumn("slowSpikes")}>Slow Spikes{sortIndicator("slowSpikes")}</th>
+                                    <th onClick={() => handleSortColumn("maxCallMs")}>Max Call (ms){sortIndicator("maxCallMs")}</th>
+                                    <th onClick={() => handleSortColumn("activeResources")}>Resources{sortIndicator("activeResources")}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1223,7 +1251,7 @@ function HealthTab() {
                                             <td>{p.totalCpuTimeMs} ms</td>
                                             <td>{p.callCount}</td>
                                             <td>{p.slowSpikes}</td>
-                                            <td>{p.heapMB} MB</td>
+                                            <td>{p.maxCallMs} ms</td>
                                             <td>{p.activeResources}</td>
                                         </tr>
                                     ))}
@@ -1323,14 +1351,12 @@ function HealthTab() {
                                         <div className="vc-health-metric-label">CPU Share</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
-                                        <div className="vc-health-metric-val">{currentPluginProfile.heapMB} MB</div>
-                                        <div className="vc-health-metric-label">Extra RAM</div>
+                                        <div className="vc-health-metric-val">{currentPluginProfile.callCount}</div>
+                                        <div className="vc-health-metric-label">Calls</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
-                                        <div className="vc-health-metric-val">
-                                            {totalHeapMB > 0 ? ((currentPluginProfile.heapMB / totalHeapMB) * 100).toFixed(1) : 0}%
-                                        </div>
-                                        <div className="vc-health-metric-label">RAM Share</div>
+                                        <div className="vc-health-metric-val">{currentPluginProfile.slowSpikes}</div>
+                                        <div className="vc-health-metric-label">Slow Spikes</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
                                         <div className="vc-health-metric-val">{currentPluginProfile.maxCallMs} ms</div>
@@ -1341,12 +1367,12 @@ function HealthTab() {
                                         <div className="vc-health-metric-label">Resources</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
-                                        <div className="vc-health-metric-val">{currentPluginProfile.asyncTimeMs} ms</div>
-                                        <div className="vc-health-metric-label">Async Time</div>
+                                        <div className="vc-health-metric-val">{currentPluginProfile.activeIntervals}</div>
+                                        <div className="vc-health-metric-label">Intervals</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
-                                        <div className="vc-health-metric-val">{currentPluginProfile.lastHeapDeltaMB} MB</div>
-                                        <div className="vc-health-metric-label">Last Heap Delta</div>
+                                        <div className="vc-health-metric-val">{currentPluginProfile.activeListeners}</div>
+                                        <div className="vc-health-metric-label">Listeners</div>
                                     </div>
                                 </div>
 
@@ -1419,11 +1445,18 @@ function HealthTab() {
                         <Card className="vc-health-guide-card">
                             <HeadingSecondary>Composite Impact Score Algorithm</HeadingSecondary>
                             <Paragraph color="text-subtle">
-                                Impact Score ranks plugins by total resource footprint using the formula:
+                                Impact Score ranks plugins by measurable resource footprint using the formula:
                             </Paragraph>
                             <div className="vc-health-formula-box">
-                                Impact Score = (CPU_ms * 0.4) + (Extra_RAM_MB * 4.0) + (Slow_Spikes * 25) + (Active_Resources * 5)
+                                Impact Score = (CPU_ms * 0.5) + (Slow_Spikes * 25) + (Active_Resources * 5)
                             </div>
+                            <Paragraph color="text-subtle" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
+                                Per-plugin RAM is intentionally excluded: browsers expose only a
+                                process-wide heap counter (all of Discord plus every plugin), which
+                                cannot be attributed to an individual plugin, so including it would
+                                only add noise. Active resources are live intervals and event
+                                listeners created by the plugin, tracked automatically.
+                            </Paragraph>
                         </Card>
 
                         <Card className="vc-health-guide-card">
