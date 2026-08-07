@@ -162,6 +162,8 @@ interface ButtonConfig {
     hidden?: boolean;
     keybind?: string | null;
     order?: number;
+    color?: string;
+    opacity?: number;
 }
 
 const BUTTON_CONFIG_KEY = "deracul-panel-layout-configs";
@@ -625,6 +627,7 @@ function buildCustomCSS(): string {
 
     for (const cfg of Object.values(buttonConfigs)) {
         if (!cfg.label) continue;
+
         const sel = getBtnSelector(cfg.label);
 
         if (cfg.hidden) lines.push(`${sel} { display: none !important; }`);
@@ -632,11 +635,37 @@ function buildCustomCSS(): string {
         if (cfg.order != null) {
             let orderVal = cfg.order;
             if (isSplit) {
-                // If it's a split layout, automatically push native buttons to the bottom tier.
                 const isNative = NATIVE_BUTTON_LABELS.has(getCanonicalLabel(cfg.label));
                 orderVal = isNative ? (40000 + cfg.order) : (10000 + cfg.order);
             }
             lines.push(`${sel} { order: ${orderVal} !important; }`);
+        }
+
+        // Custom Active Blob Color & Opacity per button
+        if (settings.store.colorfulActiveButtons && (cfg.color || cfg.opacity !== undefined)) {
+            const baseColor = cfg.color || "#5865f2";
+            const alpha = cfg.opacity !== undefined ? Math.round((cfg.opacity / 100) * 255).toString(16).padStart(2, "0") : "ff";
+            const finalColor = `${baseColor.slice(0, 7)}${alpha}`;
+
+            // We add :hover overrides here so the active custom color isn't erased when interacting!
+            lines.push(`
+                ${sel} button[role="switch"][aria-checked="true"],
+                ${sel} button[aria-checked="true"],
+                ${sel}[aria-checked="true"],
+                ${sel} button[role="switch"][aria-checked="true"]:hover,
+                ${sel} button[aria-checked="true"]:hover,
+                ${sel}[aria-checked="true"]:hover {
+                    background-color: ${finalColor} !important;
+                    color: white !important;
+                    border-radius: 10px !important;
+                }
+                ${sel} button[role="switch"][aria-checked="true"] svg,
+                ${sel} button[aria-checked="true"] svg,
+                ${sel}[aria-checked="true"] svg {
+                    fill: white !important;
+                    color: white !important;
+                }
+            `);
         }
     }
     return lines.join("\n");
@@ -950,10 +979,52 @@ function ButtonsDragTab() {
                         {items.map(item => {
                             const cfg = getBtnCfg(item.id);
                             const listening = listeningId === item.id;
+                            const canonical = getCanonicalLabel(item.label);
+                            const isUserSettings = canonical === "User Settings";
                             return (
                                 <Flex key={item.id} justifyContent="space-between" alignItems="center" style={{ padding: "8px 12px", backgroundColor: "var(--background-secondary, var(--background-surface-higher))", borderRadius: "6px" }}>
                                     <BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>
                                     <Flex gap={8} alignItems="center">
+                                        {!isUserSettings && (
+                                            <>
+                                                {((cfg.color && cfg.color !== "#5865f2") || (cfg.opacity !== undefined && cfg.opacity !== 100)) && (
+                                                    <Button size="small" variant="secondary" title="Reset custom color & opacity" onClick={() => {
+                                                        setBtnCfg(item.id, { color: "#5865f2", opacity: 100 });
+                                                        apply(); forceUpdate();
+                                                    }}>↺</Button>
+                                                )}
+                                                <input
+                                                    type="color"
+                                                    title="Active blob background color"
+                                                    value={cfg.color && cfg.color !== "transparent" ? cfg.color : "#5865f2"}
+                                                    onChange={e => {
+                                                        setBtnCfg(item.id, { color: e.target.value });
+                                                        apply(); forceUpdate();
+                                                    }}
+                                                    style={{
+                                                        width: "28px",
+                                                        height: "28px",
+                                                        border: "none",
+                                                        borderRadius: "6px",
+                                                        cursor: "pointer",
+                                                        background: "transparent",
+                                                        padding: 0
+                                                    }}
+                                                />
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="100"
+                                                    title="Opacity"
+                                                    value={cfg.opacity ?? 100}
+                                                    onChange={e => {
+                                                        setBtnCfg(item.id, { opacity: Number(e.target.value) });
+                                                        apply(); forceUpdate();
+                                                    }}
+                                                    style={{ width: "60px" }}
+                                                />
+                                            </>
+                                        )}
                                         <Button size="small" variant="secondary" onClick={() => setListeningId(listening ? null : item.id)}>
                                             {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
                                         </Button>
@@ -1116,7 +1187,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
 
                             <Heading tag="h5">Colorful Plugins</Heading>
                             <Card variant="primary">
-                                <FormSwitch title="Active Button Blobs" description="Gives enabled plugins distinct colored rounded backgrounds (e.g. Red for Game Activity, Green for Fake States)." value={s.colorfulActiveButtons} onChange={v => set("colorfulActiveButtons", v)} hideBorder />
+                                <FormSwitch title="Active Button Blobs" description="Gives enabled plugins customizable colored rounded backgrounds." value={s.colorfulActiveButtons} onChange={v => set("colorfulActiveButtons", v)} hideBorder />
                             </Card>
                         </>}
 
