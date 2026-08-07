@@ -20,7 +20,11 @@ export interface CoveredSurfacesState {
     updateIntegrity: boolean;
     fetchXhrBeacon: boolean;
     customFiltering: boolean;
+    linkTrackerGuard: boolean;
 }
+
+export type BlockOutcome = "blocked" | "stripped" | "monitored" | "alert";
+export type HostRule = "allow" | "block";
 
 export interface BlockedLog {
     id: string;
@@ -29,6 +33,89 @@ export interface BlockedLog {
     action: string;
     category: string;
     domain: string;
+    outcome?: BlockOutcome;
+}
+
+export interface SecurityAlert {
+    id: string;
+    timestamp: number;
+    url: string;
+    domain: string;
+    keyword: string;
+    message: string;
+    acknowledged: boolean;
+}
+
+const FIRST_PARTY_HOSTS = [
+    "discord.com",
+    "discordapp.com",
+    "discordapp.net",
+    "discord.gg",
+    "discord.media",
+    "discord.dev"
+];
+
+// ReviewDB and other known-but-untrusted third parties that receive your token.
+// These are recognized so we can name them, but they are NEVER marked trusted.
+const UNTRUSTED_KNOWN_HOSTS: Record<string, string> = {
+    "manti.vendicated.dev": "ReviewDB backend (receives your Discord token)"
+};
+
+// Known-good third-party infrastructure. NOT Discord, but reputable and expected
+// (public CDNs that serve open-source assets). Tagged "Trusted CDN" so benign
+// remote-code fetches like Shiki's WASM don't read as generic third party.
+// These never receive your token; they only serve static assets.
+const TRUSTED_KNOWN_HOSTS: Record<string, string> = {
+    "cdn.jsdelivr.net": "jsDelivr public CDN (serves open-source assets, e.g. Shiki syntax highlighting).",
+    "unpkg.com": "unpkg public CDN (serves npm package assets)."
+};
+
+export type HostReputation = "first-party" | "trusted-third-party" | "third-party";
+
+function matchKnown(map: Record<string, string>, host: string): string | undefined {
+    if (map[host]) return map[host];
+    for (const [known, note] of Object.entries(map)) {
+        if (host === known || host.endsWith("." + known)) return note;
+    }
+    return undefined;
+}
+
+export function classifyHost(host: string): HostReputation {
+    const h = (host || "").toLowerCase();
+    if (FIRST_PARTY_HOSTS.some(fp => h === fp || h.endsWith("." + fp))) return "first-party";
+    // Untrusted takes precedence over trusted so a host can never be laundered
+    // into the trusted bucket if it also appears as a token recipient.
+    if (matchKnown(UNTRUSTED_KNOWN_HOSTS, h)) return "third-party";
+    if (matchKnown(TRUSTED_KNOWN_HOSTS, h)) return "trusted-third-party";
+    return "third-party";
+}
+
+export function hostReputationLabel(host: string): string {
+    const h = (host || "").toLowerCase();
+    const rep = classifyHost(h);
+    if (rep === "first-party") return "Discord";
+    if (matchKnown(UNTRUSTED_KNOWN_HOSTS, h)) return "Untrusted third party";
+    if (rep === "trusted-third-party") return "Trusted CDN";
+    return "Third party";
+}
+
+export function hostReputationNote(host: string): string {
+    const h = (host || "").toLowerCase();
+    if (classifyHost(h) === "first-party") return "Discord's own servers.";
+    const untrusted = matchKnown(UNTRUSTED_KNOWN_HOSTS, h);
+    if (untrusted) return untrusted;
+    const trusted = matchKnown(TRUSTED_KNOWN_HOSTS, h);
+    if (trusted) return trusted;
+    return "An external host that is not Discord.";
+}
+
+// Maps a host's reputation to the CSS class suffix used for its tag. Untrusted
+// known hosts stay in the "third" (red) bucket even though they're recognized.
+export function repTagClass(host: string): "first" | "trusted" | "third" {
+    const rep = classifyHost(host);
+    if (rep === "first-party") return "first";
+    if (rep === "trusted-third-party") return "trusted";
+    return "third";
 }
 
 export interface RouteGroup {
@@ -55,17 +142,142 @@ function getEventTitle(log: BlockedLog): string {
     if (log.category === "sentry") return "Sentry telemetry drop intercepted";
     if (log.category === "metrics") return "Metrics reporting disabled";
     if (log.category === "tokens") return "Authorization header stripped";
+    if (log.category === "linkTracker") return `Tracking params stripped from ${log.domain}`;
     return `${log.action} on ${log.domain}`;
+}
+
+function buildBlockReport(log: BlockedLog): string {
+    const parts = parseUrlParts(log.url);
+    const lines = [
+        `Event: ${getEventTitle(log)}`,
+        `Category: ${log.category} (${getCategoryLabel(log.category)})`,
+        `Action: ${log.action}`,
+        `Caught by: ${getShieldForCategory(log.category)}`,
+        `Outcome: ${log.outcome || "blocked"}`,
+        `Domain: ${log.domain}`,
+        `Reputation: ${hostReputationLabel(log.domain)} — ${hostReputationNote(log.domain)}`,
+        `When: ${formatAbsoluteTime(log.timestamp)} (${formatTimeAgo(log.timestamp)})`,
+        `Timestamp: ${log.timestamp}`,
+        `Event ID: ${log.id}`,
+        ``,
+        `Request URL: ${log.url}`,
+        `  Scheme: ${parts.scheme}`,
+        `  Host: ${parts.host}`,
+        `  Port: ${parts.port}`,
+        `  Path: ${parts.path}`
+    ];
+    if (parts.query) lines.push(`  Query: ${parts.query}`);
+    return lines.join("\n");
+}
+
+function getCategoryLabel(category: string): string {
+    switch (category) {
+        case "tokens": return "Token";
+        case "tracking": return "Tracking";
+        case "sentry": return "Sentry";
+        case "metrics": return "Metrics";
+        case "webhooks": return "Webhook";
+        case "remoteCode": return "Remote Code";
+        case "linkTracker": return "Link Tracker";
+        default: return "Filtered";
+    }
+}
+
+function getShieldForCategory(category: string): string {
+    switch (category) {
+        case "tokens": return "Token Guard";
+        case "tracking": return "Science / Analytics";
+        case "sentry": return "Sentry";
+        case "metrics": return "Metrics";
+        case "webhooks": return "Webhook Guard";
+        case "remoteCode": return "Remote Code Guard";
+        case "linkTracker": return "Link Tracker Stripper";
+        default: return "Custom Filtering";
+    }
+}
+
+function getCategoryExplanation(category: string): string {
+    switch (category) {
+        case "tokens": return "An Authorization header was about to be sent to a non-Discord host. The guard stripped the credential before the request left; the request itself still went out without it.";
+        case "tracking": return "A Discord analytics/science telemetry request was matched and cancelled before it was sent.";
+        case "sentry": return "An outbound Sentry error-reporting request was intercepted and dropped.";
+        case "metrics": return "A metrics-reporting request was matched and cancelled.";
+        case "webhooks": return "A Discord webhook request was observed and logged for monitoring.";
+        case "remoteCode": return "A request that could fetch and execute remote code was blocked.";
+        case "linkTracker": return "An outbound request carried known tracking/attribution parameters (utm_*, fbclid, etc.). The guard removed them and redirected to the cleaned URL. Only allowlisted tracking params are stripped; load-bearing params are preserved. This reduces referral-chain leakage but does not stop tracking by the destination site itself.";
+        default: return "This request matched a custom filtering rule and was acted on by the traffic guard.";
+    }
+}
+
+interface ParsedUrlParts {
+    scheme: string;
+    host: string;
+    port: string;
+    path: string;
+    query: string;
+}
+
+function parseUrlParts(rawUrl: string): ParsedUrlParts {
+    try {
+        const u = new URL(rawUrl);
+        return {
+            scheme: u.protocol.replace(/:$/, ""),
+            host: u.hostname,
+            port: u.port || (u.protocol === "https:" ? "443" : u.protocol === "http:" ? "80" : "—"),
+            path: u.pathname || "/",
+            query: u.search ? u.search.replace(/^\?/, "") : ""
+        };
+    } catch {
+        return { scheme: "—", host: rawUrl, port: "—", path: "—", query: "" };
+    }
+}
+
+function formatAbsoluteTime(ts: number): string {
+    try {
+        return new Date(ts).toLocaleString();
+    } catch {
+        return String(ts);
+    }
 }
 
 export function PrivacySecurityPanel() {
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedBlock, setSelectedBlock] = useState<BlockedLog | null>(null);
+    const [copiedField, setCopiedField] = useState<string | null>(null);
     const LOGS_PER_PAGE = 4;
+
+    const copyToClipboard = (value: string, field: string) => {
+        try {
+            navigator.clipboard.writeText(value);
+        } catch {
+            // Fallback for environments without the async clipboard API.
+            const ta = document.createElement("textarea");
+            ta.value = value;
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand("copy"); } catch { /* no-op */ }
+            document.body.removeChild(ta);
+        }
+        setCopiedField(field);
+        setTimeout(() => setCopiedField(prev => (prev === field ? null : prev)), 1500);
+    };
     // Custom Dropdown State & Ref
     const [isDnsOpen, setIsDnsOpen] = useState(false);
     const selectRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setSelectedBlock(null);
+        };
+        document.addEventListener("keydown", handleEscape);
+        return () => document.removeEventListener("keydown", handleEscape);
+    }, []);
+
+    useEffect(() => {
+        setCopiedField(null);
+    }, [selectedBlock]);
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -79,15 +291,20 @@ export function PrivacySecurityPanel() {
 
     // Telemetry KPI Counters
     const [counters, setCounters] = useState({
-        totalBlocked: 53,
-        tracking: 52,
+        totalBlocked: 0,
+        totalStripped: 0,
+        tracking: 0,
         network: 0,
-        tokens: 1,
+        tokens: 0,
         clipboard: 0,
         webhooks: 0,
         remoteCode: 0,
-        updateRefusals: 0
+        updateRefusals: 0,
+        linkTracker: 0
     });
+
+    const [hostRules, setHostRules] = useState<Record<string, HostRule>>({});
+    const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
 
     // Threat Vector Shields
     const [shields, setShields] = useState<CoveredSurfacesState>({
@@ -100,7 +317,8 @@ export function PrivacySecurityPanel() {
         remoteCodeGuard: true,
         updateIntegrity: true,
         fetchXhrBeacon: true,
-        customFiltering: true
+        customFiltering: true,
+        linkTrackerGuard: true
     });
 
     // DNS Providers & State
@@ -129,7 +347,6 @@ export function PrivacySecurityPanel() {
     const [dnsCacheStats, setDnsCacheStats] = useState({ size: 0, maxCapacity: 256, ttlMinutes: 15, hits: 0, misses: 0 });
     const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([
         "Secure Connect engine initialized.",
-        "Loaded local disk config: Cloudflare 1.1.1.1.",
         "Encrypted DoH channel active."
     ]);
 
@@ -203,25 +420,10 @@ export function PrivacySecurityPanel() {
                     if (data.dnsProviders) setDnsProviders(data.dnsProviders);
                     if (data.selectedDnsProvider) setSelectedDns(data.selectedDnsProvider);
 
-                    let fetchedLogs: BlockedLog[] = data.logs || [];
-                    const totalBlocked = data.counters?.totalBlocked || 0;
-                    if (fetchedLogs.length === 0 || fetchedLogs.length < totalBlocked) {
-                        const trackingCount = data.counters?.tracking || 0;
-                        const missingCount = Math.min(trackingCount, Math.max(10, totalBlocked) - fetchedLogs.length);
-                        const syntheticLogs: BlockedLog[] = [];
-                        for (let i = 0; i < missingCount; i++) {
-                            syntheticLogs.push({
-                                id: `tracking_synthetic_${i}_${Date.now()}`,
-                                timestamp: Date.now() - (i + 1) * 2000,
-                                url: "https://discord.com/api/v9/science",
-                                action: "Dropped",
-                                category: "tracking",
-                                domain: "TRACK Discord Science"
-                            });
-                        }
-                        fetchedLogs = [...fetchedLogs, ...syntheticLogs];
-                    }
+                    const fetchedLogs: BlockedLog[] = data.logs || [];
                     setLogs(fetchedLogs);
+                    if (data.hostRules) setHostRules(data.hostRules);
+                    if (Array.isArray(data.alerts)) setAlerts(data.alerts);
                 }
             }
         } catch {
@@ -236,6 +438,87 @@ export function PrivacySecurityPanel() {
         const interval = setInterval(fetchData, 2000);
         return () => clearInterval(interval);
     }, []);
+
+    // Immediate push for malicious remote-code alerts (no need to wait for poll).
+    useEffect(() => {
+        if (!VencordNative?.privacy?.onSecurityAlert) return;
+        VencordNative.privacy.onSecurityAlert((alert: SecurityAlert) => {
+            setAlerts(prev => [alert, ...prev.filter(a => a.id !== alert.id)]);
+        });
+    }, []);
+
+    // Keep the Secure Connect console in sync with the live provider selection.
+    // Runs on mount and on every change: strips any prior config line and appends
+    // the current provider, so the console never shows a stale/default provider
+    // (e.g. the seeded "Cloudflare 1.1.1.1" when the user is actually on Mullvad).
+    useEffect(() => {
+        setDiagnosticLogs(prev => {
+            const withoutConfig = prev.filter(l => !l.startsWith("Loaded local disk config:"));
+            return [...withoutConfig, `Loaded local disk config: ${selectedDns}.`];
+        });
+    }, [selectedDns]);
+
+    const setHostRule = async (host: string, rule: HostRule) => {
+        setHostRules(prev => ({ ...prev, [host]: rule }));
+        if (VencordNative?.privacy?.setHostRule) {
+            const updated = await VencordNative.privacy.setHostRule(host, rule);
+            if (updated) setHostRules(updated);
+        }
+    };
+
+    const clearHostRule = async (host: string) => {
+        setHostRules(prev => {
+            const next = { ...prev };
+            delete next[host];
+            return next;
+        });
+        if (VencordNative?.privacy?.clearHostRule) {
+            const updated = await VencordNative.privacy.clearHostRule(host);
+            if (updated) setHostRules(updated);
+        }
+    };
+
+    const acknowledgeAlerts = async () => {
+        setAlerts(prev => prev.map(a => ({ ...a, acknowledged: true })));
+        if (VencordNative?.privacy?.acknowledgeAlerts) {
+            await VencordNative.privacy.acknowledgeAlerts();
+        }
+    };
+
+    const exportLogs = (fmt: "json" | "csv") => {
+        let content: string;
+        let mime: string;
+        let ext: string;
+        if (fmt === "csv") {
+            const header = "timestamp,iso_time,outcome,category,action,domain,url";
+            const rows = logs.map(l => {
+                const iso = new Date(l.timestamp).toISOString();
+                const esc = (v: string) => `"${String(v).replace(/"/g, "\"\"")}"`;
+                return [l.timestamp, iso, l.outcome || "blocked", l.category, l.action, l.domain, l.url].map(v => esc(String(v))).join(",");
+            });
+            content = [header, ...rows].join("\n");
+            mime = "text/csv";
+            ext = "csv";
+        } else {
+            content = JSON.stringify(logs, null, 2);
+            mime = "application/json";
+            ext = "json";
+        }
+        try {
+            const blob = new Blob([content], { type: mime });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `testcord-privacy-log-${Date.now()}.${ext}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch {
+            // If Blob/anchor download is unavailable, fall back to clipboard.
+            copyToClipboard(content, "export");
+        }
+    };
 
     const toggleShield = async (key: keyof CoveredSurfacesState) => {
         const nextVal = !shields[key];
@@ -253,12 +536,24 @@ export function PrivacySecurityPanel() {
         }
     };
 
+    const formatDiagnosticLog = (log: any): string => {
+        if (typeof log === "string") return log;
+        if (log && typeof log.message === "string") {
+            const prefix = typeof log.level === "string" ? `[${log.level.toUpperCase()}] ` : "";
+            return `${prefix}${log.message}`;
+        }
+        return String(log);
+    };
+
     const handleRunDiagnostic = async (mode: "doh" | "dot" | "auto") => {
         setActiveTestBtn(mode);
         const logMsg = `Running ${mode.toUpperCase()} resolution test for ${selectedDns}...`;
         setDiagnosticLogs(prev => [...prev, logMsg]);
         if (VencordNative?.privacy?.runDiagnostic) {
-            await VencordNative.privacy.runDiagnostic(mode);
+            const returnedLogs = await VencordNative.privacy.runDiagnostic(mode);
+            if (Array.isArray(returnedLogs)) {
+                setDiagnosticLogs(returnedLogs.map(formatDiagnosticLog));
+            }
         }
     };
 
@@ -266,7 +561,10 @@ export function PrivacySecurityPanel() {
         setActiveTestBtn(null);
         setDiagnosticLogs(prev => [...prev, "Diagnostic test stopped."]);
         if (VencordNative?.privacy?.stopDiagnostic) {
-            await VencordNative.privacy.stopDiagnostic();
+            const returnedLogs = await VencordNative.privacy.stopDiagnostic();
+            if (Array.isArray(returnedLogs)) {
+                setDiagnosticLogs(returnedLogs.map(formatDiagnosticLog));
+            }
         }
     };
 
@@ -274,7 +572,10 @@ export function PrivacySecurityPanel() {
         setDnsCacheStats(prev => ({ ...prev, size: 0, hits: 0, misses: 0 }));
         setDiagnosticLogs(prev => [...prev, "Resolver LRU cache cleared."]);
         if (VencordNative?.privacy?.clearDnsCache) {
-            await VencordNative.privacy.clearDnsCache();
+            const stats = await VencordNative.privacy.clearDnsCache();
+            if (stats && typeof stats.size === "number") {
+                setDnsCacheStats(stats);
+            }
         }
     };
 
@@ -288,7 +589,8 @@ export function PrivacySecurityPanel() {
         { key: "webhookGuard", title: "Webhook Guard" },
         { key: "remoteCodeGuard", title: "Remote Code Guard" },
         { key: "updateIntegrity", title: "Update Integrity" },
-        { key: "fetchXhrBeacon", title: "Fetch / XHR / Beacon" }
+        { key: "fetchXhrBeacon", title: "Fetch / XHR / Beacon" },
+        { key: "linkTrackerGuard", title: "Link Tracker Stripper" }
     ];
 
     const currentProviderObj = dnsProviders[selectedDns] || { doh: "https://cloudflare-dns.com/dns-query", fallback: "1.1.1.1" };
@@ -309,9 +611,28 @@ export function PrivacySecurityPanel() {
         );
     });
 
-    const totalPages = Math.max(1, Math.ceil(filteredLogs.length / LOGS_PER_PAGE));
+    // Group repeated blocks by domain + action. Each group keeps its most recent
+    // event as the representative (logs are already newest-first), plus a count
+    // and the members so search still lands on the exact request.
+    const groupedLogs = (() => {
+        const map = new Map<string, { rep: BlockedLog; count: number; members: BlockedLog[]; }>();
+        for (const log of filteredLogs) {
+            const key = `${log.domain}\u0000${log.action}`;
+            const existing = map.get(key);
+            if (existing) {
+                existing.count++;
+                existing.members.push(log);
+            } else {
+                map.set(key, { rep: log, count: 1, members: [log] });
+            }
+        }
+        // Preserve recency order: groups sorted by their representative's timestamp.
+        return Array.from(map.values()).sort((a, b) => b.rep.timestamp - a.rep.timestamp);
+    })();
+
+    const totalPages = Math.max(1, Math.ceil(groupedLogs.length / LOGS_PER_PAGE));
     const safePage = Math.min(currentPage, totalPages);
-    const paginatedLogs = filteredLogs.slice((safePage - 1) * LOGS_PER_PAGE, safePage * LOGS_PER_PAGE);
+    const paginatedGroups = groupedLogs.slice((safePage - 1) * LOGS_PER_PAGE, safePage * LOGS_PER_PAGE);
 
     const handleSearchChange = (val: string) => {
         setSearchQuery(val);
@@ -498,11 +819,39 @@ export function PrivacySecurityPanel() {
                                 TestCord's privacy suite blocks Discord tracking and screens supported request paths for watched telemetry and recognised credential leaks.
                             </div>
 
+                            {/* Critical Security Alert Banner */}
+                            {alerts.some(a => !a.acknowledged) && (
+                                <div className="ps-alert-banner">
+                                    <div className="ps-alert-banner-head">
+                                        <div className="ps-alert-banner-title">
+                                            <span className="ps-alert-banner-icon">⚠</span>
+                                            Security alert
+                                        </div>
+                                        <button className="ps-alert-dismiss" onClick={acknowledgeAlerts}>Dismiss all</button>
+                                    </div>
+                                    <div className="ps-alert-list">
+                                        {alerts.filter(a => !a.acknowledged).slice(0, 4).map(a => (
+                                            <div key={a.id} className="ps-alert-item">
+                                                <div className="ps-alert-msg">{a.message}</div>
+                                                <div className="ps-alert-meta">
+                                                    <span className="ps-mono">{a.domain}</span>
+                                                    <span className="ps-alert-time">{formatTimeAgo(a.timestamp)}</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Hero Metric Cards Grid */}
                             <div className="ps-kpi-grid">
                                 <div className="ps-kpi-card ps-hero-green">
                                     <h2 className="ps-kpi-value">{counters.totalBlocked}</h2>
                                     <p className="ps-kpi-label">Total blocked</p>
+                                </div>
+                                <div className="ps-kpi-card ps-hero-orange">
+                                    <h2 className="ps-kpi-value">{counters.totalStripped}</h2>
+                                    <p className="ps-kpi-label">Headers stripped</p>
                                 </div>
                                 <div className="ps-kpi-card ps-hero-blue">
                                     <h2 className="ps-kpi-value">{counters.tracking}</h2>
@@ -531,6 +880,10 @@ export function PrivacySecurityPanel() {
                                 <div className="ps-kpi-card ps-hero-emerald">
                                     <h2 className="ps-kpi-value">{counters.updateRefusals}</h2>
                                     <p className="ps-kpi-label">Update refusals</p>
+                                </div>
+                                <div className="ps-kpi-card ps-hero-teal">
+                                    <h2 className="ps-kpi-value">{counters.linkTracker}</h2>
+                                    <p className="ps-kpi-label">Link trackers</p>
                                 </div>
                             </div>
 
@@ -590,37 +943,71 @@ export function PrivacySecurityPanel() {
                                 <div className="ps-sub-section">
                                     <div className="ps-sub-header">
                                         <h4 className="ps-sub-title">RECENT BLOCKS</h4>
-                                        <div className="ps-search-wrapper">
-                                            <input
-                                                type="text"
-                                                className="ps-search-input"
-                                                placeholder="Search blocks..."
-                                                value={searchQuery}
-                                                onChange={e => handleSearchChange(e.target.value)}
-                                            />
-                                            {searchQuery && (
-                                                <button
-                                                    type="button"
-                                                    className="ps-search-clear"
-                                                    onClick={() => handleSearchChange("")}
-                                                >
-                                                    ✕
-                                                </button>
-                                            )}
+                                        <div className="ps-recent-blocks-actions">
+                                            <div className="ps-search-wrapper">
+                                                <input
+                                                    type="text"
+                                                    className="ps-search-input"
+                                                    placeholder="Search blocks..."
+                                                    value={searchQuery}
+                                                    onChange={e => handleSearchChange(e.target.value)}
+                                                />
+                                                {searchQuery && (
+                                                    <button
+                                                        type="button"
+                                                        className="ps-search-clear"
+                                                        onClick={() => handleSearchChange("")}
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
 
                                     <div className="ps-recent-blocks-stack">
-                                        {paginatedLogs.length > 0 ? (
-                                            paginatedLogs.map(log => (
-                                                <div key={log.id} className="ps-block-card-amber">
-                                                    <div className="ps-block-left">
-                                                        <div className="ps-block-event-title">{getEventTitle(log)}</div>
-                                                        <div className="ps-block-event-sub">{log.domain}</div>
+                                        {paginatedGroups.length > 0 ? (
+                                            paginatedGroups.map(group => {
+                                                const log = group.rep;
+                                                const repLabel = hostReputationLabel(log.domain);
+                                                const rule = hostRules[log.domain];
+                                                return (
+                                                    <div
+                                                        key={log.id}
+                                                        className="ps-block-card-amber"
+                                                        role="button"
+                                                        tabIndex={0}
+                                                        onClick={() => setSelectedBlock(log)}
+                                                        onKeyDown={e => {
+                                                            if (e.key === "Enter" || e.key === " ") {
+                                                                e.preventDefault();
+                                                                setSelectedBlock(log);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <div className="ps-block-left">
+                                                            <div className="ps-block-event-title">
+                                                                {getEventTitle(log)}
+                                                                {group.count > 1 && (
+                                                                    <span className="ps-block-count-badge">×{group.count}</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="ps-block-event-sub">
+                                                                {log.domain}
+                                                                <span className={`ps-rep-tag ps-rep-${repTagClass(log.domain)}`}>{repLabel}</span>
+                                                                {rule && (
+                                                                    <span className={`ps-rule-tag ps-rule-${rule}`}>{rule === "allow" ? "Allowed" : "Always blocked"}</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="ps-block-event-url" title={log.url}>{log.url}</div>
+                                                        </div>
+                                                        <div className="ps-block-right">
+                                                            <span className={`ps-block-category-tag ps-outcome-${log.outcome || "blocked"}`}>{log.outcome || log.category}</span>
+                                                            <div className="ps-block-time">{formatTimeAgo(log.timestamp)}</div>
+                                                        </div>
                                                     </div>
-                                                    <div className="ps-block-time">{formatTimeAgo(log.timestamp)}</div>
-                                                </div>
-                                            ))
+                                                );
+                                            })
                                         ) : (
                                             <div className="ps-no-results">No blocks matching "{searchQuery}"</div>
                                         )}
@@ -628,6 +1015,26 @@ export function PrivacySecurityPanel() {
 
                                     {/* Pagination Controls moved to the bottom */}
                                     <div className="ps-pagination-footer">
+                                        <div className="ps-export-actions">
+                                            <button
+                                                type="button"
+                                                className="ps-export-btn"
+                                                disabled={logs.length === 0}
+                                                onClick={() => exportLogs("json")}
+                                                title="Export the full log as JSON"
+                                            >
+                                                Export JSON
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="ps-export-btn"
+                                                disabled={logs.length === 0}
+                                                onClick={() => exportLogs("csv")}
+                                                title="Export the full log as CSV"
+                                            >
+                                                Export CSV
+                                            </button>
+                                        </div>
                                         <div className="ps-pagination-controls">
                                             <button
                                                 className="ps-page-btn"
@@ -666,6 +1073,157 @@ export function PrivacySecurityPanel() {
                     </div>
                 </div>
             </div>
+
+            {selectedBlock && (
+                <div className="ps-block-modal-overlay" onClick={() => setSelectedBlock(null)}>
+                    <div
+                        className="ps-block-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="ps-block-modal-header">
+                            <div className="ps-block-modal-title-group">
+                                <span className="ps-block-category-tag">{getCategoryLabel(selectedBlock.category)}</span>
+                                <h3 className="ps-block-modal-title">{getEventTitle(selectedBlock)}</h3>
+                            </div>
+                            <button
+                                type="button"
+                                className="ps-block-modal-close"
+                                onClick={() => setSelectedBlock(null)}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="ps-block-modal-body">
+                            <p className="ps-block-modal-explain">{getCategoryExplanation(selectedBlock.category)}</p>
+
+                            <div className="ps-block-detail-grid">
+                                <div className="ps-block-detail-row">
+                                    <span className="ps-block-detail-key">Action</span>
+                                    <span className="ps-block-detail-val">{selectedBlock.action}</span>
+                                </div>
+                                <div className="ps-block-detail-row">
+                                    <span className="ps-block-detail-key">Category</span>
+                                    <span className="ps-block-detail-val">{selectedBlock.category}</span>
+                                </div>
+                                <div className="ps-block-detail-row">
+                                    <span className="ps-block-detail-key">Caught by</span>
+                                    <span className="ps-block-detail-val">{getShieldForCategory(selectedBlock.category)}</span>
+                                </div>
+                                <div className="ps-block-detail-row">
+                                    <span className="ps-block-detail-key">Domain</span>
+                                    <span className="ps-block-detail-val ps-mono">{selectedBlock.domain}</span>
+                                </div>
+                                <div className="ps-block-detail-row">
+                                    <span className="ps-block-detail-key">Reputation</span>
+                                    <span className="ps-block-detail-val">
+                                        <span className={`ps-rep-tag ps-rep-${repTagClass(selectedBlock.domain)}`}>{hostReputationLabel(selectedBlock.domain)}</span>
+                                        <span className="ps-rep-note">{hostReputationNote(selectedBlock.domain)}</span>
+                                    </span>
+                                </div>
+                                <div className="ps-block-detail-row">
+                                    <span className="ps-block-detail-key">Host rule</span>
+                                    <span className="ps-block-detail-val">
+                                        {hostRules[selectedBlock.domain]
+                                            ? (hostRules[selectedBlock.domain] === "allow" ? "Allowed to receive your token" : "Always blocked")
+                                            : "None (default handling)"}
+                                    </span>
+                                </div>
+                                <div className="ps-block-detail-row">
+                                    <span className="ps-block-detail-key">Outcome</span>
+                                    <span className="ps-block-detail-val">{selectedBlock.outcome || "blocked"}</span>
+                                </div>
+                                <div className="ps-block-detail-row">
+                                    <span className="ps-block-detail-key">When</span>
+                                    <span className="ps-block-detail-val">{formatAbsoluteTime(selectedBlock.timestamp)} ({formatTimeAgo(selectedBlock.timestamp)})</span>
+                                </div>
+                                <div className="ps-block-detail-row">
+                                    <span className="ps-block-detail-key">Event ID</span>
+                                    <span className="ps-block-detail-val ps-mono">{selectedBlock.id}</span>
+                                </div>
+                            </div>
+
+                            {(() => {
+                                const parts = parseUrlParts(selectedBlock.url);
+                                return (
+                                    <>
+                                        <h4 className="ps-block-detail-subhead">Request</h4>
+                                        <div className="ps-block-url-full ps-mono" title={selectedBlock.url}>{selectedBlock.url}</div>
+                                        <div className="ps-block-detail-grid">
+                                            <div className="ps-block-detail-row">
+                                                <span className="ps-block-detail-key">Scheme</span>
+                                                <span className="ps-block-detail-val ps-mono">{parts.scheme}</span>
+                                            </div>
+                                            <div className="ps-block-detail-row">
+                                                <span className="ps-block-detail-key">Host</span>
+                                                <span className="ps-block-detail-val ps-mono">{parts.host}</span>
+                                            </div>
+                                            <div className="ps-block-detail-row">
+                                                <span className="ps-block-detail-key">Port</span>
+                                                <span className="ps-block-detail-val ps-mono">{parts.port}</span>
+                                            </div>
+                                            <div className="ps-block-detail-row">
+                                                <span className="ps-block-detail-key">Path</span>
+                                                <span className="ps-block-detail-val ps-mono">{parts.path}</span>
+                                            </div>
+                                            {parts.query && (
+                                                <div className="ps-block-detail-row">
+                                                    <span className="ps-block-detail-key">Query</span>
+                                                    <span className="ps-block-detail-val ps-mono">{parts.query}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                );
+                            })()}
+                        </div>
+
+                        <div className="ps-block-modal-footer">
+                            <div className="ps-block-modal-actions">
+                                {classifyHost(selectedBlock.domain) !== "first-party" && (
+                                    hostRules[selectedBlock.domain]
+                                        ? (
+                                            <button
+                                                type="button"
+                                                className="ps-host-action-btn ps-host-action-clear"
+                                                onClick={() => clearHostRule(selectedBlock.domain)}
+                                            >
+                                                Clear host rule
+                                            </button>
+                                        )
+                                        : (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    className="ps-host-action-btn ps-host-action-allow"
+                                                    onClick={() => setHostRule(selectedBlock.domain, "allow")}
+                                                >
+                                                    Allow this host
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="ps-host-action-btn ps-host-action-block"
+                                                    onClick={() => setHostRule(selectedBlock.domain, "block")}
+                                                >
+                                                    Always block this host
+                                                </button>
+                                            </>
+                                        )
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                className="ps-block-copy-btn"
+                                onClick={() => copyToClipboard(buildBlockReport(selectedBlock), "all")}
+                            >
+                                {copiedField === "all" ? "Copied" : "Copy details"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </SettingsTab>
     );
 }
