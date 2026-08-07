@@ -85,7 +85,7 @@ const Patches: Record<string, ConfigurablePatchDefinition> = {
         patches: {
             find: "COLLECTIBLES_PROFILE_SETTINGS_UPSELL,",
             replacement: {
-                match: /COLLECTIBLES_PROFILE_SETTINGS_UPSELL\).{0,150}?return /,
+                match: /return \i\.useEffect\(\(\)=>\{\i\.\i\.track\(\i\.\i\.PREMIUM_UPSELL_VIEWED,\{type:\i\.\i\.COLLECTIBLES_PROFILE_SETTINGS_UPSELL,location_stack:\i,version:\i\}\)\},\[\i,\i\]\),/,
                 replace: "$&null;"
             }
         }
@@ -278,8 +278,8 @@ const Patches: Record<string, ConfigurablePatchDefinition> = {
         patches: {
             find: "Not rendered due to asset error",
             replacement: {
-                match: /(?<=return).{0,50}?\.QUESTS_BAR,questId/,
-                replace: " null;$&"
+                match: /let \i=\d+\+\d+\*!!\i;return\(0,\i\.jsx\)\(\i\.\i,\{questOrQuests:/,
+                replace: "return null;$&"
             }
         }
     },
