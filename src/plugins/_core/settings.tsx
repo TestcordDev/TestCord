@@ -108,20 +108,53 @@ interface SettingsLayoutBuilder {
 
 const TESTCORD_MAIN_ENTRY_KEY = "equicord_main";
 
+// PURE: no writes. Must return the same result no matter which caller (editor
+// or sidebar sync) runs first, otherwise the editor row and the live sidebar
+// disagree about a tab's visibility. "Newness" is recorded only at save time
+// (see markKnownTestcordTabs in saveVisibleTabs), never here.
 function readVisibleTestcordTabs(validKeys: string[]) {
     const stored = settings.store.visibleSettingsTabs;
+
+    // No customization yet -> everything visible.
     if (!Array.isArray(stored) || stored.length === 0) return validKeys;
 
     const validKeySet = new Set(validKeys);
     const visible = stored.filter((key): key is string => typeof key === "string" && validKeySet.has(key));
 
-    return visible.includes(TESTCORD_MAIN_ENTRY_KEY)
-        ? visible
-        : [TESTCORD_MAIN_ENTRY_KEY, ...visible];
+    // A valid key absent from the allowlist is either explicitly hidden (it's
+    // in the "known" set) or brand-new (never seen -> default visible).
+    const known = readKnownTestcordTabs();
+    const newKeys = validKeys.filter(key => !known.has(key) && !visible.includes(key));
+
+    const withNew = [...visible, ...newKeys];
+
+    return withNew.includes(TESTCORD_MAIN_ENTRY_KEY)
+        ? withNew
+        : [TESTCORD_MAIN_ENTRY_KEY, ...withNew];
 }
 
 function writeVisibleTestcordTabs(keys: string[]) {
     settings.store.visibleSettingsTabs = keys;
+}
+
+function readKnownTestcordTabs() {
+    const stored = settings.store.knownSettingsTabs;
+    return new Set(Array.isArray(stored)
+        ? stored.filter((key): key is string => typeof key === "string")
+        : []);
+}
+
+function writeKnownTestcordTabs(keys: string[]) {
+    settings.store.knownSettingsTabs = keys;
+}
+
+// Merge the given keys into the persisted "known" set (union, order-preserving).
+function markKnownTestcordTabs(keys: string[]) {
+    const known = readKnownTestcordTabs();
+    const additions = keys.filter(key => !known.has(key));
+    if (additions.length > 0) {
+        writeKnownTestcordTabs([...known, ...additions]);
+    }
 }
 
 function readTestcordTabOrder(validKeys: string[]) {
@@ -259,6 +292,12 @@ function TestcordTabsEditor({ tabs }: { tabs: TestcordTabDescriptor[]; }) {
         const nextVisibleKeys = nextKeys.includes(TESTCORD_MAIN_ENTRY_KEY)
             ? nextKeys
             : [TESTCORD_MAIN_ENTRY_KEY, ...nextKeys];
+
+        // Every tab currently valid has now been presented to the user and had a
+        // chance to be toggled, so mark them all known. This is what keeps a
+        // just-hidden tab hidden on the next (pure) read, while any tab
+        // registered AFTER this save is still "new" and defaults to visible.
+        markKnownTestcordTabs(validKeys);
 
         setVisibleKeys(nextVisibleKeys);
         writeVisibleTestcordTabs(nextVisibleKeys);
@@ -539,6 +578,12 @@ const settings = definePluginSettings({
         hidden: true,
         default: [] as string[]
     },
+    knownSettingsTabs: {
+        type: OptionType.CUSTOM,
+        description: "Testcord settings tabs the editor has already seen",
+        hidden: true,
+        default: [] as string[]
+    },
     settingsTabOrder: {
         type: OptionType.CUSTOM,
         description: "Testcord settings tab order",
@@ -552,6 +597,11 @@ const settings = definePluginSettings({
         default: [] as string[]
     }
 });
+
+function TestCordDiscordIcon({ original }: { original: any; }) {
+    const { useTestcordIcon } = useSettings(["useTestcordIcon"]);
+    return useTestcordIcon ? <TestCordIcon size={24} /> : original;
+}
 
 export default definePlugin({
     name: "Settings",
@@ -827,12 +877,7 @@ export default definePlugin({
         ));
     },
 
-    TestCordDiscordIcon({ original }: { original: any; }) {
-        const { useTestcordIcon } = useSettings(["useTestcordIcon"]);
-        return useTestcordIcon ? <TestCordIcon size={24} /> : original;
-    },
-
     renderDiscordIcon(originalIcon: any) {
-        return <this.TestCordDiscordIcon original={originalIcon} />;
+        return <TestCordDiscordIcon original={originalIcon} />;
     },
 });

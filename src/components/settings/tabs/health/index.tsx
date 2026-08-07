@@ -26,7 +26,7 @@ import { getFactoryPatchedSource, SYM_ORIGINAL_FACTORY } from "@webpack/patcher"
 
 import Plugins from "~plugins";
 
-type DiagnosticTabKey = "overview" | "diagnostics" | "impact" | "monitor" | "guide";
+type DiagnosticTabKey = "overview" | "diagnostics" | "impact" | "monitor" | "changes" | "guide";
 
 const startTime = Date.now();
 
@@ -151,7 +151,15 @@ function sortSnapshot(
     return arr;
 }
 
-function buildExportReport(): string {
+// Single source of truth for impact-score badge severity. Thresholds live here
+// so the diagnostics table, impact list, and per-plugin monitor can never drift.
+function impactBadgeClass(score: number): string {
+    if (score > 50) return "high";
+    if (score > 15) return "medium";
+    return "low";
+}
+
+function buildExportReport(excludeConflicts = false): string {
     const all = PluginHealth.getAll();
     const currentSession = PluginHealth.getCurrentSession();
     const history = PluginHealth.getHistory();
@@ -164,11 +172,16 @@ function buildExportReport(): string {
         profiles,
         safeMode: PluginHealth.isSafeModeEnabled(),
         quarantinedPlugins: PluginHealth.getQuarantinedPlugins(),
+        conflictsExcluded: excludeConflicts,
         plugins: {} as Record<string, unknown>
     };
     for (const [name, entry] of all) {
+        const patchFailures = excludeConflicts
+            ? entry.patchFailures.filter(f => f.kind !== "conflict")
+            : entry.patchFailures;
         (report.plugins as Record<string, unknown>)[name] = {
             ...entry,
+            patchFailures,
             stability: PluginHealth.getStability(name)
         };
     }
@@ -268,7 +281,7 @@ function PatchViewerModal({
             size="lg"
             title={
                 <div className="vc-patch-viewer-title">
-                    Patch viewer — {pluginName}
+                    Patch viewer: {pluginName}
                 </div>
             }
         >
@@ -326,7 +339,7 @@ function PatchViewerModal({
                                     </pre>
                                 ) : (
                                     <Paragraph color="text-subtle">
-                                        Source comparison unavailable — the module may have been unloaded.
+                                        Source comparison unavailable. The module may have been unloaded.
                                     </Paragraph>
                                 )}
                             </div>
@@ -348,7 +361,7 @@ function StabilityBadge({ score }: { score: StabilityScore; }) {
     const { badge, sessionsSeen, sessionsBroken, ratio } = score;
     const tooltip =
         badge === "unknown"
-            ? `Seen in ${sessionsSeen} recorded session${sessionsSeen === 1 ? "" : "s"} — need at least 3 to score.`
+            ? `Seen in ${sessionsSeen} recorded session${sessionsSeen === 1 ? "" : "s"}. Needs at least 3 to score.`
             : `Broken in ${sessionsBroken} of the last ${sessionsSeen} sessions (${(ratio * 100).toFixed(0)}%).`;
     return (
         <span
@@ -376,7 +389,7 @@ function ExpandableError({ text, max = 400 }: { text: string; max?: number; }) {
     );
 }
 
-function PluginHealthCard({ name, entry, expanded, onToggle, filter }: { name: string; entry: PluginHealthEntry; expanded: boolean; onToggle: () => void; filter: FilterKey; }) {
+function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHidden }: { name: string; entry: PluginHealthEntry; expanded: boolean; onToggle: () => void; filter: FilterKey; conflictsHidden: boolean; }) {
     const plugin = Plugins[name];
     const showPatchFailures = filter !== "runtime";
     const showRuntimeErrors = filter === "all" || filter === "runtime";
@@ -391,14 +404,14 @@ function PluginHealthCard({ name, entry, expanded, onToggle, filter }: { name: s
 
     const openReport = () => {
         try {
-            const body = generateGitHubIssueBody({ pluginName: name });
+            const body = generateGitHubIssueBody({ pluginName: name, excludeConflicts: conflictsHidden });
             const url = buildIssueUrl(`[${name}] Bug report`, body, ["bug"]);
             VencordNative.native.openExternal(url);
         } catch (e) {
             Toasts.show({
                 id: Toasts.genId(),
                 type: Toasts.Type.FAILURE,
-                message: "Failed to build issue URL — see console",
+                message: "Failed to build issue URL. See console for details.",
                 options: { position: Toasts.Position.TOP }
             });
             console.error(e);
@@ -407,7 +420,7 @@ function PluginHealthCard({ name, entry, expanded, onToggle, filter }: { name: s
 
     const copyReport = async () => {
         try {
-            const body = generateGitHubIssueBody({ pluginName: name });
+            const body = generateGitHubIssueBody({ pluginName: name, excludeConflicts: conflictsHidden });
             await navigator.clipboard.writeText(body);
             Toasts.show({
                 id: Toasts.genId(),
@@ -663,9 +676,9 @@ function DiscordUpdateBanner({ noModuleCount, dismissed, onDismiss }: { noModule
                 </Button>
             </div>
             <Paragraph>
-                {noModuleCount} plugins have missing modules — this usually means
-                Discord shipped an update that removed or renamed code the plugins
-                were targeting. Report the broken plugins so their authors can fix them.
+                {noModuleCount} plugins can't find the code they patch. This almost always
+                means a recent Discord update removed or renamed that code. Reporting the
+                affected plugins helps their authors ship a fix.
             </Paragraph>
         </Card>
     );
@@ -770,7 +783,29 @@ function HealthTab() {
     // Diagnostic & profiling states
     const [diagSearchQuery, setDiagSearchQuery] = useState("");
     const [sortColumn, setSortColumn] = useState<keyof PluginProfileData>("impactScore");
-    const [sortDirection] = useState<"asc" | "desc">("desc");
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+    // Monitor tab master-list controls
+    const [monitorSearchQuery, setMonitorSearchQuery] = useState("");
+    const [monitorSort, setMonitorSort] = useState<"impact" | "name" | "cpu" | "calls">("impact");
+    const [monitorImpactFilter, setMonitorImpactFilter] = useState<"all" | "high" | "medium" | "low">("all");
+
+    // Patch-changes tab search
+    const [changesSearchQuery, setChangesSearchQuery] = useState("");
+
+    // Clicking a header sorts by that column. Clicking the already-active
+    // column toggles direction; switching to a new column resets to "desc".
+    const handleSortColumn = (column: keyof PluginProfileData) => {
+        if (column === sortColumn) {
+            setSortDirection(d => (d === "desc" ? "asc" : "desc"));
+        } else {
+            setSortColumn(column);
+            setSortDirection("desc");
+        }
+    };
+
+    const sortIndicator = (column: keyof PluginProfileData) =>
+        column === sortColumn ? (sortDirection === "desc" ? " ▼" : " ▲") : "";
     const [selectedPluginName, setSelectedPluginName] = useState<string | null>(null);
     const [safeMode, setSafeModeState] = useState(PluginHealth.isSafeModeEnabled());
 
@@ -821,9 +856,23 @@ function HealthTab() {
         return sortSnapshot(result, sort);
     }, [snapshot, searchQuery, filter, sort]);
 
-    const totalEnabled = useMemo(() => {
-        return new Set(PluginHealth.getCurrentSession().enabledPlugins.filter(name => !Plugins[name]?.required)).size;
+    const enabledSet = useMemo(() => {
+        return new Set(PluginHealth.getCurrentSession().enabledPlugins.filter(name => !Plugins[name]?.required));
     }, [tick]);
+
+    const totalEnabled = enabledSet.size;
+
+    // Count broken plugins from the SAME population as `totalEnabled` (plugins
+    // enabled this session), so the summary bar can never report more broken
+    // than total. `snapshot` spans the whole runtime registry, so intersect it
+    // with the current session's enabled set.
+    const brokenEnabled = useMemo(() => {
+        let count = 0;
+        for (const [name] of snapshot) {
+            if (enabledSet.has(name)) count++;
+        }
+        return count;
+    }, [snapshot, enabledSet]);
 
     const noModuleCount = useMemo(() => {
         let count = 0;
@@ -834,6 +883,57 @@ function HealthTab() {
     }, [snapshot]);
 
     const profiles = useMemo(() => PluginProfiler.getAllProfiles(), [tick]);
+
+    const diagRows = useMemo(() => {
+        const query = diagSearchQuery.toLowerCase();
+        return profiles
+            .filter(p => p.pluginName.toLowerCase().includes(query))
+            .sort((a, b) => {
+                const valA = a[sortColumn] as any;
+                const valB = b[sortColumn] as any;
+                if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+                if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+                return 0;
+            });
+    }, [profiles, diagSearchQuery, sortColumn, sortDirection]);
+
+    const monitorRows = useMemo(() => {
+        const query = monitorSearchQuery.toLowerCase();
+        return profiles
+            .filter(p => p.pluginName.toLowerCase().includes(query))
+            .filter(p => monitorImpactFilter === "all" || impactBadgeClass(p.impactScore) === monitorImpactFilter)
+            .sort((a, b) => {
+                switch (monitorSort) {
+                    case "name":
+                        return a.pluginName.localeCompare(b.pluginName);
+                    case "cpu":
+                        return b.totalCpuTimeMs - a.totalCpuTimeMs;
+                    case "calls":
+                        return b.callCount - a.callCount;
+                    case "impact":
+                    default:
+                        return b.impactScore - a.impactScore;
+                }
+            });
+    }, [profiles, monitorSearchQuery, monitorImpactFilter, monitorSort]);
+
+    // All `codeChanged` entries across every plugin that has been enabled at
+    // least once. Coverage is inherently limited to plugins whose patches have
+    // actually run, since the source hash is only recorded from patchFactory.
+    const changeRows = useMemo(() => {
+        const rows: Array<{ plugin: string; find: string; error?: string; at: number; }> = [];
+        for (const [name, entry] of PluginHealth.getAll()) {
+            if (Plugins[name]?.required) continue;
+            for (const f of entry.patchFailures) {
+                if (f.kind !== "codeChanged") continue;
+                rows.push({ plugin: name, find: f.find, error: f.error, at: f.at });
+            }
+        }
+        const query = changesSearchQuery.trim().toLowerCase();
+        return rows
+            .filter(r => !query || r.plugin.toLowerCase().includes(query) || r.find.toLowerCase().includes(query))
+            .sort((a, b) => b.at - a.at);
+    }, [tick, changesSearchQuery]);
 
     const handleBannerToggle = (show: boolean) => {
         setBannerDismissed(!show);
@@ -887,7 +987,7 @@ function HealthTab() {
 
     const copyAllReports = async () => {
         try {
-            const json = buildExportReport();
+            const json = buildExportReport(conflictsHidden);
             await navigator.clipboard.writeText(json);
             Toasts.show({
                 id: Toasts.genId(),
@@ -967,6 +1067,12 @@ function HealthTab() {
                     Plugin monitor
                 </button>
                 <button
+                    className={`vc-health-nav-item ${activeTab === "changes" ? "vc-health-nav-item-active" : ""}`}
+                    onClick={() => setActiveTab("changes")}
+                >
+                    Patch changes
+                </button>
+                <button
                     className={`vc-health-nav-item ${activeTab === "guide" ? "vc-health-nav-item-active" : ""}`}
                     onClick={() => setActiveTab("guide")}
                 >
@@ -978,9 +1084,8 @@ function HealthTab() {
             {activeTab === "overview" && (
                 <div className="vc-health-tab-content">
                     <Paragraph color="text-subtle" className={Margins.bottom20}>
-                        Discord ships frequent updates that can break individual plugins. If a plugin here
-                        looks broken, the fastest way to help is to click <em>Report</em> — it opens a
-                        pre-filled bug report on <Link href="https://github.com/TestcordDev/TestCord/issues">GitHub</Link>.
+                        Discord's frequent updates can break individual plugins. If a plugin here
+                        looks broken, click <em>Report</em> to open a pre-filled bug report on <Link href="https://github.com/TestcordDev/TestCord/issues">GitHub</Link>.
                     </Paragraph>
 
                     <DiscordUpdateBanner
@@ -1029,7 +1134,7 @@ function HealthTab() {
                             <div>
                                 <HeadingSecondary>Show conflicts</HeadingSecondary>
                                 <Paragraph color="text-subtle">
-                                    Display patch conflicts (multiple plugins patching the same module). Conflicts don't necessarily mean a plugin is broken — many plugins intentionally patch the same code.
+                                    Show patch conflicts, where multiple plugins patch the same module. A conflict doesn't necessarily mean a plugin is broken; plugins often patch the same code on purpose.
                                 </Paragraph>
                             </div>
                             <label className="vc-plugin-health-toggle">
@@ -1060,7 +1165,7 @@ function HealthTab() {
                         </div>
                     </Card>
 
-                    <HealthSummaryBar total={totalEnabled} broken={snapshot.length} />
+                    <HealthSummaryBar total={totalEnabled} broken={brokenEnabled} />
 
                     <Divider className={Margins.top16 + " " + Margins.bottom16} />
 
@@ -1146,6 +1251,7 @@ function HealthTab() {
                                         expanded={!collapsed.has(name)}
                                         onToggle={() => toggleCard(name)}
                                         filter={filter}
+                                        conflictsHidden={conflictsHidden}
                                     />
                                 ))
                             )}
@@ -1166,7 +1272,7 @@ function HealthTab() {
                     <div className="vc-health-stats-grid">
                         <div className="vc-health-stat-card">
                             <div className="vc-health-stat-value">{totalHeapMB.toFixed(1)} MB</div>
-                            <div className="vc-health-stat-label">Heap used</div>
+                            <div className="vc-health-stat-label">Renderer heap (all code)</div>
                         </div>
                         <div className="vc-health-stat-card">
                             <div className="vc-health-stat-value">{profiles.length}</div>
@@ -1194,40 +1300,58 @@ function HealthTab() {
                         <table className="vc-health-table">
                             <thead>
                                 <tr>
-                                    <th onClick={() => setSortColumn("pluginName")}>Plugin</th>
-                                    <th onClick={() => setSortColumn("impactScore")}>Impact Score</th>
-                                    <th onClick={() => setSortColumn("totalCpuTimeMs")}>CPU (ms)</th>
-                                    <th onClick={() => setSortColumn("callCount")}>Calls</th>
-                                    <th onClick={() => setSortColumn("slowSpikes")}>Slow Spikes</th>
-                                    <th onClick={() => setSortColumn("heapMB")}>Heap (MB)</th>
-                                    <th onClick={() => setSortColumn("activeResources")}>Resources</th>
+                                    <th onClick={() => handleSortColumn("pluginName")}>Plugin{sortIndicator("pluginName")}</th>
+                                    <th onClick={() => handleSortColumn("impactScore")}>Impact Score{sortIndicator("impactScore")}</th>
+                                    <th onClick={() => handleSortColumn("totalCpuTimeMs")}>CPU (ms){sortIndicator("totalCpuTimeMs")}</th>
+                                    <th onClick={() => handleSortColumn("callCount")}>Calls{sortIndicator("callCount")}</th>
+                                    <th onClick={() => handleSortColumn("slowSpikes")}>Slow Spikes{sortIndicator("slowSpikes")}</th>
+                                    <th onClick={() => handleSortColumn("maxCallMs")}>Max Call (ms){sortIndicator("maxCallMs")}</th>
+                                    <th onClick={() => handleSortColumn("activeResources")}>Resources{sortIndicator("activeResources")}</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {profiles
-                                    .filter(p => p.pluginName.toLowerCase().includes(diagSearchQuery.toLowerCase()))
-                                    .sort((a, b) => {
-                                        const valA = a[sortColumn] as any;
-                                        const valB = b[sortColumn] as any;
-                                        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
-                                        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
-                                        return 0;
-                                    })
-                                    .map(p => (
-                                        <tr key={p.pluginName}>
+                                {diagRows.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} className="vc-health-table-empty">
+                                            {profiles.length === 0
+                                                ? "No plugins measured yet. Metrics appear once plugins run after startup."
+                                                : `No plugins match "${diagSearchQuery}".`}
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    diagRows.map(p => (
+                                        <tr
+                                            key={p.pluginName}
+                                            className="vc-health-table-row-clickable"
+                                            onClick={() => {
+                                                setSelectedPluginName(p.pluginName);
+                                                setActiveTab("monitor");
+                                            }}
+                                            role="button"
+                                            tabIndex={0}
+                                            onKeyDown={e => {
+                                                if (e.key === "Enter" || e.key === " ") {
+                                                    e.preventDefault();
+                                                    setSelectedPluginName(p.pluginName);
+                                                    setActiveTab("monitor");
+                                                }
+                                            }}
+                                            title={`View ${p.pluginName} details`}
+                                        >
                                             <td><strong>{p.pluginName}</strong></td>
                                             <td>
-                                                <span className={`vc-health-impact-badge ${p.impactScore > 50 ? "high" : p.impactScore > 15 ? "medium" : "low"}`}>
+                                                <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
                                                     {p.impactScore}
                                                 </span>
                                             </td>
                                             <td>{p.totalCpuTimeMs} ms</td>
                                             <td>{p.callCount}</td>
                                             <td>{p.slowSpikes}</td>
-                                            <td>{p.heapMB} MB</td>
+                                            <td>{p.maxCallMs} ms</td>
                                             <td>{p.activeResources}</td>
                                         </tr>
-                                    ))}
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -1245,7 +1369,7 @@ function HealthTab() {
                                 <div className="vc-health-impact-header">
                                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                                         <h3 style={{ margin: 0, color: "var(--text-normal)" }}>{p.pluginName}</h3>
-                                        <span className={`vc-health-impact-badge ${p.impactScore > 50 ? "high" : p.impactScore > 15 ? "medium" : "low"}`}>
+                                        <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
                                             Impact Score: {p.impactScore}
                                         </span>
                                     </div>
@@ -1271,7 +1395,7 @@ function HealthTab() {
 
                                 {p.advisory && (
                                     <div className="vc-health-advisory-box">
-                                        💡 {p.advisory}
+                                        {p.advisory}
                                     </div>
                                 )}
                             </Card>
@@ -1286,19 +1410,62 @@ function HealthTab() {
                         {/* Master Left Column */}
                         <div className="vc-health-master-column">
                             <HeadingSecondary className={Margins.bottom8}>Monitored Plugins</HeadingSecondary>
+
+                            <div className="vc-health-master-controls">
+                                <TextInput
+                                    placeholder="Search plugins..."
+                                    value={monitorSearchQuery}
+                                    onChange={(val: string) => setMonitorSearchQuery(val)}
+                                />
+                                <div className="vc-health-master-selects">
+                                    <Select
+                                        options={[
+                                            { label: "Sort: Impact", value: "impact" },
+                                            { label: "Sort: Name", value: "name" },
+                                            { label: "Sort: CPU", value: "cpu" },
+                                            { label: "Sort: Calls", value: "calls" }
+                                        ]}
+                                        closeOnSelect
+                                        select={val => setMonitorSort(val)}
+                                        isSelected={val => val === monitorSort}
+                                        serialize={String}
+                                    />
+                                    <Select
+                                        options={[
+                                            { label: "Impact: All", value: "all" },
+                                            { label: "Impact: High", value: "high" },
+                                            { label: "Impact: Medium", value: "medium" },
+                                            { label: "Impact: Low", value: "low" }
+                                        ]}
+                                        closeOnSelect
+                                        select={val => setMonitorImpactFilter(val)}
+                                        isSelected={val => val === monitorImpactFilter}
+                                        serialize={String}
+                                    />
+                                </div>
+                            </div>
+
                             <div className="vc-health-master-list">
-                                {profiles.map(p => (
-                                    <div
-                                        key={p.pluginName}
-                                        className={`vc-health-master-item ${currentPluginProfile?.pluginName === p.pluginName ? "selected" : ""}`}
-                                        onClick={() => setSelectedPluginName(p.pluginName)}
-                                    >
-                                        <span style={{ fontWeight: 600 }}>{p.pluginName}</span>
-                                        <span className={`vc-health-impact-badge ${p.impactScore > 50 ? "high" : p.impactScore > 15 ? "medium" : "low"}`}>
-                                            {p.impactScore}
-                                        </span>
+                                {monitorRows.length === 0 ? (
+                                    <div className="vc-health-master-empty">
+                                        {profiles.length === 0
+                                            ? "No plugins measured yet."
+                                            : "No plugins match your filters."}
                                     </div>
-                                ))}
+                                ) : (
+                                    monitorRows.map(p => (
+                                        <div
+                                            key={p.pluginName}
+                                            className={`vc-health-master-item ${currentPluginProfile?.pluginName === p.pluginName ? "selected" : ""}`}
+                                            onClick={() => setSelectedPluginName(p.pluginName)}
+                                        >
+                                            <span className="vc-health-master-item-name">{p.pluginName}</span>
+                                            <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
+                                                {p.impactScore}
+                                            </span>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
 
@@ -1307,7 +1474,7 @@ function HealthTab() {
                             <div className="vc-health-detail-column">
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                     <h2 style={{ margin: 0, color: "var(--text-normal)" }}>{currentPluginProfile.pluginName}</h2>
-                                    <span className={`vc-health-impact-badge ${currentPluginProfile.impactScore > 50 ? "high" : currentPluginProfile.impactScore > 15 ? "medium" : "low"}`}>
+                                    <span className={`vc-health-impact-badge ${impactBadgeClass(currentPluginProfile.impactScore)}`}>
                                         Impact Score: {currentPluginProfile.impactScore}
                                     </span>
                                 </div>
@@ -1324,14 +1491,12 @@ function HealthTab() {
                                         <div className="vc-health-metric-label">CPU Share</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
-                                        <div className="vc-health-metric-val">{currentPluginProfile.heapMB} MB</div>
-                                        <div className="vc-health-metric-label">Extra RAM</div>
+                                        <div className="vc-health-metric-val">{currentPluginProfile.callCount}</div>
+                                        <div className="vc-health-metric-label">Calls</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
-                                        <div className="vc-health-metric-val">
-                                            {totalHeapMB > 0 ? ((currentPluginProfile.heapMB / totalHeapMB) * 100).toFixed(1) : 0}%
-                                        </div>
-                                        <div className="vc-health-metric-label">RAM Share</div>
+                                        <div className="vc-health-metric-val">{currentPluginProfile.slowSpikes}</div>
+                                        <div className="vc-health-metric-label">Slow Spikes</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
                                         <div className="vc-health-metric-val">{currentPluginProfile.maxCallMs} ms</div>
@@ -1342,12 +1507,12 @@ function HealthTab() {
                                         <div className="vc-health-metric-label">Resources</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
-                                        <div className="vc-health-metric-val">{currentPluginProfile.asyncTimeMs} ms</div>
-                                        <div className="vc-health-metric-label">Async Time</div>
+                                        <div className="vc-health-metric-val">{currentPluginProfile.activeIntervals}</div>
+                                        <div className="vc-health-metric-label">Intervals</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
-                                        <div className="vc-health-metric-val">{currentPluginProfile.lastHeapDeltaMB} MB</div>
-                                        <div className="vc-health-metric-label">Last Heap Delta</div>
+                                        <div className="vc-health-metric-val">{currentPluginProfile.activeListeners}</div>
+                                        <div className="vc-health-metric-label">Listeners</div>
                                     </div>
                                 </div>
 
@@ -1364,7 +1529,7 @@ function HealthTab() {
                                     </div>
                                     {currentPluginProfile.advisory && (
                                         <div className="vc-health-advisory-box" style={{ marginTop: "0.75rem" }}>
-                                            💡 {currentPluginProfile.advisory}
+                                            {currentPluginProfile.advisory}
                                         </div>
                                     )}
                                 </div>
@@ -1406,6 +1571,56 @@ function HealthTab() {
                 </div>
             )}
 
+            {/* TAB: PATCH CHANGES */}
+            {activeTab === "changes" && (
+                <div className="vc-health-tab-content">
+                    <Paragraph color="text-subtle" className={Margins.bottom20}>
+                        When Discord updates the code a plugin patches, the patch may keep working but the underlying source has changed. This tab lists every detected source change so you can spot patches that are drifting before they break. Coverage is limited to plugins that have been enabled at least once, since a change can only be detected after a patch actually runs.
+                    </Paragraph>
+
+                    <div style={{ marginBottom: "1rem" }}>
+                        <TextInput
+                            placeholder="Filter by plugin or find string..."
+                            value={changesSearchQuery}
+                            onChange={(val: string) => setChangesSearchQuery(val)}
+                        />
+                    </div>
+
+                    <div className="vc-health-table-wrapper">
+                        <table className="vc-health-table">
+                            <thead>
+                                <tr>
+                                    <th>Plugin</th>
+                                    <th>Find</th>
+                                    <th>Details</th>
+                                    <th>Detected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {changeRows.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={4} className="vc-health-table-empty">
+                                            {changesSearchQuery.trim()
+                                                ? "No patch changes match your filter."
+                                                : "No patch changes detected. This is the healthy state: every tracked patch still targets the same Discord source it did last session."}
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    changeRows.map((r, i) => (
+                                        <tr key={`${r.plugin}:${r.find}:${i}`}>
+                                            <td>{r.plugin}</td>
+                                            <td><code>{r.find}</code></td>
+                                            <td>{r.error ?? "Source changed since last session."}</td>
+                                            <td>{new Date(r.at).toLocaleString()}</td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
             {/* TAB 5: GUIDE */}
             {activeTab === "guide" && (
                 <div className="vc-health-tab-content">
@@ -1420,11 +1635,18 @@ function HealthTab() {
                         <Card className="vc-health-guide-card">
                             <HeadingSecondary>Composite Impact Score Algorithm</HeadingSecondary>
                             <Paragraph color="text-subtle">
-                                Impact Score ranks plugins by total resource footprint using the formula:
+                                Impact Score ranks plugins by measurable resource footprint using the formula:
                             </Paragraph>
                             <div className="vc-health-formula-box">
-                                Impact Score = (CPU_ms * 0.4) + (Extra_RAM_MB * 4.0) + (Slow_Spikes * 25) + (Active_Resources * 5)
+                                Impact Score = (CPU_ms * 0.5) + (Slow_Spikes * 25) + (Active_Resources * 5)
                             </div>
+                            <Paragraph color="text-subtle" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
+                                Per-plugin RAM is intentionally excluded: browsers expose only a
+                                process-wide heap counter (all of Discord plus every plugin), which
+                                cannot be attributed to an individual plugin, so including it would
+                                only add noise. Active resources are live intervals and event
+                                listeners created by the plugin, tracked automatically.
+                            </Paragraph>
                         </Card>
 
                         <Card className="vc-health-guide-card">

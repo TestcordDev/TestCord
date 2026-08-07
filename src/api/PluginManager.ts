@@ -143,6 +143,12 @@ export function pluginRequiresRestart(p: Plugin) {
 
 export const startAllPlugins = traceFunction("startAllPlugins", function startAllPlugins(target: StartAt) {
     logger.info(`Starting plugins (stage ${target})`);
+
+    // Activate profiler auto-instrumentation before any plugin runs so timers
+    // and listeners created during start() are attributed. Idempotent, so
+    // calling it on every stage is safe.
+    PluginProfiler.init();
+
     const pending: Array<() => void> = [];
     for (const name in Plugins) {
         if (isPluginEnabled(name) && (!IS_REPORTER || isReporterTestable(Plugins[name], ReporterTestable.Start))) {
