@@ -19,7 +19,7 @@ import {
     VoiceStateStore
 } from "@webpack/common";
 
-import { settings, toggleFollow, triggerFollow } from "./index";
+import { getAllUsersInVoice, getPinnedUserIds, settings, togglePin, toggleFollow, triggerFollow } from "./index";
 
 interface FriendInVoice {
     userId: string;
@@ -27,6 +27,14 @@ interface FriendInVoice {
     channelId: string;
     channelName: string;
     guildName: string;
+}
+
+interface PinnedUser {
+    userId: string;
+    username: string;
+    channelId: string | null;
+    channelName: string | null;
+    guildName: string | null;
 }
 
 function FollowIcon({ className, active }: { className?: string; active?: boolean; }) {
@@ -68,7 +76,7 @@ function UserAvatar({ userId, size }: { userId: string; size: AvatarSize; }) {
 function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
 
-    const { followUserId, followedUsername } = settings.use(["followUserId", "followedUsername"]);
+    const { followUserId, followedUsername, showNonFriendsInVoice, pinnedUserIds } = settings.use(["followUserId", "followedUsername", "showNonFriendsInVoice", "pinnedUserIds"]);
     const currentUser = UserStore.getCurrentUser();
 
     const friendsInVoice = React.useMemo<FriendInVoice[]>(() => {
@@ -93,6 +101,47 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
         return friends;
     }, [currentUser, followUserId]);
 
+    const nonFriendsInVoice = React.useMemo<FriendInVoice[]>(() => {
+        if (!showNonFriendsInVoice) return [];
+        const result: FriendInVoice[] = [];
+        const friendIds = new Set(RelationshipStore.getFriendIDs());
+        for (const { userId, channelId } of getAllUsersInVoice()) {
+            if (userId === currentUser?.id) continue;
+            if (friendIds.has(userId)) continue;
+            const channel = ChannelStore.getChannel(channelId);
+            if (!channel) continue;
+            const guild = channel.guild_id ? GuildStore.getGuild(channel.guild_id) : null;
+            const user = UserStore.getUser(userId);
+            result.push({
+                userId,
+                username: user?.username ?? userId,
+                channelId,
+                channelName: channel.name ?? "Unknown",
+                guildName: guild?.name ?? "DM"
+            });
+        }
+        return result;
+    }, [currentUser, followUserId, showNonFriendsInVoice]);
+
+    const pinnedUsers = React.useMemo<PinnedUser[]>(() => {
+        const result: PinnedUser[] = [];
+        for (const userId of getPinnedUserIds()) {
+            if (userId === currentUser?.id) continue;
+            const user = UserStore.getUser(userId);
+            const vs = VoiceStateStore.getVoiceStateForUser(userId);
+            const channel = vs?.channelId ? ChannelStore.getChannel(vs.channelId) : null;
+            const guild = channel?.guild_id ? GuildStore.getGuild(channel.guild_id) : null;
+            result.push({
+                userId,
+                username: user?.username ?? userId,
+                channelId: channel?.id ?? null,
+                channelName: channel?.name ?? null,
+                guildName: guild?.name ?? (channel ? "DM" : null)
+            });
+        }
+        return result;
+    }, [currentUser, followUserId, pinnedUserIds]);
+
     const followedVoiceState = followUserId ? VoiceStateStore.getVoiceStateForUser(followUserId) : null;
     const followedChannel = followedVoiceState?.channelId ? ChannelStore.getChannel(followedVoiceState.channelId) : null;
     const followedGuild = followedChannel?.guild_id ? GuildStore.getGuild(followedChannel.guild_id) : null;
@@ -110,6 +159,11 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
     function doJoin(channelId: string) {
         triggerFollow(channelId);
         modalProps.onClose();
+    }
+
+    function doUnpin(userId: string) {
+        togglePin(userId);
+        forceUpdate();
     }
 
     return (
@@ -167,6 +221,74 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                 textAlign: "center"
                             }}>
                                 Not following anyone. Right-click a user to follow, or pick a friend below.
+                            </div>
+                        )}
+                    </div>
+
+                    <div>
+                        <SectionLabel>Pinned Users {pinnedUsers.length > 0 ? `(${pinnedUsers.length})` : null}</SectionLabel>
+                        {pinnedUsers.length > 0 ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                {pinnedUsers.map(person => {
+                                    const isFollowingThis = followUserId === person.userId;
+                                    return (
+                                        <div
+                                            key={person.userId}
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "12px",
+                                                padding: "12px 14px",
+                                                backgroundColor: "var(--background-secondary)",
+                                                borderRadius: "8px",
+                                                border: `1px solid ${isFollowingThis ? "var(--status-positive)" : "var(--background-modifier-accent)"}`
+                                            }}
+                                        >
+                                            <UserAvatar userId={person.userId} size="SIZE_40" />
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: "15px", fontWeight: 600, color: "#ffffff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                    {person.username}
+                                                </div>
+                                                <div style={{ fontSize: "13px", color: "#ffffff", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                    {person.channelName
+                                                        ? `#${person.channelName} — ${person.guildName}`
+                                                        : "Not in voice right now"}
+                                                </div>
+                                            </div>
+                                            <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                                                {person.channelId && (
+                                                    <Button size={Button.Sizes.SMALL} color={Button.Colors.BRAND} onClick={() => doJoin(person.channelId!)}>
+                                                        Join
+                                                    </Button>
+                                                )}
+                                                {isFollowingThis ? (
+                                                    <Button size={Button.Sizes.SMALL} color={Button.Colors.RED} onClick={doUnfollow}>
+                                                        Unfollow
+                                                    </Button>
+                                                ) : (
+                                                    <Button size={Button.Sizes.SMALL} color={Button.Colors.GREEN} onClick={() => doFollow(person.userId)}>
+                                                        Follow
+                                                    </Button>
+                                                )}
+                                                <Button size={Button.Sizes.SMALL} color={Button.Colors.PRIMARY} onClick={() => doUnpin(person.userId)}>
+                                                    Unpin
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div style={{
+                                padding: "16px",
+                                backgroundColor: "var(--background-secondary)",
+                                borderRadius: "8px",
+                                border: "1px dashed var(--background-modifier-accent)",
+                                color: "#ffffff",
+                                fontSize: "14px",
+                                textAlign: "center"
+                            }}>
+                                No pinned users. Right-click a user and choose "Pin to Follow Panel".
                             </div>
                         )}
                     </div>
@@ -231,6 +353,69 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             </div>
                         )}
                     </div>
+
+                    {showNonFriendsInVoice && (
+                        <div>
+                            <SectionLabel>Non-Friends in Voice {nonFriendsInVoice.length > 0 ? `(${nonFriendsInVoice.length})` : null}</SectionLabel>
+                            {nonFriendsInVoice.length > 0 ? (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                    {nonFriendsInVoice.map(person => {
+                                        const isFollowingThis = followUserId === person.userId;
+                                        return (
+                                            <div
+                                                key={person.userId}
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    gap: "12px",
+                                                    padding: "12px 14px",
+                                                    backgroundColor: "var(--background-secondary)",
+                                                    borderRadius: "8px",
+                                                    border: `1px solid ${isFollowingThis ? "var(--status-positive)" : "var(--background-modifier-accent)"}`
+                                                }}
+                                            >
+                                                <UserAvatar userId={person.userId} size="SIZE_40" />
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontSize: "15px", fontWeight: 600, color: "#ffffff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                        {person.username}
+                                                    </div>
+                                                    <div style={{ fontSize: "13px", color: "#ffffff", marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                        #{person.channelName} — {person.guildName}
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                                                    <Button size={Button.Sizes.SMALL} color={Button.Colors.BRAND} onClick={() => doJoin(person.channelId)}>
+                                                        Join
+                                                    </Button>
+                                                    {isFollowingThis ? (
+                                                        <Button size={Button.Sizes.SMALL} color={Button.Colors.RED} onClick={doUnfollow}>
+                                                            Unfollow
+                                                        </Button>
+                                                    ) : (
+                                                        <Button size={Button.Sizes.SMALL} color={Button.Colors.GREEN} onClick={() => doFollow(person.userId)}>
+                                                            Follow
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div style={{
+                                    padding: "16px",
+                                    backgroundColor: "var(--background-secondary)",
+                                    borderRadius: "8px",
+                                    border: "1px dashed var(--background-modifier-accent)",
+                                    color: "#ffffff",
+                                    fontSize: "14px",
+                                    textAlign: "center"
+                                }}>
+                                    No non-friends are currently in voice.
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     <div>
                         <SectionLabel>Active Settings</SectionLabel>

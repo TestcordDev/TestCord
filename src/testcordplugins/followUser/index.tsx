@@ -159,6 +159,19 @@ export const settings = definePluginSettings({
         restartNeeded: true,
         default: false,
     },
+    showNonFriendsInVoice: {
+        type: OptionType.BOOLEAN,
+        description: "Also list non-friended people who are in voice in the follow panel, so you can join or follow them",
+        restartNeeded: false,
+        default: false,
+    },
+    pinnedUserIds: {
+        type: OptionType.STRING,
+        description: "JSON array of manually pinned user IDs shown in the follow panel",
+        restartNeeded: false,
+        hidden: true, // Managed via context menu and panel
+        default: "[]",
+    },
     followedUsername: {
         type: OptionType.STRING,
         description: "Cached username of the followed user",
@@ -202,6 +215,23 @@ export function getChannelId(userId: string) {
         }
     } catch (e) { }
     return null;
+}
+
+export function getAllUsersInVoice(): { userId: string; channelId: string; }[] {
+    const result: { userId: string; channelId: string; }[] = [];
+    const seen = new Set<string>();
+    try {
+        const states = VoiceStateStore.getAllVoiceStates();
+        for (const users of Object.values(states)) {
+            for (const state of Object.values(users)) {
+                if (!state?.channelId || !state.userId) continue;
+                if (seen.has(state.userId)) continue;
+                seen.add(state.userId);
+                result.push({ userId: state.userId, channelId: state.channelId });
+            }
+        }
+    } catch (e) { }
+    return result;
 }
 
 export function triggerFollow(userChannelId: string | null = getChannelId(settings.store.followUserId)) {
@@ -269,6 +299,31 @@ export function triggerFollow(userChannelId: string | null = getChannelId(settin
     }
 }
 
+export function getPinnedUserIds(): string[] {
+    try {
+        const parsed = JSON.parse(settings.store.pinnedUserIds || "[]");
+        return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+export function isPinned(userId: string): boolean {
+    return getPinnedUserIds().includes(userId);
+}
+
+export function togglePin(userId: string) {
+    if (!userId) return;
+    const ids = getPinnedUserIds();
+    const idx = ids.indexOf(userId);
+    if (idx === -1) {
+        ids.push(userId);
+    } else {
+        ids.splice(idx, 1);
+    }
+    settings.store.pinnedUserIds = JSON.stringify(ids);
+}
+
 export function toggleFollow(userId: string) {
     if (settings.store.followUserId === userId) {
         settings.store.followUserId = "";
@@ -294,12 +349,20 @@ const UserContext: NavContextMenuPatchCallback = (children, { user }: UserContex
     const label = isFollowed ? "Unfollow User" : "Follow User";
     const icon = isFollowed ? UnfollowIcon : FollowIcon;
 
+    const pinned = isPinned(user.id);
+
     children.splice(-1, 0, (
         <Menu.MenuGroup>
             <Menu.MenuItem
                 id="follow-user"
                 label={label}
                 action={() => toggleFollow(user.id)}
+                icon={icon}
+            />
+            <Menu.MenuItem
+                id="follow-user-pin"
+                label={pinned ? "Unpin from Follow Panel" : "Pin to Follow Panel"}
+                action={() => togglePin(user.id)}
                 icon={icon}
             />
         </Menu.MenuGroup>

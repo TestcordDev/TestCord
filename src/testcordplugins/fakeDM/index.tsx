@@ -1113,10 +1113,10 @@ function FakeDMChannelButton() {
 }
 
 // ─── Chat Bar Button ────────────────────────────────────────────────────────
-const FakeDMButton: ChatBarButtonFactory = (props: any) => {
+const FakeDMButton: ChatBarButtonFactory = ({ isMainChat }) => {
     const [btnRect, setBtnRect] = React.useState<DOMRect | null>(null);
 
-    if (fakeDMSettings.store.location !== "chatbar") return null;
+    if (!isMainChat || fakeDMSettings.store.location !== "chatbar") return null;
 
     function handleClick(e: React.MouseEvent) {
         if (btnRect) {

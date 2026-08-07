@@ -71,4 +71,9 @@ export const enum IpcEvents {
     PRIVACY_CLEAR_DNS_CACHE = "TestCordPrivacyClearDnsCache",
     PRIVACY_CLEAR_LOGS = "TestCordPrivacyClearLogs",
     PRIVACY_INCREMENT_COUNTER = "TestCordPrivacyIncrementCounter",
+    PRIVACY_GET_HOST_RULES = "TestCordPrivacyGetHostRules",
+    PRIVACY_SET_HOST_RULE = "TestCordPrivacySetHostRule",
+    PRIVACY_CLEAR_HOST_RULE = "TestCordPrivacyClearHostRule",
+    PRIVACY_ACK_ALERTS = "TestCordPrivacyAckAlerts",
+    PRIVACY_SECURITY_ALERT = "TestCordPrivacySecurityAlert",
 }

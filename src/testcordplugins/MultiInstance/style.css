@@ -483,8 +483,14 @@
 }
 
 .vc-multi-instance-add-input {
+    display: flex;
     flex: 1 1 auto;
     min-width: 140px;
+}
+
+.vc-multi-instance-add-input > * {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 @media (width <= 760px) {

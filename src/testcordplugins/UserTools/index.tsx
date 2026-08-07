@@ -30,7 +30,7 @@ import {
 } from "@webpack/common";
 import type { PropsWithChildren, ReactNode, SVGProps } from "react";
 
-const HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_TOP:", '.iconBadge,"top"');
+const HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_TOP:", '"top"===c');
 
 interface BaseIconProps extends IconProps {
     viewBox: string;

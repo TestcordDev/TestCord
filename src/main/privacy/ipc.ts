@@ -17,12 +17,30 @@ export function registerPrivacyIpcHandlers() {
             shields: trafficGuard.getShields(),
             outboundRoutes: trafficGuard.getOutboundRoutes(),
             logs: trafficGuard.getLogs(),
+            hostRules: trafficGuard.getHostRules(),
+            alerts: trafficGuard.getAlerts(),
             dnsProviders: dnsResolver.getAllProviders(),
             selectedDnsProvider: dnsResolver.getSelectedProviderName(),
             dnsLatencies: dnsResolver.getLatencies(),
             dnsCacheStats: dnsResolver.getCacheStats(),
             dnsDiagnosticLogs: dnsResolver.getDiagnosticLogs()
         };
+    });
+
+    ipcMain.handle(IpcEvents.PRIVACY_GET_HOST_RULES, () => {
+        return trafficGuard.getHostRules();
+    });
+
+    ipcMain.handle(IpcEvents.PRIVACY_SET_HOST_RULE, (_, host: string, rule: "allow" | "block") => {
+        return trafficGuard.setHostRule(host, rule);
+    });
+
+    ipcMain.handle(IpcEvents.PRIVACY_CLEAR_HOST_RULE, (_, host: string) => {
+        return trafficGuard.clearHostRule(host);
+    });
+
+    ipcMain.handle(IpcEvents.PRIVACY_ACK_ALERTS, () => {
+        return trafficGuard.acknowledgeAlerts();
     });
 
     ipcMain.handle(IpcEvents.PRIVACY_TOGGLE_SHIELD, (_, key: any, value: boolean) => {

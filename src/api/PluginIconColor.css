@@ -30,6 +30,6 @@
 
 .vc-plugin-icon-button svg[stroke]:not([stroke="none"], [stroke="currentColor"]),
 .vc-plugin-icon-button:is(svg)[stroke]:not([stroke="none"], [stroke="currentColor"]),
-.vc-plugin-icon-button svg [stroke]:not([stroke="none"], [stroke="currentColor"]) {
+.vc-plugin-icon-button svg [stroke]:not([stroke="none"], [stroke="currentColor"], .blackLine) {
     stroke: var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary))) !important; /* Overrides hardcoded plugin SVG stroke attrs. */
 }
