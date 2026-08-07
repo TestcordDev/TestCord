@@ -11,7 +11,7 @@ import { TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByProps } from "@webpack";
 
-const infos: Record<string, { os: string; browser: string }> = {
+const infos: Record<string, { os: string; browser: string; }> = {
     windows: { os: "Windows", browser: "Discord Client" },
     linux: { os: "Linux", browser: "Discord Client" },
     macos: { os: "Mac OS X", browser: "Discord Client" },
@@ -24,7 +24,7 @@ const infos: Record<string, { os: string; browser: string }> = {
 };
 
 // Desktop OS profiles used for aggressive (deep) IDENTIFY spoofing.
-const desktopProfiles: Record<string, { os: string; osVersion: string; userAgent: string }> = {
+const desktopProfiles: Record<string, { os: string; osVersion: string; userAgent: string; }> = {
     windows: {
         os: "Windows",
         osVersion: "10.0.22631",
@@ -97,7 +97,7 @@ const settings = definePluginSettings({
 
 export default definePlugin({
     name: "PlatformEmulator",
-    description: "PlatformEmulator allows you to spoof your Discord platform (Windows, Linux, Android, iOS, etc.), with optional aggressive OS/client metadata spoofing.",
+    description: "PlatformEmulator allows you to spoof your Discord platform (Windows, Linux, Android, iOS, etc.), with optional aggressive OS/client metadata spoofing. (dx maintains it, dont ask x2b for support with this)",
     tags: ["Privacy", "Utility"],
     authors: [TestcordDevs.sirphantom89, TestcordDevs.x2b],
     settings,
