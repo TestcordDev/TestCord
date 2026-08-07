@@ -25,7 +25,7 @@ import { getFactoryPatchedSource, SYM_ORIGINAL_FACTORY } from "@webpack/patcher"
 
 import Plugins from "~plugins";
 
-type DiagnosticTabKey = "overview" | "diagnostics" | "impact" | "monitor" | "guide";
+type DiagnosticTabKey = "overview" | "diagnostics" | "impact" | "monitor" | "changes" | "guide";
 
 const startTime = Date.now();
 
@@ -789,6 +789,9 @@ function HealthTab() {
     const [monitorSort, setMonitorSort] = useState<"impact" | "name" | "cpu" | "calls">("impact");
     const [monitorImpactFilter, setMonitorImpactFilter] = useState<"all" | "high" | "medium" | "low">("all");
 
+    // Patch-changes tab search
+    const [changesSearchQuery, setChangesSearchQuery] = useState("");
+
     // Clicking a header sorts by that column. Clicking the already-active
     // column toggles direction; switching to a new column resets to "desc".
     const handleSortColumn = (column: keyof PluginProfileData) => {
@@ -912,6 +915,24 @@ function HealthTab() {
                 }
             });
     }, [profiles, monitorSearchQuery, monitorImpactFilter, monitorSort]);
+
+    // All `codeChanged` entries across every plugin that has been enabled at
+    // least once. Coverage is inherently limited to plugins whose patches have
+    // actually run, since the source hash is only recorded from patchFactory.
+    const changeRows = useMemo(() => {
+        const rows: Array<{ plugin: string; find: string; error?: string; at: number; }> = [];
+        for (const [name, entry] of PluginHealth.getAll()) {
+            if (Plugins[name]?.required) continue;
+            for (const f of entry.patchFailures) {
+                if (f.kind !== "codeChanged") continue;
+                rows.push({ plugin: name, find: f.find, error: f.error, at: f.at });
+            }
+        }
+        const query = changesSearchQuery.trim().toLowerCase();
+        return rows
+            .filter(r => !query || r.plugin.toLowerCase().includes(query) || r.find.toLowerCase().includes(query))
+            .sort((a, b) => b.at - a.at);
+    }, [tick, changesSearchQuery]);
 
     const handleBannerToggle = (show: boolean) => {
         setBannerDismissed(!show);
@@ -1043,6 +1064,12 @@ function HealthTab() {
                     onClick={() => setActiveTab("monitor")}
                 >
                     Plugin monitor
+                </button>
+                <button
+                    className={`vc-health-nav-item ${activeTab === "changes" ? "vc-health-nav-item-active" : ""}`}
+                    onClick={() => setActiveTab("changes")}
+                >
+                    Patch changes
                 </button>
                 <button
                     className={`vc-health-nav-item ${activeTab === "guide" ? "vc-health-nav-item-active" : ""}`}
@@ -1539,6 +1566,56 @@ function HealthTab() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* TAB: PATCH CHANGES */}
+            {activeTab === "changes" && (
+                <div className="vc-health-tab-content">
+                    <Paragraph color="text-subtle" className={Margins.bottom20}>
+                        When Discord updates the code a plugin patches, the patch may keep working but the underlying source has changed. This tab lists every detected source change so you can spot patches that are drifting before they break. Coverage is limited to plugins that have been enabled at least once, since a change can only be detected after a patch actually runs.
+                    </Paragraph>
+
+                    <div style={{ marginBottom: "1rem" }}>
+                        <TextInput
+                            placeholder="Filter by plugin or find string..."
+                            value={changesSearchQuery}
+                            onChange={(val: string) => setChangesSearchQuery(val)}
+                        />
+                    </div>
+
+                    <div className="vc-health-table-wrapper">
+                        <table className="vc-health-table">
+                            <thead>
+                                <tr>
+                                    <th>Plugin</th>
+                                    <th>Find</th>
+                                    <th>Details</th>
+                                    <th>Detected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {changeRows.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={4} className="vc-health-table-empty">
+                                            {changesSearchQuery.trim()
+                                                ? "No patch changes match your filter."
+                                                : "No patch changes detected. This is the healthy state: every tracked patch still targets the same Discord source it did last session."}
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    changeRows.map((r, i) => (
+                                        <tr key={`${r.plugin}:${r.find}:${i}`}>
+                                            <td>{r.plugin}</td>
+                                            <td><code>{r.find}</code></td>
+                                            <td>{r.error ?? "Source changed since last session."}</td>
+                                            <td>{new Date(r.at).toLocaleString()}</td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             )}
