@@ -553,6 +553,11 @@ const settings = definePluginSettings({
     }
 });
 
+function TestCordDiscordIcon({ original }: { original: any; }) {
+    const { useTestcordIcon } = useSettings(["useTestcordIcon"]);
+    return useTestcordIcon ? <TestCordIcon size={24} /> : original;
+}
+
 export default definePlugin({
     name: "Settings",
     description: "Adds Settings UI and debug info",
@@ -827,12 +832,7 @@ export default definePlugin({
         ));
     },
 
-    TestCordDiscordIcon({ original }: { original: any; }) {
-        const { useTestcordIcon } = useSettings(["useTestcordIcon"]);
-        return useTestcordIcon ? <TestCordIcon size={24} /> : original;
-    },
-
     renderDiscordIcon(originalIcon: any) {
-        return <this.TestCordDiscordIcon original={originalIcon} />;
+        return <TestCordDiscordIcon original={originalIcon} />;
     },
 });
