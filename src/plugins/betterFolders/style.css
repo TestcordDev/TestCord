@@ -31,7 +31,7 @@
         "guildsList betterFoldersSidebar channelsList page";
 }
 
-.vc-betterFolders-sidebar div:empty,
+.vc-betterFolders-sidebar div:empty:not([data-dnd-name]),
 .vc-betterFolders-sidebar div[style*="display: none"] {
     display: none !important;
     height: 0 !important;
