@@ -150,7 +150,15 @@ function sortSnapshot(
     return arr;
 }
 
-function buildExportReport(): string {
+// Single source of truth for impact-score badge severity. Thresholds live here
+// so the diagnostics table, impact list, and per-plugin monitor can never drift.
+function impactBadgeClass(score: number): string {
+    if (score > 50) return "high";
+    if (score > 15) return "medium";
+    return "low";
+}
+
+function buildExportReport(excludeConflicts = false): string {
     const all = PluginHealth.getAll();
     const currentSession = PluginHealth.getCurrentSession();
     const history = PluginHealth.getHistory();
@@ -163,11 +171,16 @@ function buildExportReport(): string {
         profiles,
         safeMode: PluginHealth.isSafeModeEnabled(),
         quarantinedPlugins: PluginHealth.getQuarantinedPlugins(),
+        conflictsExcluded: excludeConflicts,
         plugins: {} as Record<string, unknown>
     };
     for (const [name, entry] of all) {
+        const patchFailures = excludeConflicts
+            ? entry.patchFailures.filter(f => f.kind !== "conflict")
+            : entry.patchFailures;
         (report.plugins as Record<string, unknown>)[name] = {
             ...entry,
+            patchFailures,
             stability: PluginHealth.getStability(name)
         };
     }
@@ -375,7 +388,7 @@ function ExpandableError({ text, max = 400 }: { text: string; max?: number; }) {
     );
 }
 
-function PluginHealthCard({ name, entry, expanded, onToggle, filter }: { name: string; entry: PluginHealthEntry; expanded: boolean; onToggle: () => void; filter: FilterKey; }) {
+function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHidden }: { name: string; entry: PluginHealthEntry; expanded: boolean; onToggle: () => void; filter: FilterKey; conflictsHidden: boolean; }) {
     const plugin = Plugins[name];
     const showPatchFailures = filter !== "runtime";
     const showRuntimeErrors = filter === "all" || filter === "runtime";
@@ -390,7 +403,7 @@ function PluginHealthCard({ name, entry, expanded, onToggle, filter }: { name: s
 
     const openReport = () => {
         try {
-            const body = generateGitHubIssueBody({ pluginName: name });
+            const body = generateGitHubIssueBody({ pluginName: name, excludeConflicts: conflictsHidden });
             const url = buildIssueUrl(`[${name}] Bug report`, body, ["bug"]);
             VencordNative.native.openExternal(url);
         } catch (e) {
@@ -406,7 +419,7 @@ function PluginHealthCard({ name, entry, expanded, onToggle, filter }: { name: s
 
     const copyReport = async () => {
         try {
-            const body = generateGitHubIssueBody({ pluginName: name });
+            const body = generateGitHubIssueBody({ pluginName: name, excludeConflicts: conflictsHidden });
             await navigator.clipboard.writeText(body);
             Toasts.show({
                 id: Toasts.genId(),
@@ -862,6 +875,19 @@ function HealthTab() {
 
     const profiles = useMemo(() => PluginProfiler.getAllProfiles(), [tick]);
 
+    const diagRows = useMemo(() => {
+        const query = diagSearchQuery.toLowerCase();
+        return profiles
+            .filter(p => p.pluginName.toLowerCase().includes(query))
+            .sort((a, b) => {
+                const valA = a[sortColumn] as any;
+                const valB = b[sortColumn] as any;
+                if (valA < valB) return sortDirection === "asc" ? -1 : 1;
+                if (valA > valB) return sortDirection === "asc" ? 1 : -1;
+                return 0;
+            });
+    }, [profiles, diagSearchQuery, sortColumn, sortDirection]);
+
     const handleBannerToggle = (show: boolean) => {
         setBannerDismissed(!show);
         void DataStore.set(DB_KEY_BANNER_DISMISSED, !show);
@@ -914,7 +940,7 @@ function HealthTab() {
 
     const copyAllReports = async () => {
         try {
-            const json = buildExportReport();
+            const json = buildExportReport(conflictsHidden);
             await navigator.clipboard.writeText(json);
             Toasts.show({
                 id: Toasts.genId(),
@@ -1173,6 +1199,7 @@ function HealthTab() {
                                         expanded={!collapsed.has(name)}
                                         onToggle={() => toggleCard(name)}
                                         filter={filter}
+                                        conflictsHidden={conflictsHidden}
                                     />
                                 ))
                             )}
@@ -1231,20 +1258,37 @@ function HealthTab() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {profiles
-                                    .filter(p => p.pluginName.toLowerCase().includes(diagSearchQuery.toLowerCase()))
-                                    .sort((a, b) => {
-                                        const valA = a[sortColumn] as any;
-                                        const valB = b[sortColumn] as any;
-                                        if (valA < valB) return sortDirection === "asc" ? -1 : 1;
-                                        if (valA > valB) return sortDirection === "asc" ? 1 : -1;
-                                        return 0;
-                                    })
-                                    .map(p => (
-                                        <tr key={p.pluginName}>
+                                {diagRows.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={7} className="vc-health-table-empty">
+                                            {profiles.length === 0
+                                                ? "No plugins measured yet. Metrics appear once plugins run after startup."
+                                                : `No plugins match "${diagSearchQuery}".`}
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    diagRows.map(p => (
+                                        <tr
+                                            key={p.pluginName}
+                                            className="vc-health-table-row-clickable"
+                                            onClick={() => {
+                                                setSelectedPluginName(p.pluginName);
+                                                setActiveTab("monitor");
+                                            }}
+                                            role="button"
+                                            tabIndex={0}
+                                            onKeyDown={e => {
+                                                if (e.key === "Enter" || e.key === " ") {
+                                                    e.preventDefault();
+                                                    setSelectedPluginName(p.pluginName);
+                                                    setActiveTab("monitor");
+                                                }
+                                            }}
+                                            title={`View ${p.pluginName} details`}
+                                        >
                                             <td><strong>{p.pluginName}</strong></td>
                                             <td>
-                                                <span className={`vc-health-impact-badge ${p.impactScore > 50 ? "high" : p.impactScore > 15 ? "medium" : "low"}`}>
+                                                <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
                                                     {p.impactScore}
                                                 </span>
                                             </td>
@@ -1254,7 +1298,8 @@ function HealthTab() {
                                             <td>{p.maxCallMs} ms</td>
                                             <td>{p.activeResources}</td>
                                         </tr>
-                                    ))}
+                                    ))
+                                )}
                             </tbody>
                         </table>
                     </div>
@@ -1272,7 +1317,7 @@ function HealthTab() {
                                 <div className="vc-health-impact-header">
                                     <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                                         <h3 style={{ margin: 0, color: "var(--text-normal)" }}>{p.pluginName}</h3>
-                                        <span className={`vc-health-impact-badge ${p.impactScore > 50 ? "high" : p.impactScore > 15 ? "medium" : "low"}`}>
+                                        <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
                                             Impact Score: {p.impactScore}
                                         </span>
                                     </div>
@@ -1298,7 +1343,7 @@ function HealthTab() {
 
                                 {p.advisory && (
                                     <div className="vc-health-advisory-box">
-                                        💡 {p.advisory}
+                                        {p.advisory}
                                     </div>
                                 )}
                             </Card>
@@ -1321,7 +1366,7 @@ function HealthTab() {
                                         onClick={() => setSelectedPluginName(p.pluginName)}
                                     >
                                         <span style={{ fontWeight: 600 }}>{p.pluginName}</span>
-                                        <span className={`vc-health-impact-badge ${p.impactScore > 50 ? "high" : p.impactScore > 15 ? "medium" : "low"}`}>
+                                        <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
                                             {p.impactScore}
                                         </span>
                                     </div>
@@ -1334,7 +1379,7 @@ function HealthTab() {
                             <div className="vc-health-detail-column">
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                     <h2 style={{ margin: 0, color: "var(--text-normal)" }}>{currentPluginProfile.pluginName}</h2>
-                                    <span className={`vc-health-impact-badge ${currentPluginProfile.impactScore > 50 ? "high" : currentPluginProfile.impactScore > 15 ? "medium" : "low"}`}>
+                                    <span className={`vc-health-impact-badge ${impactBadgeClass(currentPluginProfile.impactScore)}`}>
                                         Impact Score: {currentPluginProfile.impactScore}
                                     </span>
                                 </div>
@@ -1389,7 +1434,7 @@ function HealthTab() {
                                     </div>
                                     {currentPluginProfile.advisory && (
                                         <div className="vc-health-advisory-box" style={{ marginTop: "0.75rem" }}>
-                                            💡 {currentPluginProfile.advisory}
+                                            {currentPluginProfile.advisory}
                                         </div>
                                     )}
                                 </div>

@@ -72,11 +72,14 @@ function formatDate(ts: number): string {
     return new Date(ts).toISOString();
 }
 
-function formatPluginHealth(pluginName: string, entry: PluginHealthEntry): string {
+function formatPluginHealth(pluginName: string, entry: PluginHealthEntry, excludeConflicts = false): string {
     const lines: string[] = [];
-    if (entry.patchFailures.length) {
+    const patchFailures = excludeConflicts
+        ? entry.patchFailures.filter(f => f.kind !== "conflict")
+        : entry.patchFailures;
+    if (patchFailures.length) {
         lines.push("Patch failures:");
-        for (const f of entry.patchFailures) {
+        for (const f of patchFailures) {
             const parts = [`- [${f.kind}] find=${f.find}`];
             if (f.match) parts.push(`match=${f.match}`);
             if (f.moduleId) parts.push(`module=${f.moduleId}`);
@@ -110,6 +113,13 @@ export interface DebugReportOptions {
     pluginName?: string;
     /** Additional context the caller wants to append (bug description etc). */
     extraNotes?: string;
+    /**
+     * If true, patch failures of kind `conflict` are omitted from the report,
+     * mirroring the health tab's "Show conflicts" toggle. Conflicts (multiple
+     * plugins patching the same module) are usually benign, so users who hide
+     * them in the UI expect them hidden in the copied report too.
+     */
+    excludeConflicts?: boolean;
 }
 
 /**
@@ -167,7 +177,7 @@ export function generateGitHubIssueBody(options: DebugReportOptions = {}): strin
         if (health) {
             lines.push("## Recorded issues");
             lines.push("");
-            lines.push(formatPluginHealth(options.pluginName, health));
+            lines.push(formatPluginHealth(options.pluginName, health, options.excludeConflicts));
             lines.push("");
         }
     } else {
@@ -176,7 +186,7 @@ export function generateGitHubIssueBody(options: DebugReportOptions = {}): strin
             lines.push("## Unhealthy plugins");
             lines.push("");
             for (const [name, entry] of allHealth) {
-                lines.push(formatPluginHealth(name, entry));
+                lines.push(formatPluginHealth(name, entry, options.excludeConflicts));
                 lines.push("");
             }
         }

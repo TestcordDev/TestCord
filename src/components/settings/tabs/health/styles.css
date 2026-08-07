@@ -253,6 +253,26 @@
     background: var(--card-background-default, #2b2d31);
 }
 
+.vc-health-table-row-clickable {
+    cursor: pointer;
+}
+
+.vc-health-table-row-clickable:hover {
+    background: var(--background-modifier-selected, rgb(255 255 255 / 6%));
+}
+
+.vc-health-table-row-clickable:focus-visible {
+    outline: 2px solid var(--brand-500, #5865f2);
+    outline-offset: -2px;
+}
+
+.vc-health-table-empty {
+    padding: 2rem 1rem !important;
+    text-align: center;
+    color: var(--text-muted, #949ba4);
+    font-style: italic;
+}
+
 /* ─── Impact Badges & Cards ───────────────────────────────────── */
 
 .vc-health-impact-badge {
