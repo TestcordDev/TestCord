@@ -421,7 +421,7 @@ export default definePlugin({
     authors: [{ name: "irritably", id: 928787166916640838n }, TestcordDevs.nnenaza],
     dependencies: ["HeaderBarAPI"],
     settings,
-    chatBarButton: { render: EncryptionToggleButton, icon: () => null as any },
+    chatBarButton: { render: EncryptionToggleButton, icon: () => (settings.store.encryptionEnabled ? <EncryptionEnabledIcon /> : <EncryptionDisabledIcon />) },
 
     start() {
         const { location } = settings.store;
