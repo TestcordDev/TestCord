@@ -45,7 +45,7 @@
     display: grid;
     min-height: 40px;
     gap: 10px;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
     align-items: center;
 }
 

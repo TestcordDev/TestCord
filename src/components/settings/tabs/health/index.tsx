@@ -1,6 +1,7 @@
 /*
- * TestCord, a modification for Discord's desktop app
- * Client Health & Diagnostic Suite Settings Tab
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 import "./styles.css";
@@ -8,7 +9,7 @@ import "./styles.css";
 import * as DataStore from "@api/DataStore";
 import { type NetworkDomainSummary, NetworkMonitor } from "@api/NetworkMonitor";
 import { type PatchFailure, PluginHealth, type PluginHealthEntry, type SessionRecord, type StabilityScore } from "@api/PluginHealth";
-import { PluginProfiler, PluginProfileData } from "@api/PluginProfiler";
+import { PluginProfileData,PluginProfiler } from "@api/PluginProfiler";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { Divider } from "@components/Divider";
@@ -784,13 +785,13 @@ function HealthTab() {
         void PluginHealth.loadPluginChanges();
 
         void DataStore.get<boolean>(DB_KEY_BANNER_DISMISSED).then(v => {
-            if (v) setBannerDismissed(true);
+            setBannerDismissed(v ?? true);
         });
         void DataStore.get<boolean>(DB_KEY_NOTICE_DISMISSED).then(v => {
-            if (v) setNoticeDismissed(true);
+            setNoticeDismissed(v ?? true);
         });
         void DataStore.get<boolean>(DB_KEY_CONFLICTS_HIDDEN).then(v => {
-            if (v === false) setConflictsHidden(false);
+            setConflictsHidden(v ?? true);
         });
 
         return () => {
