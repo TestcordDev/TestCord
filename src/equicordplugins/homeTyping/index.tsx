@@ -33,7 +33,7 @@ export default definePlugin({
     },
     patches: [
         {
-            find: "#{intl::DISCODO_DISABLED}",
+            find: ".BUTTON_HOME}",
             replacement:
                 [
                     {
