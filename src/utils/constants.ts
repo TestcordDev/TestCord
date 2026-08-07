@@ -1418,6 +1418,10 @@ export const EquicordDevs = Object.freeze({
         name: "benjas333",
         id: 456577284464443394n,
     },
+    k304: {
+        name: "k304",
+        id: 255004979637649408n
+    },
 } satisfies Record<string, Dev>);
 
 export const TestcordDevs = /* #__PURE__*/ Object.freeze({
