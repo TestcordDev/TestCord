@@ -100,20 +100,23 @@ function loadPdfjs() {
 
 async function loadBytes(att: MessageAttachment) {
     const key = `${att.id}:${att.url}`;
+    let bytes: Uint8Array;
     const hit = cache.get(key);
     if (hit) {
         cache.delete(key);
         cache.set(key, hit);
-        return hit;
-    }
+        bytes = hit;
+    } else {
+        bytes = await Native.fetchPdf(att.url, maxBytes()) as Uint8Array;
+        if (bytes.byteLength > maxBytes()) throw new Error("PDF exceeds size limit");
 
-    const bytes = await Native.fetchPdf(att.url, maxBytes()) as Uint8Array;
-    if (bytes.byteLength > maxBytes()) throw new Error("PDF exceeds size limit");
-
-    if (settings.store.cacheEntries > 0) {
-        setCache(key, bytes);
+        if (settings.store.cacheEntries > 0) {
+            setCache(key, bytes);
+        }
     }
-    return bytes;
+    // pdf.js transfers (detaches) the buffer when opening it, so hand it a
+    // fresh copy and keep the cached master intact for the next open.
+    return new Uint8Array(bytes);
 }
 
 function fmtSize(n: number) {
