@@ -241,6 +241,12 @@
     color: var(--text-normal, #dbdee1);
 }
 
+.vc-health-table td code {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+}
+
 .vc-health-table tr:last-child td {
     border-bottom: none;
 }
@@ -388,6 +394,41 @@
 .vc-health-master-item.selected {
     background: var(--background-modifier-selected, rgb(255 255 255 / 8%));
     color: var(--interactive-active, #fff);
+}
+
+.vc-health-master-item-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+    margin-right: 8px;
+}
+
+.vc-health-master-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 0.75rem;
+}
+
+.vc-health-master-selects {
+    display: flex;
+    gap: 8px;
+}
+
+.vc-health-master-selects > * {
+    flex: 1;
+    min-width: 0;
+}
+
+.vc-health-master-empty {
+    padding: 1.5rem 1rem;
+    text-align: center;
+    color: var(--text-muted, #949ba4);
+    font-style: italic;
+    font-size: 0.85rem;
 }
 
 .vc-health-detail-column {

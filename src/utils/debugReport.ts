@@ -145,7 +145,7 @@ export function generateGitHubIssueBody(options: DebugReportOptions = {}): strin
 
     lines.push("## Environment");
     lines.push("");
-    lines.push(`- **TestCord**: v${VERSION} (${gitHashShort} — https://github.com/${gitRemote}/commit/${gitHash})`);
+    lines.push(`- **TestCord**: v${VERSION} (${gitHashShort}, https://github.com/${gitRemote}/commit/${gitHash})`);
     lines.push(`- **Build date**: ${new Date(BUILD_TIMESTAMP).toISOString()}`);
     lines.push(`- **Client**: ${client.name}${client.version ? ` v${client.version}` : ""}${client.hash ? ` (${client.hash.slice(0, 7)})` : ""}`);
     lines.push(`- **Platform**: ${platformName()}`);

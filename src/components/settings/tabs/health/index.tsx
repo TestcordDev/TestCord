@@ -280,7 +280,7 @@ function PatchViewerModal({
             size="lg"
             title={
                 <div className="vc-patch-viewer-title">
-                    Patch viewer — {pluginName}
+                    Patch viewer: {pluginName}
                 </div>
             }
         >
@@ -338,7 +338,7 @@ function PatchViewerModal({
                                     </pre>
                                 ) : (
                                     <Paragraph color="text-subtle">
-                                        Source comparison unavailable — the module may have been unloaded.
+                                        Source comparison unavailable. The module may have been unloaded.
                                     </Paragraph>
                                 )}
                             </div>
@@ -360,7 +360,7 @@ function StabilityBadge({ score }: { score: StabilityScore; }) {
     const { badge, sessionsSeen, sessionsBroken, ratio } = score;
     const tooltip =
         badge === "unknown"
-            ? `Seen in ${sessionsSeen} recorded session${sessionsSeen === 1 ? "" : "s"} — need at least 3 to score.`
+            ? `Seen in ${sessionsSeen} recorded session${sessionsSeen === 1 ? "" : "s"}. Needs at least 3 to score.`
             : `Broken in ${sessionsBroken} of the last ${sessionsSeen} sessions (${(ratio * 100).toFixed(0)}%).`;
     return (
         <span
@@ -410,7 +410,7 @@ function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHi
             Toasts.show({
                 id: Toasts.genId(),
                 type: Toasts.Type.FAILURE,
-                message: "Failed to build issue URL — see console",
+                message: "Failed to build issue URL. See console for details.",
                 options: { position: Toasts.Position.TOP }
             });
             console.error(e);
@@ -675,9 +675,9 @@ function DiscordUpdateBanner({ noModuleCount, dismissed, onDismiss }: { noModule
                 </Button>
             </div>
             <Paragraph>
-                {noModuleCount} plugins have missing modules — this usually means
-                Discord shipped an update that removed or renamed code the plugins
-                were targeting. Report the broken plugins so their authors can fix them.
+                {noModuleCount} plugins can't find the code they patch. This almost always
+                means a recent Discord update removed or renamed that code. Reporting the
+                affected plugins helps their authors ship a fix.
             </Paragraph>
         </Card>
     );
@@ -784,6 +784,11 @@ function HealthTab() {
     const [sortColumn, setSortColumn] = useState<keyof PluginProfileData>("impactScore");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
+    // Monitor tab master-list controls
+    const [monitorSearchQuery, setMonitorSearchQuery] = useState("");
+    const [monitorSort, setMonitorSort] = useState<"impact" | "name" | "cpu" | "calls">("impact");
+    const [monitorImpactFilter, setMonitorImpactFilter] = useState<"all" | "high" | "medium" | "low">("all");
+
     // Clicking a header sorts by that column. Clicking the already-active
     // column toggles direction; switching to a new column resets to "desc".
     const handleSortColumn = (column: keyof PluginProfileData) => {
@@ -887,6 +892,26 @@ function HealthTab() {
                 return 0;
             });
     }, [profiles, diagSearchQuery, sortColumn, sortDirection]);
+
+    const monitorRows = useMemo(() => {
+        const query = monitorSearchQuery.toLowerCase();
+        return profiles
+            .filter(p => p.pluginName.toLowerCase().includes(query))
+            .filter(p => monitorImpactFilter === "all" || impactBadgeClass(p.impactScore) === monitorImpactFilter)
+            .sort((a, b) => {
+                switch (monitorSort) {
+                    case "name":
+                        return a.pluginName.localeCompare(b.pluginName);
+                    case "cpu":
+                        return b.totalCpuTimeMs - a.totalCpuTimeMs;
+                    case "calls":
+                        return b.callCount - a.callCount;
+                    case "impact":
+                    default:
+                        return b.impactScore - a.impactScore;
+                }
+            });
+    }, [profiles, monitorSearchQuery, monitorImpactFilter, monitorSort]);
 
     const handleBannerToggle = (show: boolean) => {
         setBannerDismissed(!show);
@@ -1031,9 +1056,8 @@ function HealthTab() {
             {activeTab === "overview" && (
                 <div className="vc-health-tab-content">
                     <Paragraph color="text-subtle" className={Margins.bottom20}>
-                        Discord ships frequent updates that can break individual plugins. If a plugin here
-                        looks broken, the fastest way to help is to click <em>Report</em> — it opens a
-                        pre-filled bug report on <Link href="https://github.com/TestcordDev/TestCord/issues">GitHub</Link>.
+                        Discord's frequent updates can break individual plugins. If a plugin here
+                        looks broken, click <em>Report</em> to open a pre-filled bug report on <Link href="https://github.com/TestcordDev/TestCord/issues">GitHub</Link>.
                     </Paragraph>
 
                     <DiscordUpdateBanner
@@ -1082,7 +1106,7 @@ function HealthTab() {
                             <div>
                                 <HeadingSecondary>Show conflicts</HeadingSecondary>
                                 <Paragraph color="text-subtle">
-                                    Display patch conflicts (multiple plugins patching the same module). Conflicts don't necessarily mean a plugin is broken — many plugins intentionally patch the same code.
+                                    Show patch conflicts, where multiple plugins patch the same module. A conflict doesn't necessarily mean a plugin is broken; plugins often patch the same code on purpose.
                                 </Paragraph>
                             </div>
                             <label className="vc-plugin-health-toggle">
@@ -1358,19 +1382,62 @@ function HealthTab() {
                         {/* Master Left Column */}
                         <div className="vc-health-master-column">
                             <HeadingSecondary className={Margins.bottom8}>Monitored Plugins</HeadingSecondary>
+
+                            <div className="vc-health-master-controls">
+                                <TextInput
+                                    placeholder="Search plugins..."
+                                    value={monitorSearchQuery}
+                                    onChange={(val: string) => setMonitorSearchQuery(val)}
+                                />
+                                <div className="vc-health-master-selects">
+                                    <Select
+                                        options={[
+                                            { label: "Sort: Impact", value: "impact" },
+                                            { label: "Sort: Name", value: "name" },
+                                            { label: "Sort: CPU", value: "cpu" },
+                                            { label: "Sort: Calls", value: "calls" }
+                                        ]}
+                                        closeOnSelect
+                                        select={val => setMonitorSort(val)}
+                                        isSelected={val => val === monitorSort}
+                                        serialize={String}
+                                    />
+                                    <Select
+                                        options={[
+                                            { label: "Impact: All", value: "all" },
+                                            { label: "Impact: High", value: "high" },
+                                            { label: "Impact: Medium", value: "medium" },
+                                            { label: "Impact: Low", value: "low" }
+                                        ]}
+                                        closeOnSelect
+                                        select={val => setMonitorImpactFilter(val)}
+                                        isSelected={val => val === monitorImpactFilter}
+                                        serialize={String}
+                                    />
+                                </div>
+                            </div>
+
                             <div className="vc-health-master-list">
-                                {profiles.map(p => (
-                                    <div
-                                        key={p.pluginName}
-                                        className={`vc-health-master-item ${currentPluginProfile?.pluginName === p.pluginName ? "selected" : ""}`}
-                                        onClick={() => setSelectedPluginName(p.pluginName)}
-                                    >
-                                        <span style={{ fontWeight: 600 }}>{p.pluginName}</span>
-                                        <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
-                                            {p.impactScore}
-                                        </span>
+                                {monitorRows.length === 0 ? (
+                                    <div className="vc-health-master-empty">
+                                        {profiles.length === 0
+                                            ? "No plugins measured yet."
+                                            : "No plugins match your filters."}
                                     </div>
-                                ))}
+                                ) : (
+                                    monitorRows.map(p => (
+                                        <div
+                                            key={p.pluginName}
+                                            className={`vc-health-master-item ${currentPluginProfile?.pluginName === p.pluginName ? "selected" : ""}`}
+                                            onClick={() => setSelectedPluginName(p.pluginName)}
+                                        >
+                                            <span className="vc-health-master-item-name">{p.pluginName}</span>
+                                            <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
+                                                {p.impactScore}
+                                            </span>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
 
