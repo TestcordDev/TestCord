@@ -981,11 +981,12 @@ function ButtonsDragTab() {
                             const listening = listeningId === item.id;
                             const canonical = getCanonicalLabel(item.label);
                             const isUserSettings = canonical === "User Settings";
+                            const isPanelLayout = canonical === "Panel Layout";
                             return (
                                 <Flex key={item.id} justifyContent="space-between" alignItems="center" style={{ padding: "8px 12px", backgroundColor: "var(--background-secondary, var(--background-surface-higher))", borderRadius: "6px" }}>
                                     <BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>
                                     <Flex gap={8} alignItems="center">
-                                        {!isUserSettings && (
+                                        {!isUserSettings && !isPanelLayout && (
                                             <>
                                                 {((cfg.color && cfg.color !== "#5865f2") || (cfg.opacity !== undefined && cfg.opacity !== 100)) && (
                                                     <Button size="small" variant="secondary" title="Reset custom color & opacity" onClick={() => {
