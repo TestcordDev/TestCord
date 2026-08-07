@@ -13,7 +13,7 @@ import { Button } from "@components/Button";
 import { Divider } from "@components/Divider";
 import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
-import { FolderIcon, GithubIcon, LogIcon, PaintbrushIcon, RestartIcon } from "@components/Icons";
+import { DiscordIcon, FolderIcon, GithubIcon, LogIcon, PaintbrushIcon, RestartIcon } from "@components/Icons";
 import { Notice } from "@components/Notice";
 import { Paragraph } from "@components/Paragraph";
 import { openContributorModal, openPluginModal, SettingsTab, wrapTab } from "@components/settings";
@@ -256,6 +256,15 @@ function EquicordSettings() {
                     action={() =>
                         VencordNative.native.openExternal(
                             "https://github.com/" + gitRemote,
+                        )
+                    }
+                />
+                <QuickAction
+                    Icon={DiscordIcon}
+                    text="Discord Server"
+                    action={() =>
+                        VencordNative.native.openExternal(
+                            "https://discord.gg/KTNXyDTXGb",
                         )
                     }
                 />
