@@ -12,6 +12,7 @@ import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { Message } from "@vencord/discord-types";
+import { Toasts } from "@webpack/common";
 
 interface IMessageCreate {
     type: "MESSAGE_CREATE";
@@ -366,6 +367,14 @@ const EncryptionToggleButton: ChatBarButtonFactory = ({ channel, type }) => {
                         }
                     );
                 }
+
+                if (settings.store.enableToastConfirmation) {
+                    Toasts.show({
+                        message: encryptionEnabled ? "Disabled Encryption" : "Enabled Encryption",
+                        id: "SecurecordOpossumToast",
+                        type: Toasts.Type.MESSAGE
+                    });
+                }
             }}
         >
             {encryptionEnabled ? <EncryptionEnabledIcon /> : <EncryptionDisabledIcon />}
@@ -405,6 +414,11 @@ const settings = definePluginSettings({
     enableBotConfirmation: {
         type: OptionType.BOOLEAN,
         description: "Enable/disable bot confirmation",
+        default: true
+    },
+    enableToastConfirmation: {
+        type: OptionType.BOOLEAN,
+        description: "Enable/disable toast confirmation",
         default: true
     },
     enableLogging: {
