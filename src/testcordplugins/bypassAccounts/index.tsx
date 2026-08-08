@@ -382,9 +382,10 @@ class FileAccountManager {
 }
 
 function loginWithToken(token: string) {
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+
     const loginInterval = setInterval(() => {
-        const iframe = document.createElement("iframe");
-        document.body.appendChild(iframe);
         if (iframe.contentWindow) {
             try {
                 iframe.contentWindow.localStorage.token = `"${token}"`;
@@ -392,11 +393,11 @@ function loginWithToken(token: string) {
                 console.warn("iframe localStorage access failed:", error);
             }
         }
-        document.body.removeChild(iframe);
     }, 50);
 
     setTimeout(() => {
         clearInterval(loginInterval);
+        iframe.remove();
         location.reload();
     }, 2500);
 }

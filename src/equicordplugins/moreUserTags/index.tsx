@@ -162,6 +162,10 @@ export default definePlugin({
         channel ??= ChannelStore.getChannel(channelId!) as any;
         if (!channel) return null;
 
+        const guild = GuildStore.getGuild(channel.guild_id);
+        const ownerId = guild?.ownerId;
+        const isOwner = ownerId === user.id;
+
         const perms = this.getPermissions(user, channel);
 
         for (const tag of tags) {
@@ -174,12 +178,10 @@ export default definePlugin({
             // avoid adding other tags because the owner will always match the condition for them
             if (
                 (tag.name !== "OWNER" &&
-                    GuildStore.getGuild(channel?.guild_id)?.ownerId ===
-                    user.id &&
+                    isOwner &&
                     isChat &&
                     !settings.tagSettings.OWNER.showInChat) ||
-                (GuildStore.getGuild(channel?.guild_id)?.ownerId ===
-                    user.id &&
+                (isOwner &&
                     !isChat &&
                     !settings.tagSettings.OWNER.showInNotChat)
             )

@@ -310,12 +310,15 @@ class CopleSnow {
         CopleSnow.setStyle(snowflake, styleRules);
         this.$snowfield.appendChild(snowflake);
 
-        setTimeout(() => {
+        // The fall is a CSS transition, so the start and end styles must land in
+        // separate frames. Two rAFs do that on the frame loop the browser is already
+        // running, instead of arming a 100ms timer for every single flake.
+        requestAnimationFrame(() => requestAnimationFrame(() => {
             CopleSnow.setStyle(snowflake, {
                 transform: `translate(${translateX}px, ${translateY}px) rotate(${angle}deg)`,
                 opacity: this.options.fadeOut ? 0 : opacity
             });
-        }, 100);
+        }));
     }
 
     play() {

@@ -27,15 +27,14 @@ export async function queryCordCat(_: IpcMainInvokeEvent, userId: string, apiKey
         return { status: 200, data: cached.data };
     }
 
-    try {
+    const headers: Record<string, string> = {
+        "accept": "application/json",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    };
+    if (apiKey) headers["X-API-Key"] = apiKey;
 
-        const res = await fetch(`https://api.cord.cat/api/v2/query/${userId}`, {
-            headers: {
-                "accept": "application/json",
-                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                "authorization": apiKey ? `Bearer ${apiKey}` : "",
-            }
-        });
+    try {
+        const res = await fetch(`https://api.cord.cat/api/v2/query/${userId}`, { headers });
 
         if (!res.ok) {
             return { status: res.status, data: await res.text() };

@@ -18,7 +18,7 @@ import { ChannelStore, GuildStore, IconUtils, RelationshipStore, SelectedChannel
 import { beginDrag as beginSessionDrag, clearDragState, getLastDropAt, hasActiveDrag, isGuildDragActive, isInputDragSource, isUserDragActive, markDrop, markInputDragSource, scheduleGuildCleanup, shouldIgnoreDrop, startDragWatchdog, stopDragState, touchDrag } from "./dragState";
 import { type GhostState, hideGhost as hideDragGhost, isGhostVisible, mountGhost as mountDragGhost, scheduleGhostPosition as scheduleDragGhostPosition, showGhost as showDragGhost, unmountGhost as unmountDragGhost } from "./ghost";
 import { clearInviteCache, createInvite, isGroupMessageChannel } from "./invite";
-import { type ChannelTarget, inspectDragEvent, type ResolvedDragTarget } from "./targets";
+import { type ChannelTarget, inspectDragEvent, isMessageHover, type ResolvedDragTarget } from "./targets";
 import { collectPayloadStrings, type DropEntity, extractStrings, parseDragifyPayload, parseFromStrings, serializeDragEntity } from "./utils";
 
 const logger = new Logger("Dragify");
@@ -37,6 +37,15 @@ type DragifyRuntime = {
 
 let pluginInstance: DragifyRuntime | null = null;
 let transparentDragImage: HTMLCanvasElement | null = null;
+let foreignDragParseCache: DataTransfer | null = null;
+let cachedForeignEntity: DropEntity | null | undefined;
+
+function getCachedForeignEntity(dataTransfer: DataTransfer): DropEntity | null | undefined {
+    if (foreignDragParseCache === dataTransfer) return cachedForeignEntity;
+    foreignDragParseCache = dataTransfer;
+    cachedForeignEntity = parseFromStrings(extractStrings(dataTransfer), { ChannelStore, GuildStore, UserStore });
+    return cachedForeignEntity;
+}
 
 function getTransparentDragImage(): HTMLCanvasElement | null {
     if (typeof document === "undefined") return null;
@@ -448,8 +457,7 @@ export default definePlugin({
         const { dataTransfer } = event;
         if (!dataTransfer || dataTransfer.files?.length) return;
         if (!hasActiveDrag() && !hasDragifyTransfer(dataTransfer)) {
-            const payloads = extractStrings(dataTransfer);
-            if (!parseFromStrings(payloads, { ChannelStore, GuildStore, UserStore })) return;
+            if (!getCachedForeignEntity(dataTransfer)) return;
         }
 
         event.preventDefault();
@@ -557,8 +565,8 @@ export default definePlugin({
     },
 
     isMessageInputEvent(event: DragEvent): boolean {
-        const inspection = inspectDragTarget(event, this);
-        return inspection.hasMessageInput || (settings.store.allowChatBodyDrop && inspection.hasChatBody);
+        const hover = isMessageHover(event);
+        return hover.hasMessageInput || (settings.store.allowChatBodyDrop && hover.hasChatBody);
     },
 
     mountGhost() {

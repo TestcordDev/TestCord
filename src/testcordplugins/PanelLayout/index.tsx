@@ -252,8 +252,18 @@ let observer: ReturnType<typeof setInterval> | null = null;
 let updateQueued = false;
 let updateFrame = 0;
 
+let lastBtnEls: HTMLElement[] = [];
+let lastBtnSig: (string | null)[] = [];
+
 function updateDomAttributes() {
     const btns = getAllButtons();
+    // Cheap signature: element identity + own aria-label + already injected marker.
+    // Skips the querySelector/setAttribute pass while the panel is untouched.
+    const sig = btns.map(el => `${el.getAttribute("aria-label")}|${el.getAttribute("data-deracul-label")}`);
+
+    if (btns.length === lastBtnEls.length
+        && btns.every((el, i) => el === lastBtnEls[i] && sig[i] === lastBtnSig[i])) return;
+
     for (const el of btns) {
         const rawLabel = getBtnLabel(el);
         if (!rawLabel) continue;
@@ -262,6 +272,9 @@ function updateDomAttributes() {
             el.setAttribute("data-deracul-label", canonical);
         }
     }
+
+    lastBtnEls = btns;
+    lastBtnSig = btns.map(el => `${el.getAttribute("aria-label")}|${el.getAttribute("data-deracul-label")}`);
 }
 
 function startObserver() {
@@ -288,6 +301,8 @@ function stopObserver() {
         updateFrame = 0;
     }
     updateQueued = false;
+    lastBtnEls = [];
+    lastBtnSig = [];
 }
 
 // ─── CSS Builders ─────────────────────────────────────────────────────────────

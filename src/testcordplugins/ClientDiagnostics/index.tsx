@@ -107,7 +107,7 @@ const PLUGIN_NAME = "Client diagnostics";
 const ENTRY_KEY = "illegalcord_client_diagnostics";
 const SETTINGS_KEYS: SettingKey[] = ["sortBy", "showDisabled", "showApiPlugins", "refreshMs"];
 const REFRESH_SETTING_KEYS: SettingKey[] = ["refreshMs"];
-const LAG_NOTIFICATION_CHECK_MS = 30_000;
+const LAG_NOTIFICATION_CHECK_MS = 60_000;
 const LAG_NOTIFICATION_COOLDOWN_MS = 10 * 60_000;
 const LAG_NOTIFICATION_MIN_COLLECTION_MS = 30_000;
 const cl = classNameFactory("vc-client-diagnostics-");
@@ -225,6 +225,8 @@ const frameOwners = new Map<number, string>();
 const listenerOwners = new WeakMap<EventTarget, Map<string, Map<EventListenerOrEventListenerObject, string>>>();
 const listenerCountByPlugin = new Map<string, number>();
 const sourceSnippets = new Map<string, SourceSnippet[]>();
+const snippetSources = new WeakMap<object, Set<string>>();
+const wrappedMethods: Array<{ owner: Record<PropertyKey, unknown>; key: string; original: unknown; }> = [];
 
 let startedAt = Date.now();
 let originalSetTimeout: typeof window.setTimeout | undefined;
@@ -350,6 +352,17 @@ function stringifyCodePart(value: unknown) {
 }
 
 function rememberSourceSnippet(pluginName: string, surface: string, label: string, source: unknown) {
+    if (source !== null && (typeof source === "object" || typeof source === "function")) {
+        const seen = snippetSources.get(source);
+
+        if (seen) {
+            if (seen.has(surface)) return;
+            seen.add(surface);
+        } else {
+            snippetSources.set(source, new Set([surface]));
+        }
+    }
+
     const code = normalizeCodeSnippet(stringifyCodePart(source));
     if (!code || code.includes("[native code]")) return;
 
@@ -400,6 +413,12 @@ function wrapObjectMethod(owner: Record<PropertyKey, unknown>, key: string, plug
 
     rememberSourceSnippet(pluginName, surface, `${surface} callback`, original);
     owner[key] = wrapMeasured(pluginName, surface, original as AnyCallback);
+    wrappedMethods.push({ owner, key, original });
+}
+
+function restoreWrappedMethods() {
+    for (const { owner, key, original } of wrappedMethods) owner[key] = original;
+    wrappedMethods.length = 0;
 }
 
 function asRecord(value: unknown) {
@@ -1730,6 +1749,7 @@ export default definePlugin({
         try {
             stopLagNotifications();
             restoreGlobalProbes();
+            restoreWrappedMethods();
             removeFromArray(SettingsPlugin.customEntries, entry => entry.key === ENTRY_KEY);
         } catch (error) {
             logger.error("Failed to stop client diagnostics.", error);

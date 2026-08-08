@@ -39,7 +39,7 @@ const StandingConfig: Record<number, { label: string; hoverColor: string; Icon: 
 };
 
 function StandingButton() {
-    const standing = useStateFromStores([SafetyHubStore], () => SafetyHubStore.getAccountStanding());
+    const standingState = useStateFromStores([SafetyHubStore], () => SafetyHubStore.getAccountStanding()?.state);
     const isInitialized = useStateFromStores([SafetyHubStore], () => SafetyHubStore.isInitialized());
     const [hovered, setHovered] = React.useState(false);
 
@@ -47,7 +47,7 @@ function StandingButton() {
         if (!isInitialized) fetchSafetyHub().catch(() => { });
     }, [isInitialized]);
 
-    const config = StandingConfig[standing?.state] ?? StandingConfig[StandingState.ALL_GOOD];
+    const config = StandingConfig[standingState] ?? StandingConfig[StandingState.ALL_GOOD];
 
     return (
         <div style={{ display: "contents" }} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
