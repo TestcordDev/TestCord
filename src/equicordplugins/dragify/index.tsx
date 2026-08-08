@@ -18,7 +18,7 @@ import { ChannelStore, GuildStore, IconUtils, RelationshipStore, SelectedChannel
 import { beginDrag as beginSessionDrag, clearDragState, getLastDropAt, hasActiveDrag, isGuildDragActive, isInputDragSource, isUserDragActive, markDrop, markInputDragSource, scheduleGuildCleanup, shouldIgnoreDrop, startDragWatchdog, stopDragState, touchDrag } from "./dragState";
 import { type GhostState, hideGhost as hideDragGhost, isGhostVisible, mountGhost as mountDragGhost, scheduleGhostPosition as scheduleDragGhostPosition, showGhost as showDragGhost, unmountGhost as unmountDragGhost } from "./ghost";
 import { clearInviteCache, createInvite, isGroupMessageChannel } from "./invite";
-import { type ChannelTarget, inspectDragEvent, inspectInputTarget, type ResolvedDragTarget } from "./targets";
+import { type ChannelTarget, inspectDragEvent, isMessageHover, type ResolvedDragTarget } from "./targets";
 import { collectPayloadStrings, type DropEntity, extractStrings, parseDragifyPayload, parseFromStrings, serializeDragEntity } from "./utils";
 
 const logger = new Logger("Dragify");
@@ -37,10 +37,14 @@ type DragifyRuntime = {
 
 let pluginInstance: DragifyRuntime | null = null;
 let transparentDragImage: HTMLCanvasElement | null = null;
-let foreignDragParseCache: ReturnType<typeof parseFromStrings> | undefined;
+let foreignDragParseCache: DataTransfer | null = null;
+let cachedForeignEntity: DropEntity | null | undefined;
 
-function resetForeignDragParseCache() {
-    foreignDragParseCache = undefined;
+function getCachedForeignEntity(dataTransfer: DataTransfer): DropEntity | null | undefined {
+    if (foreignDragParseCache === dataTransfer) return cachedForeignEntity;
+    foreignDragParseCache = dataTransfer;
+    cachedForeignEntity = parseFromStrings(extractStrings(dataTransfer), { ChannelStore, GuildStore, UserStore });
+    return cachedForeignEntity;
 }
 
 function getTransparentDragImage(): HTMLCanvasElement | null {
@@ -76,12 +80,6 @@ function setDragifyDataTransfer(dataTransfer: DataTransfer | null, entity: DropE
 
 function hasDragifyTransfer(dataTransfer?: DataTransfer | null) {
     return dataTransfer?.types?.includes("application/dragify");
-}
-
-function isInsideGuildFolder(event: DragEvent): boolean {
-    const { target } = event;
-    if (!(target instanceof Element)) return false;
-    return target.closest('[aria-owns^="folder-items-"], [id^="folder-items-"], .vc-betterFolders-sidebar') != null;
 }
 
 function buildDropKey(entity: DropEntity, channelId: string) {
@@ -424,11 +422,6 @@ export default definePlugin({
     },
 
     onGuildDragStart(event: DragEvent, guildId: string) {
-        // Discord's native guild drag-and-drop handles moves into, out of, and
-        // reorders inside server folders. When a drag starts on a folder's own
-        // row or its member rows (mini icons / BetterFolders rows), defer to the
-        // native DnD and skip dragify, or the folder drags never resolve.
-        if (isInsideGuildFolder(event)) return;
         this.beginDrag(event, { kind: "guild", id: guildId }, { effectAllowed: "copyMove" });
     },
 
@@ -464,13 +457,7 @@ export default definePlugin({
         const { dataTransfer } = event;
         if (!dataTransfer || dataTransfer.files?.length) return;
         if (!hasActiveDrag() && !hasDragifyTransfer(dataTransfer)) {
-            if (foreignDragParseCache === undefined) {
-                const payloads = extractStrings(dataTransfer);
-                const parsed = parseFromStrings(payloads, { ChannelStore, GuildStore, UserStore });
-                if (!parsed) return;
-                foreignDragParseCache = parsed;
-            }
-            if (!foreignDragParseCache) return;
+            if (!getCachedForeignEntity(dataTransfer)) return;
         }
 
         event.preventDefault();
@@ -479,7 +466,6 @@ export default definePlugin({
     },
 
     globalDrop: async (event: DragEvent) => {
-        resetForeignDragParseCache();
         const inst = pluginInstance;
         if (!inst || !inst.isMessageInputEvent(event)) return;
         if (isInputDragSource()) return;
@@ -515,7 +501,6 @@ export default definePlugin({
     },
 
     globalDragStart: (event: DragEvent) => {
-        resetForeignDragParseCache();
         const inst = pluginInstance;
         if (!inst || !event.dataTransfer) return;
 
@@ -560,7 +545,6 @@ export default definePlugin({
     },
 
     globalDragEnd: (_event: DragEvent) => {
-        resetForeignDragParseCache();
         setTimeout(() => {
             if (Date.now() - getLastDropAt() < 100) return;
             clearDragState();
@@ -581,8 +565,8 @@ export default definePlugin({
     },
 
     isMessageInputEvent(event: DragEvent): boolean {
-        const inspection = inspectInputTarget(event);
-        return inspection.hasMessageInput || (settings.store.allowChatBodyDrop && inspection.hasChatBody);
+        const hover = isMessageHover(event);
+        return hover.hasMessageInput || (settings.store.allowChatBodyDrop && hover.hasChatBody);
     },
 
     mountGhost() {

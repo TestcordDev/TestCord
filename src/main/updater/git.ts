@@ -41,6 +41,11 @@ function git(...args: string[]) {
     else return execFile("git", args, opts);
 }
 
+async function getCurrentBranch() {
+    const res = await git("rev-parse", "--abbrev-ref", "HEAD");
+    return res.stdout.trim();
+}
+
 async function getRepo() {
     const res = await git("remote", "get-url", "origin");
     return res.stdout.trim()
@@ -52,6 +57,11 @@ async function calculateGitChanges() {
     await git("fetch");
 
     const branch = RendererSettings.store.updaterBranch ?? "main";
+
+    // Only report updates when HEAD is on the configured branch. If the user
+    // switched branches locally, the updater must not list (or apply) updates
+    // from another branch.
+    if (await getCurrentBranch() !== branch) return [];
 
     const existsOnOrigin = (await git("ls-remote", "origin", branch)).stdout.length > 0;
     if (!existsOnOrigin) return [];
@@ -70,6 +80,7 @@ async function calculateGitChanges() {
 
 async function pull() {
     const branch = RendererSettings.store.updaterBranch ?? "main";
+    if (await getCurrentBranch() !== branch) return false;
     await git("checkout", branch);
     const res = await git("pull");
     return res.stdout.includes("Fast-forward");
@@ -77,6 +88,9 @@ async function pull() {
 
 async function forcePull() {
     const branch = RendererSettings.store.updaterBranch ?? "main";
+    // Never switch branches or reset/clean the worktree unless HEAD is already
+    // on the configured branch, or local work on another branch gets destroyed.
+    if (await getCurrentBranch() !== branch) return false;
     await git("fetch", "origin", branch);
     await git("checkout", branch);
     await git("reset", "--hard", `origin/${branch}`);

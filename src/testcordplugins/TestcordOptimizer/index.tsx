@@ -881,7 +881,7 @@ export default definePlugin({
             noWarn: true
         },
         {
-            find: "getMemberListSections",
+            find: "getMemberListVersion(e),members:",
             predicate: () => settings.store.throttleMemberList,
             replacement: {
                 match: /\(0,\i\.\i\)\(\[\i\.\i\],\(\)=>\(\{version:\i\.\i\.getMemberListVersion\((\i)\),members:\i\.\i\.getMemberListSections\(\1\)\}\)\)/,

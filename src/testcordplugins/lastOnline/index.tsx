@@ -5,9 +5,10 @@
  */
 
 import * as DataStore from "@api/DataStore";
+import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
-import definePlugin from "@utils/types";
+import definePlugin, { OptionType } from "@utils/types";
 import { User } from "@vencord/discord-types";
 import { React } from "@webpack/common";
 
@@ -17,6 +18,15 @@ const pathModule = (window as any).require?.("path");
 
 const log = new Logger("LastOnline");
 const DATASTORE_KEY = "LastOnline_onlineList";
+
+const settings = definePluginSettings({
+    showInServers: {
+        type: OptionType.BOOLEAN,
+        description: "Also show the last online indicator in server member lists",
+        default: false,
+        restartNeeded: true
+    }
+});
 
 interface PresenceStatus {
     hasBeenOnline: boolean;
@@ -138,9 +148,10 @@ function formatTime(time: number) {
 
 export default definePlugin({
     name: "LastOnline",
-    description: "Adds a last online indicator under usernames in your DM list and guild member list",
+    description: "Adds a last online indicator under usernames in your DM list",
     tags: ["Friends", "Utility"],
     authors: [TestcordDevs.x2b],
+    settings,
     flux: {
         PRESENCE_UPDATES({ updates }: { updates?: Array<{ user?: { id?: string; }; status?: string; }>; }) {
             if (!Array.isArray(updates)) return;
@@ -161,7 +172,7 @@ export default definePlugin({
             // Lazy import to avoid early execution
             const { addMemberListDecorator } = require("@api/MemberListDecorators");
 
-            // Add decorator to member list
+            // DM member list is the default surface
             addMemberListDecorator("last-online-indicator", props => {
                 if (!props.user) {
                     return null;
@@ -170,7 +181,19 @@ export default definePlugin({
                     return this.buildRecentlyOffline(props.user);
                 }
                 return null;
-            });
+            }, "dms");
+
+            if (settings.store.showInServers) {
+                addMemberListDecorator("last-online-indicator-servers", props => {
+                    if (!props.user) {
+                        return null;
+                    }
+                    if (this.shouldShowRecentlyOffline(props.user)) {
+                        return this.buildRecentlyOffline(props.user);
+                    }
+                    return null;
+                }, "guilds");
+            }
 
             log.info("LastOnline decorators added");
         } catch (e) {
@@ -181,6 +204,7 @@ export default definePlugin({
         try {
             const { removeMemberListDecorator } = require("@api/MemberListDecorators");
             removeMemberListDecorator("last-online-indicator");
+            removeMemberListDecorator("last-online-indicator-servers");
         } catch (e) {
             log.error("Failed to remove member list decorator:", e);
         }

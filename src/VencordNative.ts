@@ -119,7 +119,12 @@ export default {
         stopDiagnostic: () => invoke<any[]>(IpcEvents.PRIVACY_STOP_DIAGNOSTIC),
         clearDnsCache: () => invoke<any>(IpcEvents.PRIVACY_CLEAR_DNS_CACHE),
         clearLogs: () => invoke<any[]>(IpcEvents.PRIVACY_CLEAR_LOGS),
-        incrementCounter: (key: string, amount?: number) => invoke<any>(IpcEvents.PRIVACY_INCREMENT_COUNTER, key, amount)
+        incrementCounter: (key: string, amount?: number) => invoke<any>(IpcEvents.PRIVACY_INCREMENT_COUNTER, key, amount),
+        getHostRules: () => invoke<Record<string, "allow" | "block">>(IpcEvents.PRIVACY_GET_HOST_RULES),
+        setHostRule: (host: string, rule: "allow" | "block") => invoke<Record<string, "allow" | "block">>(IpcEvents.PRIVACY_SET_HOST_RULE, host, rule),
+        clearHostRule: (host: string) => invoke<Record<string, "allow" | "block">>(IpcEvents.PRIVACY_CLEAR_HOST_RULE, host),
+        acknowledgeAlerts: () => invoke<any[]>(IpcEvents.PRIVACY_ACK_ALERTS),
+        onSecurityAlert: (cb: (alert: any) => void) => { ipcRenderer.on(IpcEvents.PRIVACY_SECURITY_ALERT, (_, alert) => cb(alert)); }
     },
 
     pluginHelpers: PluginHelpers

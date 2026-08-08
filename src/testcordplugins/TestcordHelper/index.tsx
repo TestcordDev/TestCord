@@ -1213,6 +1213,7 @@ interface LiveFixRequest {
 
 // Circular console buffer — last 500 entries, each with level, text, and timestamp
 const CONSOLE_BUF_MAX = 500;
+const CONSOLE_MSG_MAX = 2000;
 const consoleBuf: Array<{ level: string; msg: string; time: number; }> = [];
 let origConsole: Record<string, (...args: any[]) => void> = {};
 let consoleOverridesInstalled = false;
@@ -1225,9 +1226,9 @@ function installConsoleCapture() {
     for (const level of levels) {
         origConsole[level] = (console as any)[level].bind(console);
         (console as any)[level] = function (...args: any[]) {
-            const msg = args.map(a => typeof a === "object" ? safeStringify(a) : String(a)).join(" ");
+            const msg = args.map(a => typeof a === "object" ? safeStringify(a) : String(a)).join(" ").slice(0, CONSOLE_MSG_MAX);
+            if (consoleBuf.length >= CONSOLE_BUF_MAX) consoleBuf.shift();
             consoleBuf.push({ level, msg, time: Date.now() });
-            if (consoleBuf.length > CONSOLE_BUF_MAX) consoleBuf.shift();
             return origConsole[level](...args);
         };
     }
@@ -1240,10 +1241,12 @@ function uninstallConsoleCapture() {
         (console as any)[level] = origConsole[level];
     }
     origConsole = {};
+    consoleBuf.length = 0;
 }
 
 function safeStringify(obj: any): string {
-    try { return JSON.stringify(obj); } catch { return String(obj); }
+    if (obj instanceof Error) return obj.stack ?? `${obj.name}: ${obj.message}`;
+    try { return JSON.stringify(obj)?.slice(0, CONSOLE_MSG_MAX) ?? String(obj); } catch { return String(obj); }
 }
 
 function handleLiveFixRequest(req: LiveFixRequest): any {
@@ -1445,7 +1448,7 @@ async function startLiveFixServer() {
                     await NativeHelper.writeResponse(JSON.stringify({ id: reqId, error: String(e) }));
                 } catch { /* ignore */ }
             }
-        }, 100);
+        }, 250);
 
         logger.info("LiveFix integration started — HTTP server on port 18963");
         showToast("LiveFix server started on port 18963", Toasts.Type.SUCCESS);

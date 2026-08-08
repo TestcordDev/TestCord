@@ -22,7 +22,7 @@ import { Button, React, SearchableSelect, TextInput, useEffect, useState } from 
 
 import { ThemeCard } from "./ThemeCard";
 
-const InputStyles = findCssClassesLazy("inputWrapper", "inputError", "error");
+const InputStyles = findCssClassesLazy("inputWrapper", "editable", "error");
 
 export const apiUrl = "https://themes.equicord.org/api";
 export const logger = new Logger("ThemeLibrary", "#e5c890");

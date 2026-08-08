@@ -46,10 +46,6 @@ function collectEventElements(event: DragEvent): HTMLElement[] {
     add(event.target);
     for (const entry of event.composedPath?.() ?? []) add(entry);
 
-    if (typeof document !== "undefined" && event.clientX != null && event.clientY != null) {
-        for (const element of document.elementsFromPoint?.(event.clientX, event.clientY) ?? []) add(element);
-    }
-
     return elements;
 }
 
@@ -174,25 +170,15 @@ export function inspectDragEvent(event: DragEvent, context: InspectionContext): 
     return inspectElements(collectEventElements(event), context);
 }
 
-export function inspectInputTarget(event: DragEvent): { hasMessageInput: boolean; hasChatBody: boolean; } {
-    const candidates: HTMLElement[] = [];
-    const { target } = event;
-    if (target instanceof HTMLElement) candidates.push(target);
-    for (const entry of event.composedPath?.() ?? []) {
-        if (entry instanceof HTMLElement) {
-            candidates.push(entry);
-            break;
-        }
-    }
-
+export function isMessageHover(event: DragEvent): { hasMessageInput: boolean; hasChatBody: boolean; } {
     let hasMessageInput = false;
     let hasChatBody = false;
-    for (const element of candidates) {
-        if (!hasMessageInput && element.closest(messageInputSelector)) hasMessageInput = true;
-        if (!hasChatBody && element.closest(chatBodySelector)) hasChatBody = true;
+    for (const entry of event.composedPath?.() ?? []) {
+        if (!(entry instanceof Element)) continue;
+        if (!hasMessageInput && entry.matches(messageInputSelector)) hasMessageInput = true;
+        if (!hasChatBody && entry.matches(chatBodySelector)) hasChatBody = true;
         if (hasMessageInput && hasChatBody) break;
     }
-
     return { hasMessageInput, hasChatBody };
 }
 

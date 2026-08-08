@@ -81,13 +81,19 @@ export function findLastIndex<T>(array: T[], predicate: (e: T, t: number, n: T[]
     return -1;
 }
 
-const getTimestamp = (timestamp: any): Date => {
-    return new Date(timestamp);
+const getTimestamp = (timestamp: any, id?: string): Date => {
+    if (timestamp) return new Date(timestamp);
+    // Records from before the timestamp column existed, or restored from partial
+    // payloads, can lack a timestamp. new Date(undefined) yields an Invalid Date
+    // that crashes Discord's chat layer (Intl throws "Invalid time value") when
+    // the message is re-added to the store, so fall back to the snowflake time.
+    if (id) return new Date(Number(BigInt(id) >> 22n) + DISCORD_EPOCH);
+    return new Date();
 };
 
 export const mapTimestamp = (m: any) => {
-    if (m.timestamp) m.timestamp = getTimestamp(m.timestamp);
-    if (m.editedTimestamp) m.editedTimestamp = getTimestamp(m.editedTimestamp);
+    if (m.timestamp) m.timestamp = getTimestamp(m.timestamp, m.id);
+    if (m.editedTimestamp) m.editedTimestamp = getTimestamp(m.editedTimestamp, m.id);
     if (m.embeds) m.embeds = m.embeds.map(e => sanitizeEmbed(m.channel_id, m.id, e));
     return m;
 };
@@ -110,17 +116,17 @@ export function messageJsonToMessageClass(log: { message: LoggedMessageJSON; }) 
     if (cached) return cached;
 
     const message: any = new MessageClass(log.message);
-    message.timestamp = getTimestamp(message.timestamp);
+    message.timestamp = getTimestamp(message.timestamp, message.id);
 
     const editHistory = message.editHistory?.map(mapTimestamp);
     if (editHistory && editHistory.length > 0) {
         message.editHistory = editHistory;
     }
     if (message.editedTimestamp)
-        message.editedTimestamp = getTimestamp(message.editedTimestamp);
+        message.editedTimestamp = getTimestamp(message.editedTimestamp, message.id);
 
     if (message.firstEditTimestamp)
-        message.firstEditTimestamp = getTimestamp(message.firstEditTimestamp);
+        message.firstEditTimestamp = getTimestamp(message.firstEditTimestamp, message.id);
 
     message.author = UserStore.getUser(message.author.id) ?? new AuthorClass(message.author);
     message.author.nick = message.author.globalName ?? message.author.username;

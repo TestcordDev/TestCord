@@ -24,7 +24,7 @@ import { classes } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { DiscordPlatform, User } from "@vencord/discord-types";
 import { filters, mapMangledModuleLazy } from "@webpack";
-import { AuthenticationStore, PresenceStore, SessionsStore, Tooltip, UserStore, useStateFromStores } from "@webpack/common";
+import { PresenceStore, SessionsStore, Tooltip, UserStore, useStateFromStores } from "@webpack/common";
 
 const { useStatusFillColor } = mapMangledModuleLazy([".5625*", "translate"], {
     useStatusFillColor: filters.byCode(".hex")
@@ -88,14 +88,10 @@ const PlatformIcon = ({ platform, status, small, style }: { platform: any; statu
     return <Icon color={useStatusFillColor(status)} tooltip={tooltip} small={small} style={style} />;
 };
 
-function useEnsureOwnStatus(user: User) {
-    // Member list rows are recycled across users as you scroll, so this instance can go from
-    // rendering someone else to rendering you. Gating the hook on that made the hook count
-    // flip and tore down the row mid-render.
-    const isOwnUser = user?.id === AuthenticationStore.getId();
-    const sessions = useStateFromStores([SessionsStore], () => SessionsStore.getSessions());
+function computeOwnStatus(): Record<string, string> | null {
+    const sessions = SessionsStore.getSessions();
+    if (typeof sessions !== "object") return null;
 
-    if (!isOwnUser || typeof sessions !== "object") return;
     const sortedSessions = Object.values(sessions).sort(({ status: a }, { status: b }) => {
         if (a === b) return 0;
         if (a === "online") return 1;
@@ -105,12 +101,16 @@ function useEnsureOwnStatus(user: User) {
         return 0;
     });
 
-    const ownStatus = Object.values(sortedSessions).reduce((acc, curr) => {
+    return Object.values(sortedSessions).reduce((acc, curr) => {
         if (curr.clientInfo.client !== "unknown")
             acc[curr.clientInfo.client] = curr.status;
         return acc;
-    }, {});
+    }, {} as Record<string, string>);
+}
 
+function syncOwnStatus() {
+    const ownStatus = computeOwnStatus();
+    if (ownStatus == null) return;
     const { clientStatuses } = PresenceStore.getState();
     clientStatuses[UserStore.getCurrentUser().id] = ownStatus;
 }
@@ -123,12 +123,11 @@ interface PlatformIndicatorProps {
 }
 
 const PlatformIndicator = ({ user, isProfile, isMessage, isMemberList }: PlatformIndicatorProps) => {
-    useEnsureOwnStatus(user);
-
     const status = useStateFromStores(
         [PresenceStore],
         () => user == null ? null : PresenceStore.getClientStatus(user.id),
-        [user?.id]
+        [user?.id],
+        (a, b) => a === b || (a != null && b != null && Object.entries(a).every(([k, v]) => b[k] === v) && Object.keys(a).length === Object.keys(b).length)
     );
 
     if (user == null || (user.bot && !settings.store.showBots)) return null;
@@ -221,6 +220,14 @@ export default definePlugin({
     authors: [Devs.kemo, Devs.TheSun, Devs.Nuckyz, Devs.Ven, EquicordDevs.neoarz],
     isModified: true,
     settings,
+    start() {
+        syncOwnStatus();
+        this.syncOwnStatus = syncOwnStatus;
+        SessionsStore.addChangeListener(this.syncOwnStatus);
+    },
+    stop() {
+        if (this.syncOwnStatus != null) SessionsStore.removeChangeListener(this.syncOwnStatus);
+    },
     renderNicknameIcon(props) {
         if (!settings.store.profiles) return null;
         return (

@@ -10,7 +10,7 @@ import { TestcordDevs } from "@utils/constants";
 import { ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize,openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import { findStoreLazy } from "@webpack";
-import { Button, ChannelStore, FluxDispatcher, Forms, GuildMemberStore,GuildStore, Menu, React, RestAPI, TextInput, Toasts, UserStore } from "@webpack/common";
+import { Button, ChannelStore, FluxDispatcher, Forms, GuildMemberStore,GuildStore, Menu, React, RestAPI, SelectedChannelStore, TextInput, Toasts, UserStore } from "@webpack/common";
 
 const VoiceStateStore = findStoreLazy("VoiceStateStore");
 let isCurrentlyVcOwner = false;
@@ -171,10 +171,12 @@ function forceCheckVcOwnership(guildId?: string, channelId?: string): boolean {
 }
 
 function checkVcOwnershipStatus() {
-    const currentUserId = UserStore.getCurrentUser().id;
-    const currentVoiceState = VoiceStateStore.getVoiceStateForUser(currentUserId);
+    // One cheap store read decides whether any of this tick has to run. When not
+    // connected to a voice channel there is no ownership to recompute, so the
+    // current user lookup, voice state lookup and channel lookup are all skipped.
+    const voiceChannelId = SelectedChannelStore.getVoiceChannelId();
 
-    if (!currentVoiceState?.channelId) {
+    if (!voiceChannelId) {
         if (isCurrentlyVcOwner || currentVcChannel || currentVcGuild) {
             isCurrentlyVcOwner = false;
             currentVcChannel = null;
@@ -183,11 +185,11 @@ function checkVcOwnershipStatus() {
         return;
     }
 
-    const channel = ChannelStore.getChannel(currentVoiceState.channelId);
+    const channel = ChannelStore.getChannel(voiceChannelId);
     if (!channel?.guild_id) return;
 
     const wasOwner = isCurrentlyVcOwner;
-    const actuallyIsOwner = forceCheckVcOwnership(channel.guild_id, currentVoiceState.channelId);
+    const actuallyIsOwner = forceCheckVcOwnership(channel.guild_id, voiceChannelId);
 
     if (settings.store.showVcOwnerStatus && wasOwner !== actuallyIsOwner) {
         if (actuallyIsOwner) {

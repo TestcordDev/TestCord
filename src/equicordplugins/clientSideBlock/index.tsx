@@ -167,7 +167,7 @@ function activeNowView(cards) {
 export default definePlugin({
     name: "ClientSideBlock",
     description: "Allows you to locally hide almost all content from any user",
-    tags: ["Utility"],
+    tags: ["Utility", "Appearance", "Privacy"],
     searchTerms: ["blocked", "block", "hide", "hidden", "noblockedmessages"],
     authors: [Devs.Samwich, EquicordDevs.KamiRu],
     settings,

@@ -285,7 +285,6 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
     const [instances, setInstances] = React.useState<InstanceStatus[]>([]);
     const [busyId, setBusyId] = React.useState<string | null>(null);
     const [newName, setNewName] = React.useState("");
-    const [newToken, setNewToken] = React.useState("");
     const [editingId, setEditingId] = React.useState<string | null>(null);
     const [editingName, setEditingName] = React.useState("");
     const refreshTick = useTimer({ interval: 1000 });
@@ -429,16 +428,14 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
 
     function addInstance() {
         const requestedName = newName.trim();
-        const token = newToken.trim() || undefined;
 
         changeProfiles(profiles => {
             const name = requestedName || `Discord Instance ${profiles.length + 1}`;
             const id = makeProfileId(name, profiles);
 
-            return [...profiles, { id, name, saveSession: settings.store.saveSessionsByDefault, domain: DEFAULT_DOMAIN, mode: "detached", token }];
+            return [...profiles, { id, name, saveSession: settings.store.saveSessionsByDefault, domain: DEFAULT_DOMAIN, mode: "detached" }];
         });
         setNewName("");
-        setNewToken("");
         showToast("Added new instance profile.", Toasts.Type.SUCCESS);
     }
 
@@ -717,17 +714,12 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
                         <strong>Create an alt profile</strong>
                         <span>Its login data remains isolated from every other profile.</span>
                     </div>
-                    <div className="vc-multi-instance-add-controls" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        <div className="vc-multi-instance-add-input" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <div className="vc-multi-instance-add-controls">
+                        <div className="vc-multi-instance-add-input">
                             <TextInput
                                 value={newName}
                                 placeholder="Profile name"
                                 onChange={setNewName}
-                            />
-                            <TextInput
-                                value={newToken}
-                                placeholder="Token (optional)"
-                                onChange={setNewToken}
                             />
                         </div>
                         <Button size="small" variant="positive" onClick={addInstance}>

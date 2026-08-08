@@ -7,11 +7,15 @@
 import { addMessageAccessory, removeMessageAccessory } from "@api/MessageAccessories";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
-import { Text } from "@webpack/common";
+import { Text, useMemo } from "@webpack/common";
 
 function WordCount({ messageContent }: { messageContent: string; }) {
-    const words = messageContent.split(/\s+/).filter((word: string) => word.length > 0);
-    if (words.length <= 5) return null;
+    const words = useMemo(
+        () => messageContent.split(/\s+/).filter((word: string) => word.length > 0).length,
+        [messageContent]
+    );
+
+    if (words <= 5) return null;
     const characters = messageContent.length;
 
     return (
@@ -20,7 +24,7 @@ function WordCount({ messageContent }: { messageContent: string; }) {
                 variant="text-xs/normal"
                 style={{ color: "var(--text-muted)" }}
             >
-                {words.length} words, {characters} characters
+                {words} words, {characters} characters
             </Text>
         </div>
     );

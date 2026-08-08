@@ -15,7 +15,6 @@ import decor from "@plugins/decor";
 import { classNameFactory } from "@utils/css";
 import { Devs, EquicordDevs } from "@utils/index";
 import definePlugin, { OptionType } from "@utils/types";
-import { Alerts } from "@webpack/common";
 
 migratePluginSetting("Declutter", "removeShopAboveDms", "removeShopAboveDM");
 migratePluginSetting(
@@ -33,7 +32,7 @@ export const settings = definePluginSettings({
     },
     removeAvatarDecoration: {
         type: OptionType.BOOLEAN,
-        description: "Remove avatar decorations.",
+        description: "Remove avatar decorations. This is/will be disabled if Decor is enabled.",
         default: false,
         disabled: () => isPluginEnabled("Decor"),
         restartNeeded: true,
@@ -165,15 +164,7 @@ export default definePlugin({
     tags: ["Appearance", "Customisation"],
     authors: [EquicordDevs.Leon135, Devs.prism, Devs.Kyuuhachi, Devs.SomeAspy],
     start() {
-        if (isPluginEnabled("Decor") && settings.store.removeAvatarDecoration) {
-            settings.store.removeAvatarDecoration = false;
-            Alerts.show({
-                title: "Declutter",
-                body: "Avatar decoration removal has been disabled to prevent conflicts with Decor plugin.",
-                confirmText: "OK",
-                confirmVariant: "critical-primary",
-            });
-        }
+        if (isPluginEnabled("Decor") && settings.store.removeAvatarDecoration) settings.store.removeAvatarDecoration = false;
     },
     settings,
     patches: [
@@ -193,8 +184,7 @@ export default definePlugin({
                 match: /(?<=\{avatarDecoration:.{0,40}?)(void 0!==\i\?\i:)\i(?=\)?,canAnimate:)/,
                 replace: "$1null",
             },
-            predicate: () =>
-                settings.store.removeAvatarDecoration && !isPluginEnabled(decor.name),
+            predicate: () => settings.store.removeAvatarDecoration && !isPluginEnabled(decor.name),
         },
         {
             // Avatar decoration on dms list
@@ -203,8 +193,7 @@ export default definePlugin({
                 match: /null==\i\|\|\i\?null:\(0,\i\.jsxs?\)\("img",\{className:\i\.\i,src:\i,alt:" ","aria-hidden":!0\}\)/,
                 replace: "null",
             },
-            predicate: () =>
-                settings.store.removeAvatarDecoration && !isPluginEnabled(decor.name),
+            predicate: () => settings.store.removeAvatarDecoration && !isPluginEnabled(decor.name),
         },
         // User Area
         {
@@ -213,9 +202,7 @@ export default definePlugin({
                 {
                     match: /((\i)=\i\?\.avatarDecoration,\i=)\(0,\i\.\i\)\(\2\)/,
                     replace: "$1null",
-                    predicate: () =>
-                        settings.store.removeAvatarDecoration &&
-                        !isPluginEnabled(decor.name),
+                    predicate: () => settings.store.removeAvatarDecoration && !isPluginEnabled(decor.name),
                 },
                 {
                     match: /(iconForeground:null!=\i\?\i\.\i:void 0,nameplate:)\i/g,

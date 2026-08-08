@@ -83,7 +83,8 @@ const IGNORED_DISCORD_ERRORS = [
     "search for 'name' in undefined",
     "Attempting to set fast connect zstd when unsupported",
     /Cannot read properties of undefined \(reading 'call'\)/,
-    "Could not complete Remote Auth login, trying to restart with a new Remote Auth session."
+    "Could not complete Remote Auth login, trying to restart with a new Remote Auth session.",
+    /NoTrack: Failed to disable Sentry\./
 ] as Array<string | RegExp>;
 
 function toCodeBlock(s: string, indentation = 0, isDiscord = false) {
@@ -350,6 +351,9 @@ page.on("console", async e => {
 page.on("error", e => logStderr("[Error]", e.message));
 page.on("pageerror", (e: any) => {
     if (e.message.includes("Sentry successfully disabled")) return;
+    // NoTrack deletes window.DiscordSentry when it fails to neutralize Sentry,
+    // which makes unrelated code read a now-undefined window.DiscordSentry.
+    if (e.message.includes("fetchTrackData")) return;
 
     if (!e.message.startsWith("Object") && !e.message.includes("Cannot find module") && !/^.{1,2}$/.test(e.message)) {
         logStderr("[Page Error]", e.message);
@@ -366,9 +370,10 @@ const REPORT_TIMEOUT_MS = 9 * 60_000;
 setTimeout(() => {
     logStderr(`[Reporter] Failed to finish within ${REPORT_TIMEOUT_MS / 60_000} minutes, printing partial report`);
     process.exitCode = 1;
-    browser.close().finally(() => {
-        printReport().then(() => process.exit(1));
-    });
+    // The page can be in a crashed/blocked state where browser.close() never
+    // resolves, so kill the browser process instead of waiting on it.
+    browser.process()?.kill("SIGKILL");
+    printReport().finally(() => process.exit(1));
 }, REPORT_TIMEOUT_MS);
 
 await page.evaluateOnNewDocument(`

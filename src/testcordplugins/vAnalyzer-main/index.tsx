@@ -25,7 +25,7 @@ import { runModularScan } from "./analyzers/ModularScan";
 import { analyzeWithSucuri } from "./analyzers/Sucuri";
 import { analyzeWithVirusTotal } from "./analyzers/VirusTotal";
 import { analyzeWithWhereGoes } from "./analyzers/WhereGoes";
-import { autoAnalyzeMessage, extractUrlsFromMessage, manualAnalyzeUrls } from "./autoAnalyze";
+import { autoAnalyzeMessage, extractUrlsFromMessage, hasScannableUrls, manualAnalyzeUrls } from "./autoAnalyze";
 import { getModulesSync } from "./modularScanStore";
 import { settings } from "./settings";
 import { getThreat } from "./threatStore";
@@ -99,6 +99,15 @@ function FindUserByIdModal({ modalProps }: { modalProps: any; }) {
 
 function openFindUserByIdModal() {
     openModal(modalProps => <FindUserByIdModal modalProps={modalProps} />);
+}
+
+function shouldMountAccessory(message: Message): boolean {
+    if (message?.attachments?.length) return true;
+    if (settings.store.checkEmbeds && message?.embeds?.length) return true;
+    if (settings.store.analyzeBotsProfile && message?.author?.bot) return true;
+    if (message?.components?.length) return true;
+
+    return hasScannableUrls(message.content ?? "");
 }
 
 function getUserSearchLinks(userId: string) {
@@ -547,6 +556,8 @@ export default definePlugin({
     },
 
     renderMessageAccessory: props => {
+        if (!shouldMountAccessory(props.message)) return null;
+
         if (!(props.message as any).__vaAnalyzed) {
             (props.message as any).__vaAnalyzed = true;
             autoAnalyzeMessage(props.message);

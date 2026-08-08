@@ -15,17 +15,16 @@ import { CordCatModal } from "./CordCatModal";
 const Native = VencordNative.pluginHelpers.vAnalyzer as PluginNative<typeof import("./native")>;
 
 export async function analyzeUserWithCordCat(userId: string, username: string): Promise<void> {
-    safeToast(`Querying CordCat for ${username}...`);
-
     const apiKey = settings.store.cordCatApiKey;
-    let result;
 
     if (!apiKey) {
-        // sometimes cordcat returns data without an apikey, but is unreliable, for some reason the request works without the apikey
-        result = await Native.queryCordCat(userId);
-    } else {
-        result = await Native.queryCordCat(userId, apiKey);
+        safeToast("Set a CordCat API key in vAnalyzer settings to use this", Toasts.Type.FAILURE);
+        return;
     }
+
+    safeToast(`Querying CordCat for ${username}...`);
+
+    const result = await Native.queryCordCat(userId, apiKey);
 
     if (result.status !== 200) {
         safeToast(`CordCat lookup failed: HTTP ${result.status}`, Toasts.Type.FAILURE);
@@ -34,7 +33,7 @@ export async function analyzeUserWithCordCat(userId: string, username: string): 
 
     const { data } = result;
     const statements: any[] = data.statements ?? [];
-    const breachCount: number = data.breach?.resultsCount ?? 0;
+    const breachCount: number = data.breach?.count ?? data.breach?.resultsCount ?? 0;
 
     const parts: string[] = [];
     if (statements.length > 0) parts.push(`${statements.length} sanction${statements.length !== 1 ? "s" : ""}`);

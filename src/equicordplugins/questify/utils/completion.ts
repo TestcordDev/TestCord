@@ -182,6 +182,7 @@ let suppressQueueDrain = false;
 let videoProgressStackTracePatchSucceeded = false;
 let heartbeatStackTracePatchSucceeded = false;
 let didShowBrokenAutoCompleteToast = false;
+let questProgressDirty = false;
 
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     if (signal?.aborted) {
@@ -559,6 +560,10 @@ export function canAutoCompleteQuest(quest: Quest): boolean {
     return resolveAutoCompleteQuest(quest) != null;
 }
 
+export function markQuestProgressDirty(): void {
+    questProgressDirty = true;
+}
+
 export function setQuestAutoCompleteProgress(questOrId: Quest | string, progress: number | null): boolean {
     const questId = typeof questOrId === "string" ? questOrId : questOrId.id;
     const entry = activeAutoCompletes.get(questId);
@@ -567,7 +572,13 @@ export function setQuestAutoCompleteProgress(questOrId: Quest | string, progress
         return false;
     }
 
+    const previous = entry.progress;
+
     entry.progress = progress == null ? null : Math.max(0, progress);
+
+    if (previous == null || entry.progress == null || Math.floor(previous) !== Math.floor(entry.progress)) {
+        markQuestProgressDirty();
+    }
 
     return true;
 }
@@ -761,8 +772,13 @@ function startRerenderInterval(entry: AutoCompleteEntry): void {
             return;
         }
 
+        if (!questProgressDirty) {
+            return;
+        }
+
+        questProgressDirty = false;
         rerenderQuests();
-    }, 1000);
+    }, 5000);
 }
 
 async function runVideoQuest(quest: Quest, entry: AutoCompleteEntry, target: AutoCompleteQuestTarget): Promise<boolean> {
@@ -978,6 +994,7 @@ function hasRunningQueuedAutoComplete(): boolean {
 async function runEntry(quest: Quest, entry: AutoCompleteEntry): Promise<void> {
     entry.status = "running";
     updateResumeState();
+    rerenderQuests();
 
     try {
         const completed = await runAutoCompleteQuest(quest, entry);
@@ -1007,6 +1024,7 @@ async function runEntry(quest: Quest, entry: AutoCompleteEntry): Promise<void> {
         activeAutoCompletes.delete(entry.questId);
         resetQuestsToResume(quest);
         updateResumeState();
+        rerenderQuests();
 
         if (!getQuestifySettings().autoCompleteQuestsSimultaneously && !suppressQueueDrain) {
             runNextQueuedQuest();

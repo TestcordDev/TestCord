@@ -112,12 +112,14 @@ export const PluginCards = ErrorBoundary.wrap(function PluginCards({ message }: 
     const seenPlugins = new Set<string>();
     const pluginCards: JSX.Element[] = [];
 
+    let isEquicordChecked: boolean | undefined;
+    const isEquicordMessage = () => isEquicordChecked ??= isEquicordGuild(message.channel_id) && isEquicordSupport(message.author.id);
+
     // Process embeds
     message.embeds?.forEach(embed => {
         if (!embed.url?.startsWith("https://equicord.org/plugins/") && !embed.url?.startsWith("https://vencord.dev/plugins/")) return;
 
-        const isEquicord = isEquicordGuild(message.channel_id) && isEquicordSupport(message.author.id);
-        if (!isEquicord) return;
+        if (!isEquicordMessage()) return;
 
         const pluginNameFromUrl = new URL(embed.url).pathname.split("/")[2];
         const actualPluginName = Object.keys(plugins).find(name =>

@@ -120,7 +120,7 @@ export function CordCatModal({ data }: { data: any; }) {
             breachResults = data.breach.results;
         }
     }
-    const breachCount: number = data.breach?.resultsCount ?? breachResults.length ?? 0;
+    const breachCount: number = data.breach?.count ?? data.breach?.resultsCount ?? breachResults.length ?? 0;
 
     const avatar = u.avatar
         ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.${u.avatar.startsWith("a_") ? "gif" : "png"}?size=80`

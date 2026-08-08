@@ -130,6 +130,9 @@ function analyzeAudioLevel(): number {
 // Function to check and limit system volume
 function checkAndLimitVolume() {
   if (!settings.store.enableVolumeLimiting) return;
+  // The output volume can only change while the window is visible (the user has to
+  // drag the slider). Polling the config store while hidden is pure waste.
+  if (document.hidden) return;
 
   const currentVolume = getCurrentVolume();
   const { maxVolume } = settings.store;
@@ -255,7 +258,7 @@ function startLevelMonitoring() {
 function startVolumeMonitoring() {
   if (!settings.store.enableVolumeLimiting) return;
 
-  limiterState.volumeTimerId = window.setInterval(checkAndLimitVolume, 100);
+  limiterState.volumeTimerId = window.setInterval(checkAndLimitVolume, 250);
 }
 
 // Function to start the limiter
