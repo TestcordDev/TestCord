@@ -7,7 +7,7 @@
 import { ApplicationCommandInputType, registerCommand, sendBotMessage, unregisterCommand } from "@api/Commands";
 import { isPluginEnabled } from "@api/PluginManager";
 import { definePluginSettings } from "@api/Settings";
-import { UserAreaButton } from "@api/UserArea";
+import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
@@ -170,53 +170,81 @@ function handleKeydown(e: KeyboardEvent) {
     }
 }
 
-function FakeDeafenIcon() {
+function FakeDeafenIcon({ className }: { className?: string; }) {
     const enabled = fakeVoiceState.selfDeaf;
     return (
-        <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-            <rect
-                x="6"
-                y="8"
-                width="20"
-                height="4"
-                rx="2"
-                fill={enabled ? "#fff" : "#888"}
-            />
-            <rect
-                x="11"
-                y="3"
-                width="10"
-                height="8"
-                rx="3"
-                fill={enabled ? "#fff" : "#888"}
-            />
-            <circle
-                cx="10"
-                cy="21"
-                r="4"
-                stroke={enabled ? "#fff" : "#888"}
-                strokeWidth="2"
-                fill="none"
-            />
-            <circle
-                cx="22"
-                cy="21"
-                r="4"
-                stroke={enabled ? "#fff" : "#888"}
-                strokeWidth="2"
-                fill="none"
-            />
-            <path
-                d="M14 21c1 1 3 1 4 0"
-                stroke={enabled ? "#fff" : "#888"}
-                strokeWidth="2"
-                strokeLinecap="round"
-            />
+        <svg className={className} width="28" height="28" viewBox="0 0 32 32" fill="none">
+            <mask id="fakeMuteDeafenLine">
+                <rect width="100%" height="100%" fill="#ffffff" />
+                <line
+                    className="blackLine"
+                    x1="29"
+                    y1="2"
+                    x2="2"
+                    y2="29"
+                    stroke="#000000"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                />
+            </mask>
+
+            <g mask={!enabled ? "url(#fakeMuteDeafenLine)" : undefined}>
+                <rect
+                    x="6"
+                    y="8"
+                    width="20"
+                    height="4"
+                    rx="2"
+                    fill={!enabled ? "var(--status-danger)" : "currentColor"}
+                />
+                <rect
+                    x="11"
+                    y="3"
+                    width="10"
+                    height="8"
+                    rx="3"
+                    fill={!enabled ? "var(--status-danger)" : "currentColor"}
+                />
+                <circle
+                    cx="10"
+                    cy="21"
+                    r="4"
+                    stroke={!enabled ? "var(--status-danger)" : "currentColor"}
+                    strokeWidth="2"
+                    fill="none"
+                />
+                <circle
+                    cx="22"
+                    cy="21"
+                    r="4"
+                    stroke={!enabled ? "var(--status-danger)" : "currentColor"}
+                    strokeWidth="2"
+                    fill="none"
+                />
+                <path
+                    d="M14 21c1 1 3 1 4 0"
+                    stroke={!enabled ? "var(--status-danger)" : "currentColor"}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                />
+            </g>
+
+            {!enabled && <>
+                <line
+                    x1="29"
+                    y1="2"
+                    x2="2"
+                    y2="29"
+                    stroke="var(--status-danger, currentColor)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                />
+            </>}
         </svg>
     );
 }
 
-function FakeMuteDeafenButton() {
+function FakeMuteDeafenButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
 
     const handleClick = React.useCallback(() => {
@@ -238,13 +266,15 @@ function FakeMuteDeafenButton() {
 
     return (
         <UserAreaButton
+            className="button__201d5 wrapper__201d5"
             tooltipText={
-                isEnabled ? "Disable Fake Mute & Deafen" : "Enable Fake Mute & Deafen"
+                hideTooltips ? void 0 : isEnabled ? "Disable Fake Mute & Deafen" : "Enable Fake Mute & Deafen"
             }
-            icon={<FakeDeafenIcon />}
+            icon={<FakeDeafenIcon className={iconForeground} />}
             role="switch"
             aria-checked={isEnabled}
-            redGlow={isEnabled}
+            redGlow={!isEnabled}
+            plated={nameplate != null}
             onClick={handleClick}
         />
     );
@@ -298,7 +328,7 @@ export default definePlugin({
 
         if (settings.store.userAreaButton) {
             try {
-                (window as any).Vencord?.Api?.UserArea?.addUserAreaButton("fake-mute-deafen", () => <FakeMuteDeafenButton />);
+                (window as any).Vencord?.Api?.UserArea?.addUserAreaButton("fake-mute-deafen", FakeMuteDeafenButton);
             } catch (e) {
                 console.warn("[FakeMuteDeafen] Failed to add user area button:", e);
             }

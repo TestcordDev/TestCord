@@ -556,7 +556,33 @@ function syncSpoofState() {
 function FakeUserProfileIcon({ className, style }: { className?: string; style?: React.CSSProperties; }) {
     return (
         <svg className={className} style={style} width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.42 0-8 2.24-8 5v2h16v-2c0-2.76-3.58-5-8-5Zm5.5-3.5 2.3 2.3a1 1 0 0 1-1.42 1.42L16.08 12l-2.3 2.3a1 1 0 1 1-1.42-1.42l2.3-2.3-2.3-2.3a1 1 0 0 1 1.42-1.42l2.3 2.3 2.3-2.3a1 1 0 0 1 1.42 1.42L17.5 10.5Z" />
+            <mask id="fakeUserProfileLine">
+                <rect width="100%" height="100%" fill="#ffffff" />
+                <line
+                    className="blackLine"
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="#000000"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                />
+            </mask>
+
+            <path mask={!isActive() ? "url(#fakeUserProfileLine)" : undefined} fill={!isActive() ? "var(--status-danger)" : "currentColor"} d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.42 0-8 2.24-8 5v2h16v-2c0-2.76-3.58-5-8-5Zm5.5-3.5 2.3 2.3a1 1 0 0 1-1.42 1.42L16.08 12l-2.3 2.3a1 1 0 1 1-1.42-1.42l2.3-2.3-2.3-2.3a1 1 0 0 1 1.42-1.42l2.3 2.3 2.3-2.3a1 1 0 0 1 1.42 1.42L17.5 10.5Z" />
+
+            {!isActive() && (
+                <line
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="var(--status-danger, currentColor)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                />
+            )}
         </svg>
     );
 }
@@ -587,7 +613,7 @@ function FakeUserProfileButton({ iconForeground, hideTooltips, nameplate }: User
             icon={<FakeUserProfileIcon className={iconForeground} />}
             role="button"
             plated={nameplate != null}
-            redGlow={active}
+            redGlow={!active}
             onClick={() => openModal(modalProps => <FakeUserProfileModal modalProps={modalProps as any} />)}
             onContextMenu={() => {
                 if (!target && !restoreManualProfileIfNeeded()) {

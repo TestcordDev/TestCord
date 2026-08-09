@@ -50,9 +50,6 @@ async function disableLoopback() {
 }
 
 function MicLoopbackIcon({ active = false, className = "" }: { active?: boolean; className?: string; }) {
-    const redLinePath = "M22.7 2.7a1 1 0 0 0-1.4-1.4l-20 20a1 1 0 1 0 1.4 1.4Z";
-    const maskBlackPath = "M23.27 4.73 19.27 .73 -.27 20.27 3.73 24.27Z";
-
     return (
         <svg
             className={className}
@@ -60,26 +57,45 @@ function MicLoopbackIcon({ active = false, className = "" }: { active?: boolean;
             height="20"
             viewBox="0 0 24 24"
         >
-            <path
-                fill={!active ? "var(--status-danger)" : "currentColor"}
-                mask={!active ? "url(#radarmask)" : void 0}
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M12 3a1 1 0 0 0-1-1h-.06a1 1 0 0 0-.74.32L5.92 7H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.92l4.28 4.68a1 1 0 0 0 .74.32H11a1 1 0 0 0 1-1V3ZM15.1 20.75c-.58.14-1.1-.33-1.1-.92v-.03c0-.5.37-.92.85-1.05a7 7 0 0 0 0-13.5A1.11 1.11 0 0 1 14 4.2v-.03c0-.6.52-1.06 1.1-.92a9 9 0 0 1 0 17.5Z"
-            />
-            <path
-                fill={!active ? "var(--status-danger)" : "currentColor"}
-                mask={!active ? "url(#radarmask)" : void 0}
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M15.16 16.51c-.57.28-1.16-.2-1.16-.83v-.14c0-.43.28-.8.63-1.02a3 3 0 0 0 0-5.04c-.35-.23-.63-.6-.63-1.02v-.14c0-.63.59-1.1 1.16-.83a5 5 0 0 1 0 9.02Z"
-            />
+            <mask id="micLoopbackTesterLine">
+                <rect width="100%" height="100%" fill="#ffffff" />
+                <line
+                    className="blackLine"
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="#000000"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                />
+            </mask>
+
+            <g mask={!active ? "url(#micLoopbackTesterLine)" : undefined}>
+                <path
+                    fill={!active ? "var(--status-danger)" : "currentColor"}
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M12 3a1 1 0 0 0-1-1h-.06a1 1 0 0 0-.74.32L5.92 7H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.92l4.28 4.68a1 1 0 0 0 .74.32H11a1 1 0 0 0 1-1V3ZM15.1 20.75c-.58.14-1.1-.33-1.1-.92v-.03c0-.5.37-.92.85-1.05a7 7 0 0 0 0-13.5A1.11 1.11 0 0 1 14 4.2v-.03c0-.6.52-1.06 1.1-.92a9 9 0 0 1 0 17.5Z"
+                />
+                <path
+                    fill={!active ? "var(--status-danger)" : "currentColor"}
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M15.16 16.51c-.57.28-1.16-.2-1.16-.83v-.14c0-.43.28-.8.63-1.02a3 3 0 0 0 0-5.04c-.35-.23-.63-.6-.63-1.02v-.14c0-.63.59-1.1 1.16-.83a5 5 0 0 1 0 9.02Z"
+                />
+            </g>
+
             {!active && <>
-                <path fill="var(--status-danger)" d={redLinePath} />
-                <mask id="radarmask">
-                    <rect fill="white" x="0" y="0" width="24" height="24" />
-                    <path fill="black" d={maskBlackPath} />
-                </mask>
+                <line
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="var(--status-danger, currentColor)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                />
             </>}
         </svg>
     );
@@ -99,6 +115,7 @@ function MicLoopbackButton({ iconForeground, hideTooltips, nameplate }: UserArea
 
     return (
         <UserAreaButton
+            className="button__201d5 wrapper__201d5"
             tooltipText={hideTooltips ? void 0 : "Mic Test Loopback"}
             icon={<MicLoopbackIcon active={loopbackActive} className={iconForeground} />}
             role="switch"

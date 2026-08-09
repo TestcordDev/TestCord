@@ -475,7 +475,7 @@ function FakeVoiceOptionToggleButton({ iconForeground, hideTooltips, nameplate }
                 icon={<Icon className={iconForeground} />}
                 role="switch"
                 aria-checked={isEnabled}
-                redGlow={isEnabled}
+                redGlow={!isEnabled}
                 plated={nameplate != null}
                 onContextMenu={e => ContextMenuApi.openContextMenu(e, () => <ContextMenu />)}
                 onClick={() => {
