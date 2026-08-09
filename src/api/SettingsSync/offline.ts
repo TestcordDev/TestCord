@@ -116,7 +116,7 @@ export async function importSettings(data: string | object, type: BackupType = "
     }
 }
 
-export async function exportSettings({ syncDataStore = true, type = "all", minify }: { syncDataStore?: boolean; type?: BackupType; minify?: boolean; }) {
+export async function exportSettings({ syncDataStore = true, type = "all", minify, forceDataStore }: { syncDataStore?: boolean; type?: BackupType; minify?: boolean; forceDataStore?: boolean; }) {
     const settings = VencordNative.settings.get();
     const quickCss = await VencordNative.quickCss.get();
 
@@ -156,20 +156,38 @@ export async function exportSettings({ syncDataStore = true, type = "all", minif
         if (hasSettings || hasCss) parts.push(`,${nl}`);
         let dsStarted = false;
         try {
-            const entries = await DataStore.entries();
-            parts.push(`${ind}"dataStore"${col}[${nl}`);
-            dsStarted = true;
-            for (let i = 0; i < entries.length; i++) {
-                if (i > 0) parts.push(",");
-                parts.push(nl);
-                const [key, value] = entries[i];
-                const valueStr = JSON.stringify(value) ?? "null";
-                parts.push(`${ind}${ind}[${JSON.stringify(key)}${arrSep}${valueStr}]`);
+            if (forceDataStore) {
+                parts.push(`${ind}"dataStore"${col}[${nl}`);
+                dsStarted = true;
+                const keys = await DataStore.keys();
+                const CHUNK = 200;
+                for (let i = 0; i < keys.length; i += CHUNK) {
+                    const chunk = keys.slice(i, i + CHUNK);
+                    const values = await DataStore.getMany(chunk);
+                    for (let j = 0; j < chunk.length; j++) {
+                        if (i + j > 0) parts.push(",");
+                        parts.push(nl);
+                        const valueStr = JSON.stringify(values[j]) ?? "null";
+                        parts.push(`${ind}${ind}[${JSON.stringify(chunk[j])}${arrSep}${valueStr}]`);
+                    }
+                }
+                parts.push(`${nl}${ind}]`);
+            } else {
+                const entries = await DataStore.entries();
+                parts.push(`${ind}"dataStore"${col}[${nl}`);
+                dsStarted = true;
+                for (let i = 0; i < entries.length; i++) {
+                    if (i > 0) parts.push(",");
+                    parts.push(nl);
+                    const [key, value] = entries[i];
+                    const valueStr = JSON.stringify(value) ?? "null";
+                    parts.push(`${ind}${ind}[${JSON.stringify(key)}${arrSep}${valueStr}]`);
+                }
+                parts.push(`${nl}${ind}]`);
             }
-            parts.push(`${nl}${ind}]`);
         } catch (err) {
             if (dsStarted) parts.push(`${nl}${ind}]`);
-            if (type === "datastore") {
+            if (type === "datastore" && !forceDataStore) {
                 throw new Error("DataStore is too large to export. Please clear some plugin data and try again.");
             }
             logger.warn("Skipping DataStore in backup due to size.");
@@ -181,12 +199,12 @@ export async function exportSettings({ syncDataStore = true, type = "all", minif
     return parts.join("");
 }
 
-export async function downloadSettingsBackup(type: BackupType = "all", { minify }: { minify?: boolean; } = {}) {
+export async function downloadSettingsBackup(type: BackupType = "all", { minify, forceDataStore }: { minify?: boolean; forceDataStore?: boolean; } = {}) {
     try {
         const filename = `testcord-${type}-backup-${moment().format("YYYY-MM-DD")}.json`;
         const syncDataStore = type === "all" || type === "datastore";
 
-        const backup = await exportSettings({ minify, type, syncDataStore });
+        const backup = await exportSettings({ minify, type, syncDataStore, forceDataStore });
         const data = new TextEncoder().encode(backup);
         if (IS_DISCORD_DESKTOP) {
             DiscordNative.fileManager.saveWithDialog(data, filename);

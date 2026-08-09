@@ -106,6 +106,7 @@ export interface Settings {
     hideThemeMarketplace?: boolean;
     hideSnippetMarketplace?: boolean;
     useTestcordIcon: boolean;
+    experimentalDataStoreExport: boolean;
 }
 
 const DefaultSettings: Settings = {
@@ -156,6 +157,7 @@ const DefaultSettings: Settings = {
     },
 
     ignoreResetWarning: false,
+    experimentalDataStoreExport: false,
 };
 
 const settings = !IS_REPORTER ? VencordNative.settings.get() : {} as Settings;
