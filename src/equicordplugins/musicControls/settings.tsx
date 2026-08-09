@@ -86,7 +86,7 @@ function LyricsProviderSettings() {
 
 export const settings = definePluginSettings({
     hoverControls: {
-        description: "Show controls on hover",
+        description: "Show controls on hover, press control to cycle",
         type: OptionType.BOOLEAN,
         default: false,
         onChange: v => toggleHoverControls(v)

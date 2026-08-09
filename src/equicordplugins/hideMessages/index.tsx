@@ -101,7 +101,7 @@ export default definePlugin({
     name: "HideMessages",
     description: "Temporarily hide messages and DMs until you restart.",
     dependencies: ["MessagePopoverAPI"],
-    tags: ["Chat", "Utility"],
+    tags: ["Chat", "Utility", "Privacy"],
     authors: [EquicordDevs.yash],
     patches: [
         {

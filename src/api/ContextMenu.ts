@@ -313,13 +313,10 @@ function cloneMenuChildren(obj: ReactElement<any> | Array<ReactElement<any> | nu
     }
 
     if (React.isValidElement(obj)) {
-        const el = obj as ReactElement<{ children?: React.ReactNode; }>;
-        if (!el.props.children) return obj;
-
         obj = React.cloneElement(obj);
 
         if (
-            obj.props.children &&
+            obj?.props?.children &&
             (obj.type !== Menu.MenuControlItem || obj.type === Menu.MenuControlItem && obj.props.control != null)
         ) {
             obj.props.children = cloneMenuChildren(obj.props.children);

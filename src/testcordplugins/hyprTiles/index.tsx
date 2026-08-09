@@ -254,7 +254,6 @@ export default definePlugin({
     },
 
     _borderScanQueued: false,
-    _lastBorderKey: null as string | null,
     _borderObserver: null as ReturnType<typeof setInterval> | null,
     _startupTimer: null as ReturnType<typeof setTimeout> | null,
 
@@ -302,18 +301,6 @@ export default definePlugin({
         const root = document.documentElement;
         if (!s.enableBorders) { this.removeBorders(); return; }
 
-        const key = [
-            s.borderWidth,
-            s.borderColor,
-            s.borderColorEnd,
-            s.animationSpeed,
-            s.enableGradients,
-            s.animatedBorder,
-            s.showChannelName
-        ].join("|");
-        if (key === this._lastBorderKey) return;
-        this._lastBorderKey = key;
-
         root.style.setProperty("--hyprtiles-border-width", `${s.borderWidth}px`);
         root.style.setProperty("--hyprtiles-border-color", s.borderColor);
         root.style.setProperty("--hyprtiles-border-color-end", s.borderColorEnd);
@@ -327,7 +314,6 @@ export default definePlugin({
     },
 
     removeBorders() {
-        this._lastBorderKey = null;
         const body = document.body.classList;
         body.remove(
             "vc-hyprtiles-premium-borders",

@@ -18,20 +18,18 @@ export const PluginButtons = ErrorBoundary.wrap(function PluginCards({ message }
     const pluginButtons = [] as JSX.Element[];
     const msg = message.content?.toLowerCase() ?? "";
 
-    const startsWithEnabled = msg.startsWith("enable");
-    const startsWithDisabled = msg.startsWith("disable");
-
-    if (!startsWithEnabled && !startsWithDisabled) return null;
-    if (!isEquicordGuild(message.channel_id) || !isEquicordSupport(message.author.id)) return null;
-
     const contentWords = (msg.match(/`\w+`/g) ?? []).map(e => e.slice(1, -1));
-    if (contentWords.length === 0) return null;
-
     const matchedPlugins = Object.keys(plugins).filter(name => contentWords.includes(name.toLowerCase()));
     const matchedPlugin = matchedPlugins.sort((a, b) => b.length - a.length)[0];
     const pluginData = matchedPlugin ? plugins[matchedPlugin] : null;
 
-    if (pluginData) {
+    const isEquicord = isEquicordGuild(message.channel_id) && isEquicordSupport(message.author.id);
+    const startsWithEnabled = msg.startsWith("enable");
+    const startsWithDisabled = msg.startsWith("disable");
+
+    const shouldAddPluginButtons = pluginData && isEquicord && (startsWithEnabled || startsWithDisabled);
+
+    if (shouldAddPluginButtons) {
         if (pluginData.required || pluginData.name.endsWith("API")) return;
         const isEnabled = isPluginEnabled(matchedPlugin);
 

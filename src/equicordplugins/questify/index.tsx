@@ -25,7 +25,7 @@ import { disposeRestartTracking, initializeRestartTracking, promptToRestartIfDir
 import { settings } from "./settings/store";
 import { getSettingsModalOpen, initialQuestDataFetched, setInitialQuestDataFetched, setSettingsModalOpen } from "./state";
 import managedStyle from "./styles.css?managed";
-import { canAutoCompleteQuest, getActiveAutoCompletes, getQuestAutoCompleteProgress, getQuestButtonProps, getQuestPanelSubtitleText, hasEnabledAutoCompleteQuestTypes, markQuestProgressDirty, processQuestForAutoComplete, resumeInterruptedAutoCompletes, setHeartbeatStackTracePatchSucceeded, setVideoProgressStackTracePatchSucceeded, stopAllAutoCompletes, stopAutoCompletesForRunningGames, stopQuestAutoComplete } from "./utils/completion";
+import { canAutoCompleteQuest, getActiveAutoCompletes, getQuestAutoCompleteProgress, getQuestButtonProps, getQuestPanelSubtitleText, hasEnabledAutoCompleteQuestTypes, processQuestForAutoComplete, resumeInterruptedAutoCompletes, setHeartbeatStackTracePatchSucceeded, setVideoProgressStackTracePatchSucceeded, stopAllAutoCompletes, stopAutoCompletesForRunningGames, stopQuestAutoComplete } from "./utils/completion";
 import { canOpenDevToolsWindow, fetchAndDispatchQuests, openDevToolsWindow, snakeToCamel } from "./utils/fetching";
 import { normalizeQuestName } from "./utils/filtering";
 import { notifyQuestCompletion, QL } from "./utils/logging";
@@ -537,10 +537,6 @@ export default definePlugin({
             QL.log("QUESTS_FETCH_CURRENT_QUESTS_SUCCESS", data);
             validateIgnoredQuests(data.quests);
             resumeAutoCompletesIfReady();
-        },
-
-        QUESTS_SEND_HEARTBEAT_SUCCESS(): void {
-            markQuestProgressDirty();
         },
 
         QUESTS_ENROLL_SUCCESS(data: any): void {

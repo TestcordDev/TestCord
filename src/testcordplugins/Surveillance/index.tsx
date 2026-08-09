@@ -53,7 +53,6 @@ const previousVoiceStates = new Map<string, VoiceState>();
 const voiceSessions = new Map<string, { channelId: string; startedAt: number; }>();
 const typingCooldowns = new Map<string, number>();
 const seenServerUsers = new Map<string, Set<string>>();
-const MAX_SEEN_SERVER_USERS = 200;
 let lastStatuses = new Map<string, OnlineStatus>();
 let lastActivities = new Map<string, Map<string, string>>();
 const userCoreProfiles = new Map<string, ProfileSnapshot>();
@@ -418,17 +417,6 @@ const rememberServerUser = (userId: string, guildId?: string) => {
     if (shouldIgnoreUser(userId)) return;
     if (!guildId || !serverTargets.includes(guildId)) return;
 
-    // bounded memory: seen users only feed presence tracking, so evict the
-    // oldest once we hit the cap instead of growing forever
-    if (!seenServerUsers.has(userId) && seenServerUsers.size >= MAX_SEEN_SERVER_USERS) {
-        const oldestUserId = seenServerUsers.keys().next().value;
-        if (oldestUserId !== undefined) {
-            seenServerUsers.delete(oldestUserId);
-            lastStatuses.delete(oldestUserId);
-            lastActivities.delete(oldestUserId);
-        }
-    }
-
     let guildIds = seenServerUsers.get(userId);
     if (!guildIds) {
         guildIds = new Set();
@@ -449,10 +437,8 @@ const getSeenServerGuildId = (userId: string) => {
     if (!guildIds) return undefined;
 
     for (const guildId of guildIds) {
-        if (serverTargetSet.has(guildId)) return guildId;
+        if (serverTargets.includes(guildId)) return guildId;
     }
-
-    return undefined;
 };
 
 const getPresenceUserIds = () => {
@@ -788,7 +774,6 @@ const seedPresence = () => {
 };
 
 const handlePresenceChange = () => {
-    if (!settings.store.logStatus && !settings.store.logActivities) return;
     if (targets.length === 0 && serverTargets.length === 0) return;
     const statuses = PresenceStore.getState()?.statuses ?? {};
 
@@ -802,11 +787,6 @@ const handlePresenceChange = () => {
         const previousStatus = lastStatuses.get(userId) ?? "offline";
         const currentStatus = statuses[userId] ?? "offline";
 
-        let currentActivities: Map<string, string> | undefined;
-        if (settings.store.logActivities) {
-            currentActivities = getActivityMap(userId);
-        }
-
         if (settings.store.logStatus && previousStatus !== currentStatus) {
             addUserEvent("status", userId, `Status changed from ${previousStatus} to ${currentStatus}.`, {
                 scope,
@@ -818,9 +798,10 @@ const handlePresenceChange = () => {
             });
         }
 
-        if (settings.store.logActivities && currentActivities) {
-            const previousActivities = lastActivities.get(userId) ?? new Map<string, string>();
+        const previousActivities = lastActivities.get(userId) ?? new Map<string, string>();
+        const currentActivities = getActivityMap(userId);
 
+        if (settings.store.logActivities) {
             for (const [key, activity] of currentActivities) {
                 const previousActivity = previousActivities.get(key);
 
@@ -858,11 +839,10 @@ const handlePresenceChange = () => {
                     });
                 }
             }
-
-            lastActivities.set(userId, currentActivities);
         }
 
         lastStatuses.set(userId, currentStatus);
+        lastActivities.set(userId, currentActivities);
     }
 };
 

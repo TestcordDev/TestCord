@@ -46,6 +46,10 @@ function collectEventElements(event: DragEvent): HTMLElement[] {
     add(event.target);
     for (const entry of event.composedPath?.() ?? []) add(entry);
 
+    if (typeof document !== "undefined" && event.clientX != null && event.clientY != null) {
+        for (const element of document.elementsFromPoint?.(event.clientX, event.clientY) ?? []) add(element);
+    }
+
     return elements;
 }
 
@@ -168,18 +172,6 @@ function resolveAvatarUserId(element: HTMLElement) {
 
 export function inspectDragEvent(event: DragEvent, context: InspectionContext): ResolvedDragTarget {
     return inspectElements(collectEventElements(event), context);
-}
-
-export function isMessageHover(event: DragEvent): { hasMessageInput: boolean; hasChatBody: boolean; } {
-    let hasMessageInput = false;
-    let hasChatBody = false;
-    for (const entry of event.composedPath?.() ?? []) {
-        if (!(entry instanceof Element)) continue;
-        if (!hasMessageInput && entry.matches(messageInputSelector)) hasMessageInput = true;
-        if (!hasChatBody && entry.matches(chatBodySelector)) hasChatBody = true;
-        if (hasMessageInput && hasChatBody) break;
-    }
-    return { hasMessageInput, hasChatBody };
 }
 
 export function inspectElement(target: HTMLElement | null, context: InspectionContext): ResolvedDragTarget {

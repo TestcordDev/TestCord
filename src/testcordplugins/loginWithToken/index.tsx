@@ -108,7 +108,6 @@ function LoginWithTokenModal({ rootProps }: { rootProps: any; }) {
 }
 
 let observer: MutationObserver | null = null;
-let pendingFrame: number | null = null;
 const MOUNT_ID = "lwt-mount";
 
 function openLoginModal() {
@@ -186,10 +185,12 @@ function startObserver() {
     tryInject();
     if (document.getElementById(MOUNT_ID)) return;
 
+    let queued = false;
     observer = new MutationObserver(() => {
-        if (pendingFrame !== null) return;
-        pendingFrame = requestAnimationFrame(() => {
-            pendingFrame = null;
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+            queued = false;
             if (!observer || document.getElementById(MOUNT_ID)) return;
             tryInject();
             if (document.getElementById(MOUNT_ID)) {
@@ -202,10 +203,6 @@ function startObserver() {
 }
 
 function stopObserver() {
-    if (pendingFrame !== null) {
-        cancelAnimationFrame(pendingFrame);
-        pendingFrame = null;
-    }
     observer?.disconnect();
     observer = null;
     const mount = document.getElementById(MOUNT_ID);

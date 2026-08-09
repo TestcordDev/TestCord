@@ -10,7 +10,7 @@ import definePlugin from "@utils/types";
 export default definePlugin({
     name: "DisableCameras",
     description: "Disables cameras in a call by default",
-    tags: ["Appearance", "Customisation", "Media", "Privacy"],
+    tags: ["Appearance", "Media", "Privacy"],
     authors: [Devs.Joona],
     patches: [
         {

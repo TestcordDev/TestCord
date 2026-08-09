@@ -57,22 +57,11 @@ function notifyListeners() {
     for (const fn of timerListeners) {
         try { fn(); } catch { }
     }
-
-    if (activeTimers.size === 0 && listenerInterval) {
-        clearInterval(listenerInterval);
-        listenerInterval = null;
-    }
-}
-
-function ensureTimerInterval() {
-    if (!listenerInterval && timerListeners.size > 0 && activeTimers.size > 0) {
-        listenerInterval = setInterval(notifyListeners, 1000);
-    }
 }
 
 function addTimerListener(listener: () => void) {
     timerListeners.add(listener);
-    ensureTimerInterval();
+    if (!listenerInterval) listenerInterval = setInterval(notifyListeners, 1000);
 }
 
 function removeTimerListener(listener: () => void) {
@@ -98,7 +87,6 @@ function scheduleDelete(channelId: string, messageId: string, delaySec: number) 
 
     activeTimers.set(messageId, { channelId, messageId, expiresAt, timerId });
     notifyListeners();
-    ensureTimerInterval();
 }
 
 function cancelTimer(messageId: string) {
