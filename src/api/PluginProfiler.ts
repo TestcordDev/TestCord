@@ -31,13 +31,6 @@ function guessPluginFromStack(): string | null {
     return null;
 }
 
-export interface FluxSurfaceMetric {
-    action: string;
-    calls: number;
-    totalTimeMs: number;
-    maxTimeMs: number;
-}
-
 export interface PluginProfileData {
     pluginName: string;
     totalCpuTimeMs: number;
@@ -55,7 +48,6 @@ export interface PluginProfileData {
     impactScore: number;
     signals: SignalFlag[];
     advisory: string | null;
-    fluxSurfaces: FluxSurfaceMetric[];
 }
 
 export type SignalFlag = "Noticeable CPU" | "Slow spike" | "Slow calls" | "Active listeners";
@@ -71,7 +63,6 @@ interface RawPluginMetrics {
     allocatedHeapBytes: number;
     lastHeapBytes: number;
     lastHeapDeltaMB: number;
-    fluxActions: Map<string, { calls: number; totalTimeMs: number; maxTimeMs: number }>;
 }
 
 const metricsRegistry = new Map<string, RawPluginMetrics>();
@@ -95,7 +86,6 @@ const intervalOwners = new Map<number, string>();
 function ensureMetrics(pluginName: string): RawPluginMetrics {
     let metrics = metricsRegistry.get(pluginName);
     if (!metrics) {
-        const initialHeap = getJSHeapSize();
         metrics = {
             totalCpuTimeMs: 0,
             callCount: 0,
@@ -105,20 +95,12 @@ function ensureMetrics(pluginName: string): RawPluginMetrics {
             activeIntervals: new Set(),
             activeListeners: new Set(),
             allocatedHeapBytes: 0,
-            lastHeapBytes: initialHeap,
-            lastHeapDeltaMB: 0,
-            fluxActions: new Map()
+            lastHeapBytes: 0,
+            lastHeapDeltaMB: 0
         };
         metricsRegistry.set(pluginName, metrics);
     }
     return metrics;
-}
-
-function getJSHeapSize(): number {
-    if (typeof window !== "undefined" && (window.performance as any)?.memory?.usedJSHeapSize) {
-        return (window.performance as any).memory.usedJSHeapSize;
-    }
-    return 0;
 }
 
 function notifySubscribers() {
@@ -190,9 +172,15 @@ export const PluginProfiler = {
      * time (same technique as NetworkMonitor). Calls from Discord's own code or
      * unattributable frames are left untouched so we never miscount them
      * against a plugin. Idempotent.
+     *
+     * Gated behind IS_DEV: stack inspection via `new Error().stack` on every
+     * addEventListener/setInterval call is too expensive for production — React
+     * fires these constantly. Plugins can still manually call registerInterval
+     * / registerEventListener for explicit attribution.
      */
     init() {
         if (instrumented || typeof window === "undefined") return;
+        if (!IS_DEV) return;
         instrumented = true;
 
         originalSetInterval = window.setInterval;
@@ -295,27 +283,17 @@ export const PluginProfiler = {
     },
 
     /**
-     * Get actual JS process heap size currently used by Discord in MB
-     */
-    getClientTotalHeapMB(): number {
-        const bytes = getJSHeapSize();
-        return Math.round((bytes / (1024 * 1024)) * 10) / 10;
-    },
-
-    /**
      * Measure synchronous execution time of a plugin callback (lifecycle, listener, command, etc.)
      */
     profileExecution<T>(pluginName: string, category: string, fn: () => T): T {
         if (!pluginName) return fn();
 
-        const startHeap = getJSHeapSize();
         const start = performance.now();
         let result: T;
         try {
             result = fn();
         } finally {
             const duration = performance.now() - start;
-            const endHeap = getJSHeapSize();
             const metrics = ensureMetrics(pluginName);
 
             metrics.totalCpuTimeMs += duration;
@@ -327,15 +305,6 @@ export const PluginProfiler = {
             if (duration >= slowCallThresholdMs) {
                 metrics.slowSpikes++;
                 logger.warn(`[Slow Call Spike] ${pluginName} (${category}): ${duration.toFixed(2)}ms (threshold: ${slowCallThresholdMs}ms)`);
-            }
-
-            if (endHeap > 0 && startHeap > 0) {
-                const heapDeltaBytes = endHeap - startHeap;
-                if (heapDeltaBytes > 0) {
-                    metrics.allocatedHeapBytes += heapDeltaBytes;
-                    metrics.lastHeapDeltaMB = Math.round((heapDeltaBytes / (1024 * 1024)) * 100) / 100;
-                }
-                metrics.lastHeapBytes = endHeap;
             }
 
             notifySubscribers();
@@ -358,37 +327,6 @@ export const PluginProfiler = {
             metrics.asyncTimeMs += duration;
             notifySubscribers();
         }
-    },
-
-    /**
-     * Intercept and profile Flux dispatcher calls for specific actions
-     */
-    profileFluxAction(pluginName: string, actionName: string, durationMs: number) {
-        if (!pluginName || !actionName) return;
-
-        const metrics = ensureMetrics(pluginName);
-        metrics.totalCpuTimeMs += durationMs;
-        metrics.callCount++;
-        if (durationMs > metrics.maxCallMs) {
-            metrics.maxCallMs = durationMs;
-        }
-
-        if (durationMs >= slowCallThresholdMs) {
-            metrics.slowSpikes++;
-        }
-
-        let actionStat = metrics.fluxActions.get(actionName);
-        if (!actionStat) {
-            actionStat = { calls: 0, totalTimeMs: 0, maxTimeMs: 0 };
-            metrics.fluxActions.set(actionName, actionStat);
-        }
-        actionStat.calls++;
-        actionStat.totalTimeMs += durationMs;
-        if (durationMs > actionStat.maxTimeMs) {
-            actionStat.maxTimeMs = durationMs;
-        }
-
-        notifySubscribers();
     },
 
     /**
@@ -467,19 +405,6 @@ export const PluginProfiler = {
             cpuMs, slowSpikes, maxCallMs, callCount, activeResources
         );
 
-        const fluxSurfaces: FluxSurfaceMetric[] = [];
-        if (metrics?.fluxActions) {
-            for (const [action, stat] of metrics.fluxActions.entries()) {
-                fluxSurfaces.push({
-                    action,
-                    calls: stat.calls,
-                    totalTimeMs: Math.round(stat.totalTimeMs * 10) / 10,
-                    maxTimeMs: Math.round(stat.maxTimeMs * 10) / 10
-                });
-            }
-            fluxSurfaces.sort((a, b) => b.totalTimeMs - a.totalTimeMs);
-        }
-
         return {
             pluginName,
             totalCpuTimeMs: cpuMs,
@@ -496,8 +421,7 @@ export const PluginProfiler = {
             extraRAMMB,
             impactScore,
             signals,
-            advisory,
-            fluxSurfaces
+            advisory
         };
     },
 
