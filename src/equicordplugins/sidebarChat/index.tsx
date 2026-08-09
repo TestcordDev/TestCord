@@ -210,11 +210,6 @@ function restorePersistedPopouts() {
     restoringPersistedPopouts = true;
 
     const attemptRestore = () => {
-        if (pendingRestoreIds.size === 0) {
-            clearPersistedPopoutRestoreLoop();
-            return;
-        }
-
         for (const channelId of pendingRestoreIds) {
             const channel = ChannelStore.getChannel(channelId);
             if (!channel || !canOpenPopout(channel)) continue;

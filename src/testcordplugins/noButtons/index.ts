@@ -10,11 +10,16 @@ import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
 
 const STYLE_ELEMENT_ID = "551041413043978242-removeGiftButton";
+const COLLAPSE_ATTR = "data-nobuttons-collapsed";
 
 const logger = new Logger("NoButtonsPlugin", "#f542d7");
 
+let rowObserver: MutationObserver | null = null;
+let bootObserver: MutationObserver | null = null;
+
 function updateState() {
     injectCSS();
+    refreshWrappers();
 }
 
 const settings = definePluginSettings({
@@ -147,6 +152,33 @@ function injectCSS() {
     document.body.appendChild(style);
 }
 
+function collapseRow(row: Element) {
+    const rawHideSelectors = getRawHideSelectors();
+    const collapseSelector = rawHideSelectors.length > 0 ? rawHideSelectors.join(", ") : null;
+
+    for (const child of Array.from(row.children)) {
+        const shouldCollapse = collapseSelector
+            ? child.matches(collapseSelector) || !!child.querySelector(collapseSelector)
+            : false;
+        const isCollapsed = child.hasAttribute(COLLAPSE_ATTR);
+
+        if (shouldCollapse && !isCollapsed) {
+            (child as HTMLElement).style.setProperty("display", "none", "important");
+            child.setAttribute(COLLAPSE_ATTR, "1");
+        } else if (!shouldCollapse && isCollapsed) {
+            (child as HTMLElement).style.removeProperty("display");
+            child.removeAttribute(COLLAPSE_ATTR);
+        }
+    }
+}
+
+function refreshWrappers() {
+    const rows = document.querySelectorAll('[class*="buttons__74017"]');
+    for (const row of Array.from(rows)) {
+        collapseRow(row);
+    }
+}
+
 export default definePlugin({
     name: "NoButtons",
     description: "Removes annoying buttons that you don't need",
@@ -158,6 +190,44 @@ export default definePlugin({
         logger.info("Plugin is starting");
 
         injectCSS();
+
+        let scheduled = false;
+        const runPass = () => {
+            scheduled = false;
+            refreshWrappers();
+        };
+        const schedule = () => {
+            if (scheduled) return;
+            scheduled = true;
+            requestAnimationFrame(runPass);
+        };
+
+        const attachedRows = new WeakSet<Element>();
+        const attachToRows = () => {
+            const rows = document.querySelectorAll('[class*="buttons__74017"]');
+            for (const row of Array.from(rows)) {
+                if (attachedRows.has(row)) continue;
+                attachedRows.add(row);
+                collapseRow(row);
+                rowObserver!.observe(row, { childList: true });
+            }
+        };
+
+        rowObserver = new MutationObserver(schedule);
+
+        let bootScheduled = false;
+        const bootCheck = () => {
+            bootScheduled = false;
+            attachToRows();
+        };
+        bootObserver = new MutationObserver(() => {
+            if (bootScheduled) return;
+            bootScheduled = true;
+            requestAnimationFrame(bootCheck);
+        });
+        bootObserver.observe(document.body, { childList: true, subtree: true });
+
+        attachToRows();
     },
     stop() {
         logger.info("Plugin is stopping");
@@ -165,6 +235,17 @@ export default definePlugin({
         const styleElement = document.getElementById(STYLE_ELEMENT_ID);
         if (styleElement) {
             styleElement.remove();
+        }
+
+        rowObserver?.disconnect();
+        rowObserver = null;
+        bootObserver?.disconnect();
+        bootObserver = null;
+
+        const collapsed = document.querySelectorAll(`[${COLLAPSE_ATTR}]`);
+        for (const el of Array.from(collapsed)) {
+            (el as HTMLElement).style.removeProperty("display");
+            el.removeAttribute(COLLAPSE_ATTR);
         }
     },
 });

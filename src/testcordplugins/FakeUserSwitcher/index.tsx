@@ -491,8 +491,6 @@ const SWITCHER_DROPDOWN_SELECTORS = [
 
 let switcherDropdownOpen = false;
 let switcherDropdownObserver: ReturnType<typeof setInterval> | null = null;
-let switcherDropdownBootstrapTimer: ReturnType<typeof setTimeout> | null = null;
-let switcherDropdownObserverWanted = false;
 let switcherDropdownCheckQueued = false;
 let accountSwitcherRenderUntil = 0;
 
@@ -509,20 +507,15 @@ function readSwitcherDropdownOpen(): boolean {
 
 function startSwitcherDropdownObserver() {
     if (switcherDropdownObserver || typeof document === "undefined") return;
-    if (!switcherDropdownObserverWanted) return;
 
     const { body } = document;
     if (!body) {
-        switcherDropdownBootstrapTimer = setTimeout(startSwitcherDropdownObserver, 0);
+        setTimeout(startSwitcherDropdownObserver, 0);
         return;
     }
 
     switcherDropdownOpen = readSwitcherDropdownOpen();
     switcherDropdownObserver = setInterval(() => {
-        if (!switcherDropdownObserverWanted) {
-            stopSwitcherDropdownObserver();
-            return;
-        }
         if (switcherDropdownCheckQueued) return;
         switcherDropdownCheckQueued = true;
         requestAnimationFrame(() => {
@@ -533,8 +526,6 @@ function startSwitcherDropdownObserver() {
 }
 
 function stopSwitcherDropdownObserver() {
-    switcherDropdownObserverWanted = false;
-    if (switcherDropdownBootstrapTimer) { clearTimeout(switcherDropdownBootstrapTimer); switcherDropdownBootstrapTimer = null; }
     if (switcherDropdownObserver) { clearInterval(switcherDropdownObserver); switcherDropdownObserver = null; }
     switcherDropdownOpen = false;
     switcherDropdownCheckQueued = false;
@@ -1013,22 +1004,23 @@ function getManualActivityListFor(manualData: any) {
 let _origExtractTimestamp: ((id: string) => number) | null = null;
 let _snowflakePatchTimer: any = null;
 function patchSnowflake() {
-    if (_origExtractTimestamp) {
-        if (_snowflakePatchTimer) { clearInterval(_snowflakePatchTimer); _snowflakePatchTimer = null; }
-        return;
-    }
+    if (_origExtractTimestamp) return;
     let su: any = SnowflakeUtils;
     if (!su?.extractTimestamp) {
         try { su = (window as any).Vencord?.Webpack?.findByProps?.("extractTimestamp", "fromTimestamp"); } catch { /* ignore */ }
     }
     if (!su?.extractTimestamp) {
         if (!_snowflakePatchTimer) {
-            _snowflakePatchTimer = setInterval(patchSnowflake, 500);
+            _snowflakePatchTimer = setInterval(() => {
+                patchSnowflake();
+                if (_origExtractTimestamp && _snowflakePatchTimer) {
+                    clearInterval(_snowflakePatchTimer);
+                    _snowflakePatchTimer = null;
+                }
+            }, 500);
         }
         return;
     }
-    // Module resolved, the retry poll is no longer needed whatever the patch does below.
-    if (_snowflakePatchTimer) { clearInterval(_snowflakePatchTimer); _snowflakePatchTimer = null; }
     try {
         _origExtractTimestamp = su.extractTimestamp.bind(su);
         const orig = _origExtractTimestamp!;
@@ -1944,7 +1936,6 @@ const plugin = definePlugin({
         logger.info("[FUS-BUILD-CHECK] build loaded — badge+overlay+message fixes v3 active");
         loadCacheFromSettings();
         addProfileBadge(dynamicBadge);
-        switcherDropdownObserverWanted = true;
         startSwitcherDropdownObserver();
         startSwitcherClickInterceptor();
         patchStore();

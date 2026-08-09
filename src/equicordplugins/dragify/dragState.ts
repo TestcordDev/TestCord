@@ -41,11 +41,9 @@ export function beginDrag(entity: DropEntity) {
     state.activeGuildId = entity.kind === "guild" ? entity.id : null;
     state.active = true;
     touchDrag();
-    armWatchdogTimer();
 }
 
 export function clearDragState() {
-    stopWatchdogTimer();
     state.activeEntity = null;
     state.activeUserId = null;
     state.activeGuildId = null;
@@ -97,37 +95,21 @@ export function getActiveEntity() {
     return state.activeEntity;
 }
 
-let watchdogExpireHandler: (() => void) | null = null;
-
-function armWatchdogTimer() {
-    if (state.watchdogTimer !== null || watchdogExpireHandler === null) return;
+export function startDragWatchdog(onExpire: () => void) {
+    if (state.watchdogTimer !== null) return;
     state.watchdogTimer = window.setInterval(() => {
-        if (!state.active) {
-            stopWatchdogTimer();
-            return;
-        }
+        if (!state.active) return;
         if (Date.now() - state.lastDragEventAt < 1200) return;
-        const onExpire = watchdogExpireHandler;
         clearDragState();
-        onExpire?.();
+        onExpire();
     }, 500);
 }
 
-function stopWatchdogTimer() {
+export function stopDragWatchdog() {
     if (state.watchdogTimer !== null) {
         clearInterval(state.watchdogTimer);
         state.watchdogTimer = null;
     }
-}
-
-export function startDragWatchdog(onExpire: () => void) {
-    watchdogExpireHandler = onExpire;
-    if (state.active) armWatchdogTimer();
-}
-
-export function stopDragWatchdog() {
-    watchdogExpireHandler = null;
-    stopWatchdogTimer();
 }
 
 export function scheduleGuildCleanup(onExpire: () => void) {

@@ -662,34 +662,17 @@ function scanNode(node: Node) {
 // actually a string to swap. With no fake name and no fake creation date configured
 // the walk could never change anything, and it was still running every 5 seconds.
 function hasTextReplacements(): boolean {
-    try { if (_trueOriginalUser) { _realUsername = _trueOriginalUser.username || _realUsername; _realGlobalName = _trueOriginalUser.globalName || _realGlobalName; } } catch { }
     if (storedData.createdAt) return true;
     if (storedData.username && _realUsername) return true;
     if (storedData.globalName && _realGlobalName) return true;
     return false;
 }
 
-// One flat string compare is far cheaper than walking every text node, so bail out
-// early when nothing on screen can match.
-function documentHasReplaceableText(): boolean {
-    const text = document.body?.textContent;
-    if (!text) return false;
-    if (_realUsername && storedData.username && text.includes(_realUsername)) return true;
-    if (_realGlobalName && storedData.globalName && text.includes(_realGlobalName)) return true;
-    if (storedData.createdAt && getFakeDateVariants(storedData.createdAt).length > 0) {
-        const lower = text.toLowerCase();
-        for (const realDate of getRealDateVariants()) {
-            if (realDate.length >= 4 && lower.includes(realDate.toLowerCase())) return true;
-        }
-    }
-    return false;
-}
-
 function startDomObserver() {
     stopDomObserver(); if (!isEnabled) return;
-    if (hasTextReplacements()) scanNode(document.body);
+    scanNode(document.body);
     domObserver = setInterval(() => {
-        if (!isEnabled || !hasTextReplacements() || !documentHasReplaceableText()) return;
+        if (!isEnabled || !hasTextReplacements()) return;
         scanNode(document.body);
     }, 5000);
 }

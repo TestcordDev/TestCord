@@ -182,9 +182,6 @@ function removeWallpaperElements() {
 }
 
 function applyWallpaper(channelId?: string) {
-    // A pending poll from a previous channel would inject a stale wallpaper, so drop it.
-    for (const poll of activeObservers) clearInterval(poll);
-    activeObservers.clear();
     removeWallpaperElements();
 
     const cid = channelId || SelectedChannelStore?.getChannelId?.();
@@ -279,8 +276,7 @@ function applyWallpaper(channelId?: string) {
     if (!tryInject()) {
         let pollCount = 0;
         const pollInterval = setInterval(() => {
-            // Once the container is in the document the poll has nothing left to do.
-            if (container.isConnected || tryInject() || ++pollCount > 30) {
+            if (tryInject() || ++pollCount > 30) {
                 clearInterval(pollInterval);
                 activeObservers.delete(pollInterval);
             }

@@ -64,7 +64,6 @@ const settings = definePluginSettings({
 
 let overlay: HTMLDivElement | null = null;
 let domObserver: MutationObserver | null = null;
-let domFrame: number | null = null;
 let keyGuard: ((e: KeyboardEvent) => void) | null = null;
 let focusGuard: ((e: FocusEvent) => void) | null = null;
 let inactiveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -121,7 +120,6 @@ function lock() {
 function unlock() {
     domObserver?.disconnect();
     domObserver = null;
-    if (domFrame !== null) { cancelAnimationFrame(domFrame); domFrame = null; }
 
     if (keyGuard) { document.removeEventListener("keydown", keyGuard, true); keyGuard = null; }
     if (focusGuard) { document.removeEventListener("focusin", focusGuard, true); focusGuard = null; }
@@ -460,14 +458,10 @@ function createOverlay() {
     setTimeout(() => input.focus(), 140);
 
     domObserver = new MutationObserver(() => {
-        if (domFrame !== null) return;
-        domFrame = requestAnimationFrame(() => {
-            domFrame = null;
-            if (!document.getElementById("vcl-overlay") && overlay) {
-                document.body.appendChild(overlay);
-                input.focus();
-            }
-        });
+        if (!document.getElementById("vcl-overlay") && overlay) {
+            document.body.appendChild(overlay);
+            requestAnimationFrame(() => input.focus());
+        }
     });
     domObserver.observe(document.body, { childList: true });
 }
@@ -494,7 +488,6 @@ export default definePlugin({
 
         domObserver?.disconnect();
         domObserver = null;
-        if (domFrame !== null) { cancelAnimationFrame(domFrame); domFrame = null; }
 
         if (keyGuard) { document.removeEventListener("keydown", keyGuard, true); keyGuard = null; }
         if (focusGuard) { document.removeEventListener("focusin", focusGuard, true); focusGuard = null; }
