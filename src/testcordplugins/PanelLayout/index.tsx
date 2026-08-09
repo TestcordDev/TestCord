@@ -102,7 +102,7 @@ const settings = definePluginSettings({
     hideScreenShare: { type: OptionType.BOOLEAN, default: false, description: "Hide screen share button in call controls", onChange: () => apply() },
     hideActivity: { type: OptionType.BOOLEAN, default: false, description: "Hide activity button in call controls", onChange: () => apply() },
     // Line
-    hideLine: { type: OptionType.BOOLEAN, default: false, description: "Hide the line between user and buttons", onChange: () => apply() },
+    hideLine: { type: OptionType.BOOLEAN, default: true, description: "Hide the line between user and buttons", onChange: () => apply() },
 });
 
 // ─── Selectors & Constants ────────────────────────────────────────────────────
