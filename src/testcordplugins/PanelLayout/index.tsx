@@ -507,7 +507,7 @@ function buildCSS(): string {
                         ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         case "outlined":
-            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; background: transparent !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
             break;
         case "outlineold":
             // Pre-fallback replica: relies on var(--background-modifier-accent) which
@@ -549,7 +549,7 @@ function buildCSS(): string {
         case "bright": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: brightness(1.3) !important; transition: filter 0.15s ease !important; }`); break;
     }
 
-    if (st.buttonStyle === "outlineold" && st.hoverEffect === "glow") {
+    if ((st.buttonStyle === "outlineold" || st.buttonStyle === "outlined") && st.hoverEffect === "glow") {
         lines.push(`${S.panelButtons} ${S.panelButton}.plated__67645:not(.plateMuted__67645):hover { background: transparent !important }`);
     }
 

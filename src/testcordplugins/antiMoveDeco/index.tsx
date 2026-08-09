@@ -7,7 +7,7 @@
 import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import definePlugin from "@utils/types";
 import { findByPropsLazy } from "@webpack";
-import { FluxDispatcher, React, UserStore, Toasts } from "@webpack/common";
+import { FluxDispatcher, React, Toasts, UserStore } from "@webpack/common";
 
 // Webpack Modules
 const ChannelActions = findByPropsLazy("selectVoiceChannel", "disconnect");
