@@ -6,6 +6,7 @@
 
 import "./PrivacySecurityPanel.css";
 
+import { useSettings } from "@api/Settings";
 import { SettingsTab } from "@components/settings/tabs/BaseTab";
 import { React, useEffect, useRef, useState } from "@webpack/common";
 
@@ -247,6 +248,11 @@ export function PrivacySecurityPanel() {
     const [selectedBlock, setSelectedBlock] = useState<BlockedLog | null>(null);
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const LOGS_PER_PAGE = 4;
+
+    const settings = useSettings(["plugins.NoTrack.disableAnalytics", "plugins.CustomDNS.autoStart", "plugins.CustomDNS.rewriteFetch"]);
+    const noTrackOn = settings.plugins?.NoTrack?.disableAnalytics !== false;
+    const dnsActive = settings.plugins?.CustomDNS?.autoStart !== false;
+    const dnsRewrite = settings.plugins?.CustomDNS?.rewriteFetch === true;
 
     const copyToClipboard = (value: string, field: string) => {
         try {
@@ -639,9 +645,76 @@ export function PrivacySecurityPanel() {
         setCurrentPage(1);
     };
 
+    const toggleNoTrack = () => {
+        settings.plugins.NoTrack.disableAnalytics = !noTrackOn;
+    };
+
+    const toggleDns = () => {
+        settings.plugins.CustomDNS.autoStart = !dnsActive;
+    };
+
+    const toggleDnsRewrite = () => {
+        settings.plugins.CustomDNS.rewriteFetch = !dnsRewrite;
+    };
+
     return (
         <SettingsTab>
             <div className="ps-command-center">
+                <div className="ps-card">
+                    <div className="ps-card-header">
+                        <div className="ps-header-title-group">
+                            <h2 className="ps-card-title-text">Privacy Protection</h2>
+                            <span className="ps-badge ps-badge-green">
+                                <span className="ps-badge-dot"></span>
+                                {noTrackOn && dnsActive ? "Active" : "Partial"}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="ps-card-subtitle">
+                        Core tracking and DNS guards. Changes apply immediately and persist across restarts.
+                    </div>
+                    <div className="ps-privacy-toggles">
+                        <div className="ps-toggle-row">
+                            <div className="ps-toggle-info">
+                                <span className="ps-toggle-title">No Tracking</span>
+                                <span className="ps-toggle-desc">Block Discord analytics, metrics, Sentry crash reporting and telemetry.</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`ps-toggle-switch${noTrackOn ? " ps-toggle-switch-on" : ""}`}
+                                onClick={toggleNoTrack}
+                            >
+                                <span className="ps-toggle-knob" />
+                            </button>
+                        </div>
+                        <div className="ps-toggle-row">
+                            <div className="ps-toggle-info">
+                                <span className="ps-toggle-title">Custom DNS</span>
+                                <span className="ps-toggle-desc">Resolve Discord hosts through encrypted DNS on startup.</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`ps-toggle-switch${dnsActive ? " ps-toggle-switch-on" : ""}`}
+                                onClick={toggleDns}
+                            >
+                                <span className="ps-toggle-knob" />
+                            </button>
+                        </div>
+                        <div className="ps-toggle-row">
+                            <div className="ps-toggle-info">
+                                <span className="ps-toggle-title">Rewrite Fetch URLs</span>
+                                <span className="ps-toggle-desc">Rewrite fetch URLs to resolved IPs. Experimental, can break HTTPS.</span>
+                            </div>
+                            <button
+                                type="button"
+                                className={`ps-toggle-switch${dnsRewrite ? " ps-toggle-switch-on" : ""}`}
+                                onClick={toggleDnsRewrite}
+                            >
+                                <span className="ps-toggle-knob" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <div className="ps-main-layout">
                     {/* LEFT COLUMN: SECURE CONNECT & OUTBOUND SURFACES */}
                     <div className="ps-main-left-col">

@@ -19,6 +19,7 @@
 import "./fixDiscordBadgePadding.css";
 
 import { _getBadges, BadgePosition, BadgeUserArgs, ProfileBadge } from "@api/Badges";
+import { Settings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { openContributorModal } from "@components/settings/tabs";
 import { Devs } from "@utils/constants";
@@ -215,6 +216,8 @@ let intervalId: any;
 const badgeLogger = new Logger("BadgeAPI");
 
 async function ensurePronounsMarker() {
+    if ((Settings as any).plugins?.TestcordHelper?.pronounsBadge === false) return;
+
     const selfId = UserStore.getCurrentUser()?.id;
     if (!selfId) return;
 
