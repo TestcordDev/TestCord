@@ -43,3 +43,17 @@
     pointer-events: auto;
     transform: translateY(0);
 }
+
+#vc-spotify-player.vc-ctrl-active #vc-spotify-progress-bar,
+#eq-tdl-player.vc-ctrl-active #eq-tdl-progress-bar {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: translateY(0) !important;
+}
+
+#vc-spotify-player.vc-ctrl-active .vc-spotify-button-row,
+#eq-tdl-player.vc-ctrl-active .eq-tdl-button-row {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(4px) !important;
+}
