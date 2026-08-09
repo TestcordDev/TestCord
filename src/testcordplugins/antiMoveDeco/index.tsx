@@ -4,11 +4,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { UserAreaButton } from "@api/UserArea";
+import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import definePlugin from "@utils/types";
 import { findByPropsLazy } from "@webpack";
 import { FluxDispatcher, React, UserStore, Toasts } from "@webpack/common";
-
 
 // Webpack Modules
 const ChannelActions = findByPropsLazy("selectVoiceChannel", "disconnect");
@@ -47,9 +46,9 @@ function onVoiceStateUpdate({ voiceStates }: { voiceStates: any[]; }) {
     }
 }
 
-function AntiMoveDecoIcon({ enabled }: { enabled: boolean; }) {
+function AntiMoveDecoIcon({ className, enabled }: { className?: string; enabled: boolean; }) {
     return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <mask id="antiMoveDecoLine">
                 <rect width="100%" height="100%" fill="#ffffff" />
                 <line
@@ -90,7 +89,7 @@ function AntiMoveDecoIcon({ enabled }: { enabled: boolean; }) {
     );
 }
 
-function AntiMoveDecoButton() {
+function AntiMoveDecoButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
 
     const toggle = () => {
@@ -121,10 +120,13 @@ function AntiMoveDecoButton() {
     return (
         <UserAreaButton
             onClick={toggle}
+            role="switch"
+            redGlow={!enabled}
             aria-checked={enabled}
-            className="plated__67645"
-            tooltipText={enabled ? "Disable AntiMove&Deco" : "Enable AntiMove&Deco"}
-            icon={<AntiMoveDecoIcon enabled={enabled} />}
+            plated={nameplate != null}
+            className="button__201d5 wrapper__201d5"
+            tooltipText={hideTooltips ? void 0 : enabled ? "Disable AntiMove&Deco" : "Enable AntiMove&Deco"}
+            icon={<AntiMoveDecoIcon enabled={enabled} className={iconForeground} />}
         />
     );
 }

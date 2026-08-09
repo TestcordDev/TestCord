@@ -55,21 +55,6 @@ function Icon({ className }: { className?: string; }) {
     const { oldIcon, oldLogic } = settings.use(["oldIcon", "oldLogic"]);
     const showCurrentGame = ShowCurrentGame.useSetting();
 
-    const redLinePath = !oldIcon
-        ? "M22.7 2.7a1 1 0 0 0-1.4-1.4l-20 20a1 1 0 1 0 1.4 1.4Z"
-        : "M23 2.27 21.73 1 1 21.73 2.27 23 23 2.27Z";
-
-    const maskBlackPath = !oldIcon
-        ? "M23.27 4.73 19.27 .73 -.27 20.27 3.73 24.27Z"
-        : "M23.27 4.54 19.46.73 .73 19.46 4.54 23.27 23.27 4.54Z";
-
-    const mainFill = oldLogic
-        ? (!showCurrentGame && !oldIcon ? "var(--status-danger)" : "currentColor")
-        : "var(--vc-plugin-icon-color, currentColor)";
-    const lineFill = oldLogic
-        ? "var(--status-danger)"
-        : "var(--vc-plugin-icon-color, currentColor)";
-
     return (
         <svg className={className} width="20" height="20" viewBox="0 0 24 24">
             <mask id="gameActivityLine">
@@ -93,14 +78,22 @@ function Icon({ className }: { className?: string; }) {
             />
 
             {!showCurrentGame && <>
-                <path fill="var(--status-danger)" d={redLinePath} />
+                <line
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="var(--status-danger, currentColor)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                />
             </>}
         </svg>
     );
 }
 
 function GameActivityToggleButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
-    const { location, oldLogic } = settings.use(["location", "oldLogic"]);
+    const { location } = settings.use(["location"]);
     const showCurrentGame = ShowCurrentGame.useSetting();
 
     if (location !== "PANEL" && isPluginEnabled(testcordToolbox.name)) return null;

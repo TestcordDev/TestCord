@@ -84,7 +84,7 @@ const settings = definePluginSettings({
     },
     panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#0e1852", onChange: () => apply() },
     glowColor: { type: OptionType.STRING, description: "Glow hover color", default: "#ffffff", onChange: () => apply() },
-    colorfulActiveButtons: { type: OptionType.BOOLEAN, default: true, description: "Use distinct colored blobs for active plugin buttons", onChange: () => apply() },
+    colorfulActiveButtons: { type: OptionType.BOOLEAN, default: true, description: "Gives enabled plugins customizable colored rounded backgrounds", onChange: () => apply() },
     forceNativeButtonColor: { type: OptionType.BOOLEAN, default: false, description: "Force the icon color on Discord's native buttons (Mute, Deafen, Settings) even when no custom icon color is set", onChange: () => apply() },
     // Chevrons & Lock
     hideChevrons: { type: OptionType.BOOLEAN, default: false, description: "Hide dropdown chevrons next to Mute and Deafen", onChange: () => apply() },
@@ -513,11 +513,12 @@ function buildCSS(): string {
             // Pre-fallback replica: relies on var(--background-modifier-accent) which
             // new Discord tokens dropped, so the border doesn't actually render.
             // People liked that buggy look, so it's kept as its own option.
-            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }
+                        ${S.panelButtons} ${S.panelButton}.plated__67645:not(.plateMuted__67645):hover { background: transparent !important }`);
             break;
         case "pill":
             lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 20px !important; }
-                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
+                        ${S.panelButtons} ${S.panelButton}.plateState:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         case "square":
             lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 2px !important; }
@@ -529,20 +530,6 @@ function buildCSS(): string {
             lines.push(`${S.panelButtons} ${S.panelButton} { background: transparent !important; }
                         ${S.panelButtons} ${S.panelButton}:hover { background: transparent !important; }`);
             break;
-    }
-
-    // Colorful Active Buttons
-    if (st.colorfulActiveButtons) {
-        lines.push(`
-            ${S.panelButtons} button[role="switch"][aria-checked="true"] { background-color: var(--brand-experiment, #5865F2) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} button[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
-            ${S.panelButtons} [data-deracul-label="Ban all in VC"] button { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} [data-deracul-label="Ban all in VC"] button svg { color: white !important; fill: white !important; }
-            ${S.panelButtons} [data-deracul-label="Fake States"] button[aria-checked="true"] { background-color: var(--status-positive, #23A559) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} [data-deracul-label="Fake States"] button[aria-checked="true"] svg { color: white !important; fill: white !important; }
-            ${S.panelButtons} [data-deracul-label="Mute"] button[role="switch"][aria-checked="true"], ${S.panelButtons} [data-deracul-label="Deafen"] button[role="switch"][aria-checked="true"] { background-color: transparent !important; color: var(--status-danger, #DA373C) !important; }
-            ${S.panelButtons} [data-deracul-label="AntiMove&Deco"][aria-checked="true"] { background-color: var(--brand-experiment, #0f172a) !important; color: white !important; border-radius: 10px !important; }
-        `);
     }
 
     // Opacity
@@ -1204,7 +1191,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
 
                             <Heading tag="h5">Colorful Plugins</Heading>
                             <Card variant="primary">
-                                <FormSwitch title="Active Button Blobs" description="Gives enabled plugins customizable colored rounded backgrounds." value={s.colorfulActiveButtons} onChange={v => set("colorfulActiveButtons", v)} hideBorder />
+                                <FormSwitch title="Colorful Active Buttons" description="Gives enabled plugins customizable colored rounded backgrounds." value={s.colorfulActiveButtons} onChange={v => set("colorfulActiveButtons", v)} hideBorder />
                             </Card>
                         </>}
 
