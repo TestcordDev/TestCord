@@ -513,8 +513,7 @@ function buildCSS(): string {
             // Pre-fallback replica: relies on var(--background-modifier-accent) which
             // new Discord tokens dropped, so the border doesn't actually render.
             // People liked that buggy look, so it's kept as its own option.
-            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }
-                        ${S.panelButtons} ${S.panelButton}.plated__67645:not(.plateMuted__67645):hover { background: transparent !important }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }`);
             break;
         case "pill":
             lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 20px !important; }
@@ -548,6 +547,10 @@ function buildCSS(): string {
         case "scale": lines.push(`${S.panelButtons} ${S.panelButton}:hover { transform: scale(1.15) !important; transition: transform 0.15s ease !important; }`); break;
         case "glow": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: drop-shadow(0 0 6px ${st.glowColor}) !important; transition: filter 0.15s ease !important; }`); break;
         case "bright": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: brightness(1.3) !important; transition: filter 0.15s ease !important; }`); break;
+    }
+
+    if (st.buttonStyle === "outlineold" && st.hoverEffect === "glow") {
+        lines.push(`${S.panelButtons} ${S.panelButton}.plated__67645:not(.plateMuted__67645):hover { background: transparent !important }`);
     }
 
     // Visibility toggles
