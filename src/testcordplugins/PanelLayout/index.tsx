@@ -389,15 +389,11 @@ function buildCSS(): string {
     // Base fixes
     lines.push(`${S.panelContainer} { height: auto !important; min-height: unset !important; }`);
 
-// Ensure cloned config SVGs display correctly
+    // Ensure cloned config SVGs display correctly
     lines.push(`
-        :not(title="AntiMove&Deco").deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
+        .deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
             width: 22px !important; height: 22px !important;
             color: var(--interactive-normal, var(--interactive-text-default)) !important; fill: currentColor !important;
-        }
-        [title="Game Activity"] .deracul-btn-preview svg {
-            --vc-plugin-icon-color: var(--status-danger) !important;
-            color: var(--status-danger) !important;
         }
     `);
 

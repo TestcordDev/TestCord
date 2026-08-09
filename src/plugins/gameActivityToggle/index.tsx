@@ -52,11 +52,11 @@ const settings = definePluginSettings({
 });
 
 function Icon({ className }: { className?: string; }) {
-    const { oldIcon, oldLogic } = settings.use(["oldIcon", "oldLogic"]);
+    const { oldIcon } = settings.use(["oldIcon"]);
     const showCurrentGame = ShowCurrentGame.useSetting();
 
     return (
-        <svg className={className} width="20" height="20" viewBox="0 0 24 24">
+        <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <mask id="gameActivityLine">
                 <rect width="100%" height="100%" fill="#ffffff" />
                 <line
