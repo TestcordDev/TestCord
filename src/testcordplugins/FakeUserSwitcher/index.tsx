@@ -312,39 +312,112 @@ function buildOverrides(active: any): Record<string, unknown> {
     } else {
         // Do NOT override id to target.id — this breaks Discord's
         // UserProfileInteractionContextProvider and hides the "Edit Profile" button.
-        // The createdAt is set from the target's snowflake for display purposes only.
         overrides.createdAt = target.createdAt ?? getCreatedAtFromId(target.id);
     }
     return overrides;
 }
 
-function mergeUser(base: any, overrides: Record<string, unknown>): any {
-    const wrap = Object.create(Object.getPrototypeOf(base));
-    for (const key of Object.getOwnPropertyNames(base)) {
-        const desc = Object.getOwnPropertyDescriptor(base, key);
-        if (desc) {
-            try {
-                Object.defineProperty(wrap, key, desc);
-            } catch { /* ignore */ }
-        }
-    }
-    for (const sym of Object.getOwnPropertySymbols(base)) {
-        const desc = Object.getOwnPropertyDescriptor(base, sym);
-        if (desc) {
-            try {
-                Object.defineProperty(wrap, sym, desc);
-            } catch { /* ignore */ }
-        }
-    }
-    for (const key of Object.keys(overrides)) {
+function safeMergeUserProfile(original: any, overrides: any, userId?: string): any {
+    if (!original) return { userId, ...overrides };
+
+    let proto = Object.prototype;
+    try {
+        proto = Object.getPrototypeOf(original) || Object.prototype;
+    } catch { /* ignore */ }
+
+    const merged = Object.create(proto);
+
+    try {
+        Object.assign(merged, original);
+    } catch {
+        let keys: (string | symbol)[] = [];
         try {
-            Object.defineProperty(wrap, key, {
-                value: overrides[key],
-                writable: true,
-                enumerable: true,
-                configurable: true,
-            });
+            keys = [
+                ...Object.getOwnPropertyNames(original),
+                ...Object.getOwnPropertySymbols(original)
+            ];
+        } catch {
+            try {
+                keys = Object.keys(original);
+            } catch { /* ignore */ }
+        }
+        const uniqueKeys = Array.from(new Set(keys));
+        for (const key of uniqueKeys) {
+            try {
+                const desc = Object.getOwnPropertyDescriptor(original, key);
+                if (desc) {
+                    Object.defineProperty(merged, key, desc);
+                } else {
+                    merged[key as any] = original[key];
+                }
+            } catch {
+                try {
+                    merged[key as any] = original[key];
+                } catch { /* ignore */ }
+            }
+        }
+    }
+
+    if (overrides) {
+        for (const key of Object.keys(overrides)) {
+            try {
+                merged[key] = overrides[key];
+            } catch { /* ignore */ }
+        }
+    }
+
+    return merged;
+}
+
+function mergeUser(base: any, overrides: Record<string, unknown>): any {
+    if (!base) return overrides;
+    let proto = Object.prototype;
+    try {
+        proto = Object.getPrototypeOf(base) || Object.prototype;
+    } catch { /* ignore */ }
+    const wrap = Object.create(proto);
+
+    let names: string[] = [];
+    try {
+        names = Array.from(new Set(Object.getOwnPropertyNames(base)));
+    } catch {
+        try {
+            names = Object.keys(base);
         } catch { /* ignore */ }
+    }
+    for (const key of names) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(base, key);
+            if (desc) {
+                Object.defineProperty(wrap, key, desc);
+            }
+        } catch { /* ignore */ }
+    }
+
+    let symbols: symbol[] = [];
+    try {
+        symbols = Array.from(new Set(Object.getOwnPropertySymbols(base)));
+    } catch { /* ignore */ }
+    for (const sym of symbols) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(base, sym);
+            if (desc) {
+                Object.defineProperty(wrap, sym, desc);
+            }
+        } catch { /* ignore */ }
+    }
+
+    if (overrides) {
+        for (const key of Object.keys(overrides)) {
+            try {
+                Object.defineProperty(wrap, key, {
+                    value: overrides[key],
+                    writable: true,
+                    enumerable: true,
+                    configurable: true,
+                });
+            } catch { /* ignore */ }
+        }
     }
     return wrap;
 }
@@ -363,23 +436,43 @@ const CLAIM_OVERRIDES = {
 };
 
 function cloneWithPremium(user: any, months: number): any {
-    const clone = Object.create(Object.getPrototypeOf(user));
-    for (const key of Object.getOwnPropertyNames(user)) {
-        const desc = Object.getOwnPropertyDescriptor(user, key);
-        if (desc) {
-            try {
+    if (!user) return user;
+    let proto = Object.prototype;
+    try {
+        proto = Object.getPrototypeOf(user) || Object.prototype;
+    } catch { /* ignore */ }
+    const clone = Object.create(proto);
+
+    let names: string[] = [];
+    try {
+        names = Array.from(new Set(Object.getOwnPropertyNames(user)));
+    } catch {
+        try {
+            names = Object.keys(user);
+        } catch { /* ignore */ }
+    }
+    for (const key of names) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(user, key);
+            if (desc) {
                 Object.defineProperty(clone, key, desc);
-            } catch { /* ignore */ }
-        }
+            }
+        } catch { /* ignore */ }
     }
-    for (const sym of Object.getOwnPropertySymbols(user)) {
-        const desc = Object.getOwnPropertyDescriptor(user, sym);
-        if (desc) {
-            try {
+
+    let symbols: symbol[] = [];
+    try {
+        symbols = Array.from(new Set(Object.getOwnPropertySymbols(user)));
+    } catch { /* ignore */ }
+    for (const sym of symbols) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(user, sym);
+            if (desc) {
                 Object.defineProperty(clone, sym, desc);
-            } catch { /* ignore */ }
-        }
+            }
+        } catch { /* ignore */ }
     }
+
     const since = new Date();
     since.setMonth(since.getMonth() - months);
     try {
@@ -2647,9 +2740,7 @@ const plugin = definePlugin({
         };
         overrides.userProfile = overrides.user_profile;
 
-        const merged = original
-            ? Object.assign(Object.create(Object.getPrototypeOf(original)), original, overrides)
-            : { userId, ...overrides };
+        const merged = safeMergeUserProfile(original, overrides, userId);
         return merged;
     },
 

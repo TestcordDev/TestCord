@@ -187,33 +187,107 @@ function buildOverrides(target: any): Record<string, unknown> {
     return overrides;
 }
 
-function mergeUser(base: any, overrides: Record<string, unknown>): any {
-    const wrap = Object.create(Object.getPrototypeOf(base));
-    for (const key of Object.getOwnPropertyNames(base)) {
-        const desc = Object.getOwnPropertyDescriptor(base, key);
-        if (desc) {
-            try {
-                Object.defineProperty(wrap, key, desc);
-            } catch { /* ignore */ }
-        }
-    }
-    for (const sym of Object.getOwnPropertySymbols(base)) {
-        const desc = Object.getOwnPropertyDescriptor(base, sym);
-        if (desc) {
-            try {
-                Object.defineProperty(wrap, sym, desc);
-            } catch { /* ignore */ }
-        }
-    }
-    for (const key of Object.keys(overrides)) {
+function safeMergeUserProfile(original: any, overrides: any, userId?: string): any {
+    if (!original) return { userId, ...overrides };
+
+    let proto = Object.prototype;
+    try {
+        proto = Object.getPrototypeOf(original) || Object.prototype;
+    } catch { /* ignore */ }
+
+    const merged = Object.create(proto);
+
+    try {
+        Object.assign(merged, original);
+    } catch {
+        let keys: (string | symbol)[] = [];
         try {
-            Object.defineProperty(wrap, key, {
-                value: overrides[key],
-                writable: true,
-                enumerable: true,
-                configurable: true,
-            });
+            keys = [
+                ...Object.getOwnPropertyNames(original),
+                ...Object.getOwnPropertySymbols(original)
+            ];
+        } catch {
+            try {
+                keys = Object.keys(original);
+            } catch { /* ignore */ }
+        }
+        const uniqueKeys = Array.from(new Set(keys));
+        for (const key of uniqueKeys) {
+            try {
+                const desc = Object.getOwnPropertyDescriptor(original, key);
+                if (desc) {
+                    Object.defineProperty(merged, key, desc);
+                } else {
+                    merged[key as any] = original[key];
+                }
+            } catch {
+                try {
+                    merged[key as any] = original[key];
+                } catch { /* ignore */ }
+            }
+        }
+    }
+
+    if (overrides) {
+        for (const key of Object.keys(overrides)) {
+            try {
+                merged[key] = overrides[key];
+            } catch { /* ignore */ }
+        }
+    }
+
+    return merged;
+}
+
+function mergeUser(base: any, overrides: Record<string, unknown>): any {
+    if (!base) return overrides;
+    let proto = Object.prototype;
+    try {
+        proto = Object.getPrototypeOf(base) || Object.prototype;
+    } catch { /* ignore */ }
+    const wrap = Object.create(proto);
+
+    let names: string[] = [];
+    try {
+        names = Array.from(new Set(Object.getOwnPropertyNames(base)));
+    } catch {
+        try {
+            names = Object.keys(base);
         } catch { /* ignore */ }
+    }
+    for (const key of names) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(base, key);
+            if (desc) {
+                Object.defineProperty(wrap, key, desc);
+            }
+        } catch { /* ignore */ }
+    }
+
+    let symbols: symbol[] = [];
+    try {
+        symbols = Array.from(new Set(Object.getOwnPropertySymbols(base)));
+    } catch { /* ignore */ }
+    for (const sym of symbols) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(base, sym);
+            if (desc) {
+                Object.defineProperty(wrap, sym, desc);
+            }
+        } catch { /* ignore */ }
+    }
+
+    if (overrides) {
+        for (const key of Object.keys(overrides)) {
+            try {
+                Object.defineProperty(wrap, key, {
+                    value: overrides[key],
+                    writable: true,
+                    enumerable: true,
+                    configurable: true,
+                });
+            } catch { /* ignore */ }
+        }
     }
     return wrap;
 }
@@ -1060,9 +1134,7 @@ export default definePlugin({
             }
         }
 
-        const merged = original
-            ? Object.assign(Object.create(Object.getPrototypeOf(original)), original, overrides)
-            : { userId, ...overrides };
+        const merged = safeMergeUserProfile(original, overrides, userId);
         return merged;
     },
 
