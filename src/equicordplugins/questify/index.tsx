@@ -20,6 +20,7 @@ import { QuestTileContextMenu } from "./components/questTileContextMenu";
 import { getQuestifySettings } from "./settings/access";
 import { resetQuestsToResume, startAutoFetchingQuests, stopAutoFetchingQuests } from "./settings/fetching";
 import { validateIgnoredQuests } from "./settings/ignoredQuests";
+import { showPendingQuestifyNotice } from "./settings/notices";
 import { rerenderQuests, useQuestRerender } from "./settings/rerender";
 import { disposeRestartTracking, initializeRestartTracking, promptToRestartIfDirty, setRestartDirty } from "./settings/restartTracking";
 import { settings } from "./settings/store";
@@ -305,7 +306,26 @@ export default definePlugin({
             ]
         },
         {
-            find: "QUEST_HOME_TILE_HEADER_WATCH_VIDEO})},",
+            // Prevent Video Quests from pausing on lost focus.
+            find: "[QV] | Pausing video | playerState:",
+            predicate: () => !getQuestifySettings().disableQuestsEverything && getQuestifySettings().preventVideoQuestsPausing,
+            replacement: {
+                match: /(?<=setCaptionEnabled\),)({focused:)(\i)/,
+                replace: "$2=true,$1questifyFocused"
+            }
+        },
+        {
+            // Prevent Video Quests from pausing on lost focus.
+            find: ",listenForHlsErrors:!1",
+            predicate: () => !getQuestifySettings().disableQuestsEverything && getQuestifySettings().preventVideoQuestsPausing,
+            replacement: {
+                match: /(?<=pauseOnLostVisibility:)!\i/,
+                replace: "false",
+            }
+        },
+        {
+            find: "QUEST_HOME)},[]),",
+            group: true,
             predicate: () => !getQuestifySettings().disableQuestsEverything,
             replacement: [
                 {
@@ -322,13 +342,13 @@ export default definePlugin({
             replacement: [
                 {
                     // Overwrite button props for UNENROLLED Quests.
-                    match: /(?<=onClick:\(\)=>{\i\?\.\(\),\i\(\)},text:\i,icon:\i,iconPosition:\i,fullWidth:!0)/,
+                    match: /(?<=,text:\i,icon:\i,iconPosition:\i,fullWidth:!0)(?=,"aria-disabled":\i\|\|void 0)/,
                     replace: ",...($self.getQuestButtonProps(arguments[0])??{})"
                 },
                 {
                     // Overwrite button props for ENROLLED/INCOMPLETE Quests.
-                    match: /(?<=let{quest:\i,taskType:\i,surface:\i.{0,150}?size:\i}=\i;return)(.{0,300}?,size:\i,surface:\i,analyticsCtxQuestContent:\i,analyticsCtxSourceQuestContent:\i}\))/,
-                    replace: " $self.enrolledIncompleteButton(arguments[0])||($1)"
+                    match: /(case \i\.\i\.(?:ENROLLED|INCOMPLETE):return)(?=\(0,\i\.jsx\)\(\i,\{quest:(\i),taskType:\i\.type,size:(\i),)/g,
+                    replace: "$1 $self.enrolledIncompleteButton({quest:$2,size:$3})||"
                 }
             ]
         },
@@ -346,7 +366,7 @@ export default definePlugin({
             find: "prevIsQuestAccepted:",
             predicate: () => !getQuestifySettings().disableQuestsEverything && !getQuestifySettings().disableAccountPanelQuestProgress,
             replacement: {
-                match: /(?<=isLoading:\i}=\(0,\i.\i\)\(\),\i=\i\.useContext\(\i\.\i\)\|\|\i&&)(\i)/,
+                match: /(?<=isLoading:\i}=\(0,\i\.\i\)\(\),\i=\i\.useContext\(\i\.\i\),\i=\i\|\|\i&&)(\i)/,
                 replace: "($1||$self.shouldForceQuestPanelVisible(arguments[0].quest))"
             }
         },
@@ -631,6 +651,8 @@ export default definePlugin({
         }
 
         onceReady.then(() => {
+            showPendingQuestifyNotice();
+
             if (!getQuestifySettings().disableQuestsEverything) {
                 startPerAccountTasks("PLUGIN_START");
             } else {

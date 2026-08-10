@@ -6,7 +6,7 @@
 
 import type { PluginNative } from "@utils/types";
 import type { Quest, User } from "@vencord/discord-types";
-import { QuestTaskType } from "@vencord/discord-types/enums";
+import { QuestTargetedContent, QuestTaskType } from "@vencord/discord-types/enums";
 import { findByCodeLazy, findLazy } from "@webpack";
 import { AuthorizedAppsStore, FluxDispatcher, QuestStore, RestAPI, showToast, Toasts, UserStore } from "@webpack/common";
 
@@ -15,7 +15,8 @@ import { autoCompleteQuestTaskTypes, isDesktopCompatible } from "../settings/def
 import { resetQuestsToResume } from "../settings/fetching";
 import { getIgnoredQuestIDs } from "../settings/ignoredQuests";
 import { rerenderQuests } from "../settings/rerender";
-import { normalizeQuestName } from "./filtering";
+import { snakeToCamel } from "./fetching";
+import { normalizeQuestName, type QuestIncludedTypes, questMatchesIncludedTypes } from "./filtering";
 import { QL } from "./logging";
 import { getQuestStatus, getQuestStoredProgress, isVideoQuestTask, QuestStatus, QuestTask, refreshQuest } from "./questState";
 import { hasInjectedDesktopVideoCompatibility } from "./questTiles";
@@ -25,6 +26,18 @@ type QuestEnrollResult =
     | { type: "captcha_failed"; }
     | { type: "unknown_error"; }
     | { type: "previous_in_flight_request"; };
+
+type QuestManualEnrollResult =
+    | { type: "success"; }
+    | { type: "rate_limited"; retryAfter: number | null; }
+    | { type: "cancelled"; }
+    | { type: "unknown_error"; error: unknown; };
+
+type QuestEnrollmentResult =
+    | { type: "success"; }
+    | { type: "rate_limited"; retryAfter: number | null; }
+    | { type: "cancelled"; }
+    | { type: "unknown_error"; };
 
 interface QuestEnrollmentMetadata {
     questContent: unknown;
@@ -89,7 +102,7 @@ const sendHeartbeat = findByCodeLazy(".QUESTS_HEARTBEAT(") as (options: {
     executableFingerprint?: unknown;
 }) => Promise<void>;
 const getApplicationProxyTicket = findByCodeLazy("APPLICATION_PROXY_TICKET", "body.ticket") as (applicationId: string, channelId?: string) => Promise<string>;
-export const enrollInQuest = findByCodeLazy('type:"QUESTS_ENROLL_BEGIN",') as (questId: string, options: QuestEnrollmentMetadata) => Promise<QuestEnrollResult>;
+export const enrollInQuestNative = findByCodeLazy('type:"QUESTS_ENROLL_BEGIN",') as (questId: string, options: QuestEnrollmentMetadata) => Promise<QuestEnrollResult>;
 const getQuestOrbQuantity = findByCodeLazy("premiumOrbQuantity??", "orbQuantity") as (
     config: Quest["config"],
     user: User | null | undefined
@@ -130,6 +143,9 @@ const QuestifyNative = VencordNative?.pluginHelpers?.Questify as PluginNative<ty
 
 const videoQuestLeeway = 24;
 const resumeExpiryMs = 60 * 60 * 1000;
+const maxBatchEnrollmentAttempts = 25;
+const maxBatchNonRateLimitEnrollmentFailures = 3;
+const maxBatchRateLimitEnrollmentFailures = 1;
 export type AutoCompleteQuestKind = "watch" | "play" | "achievement";
 export type AutoCompleteQuestStatus = "queued" | "running";
 export type AutoCompleteStartSource = "manual" | "resume" | "auto";
@@ -178,6 +194,8 @@ interface VideoProgressReportOptions {
 
 const activeAutoCompletes = new Map<string, AutoCompleteEntry>();
 const manuallyStoppedQuestIds = new Set<string>();
+let enrollmentRateLimitBlockedUntil = 0;
+let queueAllAutoCompleteQuestsAbortController: AbortController | null = null;
 let suppressQueueDrain = false;
 let videoProgressStackTracePatchSucceeded = false;
 let heartbeatStackTracePatchSucceeded = false;
@@ -494,13 +512,10 @@ export function getQuestButtonProps(args: QuestButtonPropsArgs): QuestButtonPatc
         onClick: async () => {
             if (completionState === QuestCompletionState.Unenrolled) {
                 args.preClickCallback?.();
-                const enrollment = await enrollInQuest(args.quest.id, makeEnrollmentData(args));
 
-                if (["success", "previous_in_flight_request"].includes(enrollment.type)) {
+                if ((await ensureQuestEnrolledForAutoComplete(args.quest, { analytics: args, method: "native" })).type === "success") {
                     processQuestForAutoComplete(args.quest, { force: true, source: "manual" });
                     rerenderQuests();
-                } else {
-                    showToast(`Enrollment in ${normalizeQuestName(args.quest)} Quest failed.`, Toasts.Type.FAILURE);
                 }
             } else if (completionState === QuestCompletionState.Completing) {
                 stopQuestAutoComplete(args.quest, { manual: true, preserveResume: false, terminalHeartbeat: true });
@@ -557,6 +572,153 @@ export function canAutoCompleteQuest(quest: Quest): boolean {
     }
 
     return resolveAutoCompleteQuest(quest) != null;
+}
+
+function getEnrollmentRetryAfter(error: unknown): number | null {
+    const response = error as { body?: { retry_after?: unknown; retryAfter?: unknown; }; retry_after?: unknown; retryAfter?: unknown; };
+    const retryAfter = response.body?.retry_after ?? response.body?.retryAfter ?? response.retry_after ?? response.retryAfter;
+
+    return typeof retryAfter === "number" && Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter
+        : null;
+}
+
+function isEnrollmentRateLimitError(error: unknown): boolean {
+    const response = error as { status?: unknown; };
+
+    return response.status === 429 || getEnrollmentRetryAfter(error) !== null;
+}
+
+function getEnrollmentRateLimitRemainingSeconds(): number | null {
+    if (enrollmentRateLimitBlockedUntil <= Date.now()) {
+        enrollmentRateLimitBlockedUntil = 0;
+        return null;
+    }
+
+    return (enrollmentRateLimitBlockedUntil - Date.now()) / 1000;
+}
+
+export function isQuestEnrollmentRateLimited(): boolean {
+    return getEnrollmentRateLimitRemainingSeconds() !== null;
+}
+
+function blockQuestEnrollmentForRetryAfter(retryAfter: number | null): void {
+    if (retryAfter === null) {
+        return;
+    }
+
+    enrollmentRateLimitBlockedUntil = Math.max(enrollmentRateLimitBlockedUntil, Date.now() + retryAfter * 1000);
+}
+
+function showQuestEnrollmentFailureToast(quest: Quest, result: Exclude<QuestEnrollmentResult, { type: "success"; }>): void {
+    const rateLimitSuffix = result.type === "rate_limited" ? " due to rate limits" : "";
+
+    showToast(`Enrollment in ${normalizeQuestName(quest)} Quest failed${rateLimitSuffix}.`, Toasts.Type.FAILURE);
+}
+
+export async function enrollInQuestManually(quest: Quest): Promise<QuestManualEnrollResult> {
+    quest = refreshQuest(quest);
+    const userId = getCurrentUserId();
+
+    if (quest.userStatus?.enrolledAt) {
+        return { type: "success" };
+    }
+
+    const blockedFor = getEnrollmentRateLimitRemainingSeconds();
+
+    if (blockedFor !== null) {
+        return { type: "rate_limited", retryAfter: blockedFor };
+    }
+
+    FluxDispatcher.dispatch({
+        type: "QUESTS_ENROLL_BEGIN",
+        questId: quest.id,
+    });
+
+    try {
+        const response = await RestAPI.post({
+            url: `/quests/${quest.id}/enroll`,
+            body: { location: QuestTargetedContent.QUEST_HOME_DESKTOP },
+        });
+
+        if (getCurrentUserId() !== userId) {
+            return { type: "cancelled" };
+        }
+
+        FluxDispatcher.dispatch({
+            type: "QUESTS_ENROLL_SUCCESS",
+            enrolledQuestUserStatus: snakeToCamel(response.body) as Quest["userStatus"],
+        });
+
+        return { type: "success" };
+    } catch (error) {
+        if (getCurrentUserId() !== userId) {
+            return { type: "cancelled" };
+        }
+
+        FluxDispatcher.dispatch({
+            type: "QUESTS_ENROLL_FAILURE",
+            questId: quest.id,
+        });
+
+        if (isEnrollmentRateLimitError(error)) {
+            const retryAfter = getEnrollmentRetryAfter(error);
+
+            blockQuestEnrollmentForRetryAfter(retryAfter);
+
+            return { type: "rate_limited", retryAfter };
+        }
+
+        return { type: "unknown_error", error };
+    }
+}
+
+async function ensureQuestEnrolledForAutoComplete(
+    quest: Quest,
+    options: { analytics?: QuestButtonAnalyticsArgs; method?: "manual" | "native"; } = {},
+): Promise<QuestEnrollmentResult> {
+    quest = refreshQuest(quest);
+
+    if (quest.userStatus?.enrolledAt) {
+        return { type: "success" };
+    }
+
+    const result = options.method === "manual"
+        ? await enrollInQuestManually(quest)
+        : await enrollInQuestNative(quest.id, makeEnrollmentData(options.analytics ?? {}));
+
+    if (result.type === "cancelled") {
+        return { type: "cancelled" };
+    }
+
+    if (result.type === "success" || result.type === "previous_in_flight_request") {
+        return { type: "success" };
+    }
+
+    const failure = result.type === "rate_limited"
+        ? { type: "rate_limited", retryAfter: result.retryAfter } as const
+        : { type: "unknown_error" } as const;
+
+    showQuestEnrollmentFailureToast(quest, failure);
+
+    return failure;
+}
+
+function getQuestExpiryTime(quest: Quest): number {
+    const time = new Date(quest.config.expiresAt).getTime();
+
+    return Number.isFinite(time) ? time : Infinity;
+}
+
+export function getQueueableAutoCompleteQuests(): Quest[] {
+    const settings = getQuestifySettings();
+    const includedTypes = settings.questButtonIncludedTypes as QuestIncludedTypes;
+
+    return Array.from(QuestStore.quests.values())
+        .filter(quest => !activeAutoCompletes.has(quest.id))
+        .filter(quest => questMatchesIncludedTypes(quest, includedTypes))
+        .filter(canAutoCompleteQuest)
+        .sort((a, b) => getQuestExpiryTime(a) - getQuestExpiryTime(b));
 }
 
 export function setQuestAutoCompleteProgress(questOrId: Quest | string, progress: number | null): boolean {
@@ -1091,6 +1253,100 @@ export function processQuestForAutoComplete(quest: Quest, options: AutoCompleteS
     return true;
 }
 
+export function isQueueAllAutoCompleteQuestsInProgress(): boolean {
+    return queueAllAutoCompleteQuestsAbortController !== null;
+}
+
+export function stopQueueAllAutoCompleteQuests(): void {
+    queueAllAutoCompleteQuestsAbortController?.abort();
+}
+
+export async function queueAllAutoCompleteQuests(): Promise<number> {
+    if (
+        queueAllAutoCompleteQuestsAbortController !== null ||
+        getQuestifySettings().autoCompleteQuestsSimultaneously ||
+        isQuestEnrollmentRateLimited()
+    ) {
+        return 0;
+    }
+
+    const abortController = new AbortController();
+    const { signal } = abortController;
+
+    queueAllAutoCompleteQuestsAbortController = abortController;
+
+    try {
+        let queued = 0;
+        let enrollmentAttempts = 0;
+        let rateLimitEnrollmentFailures = 0;
+        let nonRateLimitEnrollmentFailures = 0;
+        let first = true;
+
+        for (const quest of getQueueableAutoCompleteQuests()) {
+            if (signal.aborted) {
+                break;
+            }
+
+            if (!first) {
+                try {
+                    await sleep(1000, signal);
+                } catch (error) {
+                    if (signal.aborted) {
+                        break;
+                    }
+
+                    throw error;
+                }
+            }
+
+            first = false;
+            const refreshedQuest = refreshQuest(quest);
+
+            if (!refreshedQuest.userStatus?.enrolledAt) {
+                if (enrollmentAttempts >= maxBatchEnrollmentAttempts) {
+                    break;
+                }
+
+                enrollmentAttempts++;
+            }
+
+            const enrollment = await ensureQuestEnrolledForAutoComplete(refreshedQuest, { method: "manual" });
+
+            if (signal.aborted) {
+                break;
+            }
+
+            if (enrollment.type !== "success") {
+                if (enrollment.type === "rate_limited") {
+                    rateLimitEnrollmentFailures++;
+
+                    if (rateLimitEnrollmentFailures >= maxBatchRateLimitEnrollmentFailures) {
+                        break;
+                    }
+                } else {
+                    nonRateLimitEnrollmentFailures++;
+
+                    if (nonRateLimitEnrollmentFailures >= maxBatchNonRateLimitEnrollmentFailures) {
+                        break;
+                    }
+                }
+
+                continue;
+            }
+
+            if (processQuestForAutoComplete(refreshQuest(refreshedQuest), { force: true, source: "manual" })) {
+                queued++;
+            }
+        }
+
+        return queued;
+    } finally {
+        if (queueAllAutoCompleteQuestsAbortController === abortController) {
+            queueAllAutoCompleteQuestsAbortController = null;
+        }
+    }
+}
+
 export function stopQuestAutoComplete(questOrId: Quest | string, options: AutoCompleteStopOptions = {}): boolean {
     const { manual = true, preserveResume = false, terminalHeartbeat = false } = options;
     const questId = typeof questOrId === "string" ? questOrId : questOrId.id;
@@ -1131,6 +1387,8 @@ export function stopQuestAutoComplete(questOrId: Quest | string, options: AutoCo
 }
 
 export function stopAllAutoCompletes(options: AutoCompleteStopOptions = {}): void {
+    stopQueueAllAutoCompleteQuests();
+
     const resumeQuestIds = options.preserveResume ? getResumeQuestIds() : undefined;
 
     suppressQueueDrain = true;
