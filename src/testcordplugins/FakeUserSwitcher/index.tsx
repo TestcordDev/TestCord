@@ -1360,7 +1360,7 @@ function FakeUserSwitcherButton({ iconForeground, hideTooltips, nameplate }: Use
             icon={<FakeUserSwitcherIcon className={iconForeground} />}
             role="button"
             plated={nameplate != null}
-            redGlow={!active}
+            redGlow={!settings.store.spoofActive}
             onClick={() => {
                 if (settings.store.uiMode === "legacy") {
                     openModal(modalProps => <FakeUserProfileModal modalProps={modalProps as any} />);
