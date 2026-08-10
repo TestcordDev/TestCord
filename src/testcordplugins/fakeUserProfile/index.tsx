@@ -187,33 +187,107 @@ function buildOverrides(target: any): Record<string, unknown> {
     return overrides;
 }
 
-function mergeUser(base: any, overrides: Record<string, unknown>): any {
-    const wrap = Object.create(Object.getPrototypeOf(base));
-    for (const key of Object.getOwnPropertyNames(base)) {
-        const desc = Object.getOwnPropertyDescriptor(base, key);
-        if (desc) {
-            try {
-                Object.defineProperty(wrap, key, desc);
-            } catch { /* ignore */ }
-        }
-    }
-    for (const sym of Object.getOwnPropertySymbols(base)) {
-        const desc = Object.getOwnPropertyDescriptor(base, sym);
-        if (desc) {
-            try {
-                Object.defineProperty(wrap, sym, desc);
-            } catch { /* ignore */ }
-        }
-    }
-    for (const key of Object.keys(overrides)) {
+function safeMergeUserProfile(original: any, overrides: any, userId?: string): any {
+    if (!original) return { userId, ...overrides };
+
+    let proto = Object.prototype;
+    try {
+        proto = Object.getPrototypeOf(original) || Object.prototype;
+    } catch { /* ignore */ }
+
+    const merged = Object.create(proto);
+
+    try {
+        Object.assign(merged, original);
+    } catch {
+        let keys: (string | symbol)[] = [];
         try {
-            Object.defineProperty(wrap, key, {
-                value: overrides[key],
-                writable: true,
-                enumerable: true,
-                configurable: true,
-            });
+            keys = [
+                ...Object.getOwnPropertyNames(original),
+                ...Object.getOwnPropertySymbols(original)
+            ];
+        } catch {
+            try {
+                keys = Object.keys(original);
+            } catch { /* ignore */ }
+        }
+        const uniqueKeys = Array.from(new Set(keys));
+        for (const key of uniqueKeys) {
+            try {
+                const desc = Object.getOwnPropertyDescriptor(original, key);
+                if (desc) {
+                    Object.defineProperty(merged, key, desc);
+                } else {
+                    merged[key as any] = original[key];
+                }
+            } catch {
+                try {
+                    merged[key as any] = original[key];
+                } catch { /* ignore */ }
+            }
+        }
+    }
+
+    if (overrides) {
+        for (const key of Object.keys(overrides)) {
+            try {
+                merged[key] = overrides[key];
+            } catch { /* ignore */ }
+        }
+    }
+
+    return merged;
+}
+
+function mergeUser(base: any, overrides: Record<string, unknown>): any {
+    if (!base) return overrides;
+    let proto = Object.prototype;
+    try {
+        proto = Object.getPrototypeOf(base) || Object.prototype;
+    } catch { /* ignore */ }
+    const wrap = Object.create(proto);
+
+    let names: string[] = [];
+    try {
+        names = Array.from(new Set(Object.getOwnPropertyNames(base)));
+    } catch {
+        try {
+            names = Object.keys(base);
         } catch { /* ignore */ }
+    }
+    for (const key of names) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(base, key);
+            if (desc) {
+                Object.defineProperty(wrap, key, desc);
+            }
+        } catch { /* ignore */ }
+    }
+
+    let symbols: symbol[] = [];
+    try {
+        symbols = Array.from(new Set(Object.getOwnPropertySymbols(base)));
+    } catch { /* ignore */ }
+    for (const sym of symbols) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(base, sym);
+            if (desc) {
+                Object.defineProperty(wrap, sym, desc);
+            }
+        } catch { /* ignore */ }
+    }
+
+    if (overrides) {
+        for (const key of Object.keys(overrides)) {
+            try {
+                Object.defineProperty(wrap, key, {
+                    value: overrides[key],
+                    writable: true,
+                    enumerable: true,
+                    configurable: true,
+                });
+            } catch { /* ignore */ }
+        }
     }
     return wrap;
 }
@@ -556,7 +630,33 @@ function syncSpoofState() {
 function FakeUserProfileIcon({ className, style }: { className?: string; style?: React.CSSProperties; }) {
     return (
         <svg className={className} style={style} width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-            <path fill="currentColor" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.42 0-8 2.24-8 5v2h16v-2c0-2.76-3.58-5-8-5Zm5.5-3.5 2.3 2.3a1 1 0 0 1-1.42 1.42L16.08 12l-2.3 2.3a1 1 0 1 1-1.42-1.42l2.3-2.3-2.3-2.3a1 1 0 0 1 1.42-1.42l2.3 2.3 2.3-2.3a1 1 0 0 1 1.42 1.42L17.5 10.5Z" />
+            <mask id="fakeUserProfileLine">
+                <rect width="100%" height="100%" fill="#ffffff" />
+                <line
+                    className="blackLine"
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="#000000"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                />
+            </mask>
+
+            <path mask={!isActive() ? "url(#fakeUserProfileLine)" : undefined} fill={!isActive() ? "var(--status-danger)" : "currentColor"} d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.42 0-8 2.24-8 5v2h16v-2c0-2.76-3.58-5-8-5Zm5.5-3.5 2.3 2.3a1 1 0 0 1-1.42 1.42L16.08 12l-2.3 2.3a1 1 0 1 1-1.42-1.42l2.3-2.3-2.3-2.3a1 1 0 0 1 1.42-1.42l2.3 2.3 2.3-2.3a1 1 0 0 1 1.42 1.42L17.5 10.5Z" />
+
+            {!isActive() && (
+                <line
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="var(--status-danger, currentColor)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                />
+            )}
         </svg>
     );
 }
@@ -587,7 +687,7 @@ function FakeUserProfileButton({ iconForeground, hideTooltips, nameplate }: User
             icon={<FakeUserProfileIcon className={iconForeground} />}
             role="button"
             plated={nameplate != null}
-            redGlow={active}
+            redGlow={!active}
             onClick={() => openModal(modalProps => <FakeUserProfileModal modalProps={modalProps as any} />)}
             onContextMenu={() => {
                 if (!target && !restoreManualProfileIfNeeded()) {
@@ -1034,9 +1134,7 @@ export default definePlugin({
             }
         }
 
-        const merged = original
-            ? Object.assign(Object.create(Object.getPrototypeOf(original)), original, overrides)
-            : { userId, ...overrides };
+        const merged = safeMergeUserProfile(original, overrides, userId);
         return merged;
     },
 

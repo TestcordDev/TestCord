@@ -63,11 +63,12 @@ for (const method of [
 
 handler.ownKeys = target => {
     const v = target[SYM_LAZY_GET]();
+    if (!v) return Reflect.ownKeys(target);
     const keys = Reflect.ownKeys(v);
     for (const key of unconfigurable) {
         if (!keys.includes(key)) keys.push(key);
     }
-    return keys;
+    return Array.from(new Set(keys));
 };
 
 handler.getOwnPropertyDescriptor = (target, p) => {

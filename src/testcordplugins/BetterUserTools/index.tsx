@@ -6,7 +6,7 @@
 
 import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
-import { UserAreaButton } from "@api/UserArea";
+import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import { getUserSettingLazy } from "@api/UserSettings";
 import { EquicordDevs, TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
@@ -131,42 +131,62 @@ async function disableLoopback(silent = false) {
     }
 }
 
-function MicLoopbackIcon({ active }: { active: boolean; }) {
+function MicLoopbackIcon({ active, className }: { active: boolean; className?: string }) {
     return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <rect
-                x="9"
-                y="4"
-                width="6"
-                height="10"
-                rx="3"
-                stroke="currentColor"
-                strokeWidth="1.6"
-            />
-            <path
-                d="M7 10a5 5 0 0 0 10 0"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-            />
-            <path
-                d="M12 15v4m-3 1h6"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-            />
-            <path
-                d="M6 7c-1.333 1.333-1.333 4.667 0 6m12-6c1.333 1.333 1.333 4.667 0 6"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-                strokeDasharray="2 2"
-            />
-            {active && (
-                <path
-                    d="M4 20 20 4"
+        <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <mask id="BetterUserToolsMicLoopbackLine">
+                <rect width="100%" height="100%" fill="#ffffff" />
+                <line
+                    className="blackLine"
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="#000000"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                />
+            </mask>
+
+            <g mask={!active ? "url(#BetterUserToolsMicLoopbackLine)" : undefined}>
+                <rect
+                    x="9"
+                    y="4"
+                    width="6"
+                    height="10"
+                    rx="3"
                     stroke="currentColor"
                     strokeWidth="1.6"
+                />
+                <path
+                    d="M7 10a5 5 0 0 0 10 0"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                />
+                <path
+                    d="M12 15v4m-3 1h6"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                />
+                <path
+                    d="M6 7c-1.333 1.333-1.333 4.667 0 6m12-6c1.333 1.333 1.333 4.667 0 6"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                    strokeDasharray="2 2"
+                />
+            </g>
+
+            {!active && (
+                <line
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="var(--status-danger, currentColor)"
+                    strokeWidth="2"
                     strokeLinecap="round"
                 />
             )}
@@ -174,7 +194,7 @@ function MicLoopbackIcon({ active }: { active: boolean; }) {
     );
 }
 
-function MicLoopbackButton() {
+function MicLoopbackButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
 
     const handleToggle = React.useCallback(async () => {
@@ -188,19 +208,22 @@ function MicLoopbackButton() {
 
     return (
         <UserAreaButton
-            tooltipText="Mic Test Loopback"
-            icon={<MicLoopbackIcon active={loopbackActive} />}
+            tooltipText={hideTooltips ? void 0 : "Mic Test Loopback"}
+            icon={<MicLoopbackIcon active={loopbackActive} className={iconForeground} />}
             role="switch"
+            redGlow={!loopbackActive}
             aria-checked={loopbackActive}
             onClick={handleToggle}
-            className={`vc-betterusertools-btn${loopbackActive ? " danger" : ""}`}
+            plated={nameplate != null}
+            className={`button__201d5 wrapper__201d5 vc-betterusertools-btn${loopbackActive ? " danger" : ""}`}
         />
     );
 }
 
-function RadarIcon({ active }: { active: boolean; }) {
+function RadarIcon({ active, className }: { active: boolean; className?: string }) {
     return (
         <svg
+            className={className}
             width="20"
             height="20"
             viewBox="0 0 24 24"
@@ -211,11 +234,38 @@ function RadarIcon({ active }: { active: boolean; }) {
             strokeLinejoin="round"
             aria-hidden
         >
-            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
-            <path d="M11.291 11.295a1 1 0 0 0 .709 1.705v8c2.488 0 4.74 -1.01 6.37 -2.642m1.675 -2.319a8.962 8.962 0 0 0 .955 -4.039h-5" />
-            <path d="M16 9a5 5 0 0 0 -5.063 -1.88m-2.466 1.347a5 5 0 0 0 .53 7.535" />
-            <path d="M20.486 9a9 9 0 0 0 -12.525 -5.032m-2.317 1.675a9 9 0 0 0 3.36 14.852" />
-            {active && <path d="M3 3l18 18" />}
+            <mask id="BetterUserToolsRadarLine">
+                <rect width="100%" height="100%" fill="#ffffff" />
+                <line
+                    className="blackLine"
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="#000000"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                />
+            </mask>
+
+            <g mask={!active ? "url(#BetterUserToolsRadarLine)" : undefined}>
+                <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                <path d="M11.291 11.295a1 1 0 0 0 .709 1.705v8c2.488 0 4.74 -1.01 6.37 -2.642m1.675 -2.319a8.962 8.962 0 0 0 .955 -4.039h-5" />
+                <path d="M16 9a5 5 0 0 0 -5.063 -1.88m-2.466 1.347a5 5 0 0 0 .53 7.535" />
+                <path d="M20.486 9a9 9 0 0 0 -12.525 -5.032m-2.317 1.675a9 9 0 0 0 3.36 14.852" />
+            </g>
+
+            {!active && <>
+                <line
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="var(--status-danger, currentColor)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                />
+            </>}
         </svg>
     );
 }
@@ -254,7 +304,7 @@ async function applyOtrDisable() {
     await persistOtrState();
 }
 
-function OffTheRadarButton() {
+function OffTheRadarButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
 
     const toggle = async () => {
@@ -273,24 +323,26 @@ function OffTheRadarButton() {
 
     return (
         <UserAreaButton
-            tooltipText={otrState.enabled ? "Off The Radar (on)" : "Off The Radar (off)"}
-            icon={<RadarIcon active={otrState.enabled} />}
+            tooltipText={hideTooltips ? void 0 : otrState.enabled ? "Off The Radar (on)" : "Off The Radar (off)"}
+            icon={<RadarIcon active={otrState.enabled} className={iconForeground} />}
             role="switch"
+            redGlow={!otrState.enabled}
             aria-checked={otrState.enabled}
+            plated={nameplate != null}
             onClick={toggle}
-            className={`vc-betterusertools-btn${otrState.enabled ? " danger" : ""}`}
+            className={`button__201d5 wrapper__201d5 vc-betterusertools-btn${otrState.enabled ? " danger" : ""}`}
         />
     );
 }
 
-function renderMicLoopbackButton() {
+function renderMicLoopbackButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
     const { micLoopbackButton } = settings.store;
-    return micLoopbackButton ? <MicLoopbackButton /> : null;
+    return micLoopbackButton ? <MicLoopbackButton iconForeground={iconForeground} hideTooltips={hideTooltips} nameplate={nameplate} /> : null;
 }
 
-function renderOffTheRadarButton() {
+function renderOffTheRadarButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
     const { offTheRadarButton } = settings.store;
-    return offTheRadarButton ? <OffTheRadarButton /> : null;
+    return offTheRadarButton ? <OffTheRadarButton iconForeground={iconForeground} hideTooltips={hideTooltips} nameplate={nameplate} /> : null;
 }
 
 const styles = `

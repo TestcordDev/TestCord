@@ -634,6 +634,7 @@ async function joinRandomVoice() {
 function RandomVoiceButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
     return (
         <UserAreaButton
+            className="button__201d5 wrapper__201d5"
             onClick={() => void joinRandomVoice()}
             onContextMenu={event => ContextMenuApi.openContextMenu(event, () => <RandomVoiceMenu onClose={ContextMenuApi.closeContextMenu} />)}
             role="switch"

@@ -68,6 +68,7 @@ function SpotifyActivityToggleButton({ iconForeground, hideTooltips, nameplate }
 
     return (
         <UserAreaButton
+            className="button__201d5 wrapper__201d5"
             tooltipText={hideTooltips ? void 0 : showActivity ? "Turn off Spotify activity" : "Turn on Spotify activity"}
             icon={<SpotifyIcon className={iconForeground} enabled={showActivity} />}
             role="switch"
