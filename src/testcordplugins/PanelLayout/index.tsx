@@ -103,6 +103,8 @@ const settings = definePluginSettings({
     hideActivity: { type: OptionType.BOOLEAN, default: false, description: "Hide activity button in call controls", onChange: () => apply() },
     // Line
     hideLine: { type: OptionType.BOOLEAN, default: true, description: "Hide the line between user and buttons", onChange: () => apply() },
+    // Outline Background
+    outlinedBackground: { type: OptionType.BOOLEAN, default: true, description: "Enable a background when off to outlined style", onChange: () => apply() },
 });
 
 // ─── Selectors & Constants ────────────────────────────────────────────────────
@@ -504,12 +506,32 @@ function buildCSS(): string {
             break;
         case "outlined":
             lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
+
+            if (!settings.store.outlinedBackground) {
+                lines.push(`
+                    .plateMuted__67645:hover,
+                    .plateMuted__67645 {
+                        background: transparent !important;
+                    }
+                `);
+            }
+
             break;
         case "outlineold":
             // Pre-fallback replica: relies on var(--background-modifier-accent) which
             // new Discord tokens dropped, so the border doesn't actually render.
             // People liked that buggy look, so it's kept as its own option.
             lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }`);
+
+            if (!settings.store.outlinedBackground) {
+                lines.push(`
+                    .plateMuted__67645:hover,
+                    .plateMuted__67645 {
+                        background: transparent !important;
+                    }
+                `);
+            }
+
             break;
         case "pill":
             lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 20px !important; }
@@ -1087,6 +1109,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("panelOpacity", 100);
         set("lockButtonPosition", false);
         set("hideLine", true);
+        set("outlinedBackground", true);
 
         for (const id of Object.keys(buttonConfigs)) {
             setBtnCfg(id, {
@@ -1162,7 +1185,8 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <Card variant="primary">
                                 <FormSwitch title="Hide Dropdown Chevrons" description="Removes the tiny arrows next to Mute/Deafen." value={s.hideChevrons} onChange={v => set("hideChevrons", v)} />
                                 <FormSwitch title="Lock Button Position" description="Prevents Mute, Deafen, and Settings buttons from dropping down to a new row when you have a long status or share screen." value={s.lockButtonPosition} onChange={v => set("lockButtonPosition", v)} />
-                                <FormSwitch title="Hide line" description="Hide the line between user and buttons" value={s.hideLine} onChange={v => set("hideLine", v)} hideBorder />
+                                <FormSwitch title="Hide line" description="Hide the line between user and buttons" value={s.hideLine} onChange={v => set("hideLine", v)} />
+                                <FormSwitch title="Outlined Background" description="Enable a background when off to outlined style" value={s.outlinedBackground} onChange={v => set("outlinedBackground", v)} hideBorder />
                             </Card>
                         </>}
 
