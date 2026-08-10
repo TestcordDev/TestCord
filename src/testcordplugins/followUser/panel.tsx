@@ -40,37 +40,7 @@ interface PinnedUser {
 function FollowIcon({ className, active }: { className?: string; active?: boolean; }) {
     return (
         <svg className={className} width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-            <mask id="followUserLine">
-                <rect width="100%" height="100%" fill="#ffffff" />
-                <line
-                    className="blackLine"
-                    x1="22"
-                    y1="2"
-                    x2="2"
-                    y2="22"
-                    stroke="#000000"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                />
-            </mask>
-
-            <path
-                mask={!active ? "url(#followUserLine)" : undefined}
-                fill={active ? "var(--status-positive)" : "var(--status-danger)"}
-                d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12Zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8Z"
-            />
-
-            {!active && <>
-                <line
-                    x1="22"
-                    y1="2"
-                    x2="2"
-                    y2="22"
-                    stroke="var(--status-danger, currentColor)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                />
-            </>}
+            <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12Zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8Z" />
 
             {active &&
                 <circle cx="19" cy="5" r="5" fill="var(--status-positive)" />
@@ -504,7 +474,7 @@ function PanelButton({ iconForeground, hideTooltips, nameplate }: UserAreaRender
             tooltipText={hideTooltips ? void 0 : isFollowing ? `Following ${name}` : "Follow User"}
             icon={<FollowIcon className={iconForeground} active={isFollowing} />}
             role="button"
-            redGlow={!isFollowing}
+            redGlow={true}
             aria-checked={isFollowing}
             plated={nameplate != null}
             onClick={() => openModal(props => <FollowUserModal modalProps={props} />)}
