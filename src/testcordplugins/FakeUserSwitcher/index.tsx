@@ -1404,9 +1404,9 @@ function FakeUserSwitcherIcon({ className, style }: { className?: string; style?
                 />
             </mask>
 
-            <path mask={!active ? "url(#FakeUserSwitcherLine)" : undefined} fill={!active ? "var(--status-danger)" : "currentColor"} d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2a7.2 7.2 0 0 1-6-3.22c.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08a7.2 7.2 0 0 1-6 3.22z" />
+            <path mask={active ? "url(#FakeUserSwitcherLine)" : undefined} fill={!active ? "var(--status-danger)" : "currentColor"} d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2a7.2 7.2 0 0 1-6-3.22c.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08a7.2 7.2 0 0 1-6 3.22z" />
 
-            {!active && <>
+            {active && <>
                 <line
                     x1="22"
                     y1="2"
@@ -1417,10 +1417,6 @@ function FakeUserSwitcherIcon({ className, style }: { className?: string; style?
                     strokeLinecap="round"
                 />
             </>}
-
-            {active &&
-                <path fill="var(--status-danger)" d="M22.7 2.7a1 1 0 0 0-1.4-1.4l-20 20a1 1 0 1 0 1.4 1.4Z"/>
-            }
         </svg>
     );
 }
@@ -1453,7 +1449,7 @@ function FakeUserSwitcherButton({ iconForeground, hideTooltips, nameplate }: Use
             icon={<FakeUserSwitcherIcon className={iconForeground} />}
             role="button"
             plated={nameplate != null}
-            redGlow={!settings.store.spoofActive}
+            redGlow={active}
             onClick={() => {
                 if (settings.store.uiMode === "legacy") {
                     openModal(modalProps => <FakeUserProfileModal modalProps={modalProps as any} />);
