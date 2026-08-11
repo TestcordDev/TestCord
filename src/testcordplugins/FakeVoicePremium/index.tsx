@@ -465,21 +465,19 @@ function FakeVoiceOptionToggleButton({ iconForeground, hideTooltips, nameplate }
     const Icon = isEnabled ? EnabledIcon : DisabledIcon;
 
     return (
-        <div className="button-container">
-            <UserAreaButton
-                tooltipText={hideTooltips ? void 0 : isEnabled ? "Disable Fake States" : "Enable Fake States"}
-                icon={<Icon className={iconForeground} />}
-                role="switch"
-                aria-checked={isEnabled}
-                redGlow={!isEnabled}
-                plated={nameplate != null}
-                onContextMenu={e => ContextMenuApi.openContextMenu(e, () => <ContextMenu />)}
-                onClick={() => {
-                    setFakeVoiceEnabled(!faked);
-                    forceUpdate();
-                }}
-            />
-        </div>
+        <UserAreaButton
+            tooltipText={hideTooltips ? void 0 : isEnabled ? "Disable Fake States" : "Enable Fake States"}
+            icon={<Icon className={iconForeground} />}
+            role="switch"
+            aria-checked={isEnabled}
+            redGlow={!isEnabled}
+            plated={nameplate != null}
+            onContextMenu={e => ContextMenuApi.openContextMenu(e, () => <ContextMenu />)}
+            onClick={() => {
+                setFakeVoiceEnabled(!faked);
+                forceUpdate();
+            }}
+        />
     );
 }
 

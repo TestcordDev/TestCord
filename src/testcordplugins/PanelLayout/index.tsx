@@ -14,6 +14,7 @@ import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
+import { Switch } from "@components/Switch";
 import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, RenderModalProps } from "@utils/modal";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
@@ -103,8 +104,6 @@ const settings = definePluginSettings({
     hideActivity: { type: OptionType.BOOLEAN, default: false, description: "Hide activity button in call controls", onChange: () => apply() },
     // Line
     hideLine: { type: OptionType.BOOLEAN, default: true, description: "Hide the line between user and buttons", onChange: () => apply() },
-    // Outline Background
-    outlinedBackground: { type: OptionType.BOOLEAN, default: true, description: "Enable a background when off to outlined style", onChange: () => apply() },
 });
 
 // ─── Selectors & Constants ────────────────────────────────────────────────────
@@ -135,6 +134,7 @@ const TOGGLE_LABELS: Record<string, string[]> = {
     "Screen Share": ["Share Your Screen", "Stop Sharing", "Stop Screen Sharing"],
     "Activity": ["Start An Activity", "End Activity", "Stop Activity"],
     "Game Activity": ["Enable Game Activity", "Disable Game Activity", "Game Activity"],
+    "Spotify Activity": ["Turn on Spotify activity", "Turn off Spotify activity"],
 };
 
 function getCanonicalLabel(label: string): string {
@@ -168,6 +168,7 @@ interface ButtonConfig {
     order?: number;
     color: string;
     opacity: number;
+    background: boolean
 }
 
 const BUTTON_CONFIG_KEY = "deracul-panel-layout-configs";
@@ -507,13 +508,15 @@ function buildCSS(): string {
         case "outlined":
             lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
 
-            if (!settings.store.outlinedBackground) {
-                lines.push(`
-                    .plateMuted__67645:hover,
-                    .plateMuted__67645 {
-                        background: transparent !important;
-                    }
-                `);
+            for (const id of Object.keys(buttonConfigs)) {
+                if (!getBtnCfg(id).background) {
+                    lines.push(`
+                        ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
+                        ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
+                            background: transparent !important;
+                        }
+                    `);
+                }
             }
 
             break;
@@ -523,13 +526,15 @@ function buildCSS(): string {
             // People liked that buggy look, so it's kept as its own option.
             lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }`);
 
-            if (!settings.store.outlinedBackground) {
-                lines.push(`
-                    .plateMuted__67645:hover,
-                    .plateMuted__67645 {
-                        background: transparent !important;
-                    }
-                `);
+            for (const id of Object.keys(buttonConfigs)) {
+                if (!getBtnCfg(id).background) {
+                    lines.push(`
+                        ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
+                        ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
+                            background: transparent !important;
+                        }
+                    `);
+                }
             }
 
             break;
@@ -1000,32 +1005,20 @@ function ButtonsDragTab() {
                             const canonical = getCanonicalLabel(item.label);
                             const isUserSettings = canonical === "User Settings";
                             const isPanelLayout = canonical === "Panel Layout";
+                            const isMute = canonical === "Mute";
+                            const isDeafen = canonical === "Deafen";
                             return (
                                 <div key={item.id} style={{ padding: "8px 12px", backgroundColor: "var(--background-secondary, var(--background-surface-higher))", borderRadius: "6px" }}>
                                     <BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>
-                                    <Flex gap={8} alignItems="center">
-                                        {!isUserSettings && !isPanelLayout && (
+                                    <Flex gap={8} alignItems="center" style={{ padding: "30px 0 0 0" }}>
+                                        {!isUserSettings && !isPanelLayout && settings.store.colorfulActiveButtons && (
                                             <>
-                                                {((cfg.color && cfg.color !== "#5865f2") || (cfg.opacity !== undefined && cfg.opacity !== 100)) && (
+                                                {((cfg.color !== undefined && cfg.color !== "#5865f2") || (cfg.opacity !== undefined && cfg.opacity !== 100) || ((cfg.background !== undefined && cfg.background !== true) && (settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold"))) && (
                                                     <Button size="small" variant="secondary" title="Reset custom color & opacity" onClick={() => {
-                                                        setBtnCfg(item.id, { color: "#5865f2", opacity: 100 });
+                                                        setBtnCfg(item.id, { color: "#5865f2", opacity: 100, background: (settings.store.buttonStyle !== "outlined" && settings.store.buttonStyle !== "outlineold") ? cfg.background : true });
                                                         apply(); forceUpdate();
                                                     }}>↺</Button>
                                                 )}
-                                                <input
-                                                    type="color"
-                                                    title="Active blob background color"
-                                                    value={cfg.color && cfg.color !== "transparent" ? cfg.color : "#5865f2"}
-                                                    onChange={e => {
-                                                        setBtnCfg(item.id, { color: e.target.value });
-                                                        apply(); forceUpdate();
-                                                    }}
-                                                    style={{
-                                                        border: "none",
-                                                        cursor: "pointer",
-                                                        background: "transparent",
-                                                    }}
-                                                />
                                                 <SliderRow
                                                     label="Opacity"
                                                     min={0}
@@ -1038,16 +1031,67 @@ function ButtonsDragTab() {
                                                     unit="%"
                                                     gap={false}
                                                 />
+                                                <div>
+                                                    <input
+                                                        type="color"
+                                                        title="Active blob background color"
+                                                        value={cfg.color ?? "#5865f2"}
+                                                        onChange={e => {
+                                                            setBtnCfg(item.id, { color: e.target.value });
+                                                            apply();
+                                                        }}
+                                                        onBlur={() => {
+                                                            forceUpdate();
+                                                        }}
+                                                        style={{
+                                                            border: "none",
+                                                            cursor: "pointer",
+                                                            background: "transparent",
+                                                            width: "100%",
+                                                        }}
+                                                    />
+                                                    <Flex gap={8} alignItems="center">
+                                                        <Button size="small" variant="secondary" onClick={() => setListeningId(listening ? null : item.id)}>
+                                                            {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
+                                                        </Button>
+                                                        {cfg.keybind && (
+                                                            <Button size="small" variant="secondary" onClick={() => {
+                                                                setBtnCfg(item.id, { keybind: null });
+                                                                apply(); forceUpdate();
+                                                            }}>✕</Button>
+                                                        )}
+                                                        {(settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold") && !isMute && !isDeafen && (
+                                                            <>
+                                                                <Switch checked={cfg.background ?? true} onChange={v => {
+                                                                    setBtnCfg(item.id, { background: v });
+                                                                    apply(); forceUpdate();
+                                                                }} />
+                                                            </>
+                                                        )}
+                                                    </Flex>
+                                                </div>
                                             </>
                                         )}
-                                        <Button size="small" variant="secondary" onClick={() => setListeningId(listening ? null : item.id)}>
-                                            {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
-                                        </Button>
-                                        {cfg.keybind && (
-                                            <Button size="small" variant="secondary" onClick={() => {
-                                                setBtnCfg(item.id, { keybind: null });
-                                                apply(); forceUpdate();
-                                            }}>✕</Button>
+                                        {(!settings.store.colorfulActiveButtons || isUserSettings || isPanelLayout) && (
+                                            <>
+                                                <Button size="small" variant="secondary" onClick={() => setListeningId(listening ? null : item.id)}>
+                                                    {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
+                                                </Button>
+                                                {cfg.keybind && (
+                                                    <Button size="small" variant="secondary" onClick={() => {
+                                                        setBtnCfg(item.id, { keybind: null });
+                                                        apply(); forceUpdate();
+                                                    }}>✕</Button>
+                                                )}
+                                                {(settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold") && !isMute && !isDeafen && !isUserSettings && !isPanelLayout && (
+                                                    <>
+                                                        <Switch checked={cfg.background ?? true} onChange={v => {
+                                                            setBtnCfg(item.id, { background: v });
+                                                            apply(); forceUpdate();
+                                                        }} />
+                                                    </>
+                                                )}
+                                            </>
                                         )}
                                     </Flex>
                                 </div>
@@ -1109,12 +1153,12 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("panelOpacity", 100);
         set("lockButtonPosition", false);
         set("hideLine", true);
-        set("outlinedBackground", true);
 
         for (const id of Object.keys(buttonConfigs)) {
             setBtnCfg(id, {
                 color: "#5865f2",
-                opacity: 100
+                background: true,
+                opacity: 100,
             });
         }
 
@@ -1185,8 +1229,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <Card variant="primary">
                                 <FormSwitch title="Hide Dropdown Chevrons" description="Removes the tiny arrows next to Mute/Deafen." value={s.hideChevrons} onChange={v => set("hideChevrons", v)} />
                                 <FormSwitch title="Lock Button Position" description="Prevents Mute, Deafen, and Settings buttons from dropping down to a new row when you have a long status or share screen." value={s.lockButtonPosition} onChange={v => set("lockButtonPosition", v)} />
-                                <FormSwitch title="Hide line" description="Hide the line between user and buttons" value={s.hideLine} onChange={v => set("hideLine", v)} />
-                                <FormSwitch title="Outlined Background" description="Enable a background when off to outlined style" value={s.outlinedBackground} onChange={v => set("outlinedBackground", v)} hideBorder />
+                                <FormSwitch title="Hide line" description="Hide the line between user and buttons" value={s.hideLine} onChange={v => set("hideLine", v)} hideBorder />
                             </Card>
                         </>}
 
