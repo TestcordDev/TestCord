@@ -481,7 +481,7 @@ class TrafficGuardEngine {
                     this.counters.totalBlocked++;
                     this.counters.remoteCode++;
                     this.trackOutboundRoute(url, true);
-                    this.logBlockedEvent(url, `Malicious Remote Code Blocked (\"${keyword}\")`, "remoteCode", "alert");
+                    this.logBlockedEvent(url, `Malicious Remote Code Blocked ("${keyword}")`, "remoteCode", "alert");
                     this.raiseAlert(url, host, keyword);
                     return callback({ cancel: true });
                 }
