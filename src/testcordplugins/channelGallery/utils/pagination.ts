@@ -56,9 +56,11 @@ export async function fetchMessagesPage(args: {
         const list = Array.isArray(raw) ? raw : (Array.isArray(res?.body) ? res.body : (Array.isArray(res) ? res : []));
         return list;
     } catch (e: any) {
-        if (e?.name === "AbortError") throw e;
+        if (e?.name === "AbortError" || e?.message === "Aborted" || controller.signal.aborted) {
+            return [];
+        }
         console.warn("[ChannelGallery] Failed to fetch messages page:", e);
-        throw new Error("fetch_failed");
+        return [];
     } finally {
         clearTimeout(timeout);
     }

@@ -433,7 +433,7 @@ export default definePlugin({
             // Discord skips refetching already-loaded channels, so the LOAD_MESSAGES_SUCCESS getter
             // never runs for them and messages deleted while away never reappear. Force a fetch
             // without focus so it goes through the patched dispatch path that re-adds them.
-            MessageActions.fetchMessages(channelId, { limit: 50 });
+            MessageActions.fetchMessages({ channelId, limit: 50 });
         },
     },
 
