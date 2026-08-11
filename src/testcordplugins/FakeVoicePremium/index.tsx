@@ -285,11 +285,7 @@ function setFakeVoiceEnabled(enabled: boolean) {
         void startActivity(channel.id);
     }
 
-    if (settings.store.fakeCam && canUseFakeCamera(channel) && MediaEngineStore.isVideoEnabled() !== enabled) {
-        VoiceActions.setVideoEnabled(enabled);
-    }
-
-    if (!enabled) {
+    if (!enabled && settings.store.fakeStream) {
         const ConnectionStore = findStore("StreamRTCConnectionStore");
         for (const streamKey of ConnectionStore.getAllActiveStreamKeys()) {
             stopStreamAction(streamKey, { streamKey, appContext: "app" });
