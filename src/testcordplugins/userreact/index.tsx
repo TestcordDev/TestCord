@@ -399,6 +399,7 @@ function EmojiPickerModal(props: any) {
                 <Button
                     color={selectedEmojis.length > 0 ? Button.Colors.GREEN : Button.Colors.RED}
                     onClick={saveRule}
+                    style={{ margin: "0 0 0 8px" }}
                 >
                     {selectedEmojis.length > 0 ? "Save Rule" : "Remove Rule"}
                 </Button>
@@ -582,6 +583,7 @@ function ChannelEmojiPickerModal(props: any) {
                 <Button
                     color={selectedEmojis.length > 0 ? Button.Colors.GREEN : Button.Colors.RED}
                     onClick={save}
+                    style={{ margin: "0 0 0 8px" }}
                 >
                     {selectedEmojis.length > 0 ? "Save Rule" : "Remove Rule"}
                 </Button>
