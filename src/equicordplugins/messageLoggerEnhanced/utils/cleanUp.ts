@@ -23,12 +23,71 @@ import { LoggedMessageJSON, RefrencedMessage } from "../types";
 import { getGuildIdByChannel, isGhostPinged } from "./index";
 
 export function stripTransientRenderState(message: any) {
+    if (!message || typeof message !== "object") return;
     // These runtime-only fields can contain React elements and must never be persisted.
     delete message.customRenderedContent;
     delete message.__messageloggerDiff;
     delete message.__messageloggerDiffKey;
     delete message.__messageloggerAggregated;
     delete message.__messageloggerLastAppliedKey;
+}
+
+export function sanitizeForIDB<T>(obj: T, seen = new WeakSet()): T {
+    if (obj === null || obj === undefined) return obj;
+
+    const type = typeof obj;
+    if (type === "function" || type === "symbol") return undefined as any;
+    if (type !== "object") return obj;
+
+    if (obj instanceof Date) {
+        return (isNaN(obj.getTime()) ? new Date().toISOString() : obj.toISOString()) as any;
+    }
+
+    if (typeof Blob !== "undefined" && obj instanceof Blob) return obj;
+    if (typeof ArrayBuffer !== "undefined" && obj instanceof ArrayBuffer) return obj;
+
+    if (seen.has(obj as any)) return undefined as any;
+    seen.add(obj as any);
+
+    if (Array.isArray(obj)) {
+        const cleanedArr: any[] = [];
+        for (const item of obj) {
+            const cleanedItem = sanitizeForIDB(item, seen);
+            if (cleanedItem !== undefined) {
+                cleanedArr.push(cleanedItem);
+            }
+        }
+        return cleanedArr as any;
+    }
+
+    if ((obj as any).$$typeof || (obj as any)._owner || (obj as any)._store) {
+        return undefined as any;
+    }
+
+    const cleanedObj: Record<string, any> = {};
+    for (const key of Object.keys(obj)) {
+        if (key.startsWith("__messagelogger") || key === "customRenderedContent") {
+            continue;
+        }
+
+        try {
+            const val = (obj as any)[key];
+            const valType = typeof val;
+
+            if (valType === "function" || valType === "symbol") {
+                continue;
+            }
+
+            const cleanedVal = sanitizeForIDB(val, seen);
+            if (cleanedVal !== undefined) {
+                cleanedObj[key] = cleanedVal;
+            }
+        } catch {
+            // Ignore unreadable properties
+        }
+    }
+
+    return cleanedObj as any;
 }
 
 export function cleanupMessage(message: any, removeDetails: boolean = true): LoggedMessageJSON {
@@ -55,7 +114,7 @@ export function cleanupMessage(message: any, removeDetails: boolean = true): Log
         }
     }
 
-    return ret;
+    return sanitizeForIDB(ret);
 }
 
 export function cleanUpCachedMessage(message: any) {
