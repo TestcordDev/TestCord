@@ -182,7 +182,7 @@ export async function loadAllMediaFromAPI(channelId: string, apiRequestDelay: nu
     const maxPages = 50; // Safety limit
 
     while (page <= maxPages) {
-        if (signal?.aborted) break;
+        if (signal?.aborted || !channelId || channelId === "undefined") break;
         try {
             // Delay between requests to avoid rate limits
             if (page > 1) {

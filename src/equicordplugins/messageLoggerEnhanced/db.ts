@@ -11,7 +11,7 @@ import { DBSchema, IDBPDatabase, openDB } from "idb";
 
 import { LoggedMessageJSON } from "./types";
 import { getMessageStatus } from "./utils";
-import { stripTransientRenderState } from "./utils/cleanUp";
+import { sanitizeForIDB, stripTransientRenderState } from "./utils/cleanUp";
 import { DB_NAME, DB_VERSION } from "./utils/constants";
 import { getAttachmentBlobUrl } from "./utils/saveImage";
 
@@ -217,42 +217,54 @@ export async function getMessagesByChannelAndAfterTimestampIDB(channel_id: strin
 }
 
 export async function addMessageIDB(message: LoggedMessageJSON, status: DBMessageStatus) {
-    stripTransientRenderState(message);
-    if (typeof message.timestamp !== "string")
-        message.timestamp = (message.timestamp as Date).toISOString();
+    try {
+        stripTransientRenderState(message);
+        const sanitized = sanitizeForIDB(message);
+        if (typeof sanitized.timestamp !== "string")
+            sanitized.timestamp = (sanitized.timestamp as Date | string) ? new Date(sanitized.timestamp).toISOString() : new Date().toISOString();
 
-    if (!db) await initIDB();
-    await db.put("messages", {
-        channel_id: message.channel_id,
-        message_id: message.id,
-        status,
-        message,
-    });
+        if (!db) await initIDB();
+        await db.put("messages", {
+            channel_id: sanitized.channel_id,
+            message_id: sanitized.id,
+            status,
+            message: sanitized,
+        });
 
-    cachedMessages.set(message.id, message);
+        cachedMessages.set(sanitized.id, sanitized);
+    } catch (e) {
+        console.error("[MessageLoggerEnhanced] Failed to save message to IDB:", e);
+    }
 }
 
 export async function addMessagesBulkIDB(messages: LoggedMessageJSON[], status?: DBMessageStatus) {
-    messages.forEach(message => {
-        stripTransientRenderState(message);
-        if (typeof message.timestamp !== "string")
-            message.timestamp = (message.timestamp as Date).toISOString();
-    });
+    try {
+        const sanitizedMessages = messages.map(message => {
+            stripTransientRenderState(message);
+            const sanitized = sanitizeForIDB(message);
+            if (typeof sanitized.timestamp !== "string")
+                sanitized.timestamp = (sanitized.timestamp as Date | string) ? new Date(sanitized.timestamp).toISOString() : new Date().toISOString();
+            return sanitized;
+        });
 
-    const tx = db.transaction("messages", "readwrite");
-    const { store } = tx;
+        if (!db) await initIDB();
+        const tx = db.transaction("messages", "readwrite");
+        const { store } = tx;
 
-    await Promise.all([
-        ...messages.map(message => store.put({
-            channel_id: message.channel_id,
-            message_id: message.id,
-            status: status ?? getMessageStatus(message),
-            message,
-        })),
-        tx.done
-    ]);
+        await Promise.all([
+            ...sanitizedMessages.map(message => store.put({
+                channel_id: message.channel_id,
+                message_id: message.id,
+                status: status ?? getMessageStatus(message),
+                message,
+            })),
+            tx.done
+        ]);
 
-    messages.forEach(message => cachedMessages.set(message.id, message));
+        sanitizedMessages.forEach(message => cachedMessages.set(message.id, message));
+    } catch (e) {
+        console.error("[MessageLoggerEnhanced] Failed to bulk save messages to IDB:", e);
+    }
 }
 
 const TIMESTAMP_MIGRATION_KEY = "MessageLoggerEnhanced_timestampMigration";
@@ -261,22 +273,28 @@ export async function migrateDateTimestamps() {
     if (!db) await initIDB();
     if (await DataStore.get(TIMESTAMP_MIGRATION_KEY)) return;
 
-    const keys = await db.getAllKeys("messages");
-    let migrated = 0;
-    for (let i = 0; i < keys.length; i += 2000) {
-        const records = await db.getAll("messages", IDBKeyRange.bound(keys[i], keys[Math.min(i + 1999, keys.length - 1)]));
-        for (const record of records) {
-            const { timestamp } = record.message;
-            if (typeof timestamp === "string") continue;
-            record.message.timestamp = (timestamp as Date).toISOString();
-            await db.put("messages", record);
-            migrated++;
+    try {
+        const keys = await db.getAllKeys("messages");
+        let migrated = 0;
+        for (let i = 0; i < keys.length; i += 2000) {
+            const records = await db.getAll("messages", IDBKeyRange.bound(keys[i], keys[Math.min(i + 1999, keys.length - 1)]));
+            for (const record of records) {
+                const { timestamp } = record.message;
+                if (typeof timestamp !== "string") {
+                    record.message.timestamp = (timestamp as Date).toISOString();
+                }
+                record.message = sanitizeForIDB(record.message);
+                await db.put("messages", record);
+                migrated++;
+            }
         }
-    }
 
-    await DataStore.set(TIMESTAMP_MIGRATION_KEY, Date.now());
-    if (migrated > 0)
-        console.log(`[MessageLoggerEnhanced] Migrated ${migrated} records with Date timestamps to ISO strings`);
+        await DataStore.set(TIMESTAMP_MIGRATION_KEY, Date.now());
+        if (migrated > 0)
+            console.log(`[MessageLoggerEnhanced] Migrated ${migrated} records with Date timestamps to ISO strings`);
+    } catch (e) {
+        console.error("[MessageLoggerEnhanced] Error during timestamp migration:", e);
+    }
 }
 
 export async function deleteMessageIDB(message_id: string) {

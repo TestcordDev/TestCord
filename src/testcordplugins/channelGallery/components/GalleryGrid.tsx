@@ -49,13 +49,28 @@ export function GalleryGrid(props: {
         const el = scrollRef.current;
         if (!el) return;
 
+        let frameId: number | null = null;
+        const updateSize = () => {
+            if (!el) return;
+            setViewport(v => {
+                const w = el.clientWidth;
+                const h = el.clientHeight;
+                if (v.width === w && v.height === h) return v;
+                return { ...v, width: w, height: h };
+            });
+        };
+
         const ro = new ResizeObserver(() => {
-            setViewport(v => ({ ...v, width: el.clientWidth, height: el.clientHeight }));
+            if (frameId) cancelAnimationFrame(frameId);
+            frameId = requestAnimationFrame(updateSize);
         });
         ro.observe(el);
-        setViewport(v => ({ ...v, width: el.clientWidth, height: el.clientHeight }));
+        updateSize();
 
-        return () => ro.disconnect();
+        return () => {
+            if (frameId) cancelAnimationFrame(frameId);
+            ro.disconnect();
+        };
     }, []);
 
     const usableWidth = Math.max(1, viewport.width - PADDING * 2);
@@ -101,7 +116,10 @@ export function GalleryGrid(props: {
             className="vc-channel-gallery-scroll"
             onScroll={e => {
                 const el = e.currentTarget;
-                setViewport(v => ({ ...v, scrollTop: el.scrollTop }));
+                setViewport(v => {
+                    if (v.scrollTop === el.scrollTop) return v;
+                    return { ...v, scrollTop: el.scrollTop };
+                });
             }}
             style={{
                 height: "100%",

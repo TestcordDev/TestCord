@@ -10,9 +10,13 @@ import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
 import { addChannelToolbarButton, addHeaderBarButton, ChannelToolbarButton, HeaderBarButton, removeChannelToolbarButton, removeHeaderBarButton } from "@api/HeaderBar";
 import { definePluginSettings } from "@api/Settings";
 import { EquicordDevs } from "@utils/constants";
-import definePlugin, { OptionType } from "@utils/types";
+import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
 import { React, UserStore, useState, useStateFromStores } from "@webpack/common";
+
+const Native = IS_DISCORD_DESKTOP
+    ? (VencordNative?.pluginHelpers?.StreamProof as PluginNative<typeof import("./native")>)
+    : undefined;
 
 const StreamStore = findByPropsLazy("getActiveStreamForUser", "getAllActiveStreams");
 const RTCConnectionStore = findByPropsLazy("getMediaSessionId");
@@ -29,6 +33,38 @@ const settings = definePluginSettings({
             { label: "Disabled", value: "disabled" },
         ],
         restartNeeded: true,
+    },
+    blackoutStream: {
+        type: OptionType.BOOLEAN,
+        description: "Blacken entire client for stream viewers (Native Content Protection)",
+        default: true,
+        onChange(value) {
+            if (streamProofActive) {
+                Native?.setContentProtection?.(value);
+            }
+        }
+    },
+    localBlur: {
+        type: OptionType.BOOLEAN,
+        description: "Blur messages, media, and DMs on your local screen",
+        default: true,
+        onChange(value) {
+            if (streamProofActive) {
+                if (value) document.body.classList.add("stream-proof-enabled");
+                else document.body.classList.remove("stream-proof-enabled");
+            }
+        }
+    },
+    localBlackout: {
+        type: OptionType.BOOLEAN,
+        description: "Blackout entire client on your local screen as well",
+        default: false,
+        onChange(value) {
+            if (streamProofActive) {
+                if (value) document.body.classList.add("stream-proof-local-blackout");
+                else document.body.classList.remove("stream-proof-local-blackout");
+            }
+        }
     },
     autoStreamProof: {
         type: OptionType.BOOLEAN,
@@ -88,7 +124,19 @@ function handleStreamChange() {
 function enableStreamProof() {
     if (streamProofActive) return;
     streamProofActive = true;
-    document.body.classList.add("stream-proof-enabled");
+
+    if (settings.store.blackoutStream) {
+        Native?.setContentProtection?.(true);
+    }
+
+    if (settings.store.localBlur) {
+        document.body.classList.add("stream-proof-enabled");
+    }
+
+    if (settings.store.localBlackout) {
+        document.body.classList.add("stream-proof-local-blackout");
+    }
+
     if (!clickHandler) {
         clickHandler = (e: MouseEvent) => {
             const target = e.target as HTMLElement | null;
@@ -107,7 +155,12 @@ function enableStreamProof() {
 function disableStreamProof() {
     if (!streamProofActive) return;
     streamProofActive = false;
+
+    Native?.setContentProtection?.(false);
+
     document.body.classList.remove("stream-proof-enabled");
+    document.body.classList.remove("stream-proof-local-blackout");
+
     if (clickHandler) {
         document.removeEventListener("click", clickHandler as any, true);
         clickHandler = null;

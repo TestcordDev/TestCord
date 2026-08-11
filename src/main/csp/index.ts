@@ -70,6 +70,11 @@ export const CspPolicies: PolicyMap = {
     "usrbg.is-hardly.online": ImageSrc, // USRBG API
     "icons.duckduckgo.com": ImageSrc, // DuckDuckGo Favicon API (Reverse Image Search)
 
+    // Equicord & Spotify & CordCat APIs
+    "badges.equicord.org": ImageAndCssSrc,
+    "spotify-lyrics-api-pi.vercel.app": ConnectSrc,
+    "api.cord.cat": ConnectSrc,
+
     // AI APIs — used by Testcord plugins (TestcordAI, ChatGPT, AutoCorrect, VoiceDictation, TriviaAI, etc.)
     "api.groq.com": ConnectSrc,
     "api.openai.com": ConnectSrc,
@@ -149,6 +154,9 @@ const patchCsp = (headers: PolicyMap) => {
 const CorsPassthroughDomains = [
     "api.groq.com",
     "api.openai.com",
+    "badges.equicord.org",
+    "spotify-lyrics-api-pi.vercel.app",
+    "api.cord.cat",
 ];
 
 export function initCsp() {

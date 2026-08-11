@@ -53,7 +53,7 @@ function pushCacheItem(cache: GalleryCache, item: GalleryItem) {
 function seedCacheFromMessageStore(cache: GalleryCache, channelId: string, settings: PluginSettings) {
     try {
         const localMsgs = MessageStore?.getMessages?.(channelId);
-        const msgsArray: any[] = localMsgs?._array ?? localMsgs?.toArray?.() ?? (Array.isArray(localMsgs) ? localMsgs : []);
+        const msgsArray: any[] = (localMsgs as any)?._array ?? (localMsgs as any)?.toArray?.() ?? (Array.isArray(localMsgs) ? localMsgs : []);
 
         if (msgsArray.length > 0) {
             const extracted = extractImages(msgsArray, channelId, {

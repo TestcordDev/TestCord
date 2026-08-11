@@ -319,9 +319,14 @@ function wrapUser(base: any): any {
         const wrap = mergeUser(base, buildOverrides(target));
         try {
             const manual = getCachedTarget()?.manualProfile;
-            const createdAt = manual?.createdAt
-                ? new Date(manual.createdAt + "T12:00:00Z")
-                : new Date(SnowflakeUtils.extractTimestamp(target.id));
+            let createdAt: Date;
+            if (manual?.createdAt) {
+                const dateStr = manual.createdAt.includes("T") ? manual.createdAt : manual.createdAt + "T12:00:00Z";
+                const d = new Date(dateStr);
+                createdAt = !isNaN(d.getTime()) ? d : new Date(SnowflakeUtils.extractTimestamp(target.id));
+            } else {
+                createdAt = new Date(SnowflakeUtils.extractTimestamp(target.id));
+            }
             Object.defineProperty(wrap, "createdAt", {
                 get() { return createdAt; },
                 enumerable: true,
@@ -480,7 +485,9 @@ function patchUtils() {
         if (isActive() && isCurrentUser(id)) {
             const manual = getCachedTarget()?.manualProfile;
             if (manual?.createdAt) {
-                return new Date(manual.createdAt + "T12:00:00Z").getTime();
+                const dateStr = manual.createdAt.includes("T") ? manual.createdAt : manual.createdAt + "T12:00:00Z";
+                const ts = new Date(dateStr).getTime();
+                if (!isNaN(ts)) return ts;
             }
             const target = getTargetUser();
             if (target && target.id !== id) {

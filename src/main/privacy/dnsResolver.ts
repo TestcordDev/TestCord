@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { net } from "electron";
-
+import { app, net } from "electron";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { connect as tlsConnect } from "tls";
@@ -65,10 +64,57 @@ class DnsResolverEngine {
     private diagnosticLogs: DnsDiagnosticLog[] = [];
     private isDiagnosticRunning = false;
     private abortDiagnosticController: AbortController | null = null;
+    private isInitialized = false;
 
     constructor() {
         this.loadSettings();
         this.addLog("info", `Encrypted DNS Resolver initialized. Primary provider: ${this.selectedProviderName}`);
+        if (app.isReady()) {
+            this.applyToElectronSession();
+        } else {
+            app.whenReady().then(() => this.applyToElectronSession());
+        }
+    }
+
+    public init() {
+        if (this.isInitialized) return;
+        this.isInitialized = true;
+
+        if (app.isReady()) {
+            this.applyToElectronSession();
+        } else {
+            app.whenReady().then(() => this.applyToElectronSession());
+        }
+    }
+
+    public applyToElectronSession() {
+        try {
+            const providers = this.getAllProviders();
+            const primary = providers[this.selectedProviderName] || DNS_PROVIDERS["Cloudflare 1.1.1.1"];
+
+            if (typeof app.configureHostResolver === "function") {
+                try {
+                    app.configureHostResolver({
+                        enableBuiltInResolver: true,
+                        secureDnsMode: "secure",
+                        secureDnsServers: [primary.doh]
+                    });
+                    this.addLog("info", `Applied Encrypted DNS (DoH) to Electron session in SECURE mode: ${primary.doh}`);
+                } catch (err) {
+                    app.configureHostResolver({
+                        enableBuiltInResolver: true,
+                        secureDnsMode: "automatic",
+                        secureDnsServers: [primary.doh]
+                    });
+                    this.addLog("info", `Applied Encrypted DNS (DoH) to Electron session in AUTOMATIC mode: ${primary.doh}`);
+                }
+            } else {
+                this.addLog("warn", "app.configureHostResolver is not supported in this Electron environment.");
+            }
+        } catch (e: any) {
+            console.error("[Privacy] Failed to apply DNS configuration to Electron session", e);
+            this.addLog("error", `Failed to apply DNS configuration to Electron session: ${e?.message || e}`);
+        }
     }
 
     private loadSettings() {
@@ -113,6 +159,7 @@ class DnsResolverEngine {
         if (providers[name]) {
             this.selectedProviderName = name;
             this.saveSettings();
+            this.applyToElectronSession();
             this.addLog("info", `DNS Provider switched to: ${name}`);
             return true;
         }
@@ -124,6 +171,7 @@ class DnsResolverEngine {
         this.customEndpoints[name] = { doh, fallback: fallback || "1.1.1.1" };
         this.selectedProviderName = name;
         this.saveSettings();
+        this.applyToElectronSession();
         this.addLog("success", `Custom DNS endpoint added & selected: ${name} (${doh})`);
         return true;
     }
@@ -226,7 +274,7 @@ class DnsResolverEngine {
         clearTimeout(timeoutId);
 
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json() as { Answer?: Array<{ data: string }> };
+        const data = await res.json() as { Answer?: Array<{ data: string; }>; };
 
         if (data.Answer && data.Answer.length > 0) {
             const ipRecord = data.Answer.find(a => /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(a.data));
@@ -239,9 +287,9 @@ class DnsResolverEngine {
     private buildDnsQuery(hostname: string): Buffer {
         const id = Math.floor(Math.random() * 0xffff);
         const header = Buffer.alloc(12);
-        header.writeUInt16BE(id, 0);       // transaction id
-        header.writeUInt16BE(0x0100, 2);   // flags: standard query, recursion desired
-        header.writeUInt16BE(1, 4);        // QDCOUNT = 1
+        header.writeUInt16BE(id, 0); // transaction id
+        header.writeUInt16BE(0x0100, 2); // flags: standard query, recursion desired
+        header.writeUInt16BE(1, 4); // QDCOUNT = 1
         // ANCOUNT / NSCOUNT / ARCOUNT stay 0
 
         const labels = hostname.split(".").filter(Boolean);
@@ -256,8 +304,8 @@ class DnsResolverEngine {
         qnameParts.push(Buffer.from([0])); // root label terminator
 
         const qtypeClass = Buffer.alloc(4);
-        qtypeClass.writeUInt16BE(1, 0);    // QTYPE = A
-        qtypeClass.writeUInt16BE(1, 2);    // QCLASS = IN
+        qtypeClass.writeUInt16BE(1, 0); // QTYPE = A
+        qtypeClass.writeUInt16BE(1, 2); // QCLASS = IN
 
         return Buffer.concat([header, ...qnameParts, qtypeClass]);
     }

@@ -2345,7 +2345,8 @@ const plugin = definePlugin({
             // Target IDs and manual synthetic IDs already encode their correct dates,
             // and checking isCurrentUser on every snowflake creates high CPU overhead.
             if (userId !== getOriginalMeId()) return undefined;
-            return getSpoofedCreatedAtMs() ?? undefined;
+            const ms = getSpoofedCreatedAtMs();
+            return (ms != null && Number.isFinite(ms) && !isNaN(ms)) ? ms : undefined;
         } catch {
             return undefined;
         }
@@ -2551,11 +2552,14 @@ const plugin = definePlugin({
                 overrides.primaryGuild = null;
                 overrides.primary_guild = null;
             }
-            if (settings.store.fakeNitroMonths && settings.store.fakeNitroMonths > 0) {
+            const fakeMonths = Number(settings.store.fakeNitroMonths);
+            if (Number.isFinite(fakeMonths) && fakeMonths > 0) {
                 const since = new Date();
-                since.setMonth(since.getMonth() - settings.store.fakeNitroMonths);
-                overrides.premiumType = 2;
-                overrides.premiumSince = since.toISOString();
+                since.setMonth(since.getMonth() - fakeMonths);
+                if (!isNaN(since.getTime())) {
+                    overrides.premiumType = 2;
+                    overrides.premiumSince = since.toISOString();
+                }
             }
             overrides.widgets = [];
             overrides.connectedAccounts = [];
@@ -2600,10 +2604,15 @@ const plugin = definePlugin({
         } else {
             // We are NOT actively spoofing (activeSpoof is false), but selfNitro is true.
             // We just override premiumType/premiumSince on our own profile.
+            const fakeMonths = Number(settings.store.fakeNitroMonths);
             const since = new Date();
-            since.setMonth(since.getMonth() - settings.store.fakeNitroMonths);
-            overrides.premiumType = 2;
-            overrides.premiumSince = since.toISOString();
+            if (Number.isFinite(fakeMonths) && fakeMonths > 0) {
+                since.setMonth(since.getMonth() - fakeMonths);
+            }
+            if (!isNaN(since.getTime())) {
+                overrides.premiumType = 2;
+                overrides.premiumSince = since.toISOString();
+            }
 
             if (original) {
                 if (original.bio != null) overrides.bio = original.bio;

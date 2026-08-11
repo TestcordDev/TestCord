@@ -126,13 +126,21 @@ export function proxyLazy<T>(factory: () => T, attempts = 5, isChild = false): T
             // `const { meow } = findByPropsLazy("meow");`
             if (!isChild && isSameTick)
                 return proxyLazy(
-                    () => Reflect.get(target[SYM_LAZY_GET](), p, receiver),
+                    () => {
+                        const val = target[SYM_LAZY_GET]();
+                        return val != null && (typeof val === "object" || typeof val === "function")
+                            ? Reflect.get(val, p, receiver)
+                            : undefined;
+                    },
                     attempts,
                     true
                 );
             const lazyTarget = target[SYM_LAZY_GET]();
-            if (typeof lazyTarget === "object" || typeof lazyTarget === "function") {
+            if (lazyTarget != null && (typeof lazyTarget === "object" || typeof lazyTarget === "function")) {
                 return Reflect.get(lazyTarget, p, receiver);
+            }
+            if (lazyTarget == null) {
+                return undefined;
             }
             throw new Error("proxyLazy called on a primitive value");
         }
