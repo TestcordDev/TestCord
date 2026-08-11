@@ -647,6 +647,7 @@ export function SearchModal({ modalProps }: { modalProps: ModalProps; }) {
                     await sleep(delayBetweenRequests);
                 }
 
+                if (!channelId || channelId === "undefined") continue;
                 // Load messages from the API (limit of 100 messages per request)
                 let response: any = null;
                 try {
@@ -750,8 +751,8 @@ export function SearchModal({ modalProps }: { modalProps: ModalProps; }) {
         if (!channel) return results;
 
         // Use only the local message cache
-        const messages = MessageStore.getMessages(channelId);
-        if (messages && messages.size > 0) {
+        const messages = MessageStore.getMessages(channelId) as any;
+        if (messages && ((messages.size ?? messages.length) > 0)) {
             // Convert the Map to an array
             let messageArray: Message[] = [];
             try {
@@ -792,8 +793,8 @@ export function SearchModal({ modalProps }: { modalProps: ModalProps; }) {
         if (!channel) return results;
 
         // Use only the local cache - search for messages with pinned = true
-        const messages = MessageStore.getMessages(channelId);
-        if (messages && messages.size > 0) {
+        const messages = MessageStore.getMessages(channelId) as any;
+        if (messages && ((messages.size ?? messages.length) > 0)) {
             // Convert the Map to an array
             let messageArray: Message[] = [];
             try {

@@ -14,7 +14,7 @@ function getMessagesEndpoint(channelId: string): string {
             const ep = Constants.Endpoints.MESSAGES(channelId);
             if (ep) return ep;
         }
-    } catch {}
+    } catch { }
     return `/channels/${channelId}/messages`;
 }
 
@@ -24,6 +24,7 @@ export async function fetchMessagesPage(args: {
     limit: number;
     signal?: AbortSignal;
 }): Promise<any[]> {
+    if (!args.channelId || args.channelId === "undefined") return [];
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
@@ -62,4 +63,3 @@ export async function fetchMessagesPage(args: {
         clearTimeout(timeout);
     }
 }
-
