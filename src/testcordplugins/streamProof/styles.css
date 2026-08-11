@@ -62,3 +62,13 @@
 .stream-proof-enabled [class*="markup_"]:not(.stream-proof-revealed) a {
     pointer-events: none;
 }
+
+/* Optional full local screen blackout overlay */
+body.stream-proof-local-blackout::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 999999;
+    pointer-events: none;
+}
