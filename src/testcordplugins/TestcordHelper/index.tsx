@@ -293,6 +293,7 @@ function installDebugInstrumentation() {
     dumpPatchTimings();
     buildHandlerPluginMap();
 
+    if (!FluxDispatcher?.dispatch) return;
     origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher) as (payload: any) => void;
     FluxDispatcher.dispatch = function (payload: any) {
         currentDispatchCost.clear();

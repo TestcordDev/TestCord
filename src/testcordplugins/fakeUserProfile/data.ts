@@ -138,13 +138,15 @@ export function clearTarget() {
 }
 
 export function makeDateForUser(userId: string, totalMonths: number): Date {
+    const validMonths = Number.isFinite(totalMonths) ? totalMonths : 1;
     let hash = 0;
-    for (let i = 0; i < userId.length; i++) {
-        hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
+    const strId = String(userId || "");
+    for (let i = 0; i < strId.length; i++) {
+        hash = ((hash << 5) - hash + strId.charCodeAt(i)) | 0;
     }
     const seed = Math.abs(hash);
     const now = new Date();
-    const target = new Date(now.getFullYear(), now.getMonth() - totalMonths, 1);
+    const target = new Date(now.getFullYear(), now.getMonth() - validMonths, 1);
     const maxDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
     target.setDate(((seed % maxDay) + 1));
     return target;
@@ -290,9 +292,14 @@ function createManualUser(profile: ManualProfileData): User {
                 },
             }
             : ((base as any)?.collectibles ?? null),
-        createdAt: profile.createdAt
-            ? new Date(profile.createdAt + "T12:00:00Z")
-            : (base as any)?.createdAt ?? new Date(SnowflakeUtils.extractTimestamp(id)),
+        createdAt: (() => {
+            if (profile.createdAt) {
+                const dateStr = profile.createdAt.includes("T") ? profile.createdAt : profile.createdAt + "T12:00:00Z";
+                const d = new Date(dateStr);
+                if (!isNaN(d.getTime())) return d;
+            }
+            return (base as any)?.createdAt ?? new Date(SnowflakeUtils.extractTimestamp(id));
+        })(),
         premiumSince: profile.premiumType > 0
             ? makeDateForUser(id, [1, 2, 3, 6, 12, 24, 36, 72][profile.nitroLevel] ?? 1)
             : ((base as any)?.premiumSince ?? undefined),
