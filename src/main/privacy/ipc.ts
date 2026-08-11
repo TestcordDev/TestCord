@@ -17,6 +17,7 @@ export function registerPrivacyIpcHandlers() {
             shields: trafficGuard.getShields(),
             outboundRoutes: trafficGuard.getOutboundRoutes(),
             logs: trafficGuard.getLogs(),
+            maxLogs: trafficGuard.getMaxLogs(),
             hostRules: trafficGuard.getHostRules(),
             alerts: trafficGuard.getAlerts(),
             dnsProviders: dnsResolver.getAllProviders(),
@@ -25,6 +26,10 @@ export function registerPrivacyIpcHandlers() {
             dnsCacheStats: dnsResolver.getCacheStats(),
             dnsDiagnosticLogs: dnsResolver.getDiagnosticLogs()
         };
+    });
+
+    ipcMain.handle(IpcEvents.PRIVACY_SET_MAX_LOGS, (_, limit: number) => {
+        return trafficGuard.setMaxLogs(limit);
     });
 
     ipcMain.handle(IpcEvents.PRIVACY_GET_HOST_RULES, () => {

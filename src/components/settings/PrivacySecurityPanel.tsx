@@ -273,6 +273,18 @@ export function PrivacySecurityPanel() {
     const [isDnsOpen, setIsDnsOpen] = useState(false);
     const selectRef = useRef<HTMLDivElement>(null);
 
+    const [isLimitOpen, setIsLimitOpen] = useState(false);
+    const limitSelectRef = useRef<HTMLDivElement>(null);
+
+    const LIMIT_OPTIONS = [
+        { label: "250 logs", value: 250 },
+        { label: "500 logs (Default)", value: 500 },
+        { label: "1,000 logs", value: 1000 },
+        { label: "2,500 logs", value: 2500 },
+        { label: "5,000 logs", value: 5000 },
+        { label: "10,000 logs", value: 10000 }
+    ];
+
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === "Escape") setSelectedBlock(null);
@@ -289,6 +301,9 @@ export function PrivacySecurityPanel() {
         const handleClickOutside = (e: MouseEvent) => {
             if (selectRef.current && !selectRef.current.contains(e.target as Node)) {
                 setIsDnsOpen(false);
+            }
+            if (limitSelectRef.current && !limitSelectRef.current.contains(e.target as Node)) {
+                setIsLimitOpen(false);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -412,6 +427,15 @@ export function PrivacySecurityPanel() {
 
     // Recent Intercepted Blocks Logs
     const [logs, setLogs] = useState<BlockedLog[]>([]);
+    const [maxLogs, setMaxLogsState] = useState(500);
+
+    const handleMaxLogsChange = async (newLimit: number) => {
+        setMaxLogsState(newLimit);
+        if (VencordNative?.privacy?.setMaxLogs) {
+            const updated = await VencordNative.privacy.setMaxLogs(newLimit);
+            if (updated) setMaxLogsState(updated);
+        }
+    };
 
     const fetchData = async () => {
         try {
@@ -420,6 +444,7 @@ export function PrivacySecurityPanel() {
                 if (data) {
                     if (data.counters) setCounters(data.counters);
                     if (data.shields) setShields(data.shields);
+                    if (typeof data.maxLogs === "number") setMaxLogsState(data.maxLogs);
                     if (data.outboundRoutes) {
                         setOutboundRoutes(data.outboundRoutes.filter((r: any) => r.id !== "updates" && r.id !== "services" && r.id !== "client_updates" && r.id !== "client_services"));
                     }
@@ -712,6 +737,61 @@ export function PrivacySecurityPanel() {
                             >
                                 <span className="ps-toggle-knob" />
                             </button>
+                        </div>
+                        <div className="ps-toggle-row">
+                            <div className="ps-toggle-info">
+                                <span className="ps-toggle-title">Block Log Buffer Limit</span>
+                                <span className="ps-toggle-desc">Maximum number of recent blocked network events stored in audit memory ({logs.length}/{maxLogs} active).</span>
+                            </div>
+                            <div className="ps-custom-select-wrapper" ref={limitSelectRef} style={{ width: "170px" }}>
+                                <button
+                                    type="button"
+                                    className={`ps-custom-select-trigger ${isLimitOpen ? "ps-custom-select-open" : ""}`}
+                                    onClick={() => setIsLimitOpen(!isLimitOpen)}
+                                >
+                                    <span className="ps-custom-select-value">
+                                        {LIMIT_OPTIONS.find(o => o.value === maxLogs)?.label || `${maxLogs} logs`}
+                                    </span>
+                                    <svg
+                                        className={`ps-custom-select-chevron ${isLimitOpen ? "ps-chevron-rotated" : ""}`}
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <polyline points="6 9 12 15 18 9" />
+                                    </svg>
+                                </button>
+
+                                {isLimitOpen && (
+                                    <div className="ps-custom-select-menu">
+                                        {LIMIT_OPTIONS.map(option => {
+                                            const isSelected = option.value === maxLogs;
+                                            return (
+                                                <div
+                                                    key={option.value}
+                                                    className={`ps-custom-select-item ${isSelected ? "ps-custom-select-item-selected" : ""}`}
+                                                    onClick={() => {
+                                                        handleMaxLogsChange(option.value);
+                                                        setIsLimitOpen(false);
+                                                    }}
+                                                >
+                                                    <span>{option.label}</span>
+                                                    {isSelected && (
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="20 6 9 17 4 12" />
+                                                        </svg>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

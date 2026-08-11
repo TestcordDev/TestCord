@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { app, BrowserWindow, session } from "electron";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
-
-import { app, BrowserWindow, session } from "electron";
 
 export type BlockOutcome = "blocked" | "stripped" | "monitored" | "alert";
 export type HostRule = "allow" | "block";
@@ -256,7 +255,11 @@ class TrafficGuardEngine {
             const raw = readFileSync(path, "utf8");
             const parsed = JSON.parse(raw);
             if (parsed && typeof parsed === "object") {
-                for (const [host, rule] of Object.entries(parsed)) {
+                if (typeof parsed.maxLogs === "number" && parsed.maxLogs >= 50) {
+                    this.maxLogs = parsed.maxLogs;
+                }
+                const rulesObj = parsed.rules && typeof parsed.rules === "object" ? parsed.rules : parsed;
+                for (const [host, rule] of Object.entries(rulesObj)) {
                     if (rule === "allow" || rule === "block") {
                         this.hostRules.set(host, rule);
                     }
@@ -273,12 +276,30 @@ class TrafficGuardEngine {
             const path = this.resolveHostRulesPath();
             const dir = dirname(path);
             if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-            const obj: Record<string, HostRule> = {};
-            for (const [host, rule] of this.hostRules) obj[host] = rule;
+            const rules: Record<string, HostRule> = {};
+            for (const [host, rule] of this.hostRules) rules[host] = rule;
+            const obj = {
+                maxLogs: this.maxLogs,
+                rules
+            };
             writeFileSync(path, JSON.stringify(obj, null, 2), "utf8");
         } catch {
             // Best-effort persistence; an I/O failure must not break traffic handling.
         }
+    }
+
+    public getMaxLogs(): number {
+        return this.maxLogs;
+    }
+
+    public setMaxLogs(limit: number): number {
+        const num = Math.max(50, Math.min(20000, Math.floor(limit)));
+        this.maxLogs = num;
+        while (this.logs.length > this.maxLogs) {
+            this.logs.pop();
+        }
+        this.saveHostRules();
+        return this.maxLogs;
     }
 
     private ruleForHost(host: string): HostRule | undefined {
