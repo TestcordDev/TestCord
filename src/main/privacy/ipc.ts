@@ -17,6 +17,7 @@ export function registerPrivacyIpcHandlers() {
             shields: trafficGuard.getShields(),
             outboundRoutes: trafficGuard.getOutboundRoutes(),
             logs: trafficGuard.getLogs(),
+            allowedLogs: trafficGuard.getAllowedLogs(),
             maxLogs: trafficGuard.getMaxLogs(),
             hostRules: trafficGuard.getHostRules(),
             alerts: trafficGuard.getAlerts(),
@@ -30,6 +31,11 @@ export function registerPrivacyIpcHandlers() {
 
     ipcMain.handle(IpcEvents.PRIVACY_SET_MAX_LOGS, (_, limit: number) => {
         return trafficGuard.setMaxLogs(limit);
+    });
+
+    ipcMain.handle(IpcEvents.PRIVACY_CLEAR_ALLOWED_LOGS, () => {
+        trafficGuard.clearAllowedLogs();
+        return [];
     });
 
     ipcMain.handle(IpcEvents.PRIVACY_GET_HOST_RULES, () => {

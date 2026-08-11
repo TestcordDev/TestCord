@@ -119,6 +119,7 @@ export default {
         stopDiagnostic: () => invoke<any[]>(IpcEvents.PRIVACY_STOP_DIAGNOSTIC),
         clearDnsCache: () => invoke<any>(IpcEvents.PRIVACY_CLEAR_DNS_CACHE),
         clearLogs: () => invoke<any[]>(IpcEvents.PRIVACY_CLEAR_LOGS),
+        clearAllowedLogs: () => invoke<any[]>(IpcEvents.PRIVACY_CLEAR_ALLOWED_LOGS),
         setMaxLogs: (limit: number) => invoke<number>(IpcEvents.PRIVACY_SET_MAX_LOGS, limit),
         incrementCounter: (key: string, amount?: number) => invoke<any>(IpcEvents.PRIVACY_INCREMENT_COUNTER, key, amount),
         getHostRules: () => invoke<Record<string, "allow" | "block">>(IpcEvents.PRIVACY_GET_HOST_RULES),

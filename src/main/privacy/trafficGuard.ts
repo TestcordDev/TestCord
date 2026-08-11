@@ -21,6 +21,16 @@ export interface BlockedEventLog {
     outcome: BlockOutcome;
 }
 
+export interface AllowedEventLog {
+    id: string;
+    timestamp: number;
+    url: string;
+    domain: string;
+    method: string;
+    resourceType: string;
+    routeGroup?: string;
+}
+
 export interface SecurityAlert {
     id: string;
     timestamp: number;
@@ -172,6 +182,8 @@ class TrafficGuardEngine {
     };
     private logs: BlockedEventLog[] = [];
     private maxLogs = 500;
+    private allowedLogs: AllowedEventLog[] = [];
+    private maxAllowedLogs = 1000;
     private alerts: SecurityAlert[] = [];
     private maxAlerts = 100;
 
@@ -257,6 +269,7 @@ class TrafficGuardEngine {
             if (parsed && typeof parsed === "object") {
                 if (typeof parsed.maxLogs === "number" && parsed.maxLogs >= 50) {
                     this.maxLogs = parsed.maxLogs;
+                    this.maxAllowedLogs = parsed.maxLogs;
                 }
                 const rulesObj = parsed.rules && typeof parsed.rules === "object" ? parsed.rules : parsed;
                 for (const [host, rule] of Object.entries(rulesObj)) {
@@ -295,8 +308,12 @@ class TrafficGuardEngine {
     public setMaxLogs(limit: number): number {
         const num = Math.max(50, Math.min(20000, Math.floor(limit)));
         this.maxLogs = num;
+        this.maxAllowedLogs = num;
         while (this.logs.length > this.maxLogs) {
             this.logs.pop();
+        }
+        while (this.allowedLogs.length > this.maxAllowedLogs) {
+            this.allowedLogs.pop();
         }
         this.saveHostRules();
         return this.maxLogs;
@@ -518,6 +535,7 @@ class TrafficGuardEngine {
                 }
             }
 
+            this.logAllowedEvent(url, details.method, details.resourceType);
             callback({ cancel: false });
         });
 
@@ -592,6 +610,46 @@ class TrafficGuardEngine {
         if (this.logs.length > this.maxLogs) {
             this.logs.pop();
         }
+    }
+
+    public logAllowedEvent(url: string, method = "GET", resourceType = "xhr") {
+        let domain = "unknown";
+        try {
+            domain = new URL(url).hostname;
+        } catch {
+            domain = url;
+        }
+
+        let routeGroup = "Outbound";
+        for (const route of this.outboundRoutes) {
+            if (route.endpoints.some(ep => url.includes(ep))) {
+                routeGroup = route.title;
+                break;
+            }
+        }
+
+        const log: AllowedEventLog = {
+            id: Math.random().toString(36).substring(2, 9),
+            timestamp: Date.now(),
+            url,
+            domain,
+            method: method || "GET",
+            resourceType: resourceType || "xhr",
+            routeGroup
+        };
+
+        this.allowedLogs.unshift(log);
+        if (this.allowedLogs.length > this.maxAllowedLogs) {
+            this.allowedLogs.pop();
+        }
+    }
+
+    public getAllowedLogs(): AllowedEventLog[] {
+        return [...this.allowedLogs];
+    }
+
+    public clearAllowedLogs() {
+        this.allowedLogs = [];
     }
 
     public incrementCounter(key: keyof typeof this.counters, amount = 1, url?: string) {

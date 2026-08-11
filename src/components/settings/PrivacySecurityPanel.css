@@ -1483,3 +1483,40 @@
 .ps-toggle-switch-on .ps-toggle-knob {
     transform: translateX(18px);
 }
+
+.ps-summary-badge-interactive {
+    cursor: pointer !important;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.ps-summary-badge-interactive:hover {
+    transform: translateY(-1px);
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08)) !important;
+}
+
+.ps-route-card-interactive {
+    cursor: pointer !important;
+    transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+.ps-route-card-interactive:hover {
+    transform: translateY(-1px);
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.04)) !important;
+}
+
+.ps-allowed-modal-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.ps-allowed-modal-body::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ps-allowed-modal-body::-webkit-scrollbar-thumb {
+    background: var(--background-tertiary, #1e1f22);
+    border-radius: 4px;
+}
+
+.ps-allowed-modal-body::-webkit-scrollbar-thumb:hover {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.15));
+}

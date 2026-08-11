@@ -37,6 +37,16 @@ export interface BlockedLog {
     outcome?: BlockOutcome;
 }
 
+export interface AllowedEventLog {
+    id: string;
+    timestamp: number;
+    url: string;
+    domain: string;
+    method: string;
+    resourceType: string;
+    routeGroup?: string;
+}
+
 export interface SecurityAlert {
     id: string;
     timestamp: number;
@@ -160,7 +170,7 @@ function buildBlockReport(log: BlockedLog): string {
         `When: ${formatAbsoluteTime(log.timestamp)} (${formatTimeAgo(log.timestamp)})`,
         `Timestamp: ${log.timestamp}`,
         `Event ID: ${log.id}`,
-        ``,
+        "",
         `Request URL: ${log.url}`,
         `  Scheme: ${parts.scheme}`,
         `  Host: ${parts.host}`,
@@ -276,6 +286,9 @@ export function PrivacySecurityPanel() {
     const [isLimitOpen, setIsLimitOpen] = useState(false);
     const limitSelectRef = useRef<HTMLDivElement>(null);
 
+    const [isAllowedRouteOpen, setIsAllowedRouteOpen] = useState(false);
+    const allowedRouteSelectRef = useRef<HTMLDivElement>(null);
+
     const LIMIT_OPTIONS = [
         { label: "250 logs", value: 250 },
         { label: "500 logs (Default)", value: 500 },
@@ -304,6 +317,9 @@ export function PrivacySecurityPanel() {
             }
             if (limitSelectRef.current && !limitSelectRef.current.contains(e.target as Node)) {
                 setIsLimitOpen(false);
+            }
+            if (allowedRouteSelectRef.current && !allowedRouteSelectRef.current.contains(e.target as Node)) {
+                setIsAllowedRouteOpen(false);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -429,6 +445,12 @@ export function PrivacySecurityPanel() {
     const [logs, setLogs] = useState<BlockedLog[]>([]);
     const [maxLogs, setMaxLogsState] = useState(500);
 
+    // Allowed Requests Inspector State
+    const [allowedLogs, setAllowedLogs] = useState<AllowedEventLog[]>([]);
+    const [isAllowedModalOpen, setIsAllowedModalOpen] = useState(false);
+    const [allowedSearchQuery, setAllowedSearchQuery] = useState("");
+    const [selectedAllowedRoute, setSelectedAllowedRoute] = useState<string>("all");
+
     const handleMaxLogsChange = async (newLimit: number) => {
         setMaxLogsState(newLimit);
         if (VencordNative?.privacy?.setMaxLogs) {
@@ -453,6 +475,7 @@ export function PrivacySecurityPanel() {
 
                     const fetchedLogs: BlockedLog[] = data.logs || [];
                     setLogs(fetchedLogs);
+                    if (Array.isArray(data.allowedLogs)) setAllowedLogs(data.allowedLogs);
                     if (data.hostRules) setHostRules(data.hostRules);
                     if (Array.isArray(data.alerts)) setAlerts(data.alerts);
                 }
@@ -669,6 +692,19 @@ export function PrivacySecurityPanel() {
         setSearchQuery(val);
         setCurrentPage(1);
     };
+
+    const filteredAllowedLogs = allowedLogs.filter(log => {
+        const matchesRoute = selectedAllowedRoute === "all" || log.routeGroup === selectedAllowedRoute;
+        if (!matchesRoute) return false;
+        if (!allowedSearchQuery) return true;
+        const q = allowedSearchQuery.toLowerCase();
+        return (
+            log.domain.toLowerCase().includes(q) ||
+            log.url.toLowerCase().includes(q) ||
+            log.method.toLowerCase().includes(q) ||
+            (log.routeGroup && log.routeGroup.toLowerCase().includes(q))
+        );
+    });
 
     const toggleNoTrack = () => {
         settings.plugins.NoTrack.disableAnalytics = !noTrackOn;
@@ -921,8 +957,14 @@ export function PrivacySecurityPanel() {
                                         <span className="ps-summary-num">{totalMappedRoutes}</span>
                                         <span className="ps-summary-lbl">Mapped</span>
                                     </div>
-                                    <div className="ps-summary-badge">
-                                        <span className="ps-summary-num">{totalAllowedRoutes || 508}</span>
+                                    <div
+                                        className="ps-summary-badge ps-summary-badge-interactive"
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => { setSelectedAllowedRoute("all"); setIsAllowedModalOpen(true); }}
+                                        title="Click to view all allowed outbound requests in a popup window"
+                                    >
+                                        <span className="ps-summary-num">{allowedLogs.length || totalAllowedRoutes || 0}</span>
                                         <span className="ps-summary-lbl">Allowed</span>
                                     </div>
                                     <div className="ps-summary-badge">
@@ -932,12 +974,19 @@ export function PrivacySecurityPanel() {
                                 </div>
                             </div>
                             <div className="ps-card-subtitle">
-                                Known outbound route groups with their live protection or activation state.
+                                Known outbound route groups with their live protection or activation state. Click "Allowed" or any route card to inspect sent requests.
                             </div>
 
                             <div className="ps-outbound-grid">
                                 {outboundRoutes.map(route => (
-                                    <div key={route.id} className="ps-route-card">
+                                    <div
+                                        key={route.id}
+                                        className="ps-route-card ps-route-card-interactive"
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => { setSelectedAllowedRoute(route.title); setIsAllowedModalOpen(true); }}
+                                        title={`Click to inspect allowed requests for ${route.title}`}
+                                    >
                                         <div className="ps-route-header">
                                             <span className="ps-route-title">{route.title}</span>
                                             <span className={`ps-badge ps-badge-sm ${route.statusType === "demand" || route.statusType === "plugin" ? "ps-badge-blue" : "ps-badge-green"}`}>
@@ -1372,6 +1421,211 @@ export function PrivacySecurityPanel() {
                                 onClick={() => copyToClipboard(buildBlockReport(selectedBlock), "all")}
                             >
                                 {copiedField === "all" ? "Copied" : "Copy details"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {isAllowedModalOpen && (
+                <div className="ps-block-modal-overlay" onClick={() => setIsAllowedModalOpen(false)}>
+                    <div
+                        className="ps-block-modal"
+                        role="dialog"
+                        aria-modal="true"
+                        style={{ maxWidth: "820px", width: "90%" }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="ps-block-modal-header">
+                            <div className="ps-block-modal-title-group">
+                                <span className="ps-badge ps-badge-green">Allowed Outbound Traffic</span>
+                                <h3 className="ps-block-modal-title" style={{ margin: "4px 0 0 0" }}>Allowed Outbound Requests Inspector</h3>
+                            </div>
+                            <button
+                                type="button"
+                                className="ps-block-modal-close"
+                                onClick={() => setIsAllowedModalOpen(false)}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="ps-block-modal-body ps-allowed-modal-body" style={{ maxHeight: "68vh", overflowY: "auto", padding: "16px" }}>
+                            {/* Controls: Search, Route Filter & Clear */}
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+                                <div style={{ display: "flex", gap: "8px", alignItems: "center", flex: 1, minWidth: "240px" }}>
+                                    <input
+                                        type="text"
+                                        className="ps-search-input"
+                                        placeholder="Search allowed requests by URL, domain, or method..."
+                                        value={allowedSearchQuery}
+                                        onChange={e => setAllowedSearchQuery(e.target.value)}
+                                        style={{ width: "100%", padding: "6px 12px", borderRadius: "6px", fontSize: "13px" }}
+                                    />
+                                    {allowedSearchQuery && (
+                                        <button
+                                            type="button"
+                                            className="ps-search-clear"
+                                            onClick={() => setAllowedSearchQuery("")}
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+                                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                    <div className="ps-custom-select-wrapper" ref={allowedRouteSelectRef} style={{ width: "190px" }}>
+                                        <button
+                                            type="button"
+                                            className={`ps-custom-select-trigger ${isAllowedRouteOpen ? "ps-custom-select-open" : ""}`}
+                                            onClick={() => setIsAllowedRouteOpen(!isAllowedRouteOpen)}
+                                        >
+                                            <span className="ps-custom-select-value">
+                                                {selectedAllowedRoute === "all" ? "All Outbound Routes" : selectedAllowedRoute}
+                                            </span>
+                                            <svg
+                                                className={`ps-custom-select-chevron ${isAllowedRouteOpen ? "ps-chevron-rotated" : ""}`}
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                            >
+                                                <polyline points="6 9 12 15 18 9" />
+                                            </svg>
+                                        </button>
+
+                                        {isAllowedRouteOpen && (
+                                            <div className="ps-custom-select-menu">
+                                                <div
+                                                    className={`ps-custom-select-item ${selectedAllowedRoute === "all" ? "ps-custom-select-item-selected" : ""}`}
+                                                    onClick={() => {
+                                                        setSelectedAllowedRoute("all");
+                                                        setIsAllowedRouteOpen(false);
+                                                    }}
+                                                >
+                                                    <span>All Outbound Routes</span>
+                                                    {selectedAllowedRoute === "all" && (
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="20 6 9 17 4 12" />
+                                                        </svg>
+                                                    )}
+                                                </div>
+                                                {outboundRoutes.map(r => {
+                                                    const isSelected = r.title === selectedAllowedRoute;
+                                                    return (
+                                                        <div
+                                                            key={r.id}
+                                                            className={`ps-custom-select-item ${isSelected ? "ps-custom-select-item-selected" : ""}`}
+                                                            onClick={() => {
+                                                                setSelectedAllowedRoute(r.title);
+                                                                setIsAllowedRouteOpen(false);
+                                                            }}
+                                                        >
+                                                            <span>{r.title}</span>
+                                                            {isSelected && (
+                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                    <polyline points="20 6 9 17 4 12" />
+                                                                </svg>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="ps-btn ps-btn-stop"
+                                        style={{ padding: "6px 12px", fontSize: "12px" }}
+                                        onClick={async () => {
+                                            if (VencordNative?.privacy?.clearAllowedLogs) {
+                                                await VencordNative.privacy.clearAllowedLogs();
+                                                setAllowedLogs([]);
+                                            }
+                                        }}
+                                    >
+                                        Clear Logs
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Allowed Requests List */}
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                {filteredAllowedLogs.length > 0 ? (
+                                    filteredAllowedLogs.map(log => (
+                                        <div
+                                            key={log.id}
+                                            style={{
+                                                background: "var(--background-secondary-alt, #1e1f22)",
+                                                border: "1px solid var(--background-tertiary, #313338)",
+                                                borderRadius: "8px",
+                                                padding: "10px 14px",
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                gap: "4px"
+                                            }}
+                                        >
+                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                    <span
+                                                        style={{
+                                                            background: log.method === "POST" ? "rgba(88, 101, 242, 0.2)" : "rgba(35, 165, 90, 0.2)",
+                                                            color: log.method === "POST" ? "#5865f2" : "#23a55a",
+                                                            fontSize: "11px",
+                                                            fontWeight: 700,
+                                                            padding: "2px 6px",
+                                                            borderRadius: "4px",
+                                                            fontFamily: "monospace"
+                                                        }}
+                                                    >
+                                                        {log.method}
+                                                    </span>
+                                                    <span style={{ fontWeight: 600, color: "var(--header-primary, #f2f3f5)", fontSize: "13px" }}>
+                                                        {log.domain}
+                                                    </span>
+                                                    <span className="ps-badge ps-badge-xs ps-badge-blue">
+                                                        {log.routeGroup || "Outbound"}
+                                                    </span>
+                                                </div>
+                                                <span style={{ fontSize: "11px", color: "var(--text-muted, #949ba4)" }}>
+                                                    {formatTimeAgo(log.timestamp)}
+                                                </span>
+                                            </div>
+                                            <div
+                                                className="ps-mono"
+                                                onClick={() => copyToClipboard(log.url, log.id)}
+                                                style={{
+                                                    fontSize: "11px",
+                                                    color: "var(--text-muted, #949ba4)",
+                                                    wordBreak: "break-all",
+                                                    cursor: "pointer"
+                                                }}
+                                                title="Click to copy full request URL"
+                                            >
+                                                {log.url} {copiedField === log.id && <span style={{ color: "#23a55a", marginLeft: "6px" }}>✓ Copied</span>}
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="ps-no-results" style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)" }}>
+                                        No allowed requests recorded matching criteria.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="ps-block-modal-footer">
+                            <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                                Showing {filteredAllowedLogs.length} of {allowedLogs.length} allowed requests
+                            </span>
+                            <button
+                                type="button"
+                                className="ps-btn"
+                                onClick={() => setIsAllowedModalOpen(false)}
+                            >
+                                Close
                             </button>
                         </div>
                     </div>
