@@ -35,12 +35,8 @@ const NON_SCANNABLE_ATTACHMENT_EXTENSIONS = new Set([
     "mp4", "webm", "mov", "m4v", "avi", "mkv", "wmv",
     "mp3", "wav", "ogg", "flac", "aac", "m4a"
 ]);
-let lastPrune = 0;
 
 function pruneAnalyzedMessages(now: number) {
-    // map is at most MAX_ANALYZED_MESSAGES entries, don't rescan it for every message
-    if (now - lastPrune < 60_000) return;
-    lastPrune = now;
     pruneMap(AUTO_ANALYZED_MESSAGE_IDS, expiresAt => expiresAt <= now, MAX_ANALYZED_MESSAGES);
 }
 
@@ -56,10 +52,6 @@ export function extractUrls(content: string): string[] {
     return [...new Set(splitUrls)]
         .map(url => normalizeUrl(url.trim()))
         .filter(u => u.length > 0);
-}
-
-export function hasScannableUrls(content: string): boolean {
-    return content ? URL_REGEX.test(content) : false;
 }
 
 export function clearAutoAnalyzeState() {

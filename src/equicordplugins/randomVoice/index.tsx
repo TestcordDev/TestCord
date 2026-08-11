@@ -575,38 +575,21 @@ async function startChannelStream(channel: Channel) {
 }
 
 function runAfterVoiceJoin(channelId: string, callbacks: PostJoinAction[]) {
-    const run = () => {
+    let attempts = 0;
+    const interval = setInterval(() => {
+        attempts++;
+
+        if (getCurrentVoiceChannelId() !== channelId) {
+            if (attempts < 40) return;
+            clearInterval(interval);
+            return;
+        }
+
+        clearInterval(interval);
         for (const callback of callbacks) {
             void callback();
         }
-    };
-
-    // Fast path: already connected, no polling at all.
-    if (getCurrentVoiceChannelId() === channelId) {
-        run();
-        return;
-    }
-
-    const deadline = Date.now() + 4000;
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-
-    // Resolve on the voice state event, with a slow timer only as a fallback
-    // while the join is still pending.
-    function check() {
-        if (timeout) clearTimeout(timeout);
-
-        if (getCurrentVoiceChannelId() !== channelId) {
-            timeout = Date.now() < deadline ? setTimeout(check, 500) : null;
-            if (timeout) return;
-        }
-
-        timeout = null;
-        FluxDispatcher.unsubscribe("VOICE_STATE_UPDATES", check);
-        if (getCurrentVoiceChannelId() === channelId) run();
-    }
-
-    FluxDispatcher.subscribe("VOICE_STATE_UPDATES", check);
-    timeout = setTimeout(check, 500);
+    }, 100);
 }
 
 async function joinRandomVoice() {
@@ -651,6 +634,7 @@ async function joinRandomVoice() {
 function RandomVoiceButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
     return (
         <UserAreaButton
+            className="button__201d5 wrapper__201d5"
             onClick={() => void joinRandomVoice()}
             onContextMenu={event => ContextMenuApi.openContextMenu(event, () => <RandomVoiceMenu onClose={ContextMenuApi.closeContextMenu} />)}
             role="switch"

@@ -70,7 +70,7 @@ function patchBtn(btn: HTMLElement, userId: string) {
 }
 
 function scan(root: Document | Element = document) {
-    // Nothing to patch when there are no outgoing requests; skip both document sweeps.
+    // Nothing to patch when there are no outgoing requests; skip the document sweeps.
     if (!hasOutgoingRequests()) return;
 
     // ── Case 1: profile popup ─────────────────────────────────────────────────

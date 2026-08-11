@@ -58,6 +58,7 @@ export function isGhostVisible(): boolean {
 export function scheduleGhostPosition(x: number, y: number) {
     ghostPendingPos = { x, y };
     if (ghostRaf !== null) return;
+    setGhostState({ x, y });
     ghostRaf = requestAnimationFrame(() => {
         if (ghostPendingPos) setGhostState({ x: ghostPendingPos.x, y: ghostPendingPos.y });
         ghostPendingPos = null;

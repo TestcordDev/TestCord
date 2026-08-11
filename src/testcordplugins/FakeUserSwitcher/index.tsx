@@ -312,39 +312,112 @@ function buildOverrides(active: any): Record<string, unknown> {
     } else {
         // Do NOT override id to target.id — this breaks Discord's
         // UserProfileInteractionContextProvider and hides the "Edit Profile" button.
-        // The createdAt is set from the target's snowflake for display purposes only.
         overrides.createdAt = target.createdAt ?? getCreatedAtFromId(target.id);
     }
     return overrides;
 }
 
-function mergeUser(base: any, overrides: Record<string, unknown>): any {
-    const wrap = Object.create(Object.getPrototypeOf(base));
-    for (const key of Object.getOwnPropertyNames(base)) {
-        const desc = Object.getOwnPropertyDescriptor(base, key);
-        if (desc) {
-            try {
-                Object.defineProperty(wrap, key, desc);
-            } catch { /* ignore */ }
-        }
-    }
-    for (const sym of Object.getOwnPropertySymbols(base)) {
-        const desc = Object.getOwnPropertyDescriptor(base, sym);
-        if (desc) {
-            try {
-                Object.defineProperty(wrap, sym, desc);
-            } catch { /* ignore */ }
-        }
-    }
-    for (const key of Object.keys(overrides)) {
+function safeMergeUserProfile(original: any, overrides: any, userId?: string): any {
+    if (!original) return { userId, ...overrides };
+
+    let proto = Object.prototype;
+    try {
+        proto = Object.getPrototypeOf(original) || Object.prototype;
+    } catch { /* ignore */ }
+
+    const merged = Object.create(proto);
+
+    try {
+        Object.assign(merged, original);
+    } catch {
+        let keys: (string | symbol)[] = [];
         try {
-            Object.defineProperty(wrap, key, {
-                value: overrides[key],
-                writable: true,
-                enumerable: true,
-                configurable: true,
-            });
+            keys = [
+                ...Object.getOwnPropertyNames(original),
+                ...Object.getOwnPropertySymbols(original)
+            ];
+        } catch {
+            try {
+                keys = Object.keys(original);
+            } catch { /* ignore */ }
+        }
+        const uniqueKeys = Array.from(new Set(keys));
+        for (const key of uniqueKeys) {
+            try {
+                const desc = Object.getOwnPropertyDescriptor(original, key);
+                if (desc) {
+                    Object.defineProperty(merged, key, desc);
+                } else {
+                    merged[key as any] = original[key];
+                }
+            } catch {
+                try {
+                    merged[key as any] = original[key];
+                } catch { /* ignore */ }
+            }
+        }
+    }
+
+    if (overrides) {
+        for (const key of Object.keys(overrides)) {
+            try {
+                merged[key] = overrides[key];
+            } catch { /* ignore */ }
+        }
+    }
+
+    return merged;
+}
+
+function mergeUser(base: any, overrides: Record<string, unknown>): any {
+    if (!base) return overrides;
+    let proto = Object.prototype;
+    try {
+        proto = Object.getPrototypeOf(base) || Object.prototype;
+    } catch { /* ignore */ }
+    const wrap = Object.create(proto);
+
+    let names: string[] = [];
+    try {
+        names = Array.from(new Set(Object.getOwnPropertyNames(base)));
+    } catch {
+        try {
+            names = Object.keys(base);
         } catch { /* ignore */ }
+    }
+    for (const key of names) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(base, key);
+            if (desc) {
+                Object.defineProperty(wrap, key, desc);
+            }
+        } catch { /* ignore */ }
+    }
+
+    let symbols: symbol[] = [];
+    try {
+        symbols = Array.from(new Set(Object.getOwnPropertySymbols(base)));
+    } catch { /* ignore */ }
+    for (const sym of symbols) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(base, sym);
+            if (desc) {
+                Object.defineProperty(wrap, sym, desc);
+            }
+        } catch { /* ignore */ }
+    }
+
+    if (overrides) {
+        for (const key of Object.keys(overrides)) {
+            try {
+                Object.defineProperty(wrap, key, {
+                    value: overrides[key],
+                    writable: true,
+                    enumerable: true,
+                    configurable: true,
+                });
+            } catch { /* ignore */ }
+        }
     }
     return wrap;
 }
@@ -363,23 +436,43 @@ const CLAIM_OVERRIDES = {
 };
 
 function cloneWithPremium(user: any, months: number): any {
-    const clone = Object.create(Object.getPrototypeOf(user));
-    for (const key of Object.getOwnPropertyNames(user)) {
-        const desc = Object.getOwnPropertyDescriptor(user, key);
-        if (desc) {
-            try {
+    if (!user) return user;
+    let proto = Object.prototype;
+    try {
+        proto = Object.getPrototypeOf(user) || Object.prototype;
+    } catch { /* ignore */ }
+    const clone = Object.create(proto);
+
+    let names: string[] = [];
+    try {
+        names = Array.from(new Set(Object.getOwnPropertyNames(user)));
+    } catch {
+        try {
+            names = Object.keys(user);
+        } catch { /* ignore */ }
+    }
+    for (const key of names) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(user, key);
+            if (desc) {
                 Object.defineProperty(clone, key, desc);
-            } catch { /* ignore */ }
-        }
+            }
+        } catch { /* ignore */ }
     }
-    for (const sym of Object.getOwnPropertySymbols(user)) {
-        const desc = Object.getOwnPropertyDescriptor(user, sym);
-        if (desc) {
-            try {
+
+    let symbols: symbol[] = [];
+    try {
+        symbols = Array.from(new Set(Object.getOwnPropertySymbols(user)));
+    } catch { /* ignore */ }
+    for (const sym of symbols) {
+        try {
+            const desc = Object.getOwnPropertyDescriptor(user, sym);
+            if (desc) {
                 Object.defineProperty(clone, sym, desc);
-            } catch { /* ignore */ }
-        }
+            }
+        } catch { /* ignore */ }
     }
+
     const since = new Date();
     since.setMonth(since.getMonth() - months);
     try {
@@ -491,8 +584,6 @@ const SWITCHER_DROPDOWN_SELECTORS = [
 
 let switcherDropdownOpen = false;
 let switcherDropdownObserver: ReturnType<typeof setInterval> | null = null;
-let switcherDropdownBootstrapTimer: ReturnType<typeof setTimeout> | null = null;
-let switcherDropdownObserverWanted = false;
 let switcherDropdownCheckQueued = false;
 let accountSwitcherRenderUntil = 0;
 
@@ -509,20 +600,15 @@ function readSwitcherDropdownOpen(): boolean {
 
 function startSwitcherDropdownObserver() {
     if (switcherDropdownObserver || typeof document === "undefined") return;
-    if (!switcherDropdownObserverWanted) return;
 
     const { body } = document;
     if (!body) {
-        switcherDropdownBootstrapTimer = setTimeout(startSwitcherDropdownObserver, 0);
+        setTimeout(startSwitcherDropdownObserver, 0);
         return;
     }
 
     switcherDropdownOpen = readSwitcherDropdownOpen();
     switcherDropdownObserver = setInterval(() => {
-        if (!switcherDropdownObserverWanted) {
-            stopSwitcherDropdownObserver();
-            return;
-        }
         if (switcherDropdownCheckQueued) return;
         switcherDropdownCheckQueued = true;
         requestAnimationFrame(() => {
@@ -533,8 +619,6 @@ function startSwitcherDropdownObserver() {
 }
 
 function stopSwitcherDropdownObserver() {
-    switcherDropdownObserverWanted = false;
-    if (switcherDropdownBootstrapTimer) { clearTimeout(switcherDropdownBootstrapTimer); switcherDropdownBootstrapTimer = null; }
     if (switcherDropdownObserver) { clearInterval(switcherDropdownObserver); switcherDropdownObserver = null; }
     switcherDropdownOpen = false;
     switcherDropdownCheckQueued = false;
@@ -1013,22 +1097,23 @@ function getManualActivityListFor(manualData: any) {
 let _origExtractTimestamp: ((id: string) => number) | null = null;
 let _snowflakePatchTimer: any = null;
 function patchSnowflake() {
-    if (_origExtractTimestamp) {
-        if (_snowflakePatchTimer) { clearInterval(_snowflakePatchTimer); _snowflakePatchTimer = null; }
-        return;
-    }
+    if (_origExtractTimestamp) return;
     let su: any = SnowflakeUtils;
     if (!su?.extractTimestamp) {
         try { su = (window as any).Vencord?.Webpack?.findByProps?.("extractTimestamp", "fromTimestamp"); } catch { /* ignore */ }
     }
     if (!su?.extractTimestamp) {
         if (!_snowflakePatchTimer) {
-            _snowflakePatchTimer = setInterval(patchSnowflake, 500);
+            _snowflakePatchTimer = setInterval(() => {
+                patchSnowflake();
+                if (_origExtractTimestamp && _snowflakePatchTimer) {
+                    clearInterval(_snowflakePatchTimer);
+                    _snowflakePatchTimer = null;
+                }
+            }, 500);
         }
         return;
     }
-    // Module resolved, the retry poll is no longer needed whatever the patch does below.
-    if (_snowflakePatchTimer) { clearInterval(_snowflakePatchTimer); _snowflakePatchTimer = null; }
     try {
         _origExtractTimestamp = su.extractTimestamp.bind(su);
         const orig = _origExtractTimestamp!;
@@ -1305,8 +1390,33 @@ function FakeUserSwitcherIcon({ className, style }: { className?: string; style?
     const active = isActive();
     return (
         <svg className={className} style={style} width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path fill={active ? "var(--status-danger)" : "currentColor"} d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2a7.2 7.2 0 0 1-6-3.22c.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08a7.2 7.2 0 0 1-6 3.22z" />
-            {active && <path fill="var(--status-danger)" d="M22.7 2.7a1 1 0 0 0-1.4-1.4l-20 20a1 1 0 1 0 1.4 1.4Z" />}
+            <mask id="FakeUserSwitcherLine">
+                <rect width="100%" height="100%" fill="#ffffff" />
+                <line
+                    className="blackLine"
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="#000000"
+                    strokeWidth="6"
+                    strokeLinecap="round"
+                />
+            </mask>
+
+            <path mask={active ? "url(#FakeUserSwitcherLine)" : undefined} fill={!active ? "var(--status-danger)" : "currentColor"} d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2a7.2 7.2 0 0 1-6-3.22c.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08a7.2 7.2 0 0 1-6 3.22z" />
+
+            {active && <>
+                <line
+                    x1="22"
+                    y1="2"
+                    x2="2"
+                    y2="22"
+                    stroke="var(--status-danger, currentColor)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                />
+            </>}
         </svg>
     );
 }
@@ -1944,7 +2054,6 @@ const plugin = definePlugin({
         logger.info("[FUS-BUILD-CHECK] build loaded — badge+overlay+message fixes v3 active");
         loadCacheFromSettings();
         addProfileBadge(dynamicBadge);
-        switcherDropdownObserverWanted = true;
         startSwitcherDropdownObserver();
         startSwitcherClickInterceptor();
         patchStore();
@@ -2236,7 +2345,8 @@ const plugin = definePlugin({
             // Target IDs and manual synthetic IDs already encode their correct dates,
             // and checking isCurrentUser on every snowflake creates high CPU overhead.
             if (userId !== getOriginalMeId()) return undefined;
-            return getSpoofedCreatedAtMs() ?? undefined;
+            const ms = getSpoofedCreatedAtMs();
+            return (ms != null && Number.isFinite(ms) && !isNaN(ms)) ? ms : undefined;
         } catch {
             return undefined;
         }
@@ -2442,11 +2552,14 @@ const plugin = definePlugin({
                 overrides.primaryGuild = null;
                 overrides.primary_guild = null;
             }
-            if (settings.store.fakeNitroMonths && settings.store.fakeNitroMonths > 0) {
+            const fakeMonths = Number(settings.store.fakeNitroMonths);
+            if (Number.isFinite(fakeMonths) && fakeMonths > 0) {
                 const since = new Date();
-                since.setMonth(since.getMonth() - settings.store.fakeNitroMonths);
-                overrides.premiumType = 2;
-                overrides.premiumSince = since.toISOString();
+                since.setMonth(since.getMonth() - fakeMonths);
+                if (!isNaN(since.getTime())) {
+                    overrides.premiumType = 2;
+                    overrides.premiumSince = since.toISOString();
+                }
             }
             overrides.widgets = [];
             overrides.connectedAccounts = [];
@@ -2491,10 +2604,15 @@ const plugin = definePlugin({
         } else {
             // We are NOT actively spoofing (activeSpoof is false), but selfNitro is true.
             // We just override premiumType/premiumSince on our own profile.
+            const fakeMonths = Number(settings.store.fakeNitroMonths);
             const since = new Date();
-            since.setMonth(since.getMonth() - settings.store.fakeNitroMonths);
-            overrides.premiumType = 2;
-            overrides.premiumSince = since.toISOString();
+            if (Number.isFinite(fakeMonths) && fakeMonths > 0) {
+                since.setMonth(since.getMonth() - fakeMonths);
+            }
+            if (!isNaN(since.getTime())) {
+                overrides.premiumType = 2;
+                overrides.premiumSince = since.toISOString();
+            }
 
             if (original) {
                 if (original.bio != null) overrides.bio = original.bio;
@@ -2627,9 +2745,7 @@ const plugin = definePlugin({
         };
         overrides.userProfile = overrides.user_profile;
 
-        const merged = original
-            ? Object.assign(Object.create(Object.getPrototypeOf(original)), original, overrides)
-            : { userId, ...overrides };
+        const merged = safeMergeUserProfile(original, overrides, userId);
         return merged;
     },
 

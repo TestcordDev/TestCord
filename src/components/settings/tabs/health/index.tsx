@@ -1007,7 +1007,9 @@ function HealthTab() {
     };
 
     // Diagnostics stats
-    const totalHeapMB = PluginProfiler.getClientTotalHeapMB();
+    const totalHeapMB = (performance as any).memory?.usedJSHeapSize
+        ? Math.round(((performance as any).memory.usedJSHeapSize / (1024 * 1024)) * 10) / 10
+        : 0;
     const totalCpuTimeMs = profiles.reduce((acc, p) => acc + p.totalCpuTimeMs, 0);
     const totalActiveResources = profiles.reduce((acc, p) => acc + p.activeResources, 0);
 
@@ -1534,37 +1536,7 @@ function HealthTab() {
                                     )}
                                 </div>
 
-                                <div>
-                                    <HeadingSecondary>Most Expensive Surfaces (Flux Events)</HeadingSecondary>
-                                    {currentPluginProfile.fluxSurfaces.length === 0 ? (
-                                        <Paragraph color="text-subtle" style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>
-                                            No Flux event callbacks recorded for this plugin yet.
-                                        </Paragraph>
-                                    ) : (
-                                        <div className="vc-health-table-wrapper" style={{ marginTop: "0.5rem" }}>
-                                            <table className="vc-health-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Flux Action</th>
-                                                        <th>Calls</th>
-                                                        <th>Total CPU (ms)</th>
-                                                        <th>Max Call (ms)</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {currentPluginProfile.fluxSurfaces.map(surface => (
-                                                        <tr key={surface.action}>
-                                                            <td><code>{surface.action}</code></td>
-                                                            <td>{surface.calls}</td>
-                                                            <td>{surface.totalTimeMs} ms</td>
-                                                            <td>{surface.maxTimeMs} ms</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-                                </div>
+
                             </div>
                         )}
                     </div>

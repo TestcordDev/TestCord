@@ -188,7 +188,7 @@ function DecryptionAccessory({ message }: { message: Message; }) {
         if ((message as any).vencordEmbeddedBy) return;
         DecryptionSetters.set(message.id, setDecrypted);
         return () => void DecryptionSetters.delete(message.id);
-    }, [message.id]);
+    }, []);
 
     if (!decrypted) return null;
 
@@ -271,7 +271,7 @@ export default definePlugin({
         render: EncryptButton,
     },
 
-    renderMessageAccessory: (props: any) => props?.message?.content && isEncrypted(props.message.content) ? <DecryptionAccessory message={props.message} /> : null,
+    renderMessageAccessory: (props: any) => props?.message ? <DecryptionAccessory message={props.message} /> : null,
 
     start() {
         addContextMenuPatch("message", messageContextPatch);

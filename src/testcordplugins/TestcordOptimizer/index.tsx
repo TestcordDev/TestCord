@@ -2944,6 +2944,7 @@ export default definePlugin({
 
     installFluxThrottle() {
         if (this.fluxThrottleState) return;
+        if (!FluxDispatcher?.dispatch) return;
 
         const origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
         const THROTTLED = new Set(["TYPING_START", "TYPING_STOP"]);

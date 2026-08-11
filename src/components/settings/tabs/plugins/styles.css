@@ -430,6 +430,25 @@
     margin-top: 16px;
 }
 
+.vc-settings-tab [class*="hasTags__0edde"] [class*="comboBoxInputContainer__0edde"] {
+    display: flex;
+    flex-direction: column-reverse;
+}
+
+.vc-settings-tab [class*="hasTags__0edde"] [class*="tag_cfee8f"] {
+    justify-content: space-between;
+    width: 100%;
+}
+
+.vc-settings-tab [class*="hasTags__0edde"] [class*="comboBoxInput__0edde"] {
+    width: 100%;
+}
+
+.vc-settings-tab [class*="chevronButton__0edde"] {
+    padding-top: 9px;
+    align-items: start;
+}
+
 @media (width <= 720px) {
     .vc-plugins-grid {
         grid-template-columns: 1fr;

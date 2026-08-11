@@ -7,7 +7,7 @@
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
 import { PluginHealth } from "@api/PluginHealth";
 import { isPluginEnabled, isPluginRequired, plugins as Plugins, pluginStartTimings, startPlugin, stopPlugin } from "@api/PluginManager";
-import { definePluginSettings, Settings, useSettings } from "@api/Settings";
+import { definePluginSettings, Settings, SettingsStore, useSettings } from "@api/Settings";
 import { getUserSettingLazy } from "@api/UserSettings";
 import { BaseText } from "@components/BaseText";
 import ErrorBoundary from "@components/ErrorBoundary";
@@ -20,11 +20,11 @@ import { gitHashShort } from "@shared/vencordUserAgent";
 import { fetchUserProfile, openUserProfile } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import { sleep, tryOrElse } from "@utils/misc";
-import { makeCodeblock } from "@utils/text";
+import { makeCodeblock, ZWSP } from "@utils/text";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { Message, User } from "@vencord/discord-types";
 import { wreq } from "@webpack";
-import { Avatar, Button, ChannelStore, ColorPicker, FluxDispatcher, MessageActions, SelectedChannelStore, showToast, TextInput, Toasts, Tooltip, useEffect, useMemo, UserProfileStore, UserStore, useStateFromStores } from "@webpack/common";
+import { Avatar, Button, ChannelStore, ColorPicker, Constants, FluxDispatcher, MessageActions, RestAPI, SelectedChannelStore, showToast, TextInput, Toasts, Tooltip, useEffect, useMemo, UserProfileStore, UserStore, useStateFromStores } from "@webpack/common";
 import { patches as allPatches, patchTimings } from "@webpack/patcher";
 import { JSX } from "react";
 
@@ -293,6 +293,7 @@ function installDebugInstrumentation() {
     dumpPatchTimings();
     buildHandlerPluginMap();
 
+    if (!FluxDispatcher?.dispatch) return;
     origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher) as (payload: any) => void;
     FluxDispatcher.dispatch = function (payload: any) {
         currentDispatchCost.clear();
@@ -461,6 +462,11 @@ const settings = definePluginSettings({
     enableCustomBadges: {
         type: OptionType.BOOLEAN,
         description: "Enable custom testcord badges from tbadges GitHub repository",
+        default: true,
+    },
+    pronounsBadge: {
+        type: OptionType.BOOLEAN,
+        description: "Show the Testcord badge by adding a hidden marker to your pronouns. Turn off to remove it.",
         default: true,
     },
     CarefulNetwork: {
@@ -1213,7 +1219,6 @@ interface LiveFixRequest {
 
 // Circular console buffer — last 500 entries, each with level, text, and timestamp
 const CONSOLE_BUF_MAX = 500;
-const CONSOLE_MSG_MAX = 2000;
 const consoleBuf: Array<{ level: string; msg: string; time: number; }> = [];
 let origConsole: Record<string, (...args: any[]) => void> = {};
 let consoleOverridesInstalled = false;
@@ -1226,9 +1231,9 @@ function installConsoleCapture() {
     for (const level of levels) {
         origConsole[level] = (console as any)[level].bind(console);
         (console as any)[level] = function (...args: any[]) {
-            const msg = args.map(a => typeof a === "object" ? safeStringify(a) : String(a)).join(" ").slice(0, CONSOLE_MSG_MAX);
-            if (consoleBuf.length >= CONSOLE_BUF_MAX) consoleBuf.shift();
+            const msg = args.map(a => typeof a === "object" ? safeStringify(a) : String(a)).join(" ");
             consoleBuf.push({ level, msg, time: Date.now() });
+            if (consoleBuf.length > CONSOLE_BUF_MAX) consoleBuf.shift();
             return origConsole[level](...args);
         };
     }
@@ -1241,12 +1246,10 @@ function uninstallConsoleCapture() {
         (console as any)[level] = origConsole[level];
     }
     origConsole = {};
-    consoleBuf.length = 0;
 }
 
 function safeStringify(obj: any): string {
-    if (obj instanceof Error) return obj.stack ?? `${obj.name}: ${obj.message}`;
-    try { return JSON.stringify(obj)?.slice(0, CONSOLE_MSG_MAX) ?? String(obj); } catch { return String(obj); }
+    try { return JSON.stringify(obj); } catch { return String(obj); }
 }
 
 function handleLiveFixRequest(req: LiveFixRequest): any {
@@ -1448,7 +1451,7 @@ async function startLiveFixServer() {
                     await NativeHelper.writeResponse(JSON.stringify({ id: reqId, error: String(e) }));
                 } catch { /* ignore */ }
             }
-        }, 250);
+        }, 100);
 
         logger.info("LiveFix integration started — HTTP server on port 18963");
         showToast("LiveFix server started on port 18963", Toasts.Type.SUCCESS);
@@ -1521,11 +1524,33 @@ export default definePlugin({
         );
     },
 
+    syncPronounsBadge() {
+        const selfId = UserStore.getCurrentUser()?.id;
+        if (!selfId) return;
+
+        const profile = UserProfileStore.getUserProfile(selfId);
+        const current: string | undefined = profile?.pronouns;
+        const hasMarker = current?.includes(ZWSP) ?? false;
+        const wantMarker = settings.store.pronounsBadge;
+
+        if (hasMarker === wantMarker) return;
+
+        const next = wantMarker
+            ? `${current ?? ""}${ZWSP}`
+            : current?.replaceAll(ZWSP, "");
+
+        RestAPI.patch({
+            url: Constants.Endpoints.USER_PROFILE("@me"),
+            body: { pronouns: next }
+        }).then(() => fetchUserProfile(selfId, {}, false)).catch(() => undefined);
+    },
+
     start() {
         if (settings.store.preventCrashes) installCrashGuards();
         installConsoleCapture();
         if (settings.store.debugMode) settings.store.debugMode = false;
         if (settings.store.liveFix) startLiveFixServer();
+        this.syncPronounsBadge();
         if (settings.store.orchestrator || settings.store.messageCoalesce) {
             const p = Plugins.OrchestratorAPI;
             if (p && !p.started) {
@@ -1562,6 +1587,9 @@ export default definePlugin({
             }
         };
         document.addEventListener("keydown", hotkeyHandler, true);
+
+        this.pronounsBadgeListener = () => this.syncPronounsBadge();
+        SettingsStore.addChangeListener("plugins.TestcordHelper.pronounsBadge", this.pronounsBadgeListener);
     },
 
     stop() {
@@ -1572,6 +1600,10 @@ export default definePlugin({
         if (hotkeyHandler) {
             document.removeEventListener("keydown", hotkeyHandler, true);
             hotkeyHandler = null;
+        }
+        if (this.pronounsBadgeListener) {
+            SettingsStore.removeChangeListener("plugins.TestcordHelper.pronounsBadge", this.pronounsBadgeListener);
+            this.pronounsBadgeListener = null;
         }
     }
 });

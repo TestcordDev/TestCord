@@ -29,31 +29,29 @@ function makeSpotifyLyricsApiUrl(trackId: string, customBaseUrl?: string): strin
 }
 
 export async function getLyricsSpotify(trackId: string, customBaseUrl?: string): Promise<LyricsData | null> {
-    const resp = await fetch(makeSpotifyLyricsApiUrl(trackId, customBaseUrl));
-    if (!resp.ok) return null;
-
-    let data: LyricsAPIResp;
     try {
-        data = await resp.json() as LyricsAPIResp;
-    } catch (e) {
+        const resp = await fetch(makeSpotifyLyricsApiUrl(trackId, customBaseUrl));
+        if (!resp.ok) return null;
+
+        const data = await resp.json() as LyricsAPIResp;
+        if (data.error || !Array.isArray(data.lines) || data.lines.length < 2) return null;
+
+        const lyrics = data.lines;
+        if (lyrics[0].startTimeMs === "0" && lyrics[lyrics.length - 1].startTimeMs === "0") return null;
+
+        return {
+            useLyric: Provider.Spotify,
+            lyricsVersions: {
+                Spotify: lyrics.map(line => {
+                    const trimmedText = line.words.trim();
+                    return {
+                        time: Number(line.startTimeMs) / 1000,
+                        text: (trimmedText === "" || trimmedText === "♪") ? null : trimmedText
+                    };
+                })
+            }
+        };
+    } catch {
         return null;
     }
-
-    if (data.error || !Array.isArray(data.lines) || data.lines.length < 2) return null;
-
-    const lyrics = data.lines;
-    if (lyrics[0].startTimeMs === "0" && lyrics[lyrics.length - 1].startTimeMs === "0") return null;
-
-    return {
-        useLyric: Provider.Spotify,
-        lyricsVersions: {
-            Spotify: lyrics.map(line => {
-                const trimmedText = line.words.trim();
-                return {
-                    time: Number(line.startTimeMs) / 1000,
-                    text: (trimmedText === "" || trimmedText === "♪") ? null : trimmedText
-                };
-            })
-        }
-    };
 }

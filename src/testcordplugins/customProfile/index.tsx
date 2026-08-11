@@ -444,8 +444,9 @@ async function copyUserProfile(userId: string) {
 
         if (hasNitro) {
             const premiumSince = profile.premiumSince ?? user.premiumSince ?? null;
-            if (premiumSince) {
-                const months = Math.floor((Date.now() - new Date(premiumSince).getTime()) / (1000 * 60 * 60 * 24 * 30));
+            const pTs = new Date(premiumSince).getTime();
+            if (!isNaN(pTs)) {
+                const months = Math.floor((Date.now() - pTs) / (1000 * 60 * 60 * 24 * 30));
                 if (months >= 72) newData.nitroLevel = 8;
                 else if (months >= 36) newData.nitroLevel = 7;
                 else if (months >= 24) newData.nitroLevel = 6;
@@ -462,16 +463,19 @@ async function copyUserProfile(userId: string) {
 
         const boostSince = profile.premiumGuildSince ?? null;
         if (boostSince) {
-            const bMonths = Math.floor((Date.now() - new Date(boostSince).getTime()) / (1000 * 60 * 60 * 24 * 30));
-            if (bMonths >= 24) newData.boostMonths = 8;
-            else if (bMonths >= 18) newData.boostMonths = 7;
-            else if (bMonths >= 15) newData.boostMonths = 6;
-            else if (bMonths >= 12) newData.boostMonths = 5;
-            else if (bMonths >= 9) newData.boostMonths = 4;
-            else if (bMonths >= 6) newData.boostMonths = 3;
-            else if (bMonths >= 3) newData.boostMonths = 2;
-            else if (bMonths >= 2) newData.boostMonths = 1;
-            else newData.boostMonths = 0;
+            const bTs = new Date(boostSince).getTime();
+            if (!isNaN(bTs)) {
+                const bMonths = Math.floor((Date.now() - bTs) / (1000 * 60 * 60 * 24 * 30));
+                if (bMonths >= 24) newData.boostMonths = 8;
+                else if (bMonths >= 18) newData.boostMonths = 7;
+                else if (bMonths >= 15) newData.boostMonths = 6;
+                else if (bMonths >= 12) newData.boostMonths = 5;
+                else if (bMonths >= 9) newData.boostMonths = 4;
+                else if (bMonths >= 6) newData.boostMonths = 3;
+                else if (bMonths >= 3) newData.boostMonths = 2;
+                else if (bMonths >= 2) newData.boostMonths = 1;
+                else newData.boostMonths = 0;
+            }
         }
 
         const bannerId = profile.banner ?? user.banner ?? null;
@@ -662,34 +666,17 @@ function scanNode(node: Node) {
 // actually a string to swap. With no fake name and no fake creation date configured
 // the walk could never change anything, and it was still running every 5 seconds.
 function hasTextReplacements(): boolean {
-    try { if (_trueOriginalUser) { _realUsername = _trueOriginalUser.username || _realUsername; _realGlobalName = _trueOriginalUser.globalName || _realGlobalName; } } catch { }
     if (storedData.createdAt) return true;
     if (storedData.username && _realUsername) return true;
     if (storedData.globalName && _realGlobalName) return true;
     return false;
 }
 
-// One flat string compare is far cheaper than walking every text node, so bail out
-// early when nothing on screen can match.
-function documentHasReplaceableText(): boolean {
-    const text = document.body?.textContent;
-    if (!text) return false;
-    if (_realUsername && storedData.username && text.includes(_realUsername)) return true;
-    if (_realGlobalName && storedData.globalName && text.includes(_realGlobalName)) return true;
-    if (storedData.createdAt && getFakeDateVariants(storedData.createdAt).length > 0) {
-        const lower = text.toLowerCase();
-        for (const realDate of getRealDateVariants()) {
-            if (realDate.length >= 4 && lower.includes(realDate.toLowerCase())) return true;
-        }
-    }
-    return false;
-}
-
 function startDomObserver() {
     stopDomObserver(); if (!isEnabled) return;
-    if (hasTextReplacements()) scanNode(document.body);
+    scanNode(document.body);
     domObserver = setInterval(() => {
-        if (!isEnabled || !hasTextReplacements() || !documentHasReplaceableText()) return;
+        if (!isEnabled || !hasTextReplacements()) return;
         scanNode(document.body);
     }, 5000);
 }
@@ -1267,12 +1254,15 @@ export default definePlugin({
         // We redefine it directly on the clone so Discord displays the fake date
         // without needing to scan the DOM.
         if (storedData.createdAt) {
-            const fakeCreatedAt = new Date(storedData.createdAt + "T12:00:00Z");
-            Object.defineProperty(clone, "createdAt", {
-                get: () => fakeCreatedAt,
-                configurable: true,
-                enumerable: true
-            });
+            const dateStr = storedData.createdAt.includes("T") ? storedData.createdAt : storedData.createdAt + "T12:00:00Z";
+            const fakeCreatedAt = new Date(dateStr);
+            if (!isNaN(fakeCreatedAt.getTime())) {
+                Object.defineProperty(clone, "createdAt", {
+                    get: () => fakeCreatedAt,
+                    configurable: true,
+                    enumerable: true
+                });
+            }
         }
 
         if (storedData.decorationAsset) {
@@ -1565,7 +1555,9 @@ export default definePlugin({
                 const origExtract = this._origExtractTimestamp;
                 (SnowflakeUtils as any).extractTimestamp = (snowflake: string) => {
                     if (isEnabled && storedData.createdAt && isMe(snowflake)) {
-                        return new Date(storedData.createdAt + "T12:00:00Z").getTime();
+                        const dateStr = storedData.createdAt.includes("T") ? storedData.createdAt : storedData.createdAt + "T12:00:00Z";
+                        const ts = new Date(dateStr).getTime();
+                        if (!isNaN(ts)) return ts;
                     }
                     return origExtract(snowflake);
                 };

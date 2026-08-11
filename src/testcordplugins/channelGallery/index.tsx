@@ -54,7 +54,7 @@ function GalleryIcon(props: React.SVGProps<SVGSVGElement>) {
         <svg viewBox="0 0 24 24" width={20} height={20} fill="currentColor" aria-hidden="true" {...props}>
             <path d="M4 5a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V5Zm3-1a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H7Z" />
             <path d="M8 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm11 12H7a5 5 0 0 1-5-5V8h2v7a3 3 0 0 0 3 3h12v2Z" />
-            <path d="M8 14.5 10.25 12a1 1 0 0 1 1.5 0L14 14.5l1.25-1.25a1 1 0 0 1 1.5 0L18 14.5V15a1 1 0 0 1-1 1H7a1 1 0 0 1-1v-.5l2-2Z" />
+            <path d="M8 14.5L10.25 12a1 1 0 0 1 1.5 0L14 14.5l1.25-1.25a1 1 0 0 1 1.5 0L18 14.5V15a1 1 0 0 1-1 1 H7 a1 1 0 0 1-1-1 v-.5 l2-2Z" />
         </svg>
     );
 }

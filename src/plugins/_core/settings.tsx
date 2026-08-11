@@ -595,6 +595,11 @@ const settings = definePluginSettings({
         description: "Pinned Testcord settings tabs",
         hidden: true,
         default: [] as string[]
+    },
+    experimentalDataStoreExport: {
+        type: OptionType.BOOLEAN,
+        description: "Force export and import of DataStore even when it's too large. Uses chunked processing to avoid memory issues.",
+        default: false
     }
 });
 

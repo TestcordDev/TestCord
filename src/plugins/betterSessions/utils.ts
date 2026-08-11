@@ -23,7 +23,7 @@ import { UserStore } from "@webpack/common";
 import { ChromeIcon, DiscordIcon, EdgeIcon, FirefoxIcon, IEIcon, MobileIcon, OperaIcon, SafariIcon, UnknownIcon } from "./components/icons";
 import { SessionInfo } from "./types";
 
-const getDataKey = () => `BetterSessions_savedSessions_${UserStore.getCurrentUser().id}`;
+const getDataKey = () => `BetterSessions_savedSessions_${UserStore.getCurrentUser()?.id ?? "unknown"}`;
 
 export const cl = classNameFactory("vc-betterSessions-");
 export const savedSessionsCache: Map<string, { name: string, isNew: boolean; }> = new Map();

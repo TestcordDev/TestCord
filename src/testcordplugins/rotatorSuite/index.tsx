@@ -6,7 +6,7 @@
 
 import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
-import { UserAreaButton } from "@api/UserArea";
+import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import { getUserSettingLazy } from "@api/UserSettings";
 import { Logger } from "@utils/Logger";
 import { ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal,RenderModalProps } from "@utils/modal";
@@ -5068,7 +5068,7 @@ function RotatorSuiteModal({ modalProps }: { modalProps: RenderModalProps }) {
     );
 }
 
-function RSUserAreaButton() {
+function RSUserAreaButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
     const [active, setActive] = React.useState(false);
     React.useEffect(() => {
         const id = setInterval(() => {
@@ -5081,11 +5081,42 @@ function RSUserAreaButton() {
     if (!settings.store.showButton) return null;
     return (
         <UserAreaButton
-            tooltipText={active ? "Rotator Suite - [Running]" : "Rotator Suite"}
+            tooltipText={hideTooltips ? void 0 : active ? "Rotator Suite - [Running]" : "Rotator Suite"}
+            redGlow={!active}
+            plated={nameplate != null}
             icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
-                    {active && <circle cx="18" cy="6" r="4" fill="#9c67ff" stroke="none" />}
+                <svg className={iconForeground} width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <mask id="rotatorSuiteLine">
+                        <rect width="100%" height="100%" fill="#ffffff" />
+                        <line
+                            className="blackLine"
+                            x1="22"
+                            y1="2"
+                            x2="2"
+                            y2="22"
+                            stroke="#000000"
+                            strokeWidth="6"
+                            strokeLinecap="round"
+                        />
+                    </mask>
+
+                    <path mask={!active ? "url(#rotatorSuiteLine)" : undefined} fill={!active ? "var(--status-danger)" : "currentColor"} d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+
+                    {!active && <>
+                        <line
+                            x1="22"
+                            y1="2"
+                            x2="2"
+                            y2="22"
+                            stroke="var(--status-danger, currentColor)"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                        />
+                    </>}
+
+                    {active &&
+                        <circle cx="18" cy="6" r="4" fill="#9c67ff" stroke="none" />
+                    }
                 </svg>
             }
             onClick={() => openModal(props => <RotatorSuiteModal modalProps={props} />)}
@@ -5203,7 +5234,7 @@ export default definePlugin({
         closeBannerColor = closeStored.closeBannerColor ?? "#111214";
         try { localStorage.setItem(RS_CLOSE_LS, JSON.stringify({ closeStatusEnabled, closeStatusText, closeStatusEmoji, closeStatusType, closeClanEnabled, closeClanId, closeBannerEnabled, closeBannerColor })); } catch {}
 
-        Vencord.Api.UserArea.addUserAreaButton("rotator-suite", () => <RSUserAreaButton />);
+        Vencord.Api.UserArea.addUserAreaButton("rotator-suite", RSUserAreaButton);
 
         if (settings.store.autoStart) {
             startAllRotators();

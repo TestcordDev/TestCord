@@ -14,6 +14,7 @@ import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
+import { Switch } from "@components/Switch";
 import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, RenderModalProps } from "@utils/modal";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
@@ -84,7 +85,7 @@ const settings = definePluginSettings({
     },
     panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#0e1852", onChange: () => apply() },
     glowColor: { type: OptionType.STRING, description: "Glow hover color", default: "#ffffff", onChange: () => apply() },
-    colorfulActiveButtons: { type: OptionType.BOOLEAN, default: true, description: "Use distinct colored blobs for active plugin buttons", onChange: () => apply() },
+    colorfulActiveButtons: { type: OptionType.BOOLEAN, default: true, description: "Gives enabled plugins customizable colored rounded backgrounds", onChange: () => apply() },
     forceNativeButtonColor: { type: OptionType.BOOLEAN, default: false, description: "Force the icon color on Discord's native buttons (Mute, Deafen, Settings) even when no custom icon color is set", onChange: () => apply() },
     // Chevrons & Lock
     hideChevrons: { type: OptionType.BOOLEAN, default: false, description: "Hide dropdown chevrons next to Mute and Deafen", onChange: () => apply() },
@@ -101,6 +102,8 @@ const settings = definePluginSettings({
     hideCamera: { type: OptionType.BOOLEAN, default: false, description: "Hide camera button in call controls", onChange: () => apply() },
     hideScreenShare: { type: OptionType.BOOLEAN, default: false, description: "Hide screen share button in call controls", onChange: () => apply() },
     hideActivity: { type: OptionType.BOOLEAN, default: false, description: "Hide activity button in call controls", onChange: () => apply() },
+    // Line
+    hideLine: { type: OptionType.BOOLEAN, default: true, description: "Hide the line between user and buttons", onChange: () => apply() },
 });
 
 // ─── Selectors & Constants ────────────────────────────────────────────────────
@@ -131,6 +134,7 @@ const TOGGLE_LABELS: Record<string, string[]> = {
     "Screen Share": ["Share Your Screen", "Stop Sharing", "Stop Screen Sharing"],
     "Activity": ["Start An Activity", "End Activity", "Stop Activity"],
     "Game Activity": ["Enable Game Activity", "Disable Game Activity", "Game Activity"],
+    "Spotify Activity": ["Turn on Spotify activity", "Turn off Spotify activity"],
 };
 
 function getCanonicalLabel(label: string): string {
@@ -162,8 +166,9 @@ interface ButtonConfig {
     hidden?: boolean;
     keybind?: string | null;
     order?: number;
-    color?: string;
-    opacity?: number;
+    color: string;
+    opacity: number;
+    background: boolean
 }
 
 const BUTTON_CONFIG_KEY = "deracul-panel-layout-configs";
@@ -252,18 +257,8 @@ let observer: ReturnType<typeof setInterval> | null = null;
 let updateQueued = false;
 let updateFrame = 0;
 
-let lastBtnEls: HTMLElement[] = [];
-let lastBtnSig: (string | null)[] = [];
-
 function updateDomAttributes() {
     const btns = getAllButtons();
-    // Cheap signature: element identity + own aria-label + already injected marker.
-    // Skips the querySelector/setAttribute pass while the panel is untouched.
-    const sig = btns.map(el => `${el.getAttribute("aria-label")}|${el.getAttribute("data-deracul-label")}`);
-
-    if (btns.length === lastBtnEls.length
-        && btns.every((el, i) => el === lastBtnEls[i] && sig[i] === lastBtnSig[i])) return;
-
     for (const el of btns) {
         const rawLabel = getBtnLabel(el);
         if (!rawLabel) continue;
@@ -272,9 +267,6 @@ function updateDomAttributes() {
             el.setAttribute("data-deracul-label", canonical);
         }
     }
-
-    lastBtnEls = btns;
-    lastBtnSig = btns.map(el => `${el.getAttribute("aria-label")}|${el.getAttribute("data-deracul-label")}`);
 }
 
 function startObserver() {
@@ -301,8 +293,6 @@ function stopObserver() {
         updateFrame = 0;
     }
     updateQueued = false;
-    lastBtnEls = [];
-    lastBtnSig = [];
 }
 
 // ─── CSS Builders ─────────────────────────────────────────────────────────────
@@ -402,15 +392,11 @@ function buildCSS(): string {
     // Base fixes
     lines.push(`${S.panelContainer} { height: auto !important; min-height: unset !important; }`);
 
-// Ensure cloned config SVGs display correctly
+    // Ensure cloned config SVGs display correctly
     lines.push(`
-        :not(title="AntiMove&Deco").deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
+        .deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
             width: 22px !important; height: 22px !important;
             color: var(--interactive-normal, var(--interactive-text-default)) !important; fill: currentColor !important;
-        }
-        [title="Game Activity"] .deracul-btn-preview svg {
-            --vc-plugin-icon-color: var(--status-danger) !important;
-            color: var(--status-danger) !important;
         }
     `);
 
@@ -456,6 +442,14 @@ function buildCSS(): string {
                     order: 40000 !important; margin: 0 !important;
                 }
             `);
+
+            if (settings.store.hideLine) {
+                lines.push(`
+                    ${S.panelContainer}::before {
+                        opacity: 0
+                    }
+                `);
+            }
             break;
         }
         case "all_top":
@@ -512,17 +506,41 @@ function buildCSS(): string {
                         ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         case "outlined":
-            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; background: transparent !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
+
+            for (const id of Object.keys(buttonConfigs)) {
+                if (!getBtnCfg(id).background) {
+                    lines.push(`
+                        ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
+                        ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
+                            background: transparent !important;
+                        }
+                    `);
+                }
+            }
+
             break;
         case "outlineold":
             // Pre-fallback replica: relies on var(--background-modifier-accent) which
             // new Discord tokens dropped, so the border doesn't actually render.
             // People liked that buggy look, so it's kept as its own option.
             lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }`);
+
+            for (const id of Object.keys(buttonConfigs)) {
+                if (!getBtnCfg(id).background) {
+                    lines.push(`
+                        ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
+                        ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
+                            background: transparent !important;
+                        }
+                    `);
+                }
+            }
+
             break;
         case "pill":
             lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 20px !important; }
-                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
+                        ${S.panelButtons} ${S.panelButton}.plateState:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         case "square":
             lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 2px !important; }
@@ -534,20 +552,6 @@ function buildCSS(): string {
             lines.push(`${S.panelButtons} ${S.panelButton} { background: transparent !important; }
                         ${S.panelButtons} ${S.panelButton}:hover { background: transparent !important; }`);
             break;
-    }
-
-    // Colorful Active Buttons
-    if (st.colorfulActiveButtons) {
-        lines.push(`
-            ${S.panelButtons} button[role="switch"][aria-checked="true"] { background-color: var(--brand-experiment, #5865F2) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} button[role="switch"][aria-checked="true"] svg { fill: white !important; color: white !important; }
-            ${S.panelButtons} [data-deracul-label="Ban all in VC"] button { background-color: var(--status-danger, #DA373C) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} [data-deracul-label="Ban all in VC"] button svg { color: white !important; fill: white !important; }
-            ${S.panelButtons} [data-deracul-label="Fake States"] button[aria-checked="true"] { background-color: var(--status-positive, #23A559) !important; color: white !important; border-radius: 10px !important; }
-            ${S.panelButtons} [data-deracul-label="Fake States"] button[aria-checked="true"] svg { color: white !important; fill: white !important; }
-            ${S.panelButtons} [data-deracul-label="Mute"] button[role="switch"][aria-checked="true"], ${S.panelButtons} [data-deracul-label="Deafen"] button[role="switch"][aria-checked="true"] { background-color: transparent !important; color: var(--status-danger, #DA373C) !important; }
-            ${S.panelButtons} [data-deracul-label="AntiMove&Deco"][aria-checked="true"] { background-color: var(--brand-experiment, #0f172a) !important; color: white !important; border-radius: 10px !important; }
-        `);
     }
 
     // Opacity
@@ -566,6 +570,10 @@ function buildCSS(): string {
         case "scale": lines.push(`${S.panelButtons} ${S.panelButton}:hover { transform: scale(1.15) !important; transition: transform 0.15s ease !important; }`); break;
         case "glow": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: drop-shadow(0 0 6px ${st.glowColor}) !important; transition: filter 0.15s ease !important; }`); break;
         case "bright": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: brightness(1.3) !important; transition: filter 0.15s ease !important; }`); break;
+    }
+
+    if ((st.buttonStyle === "outlineold" || st.buttonStyle === "outlined") && st.hoverEffect === "glow") {
+        lines.push(`${S.panelButtons} ${S.panelButton}.plated__67645:not(.plateMuted__67645):hover { background: transparent !important }`);
     }
 
     // Visibility toggles
@@ -739,15 +747,15 @@ const MODAL_BODY_HEIGHT = 440;
 
 // ─── Native-styled helper components ─────────────────────────────────────────
 
-function SliderRow({ label, value, min, max, unit = "px", onChange, resetKey }: {
-    label: string; value: number; min: number; max: number; unit?: string; onChange: (v: number) => void; resetKey?: number;
+function SliderRow({ label, value, min, max, unit = "px", onChange, resetKey, gap }: {
+    label: string; value: number; min: number; max: number; unit?: string; onChange: (v: number) => void; resetKey?: number; gap: boolean;
 }) {
     // One marker per whole unit + stickToMarkers forces the handle to snap to
     // exact integers as it's dragged, instead of free-floating fractional values.
     const stepMarkers = React.useMemo(() => makeRange(min, max, 1), [min, max]);
 
     return (
-        <Flex flexDirection="column" gap={8} style={{ width: "100%" }}>
+        <Flex flexDirection="column" gap={gap ? 8 : 0} style={{ width: "100%" }}>
             <Flex justifyContent="space-between">
                 <BaseText size="md" weight="medium" color="text-default">{label}</BaseText>
                 <BaseText size="sm" weight="semibold" color="text-muted">{Math.round(value)}{unit}</BaseText>
@@ -997,61 +1005,96 @@ function ButtonsDragTab() {
                             const canonical = getCanonicalLabel(item.label);
                             const isUserSettings = canonical === "User Settings";
                             const isPanelLayout = canonical === "Panel Layout";
+                            const isMute = canonical === "Mute";
+                            const isDeafen = canonical === "Deafen";
                             return (
-                                <Flex key={item.id} justifyContent="space-between" alignItems="center" style={{ padding: "8px 12px", backgroundColor: "var(--background-secondary, var(--background-surface-higher))", borderRadius: "6px" }}>
+                                <div key={item.id} style={{ padding: "8px 12px", backgroundColor: "var(--background-secondary, var(--background-surface-higher))", borderRadius: "6px" }}>
                                     <BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>
-                                    <Flex gap={8} alignItems="center">
-                                        {!isUserSettings && !isPanelLayout && (
+                                    <Flex gap={8} alignItems="center" style={{ padding: "30px 0 0 0" }}>
+                                        {!isUserSettings && !isPanelLayout && settings.store.colorfulActiveButtons && (
                                             <>
-                                                {((cfg.color && cfg.color !== "#5865f2") || (cfg.opacity !== undefined && cfg.opacity !== 100)) && (
+                                                {((cfg.color !== undefined && cfg.color !== "#5865f2") || (cfg.opacity !== undefined && cfg.opacity !== 100) || ((cfg.background !== undefined && cfg.background !== true) && (settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold"))) && (
                                                     <Button size="small" variant="secondary" title="Reset custom color & opacity" onClick={() => {
-                                                        setBtnCfg(item.id, { color: "#5865f2", opacity: 100 });
+                                                        setBtnCfg(item.id, { color: "#5865f2", opacity: 100, background: (settings.store.buttonStyle !== "outlined" && settings.store.buttonStyle !== "outlineold") ? cfg.background : true });
                                                         apply(); forceUpdate();
                                                     }}>↺</Button>
                                                 )}
-                                                <input
-                                                    type="color"
-                                                    title="Active blob background color"
-                                                    value={cfg.color && cfg.color !== "transparent" ? cfg.color : "#5865f2"}
-                                                    onChange={e => {
-                                                        setBtnCfg(item.id, { color: e.target.value });
-                                                        apply(); forceUpdate();
-                                                    }}
-                                                    style={{
-                                                        width: "28px",
-                                                        height: "28px",
-                                                        border: "none",
-                                                        borderRadius: "6px",
-                                                        cursor: "pointer",
-                                                        background: "transparent",
-                                                        padding: 0
-                                                    }}
-                                                />
-                                                <input
-                                                    type="range"
-                                                    min="0"
-                                                    max="100"
-                                                    title="Opacity"
+                                                <SliderRow
+                                                    label="Opacity"
+                                                    min={0}
+                                                    max={100}
                                                     value={cfg.opacity ?? 100}
-                                                    onChange={e => {
-                                                        setBtnCfg(item.id, { opacity: Number(e.target.value) });
+                                                    onChange={v => {
+                                                        setBtnCfg(item.id, { opacity: Number(Math.round(v)) });
                                                         apply(); forceUpdate();
                                                     }}
-                                                    style={{ width: "60px" }}
+                                                    unit="%"
+                                                    gap={false}
                                                 />
+                                                <div>
+                                                    <input
+                                                        type="color"
+                                                        title="Active blob background color"
+                                                        value={cfg.color ?? "#5865f2"}
+                                                        onChange={e => {
+                                                            setBtnCfg(item.id, { color: e.target.value });
+                                                            apply();
+                                                        }}
+                                                        onBlur={() => {
+                                                            forceUpdate();
+                                                        }}
+                                                        style={{
+                                                            border: "none",
+                                                            cursor: "pointer",
+                                                            background: "transparent",
+                                                            width: "100%",
+                                                        }}
+                                                    />
+                                                    <Flex gap={8} alignItems="center">
+                                                        <Button size="small" variant="secondary" onClick={() => setListeningId(listening ? null : item.id)}>
+                                                            {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
+                                                        </Button>
+                                                        {cfg.keybind && (
+                                                            <Button size="small" variant="secondary" onClick={() => {
+                                                                setBtnCfg(item.id, { keybind: null });
+                                                                apply(); forceUpdate();
+                                                            }}>✕</Button>
+                                                        )}
+                                                        {(settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold") && !isMute && !isDeafen && (
+                                                            <>
+                                                                <Switch checked={cfg.background ?? true} onChange={v => {
+                                                                    setBtnCfg(item.id, { background: v });
+                                                                    apply(); forceUpdate();
+                                                                }} />
+                                                            </>
+                                                        )}
+                                                    </Flex>
+                                                </div>
                                             </>
                                         )}
-                                        <Button size="small" variant="secondary" onClick={() => setListeningId(listening ? null : item.id)}>
-                                            {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
-                                        </Button>
-                                        {cfg.keybind && (
-                                            <Button size="small" variant="secondary" onClick={() => {
-                                                setBtnCfg(item.id, { keybind: null });
-                                                apply(); forceUpdate();
-                                            }}>✕</Button>
+                                        {(!settings.store.colorfulActiveButtons || isUserSettings || isPanelLayout) && (
+                                            <>
+                                                <Button size="small" variant="secondary" onClick={() => setListeningId(listening ? null : item.id)}>
+                                                    {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
+                                                </Button>
+                                                {cfg.keybind && (
+                                                    <Button size="small" variant="secondary" onClick={() => {
+                                                        setBtnCfg(item.id, { keybind: null });
+                                                        apply(); forceUpdate();
+                                                    }}>✕</Button>
+                                                )}
+                                                {(settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold") && !isMute && !isDeafen && !isUserSettings && !isPanelLayout && (
+                                                    <>
+                                                        <Switch checked={cfg.background ?? true} onChange={v => {
+                                                            setBtnCfg(item.id, { background: v });
+                                                            apply(); forceUpdate();
+                                                        }} />
+                                                    </>
+                                                )}
+                                            </>
                                         )}
                                     </Flex>
-                                </Flex>
+                                </div>
                             );
                         })}
                     </div>
@@ -1109,6 +1152,16 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("buttonGap", 6);
         set("panelOpacity", 100);
         set("lockButtonPosition", false);
+        set("hideLine", true);
+
+        for (const id of Object.keys(buttonConfigs)) {
+            setBtnCfg(id, {
+                color: "#5865f2",
+                background: true,
+                opacity: 100,
+            });
+        }
+
         setResetKey(prev => prev + 1);
     }
 
@@ -1166,16 +1219,17 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
 
                             <Heading tag="h5">Component Dimensions</Heading>
                             <Card variant="primary">
-                                <SliderRow label="Button Box Size" value={s.buttonContainerSize} min={24} max={48} onChange={v => set("buttonContainerSize", Math.round(v))} resetKey={resetKey} />
-                                <SliderRow label="Vector Icon Size" value={s.iconSize} min={12} max={28} onChange={v => set("iconSize", Math.round(v))} resetKey={resetKey} />
-                                <SliderRow label="Margin / Gap" value={s.buttonGap} min={0} max={12} onChange={v => set("buttonGap", Math.round(v))} resetKey={resetKey} />
-                                <SliderRow label="Idle Opacity" value={s.panelOpacity} min={10} max={100} unit="%" onChange={v => set("panelOpacity", Math.round(v))} resetKey={resetKey} />
+                                <SliderRow label="Button Box Size" value={s.buttonContainerSize} min={24} max={48} onChange={v => set("buttonContainerSize", Math.round(v))} resetKey={resetKey} gap={true} />
+                                <SliderRow label="Vector Icon Size" value={s.iconSize} min={12} max={28} onChange={v => set("iconSize", Math.round(v))} resetKey={resetKey} gap={true} />
+                                <SliderRow label="Margin / Gap" value={s.buttonGap} min={0} max={12} onChange={v => set("buttonGap", Math.round(v))} resetKey={resetKey} gap={true} />
+                                <SliderRow label="Idle Opacity" value={s.panelOpacity} min={10} max={100} unit="%" onChange={v => set("panelOpacity", Math.round(v))} resetKey={resetKey} gap={true} />
                             </Card>
 
                             <Heading tag="h5">Extra Features</Heading>
                             <Card variant="primary">
                                 <FormSwitch title="Hide Dropdown Chevrons" description="Removes the tiny arrows next to Mute/Deafen." value={s.hideChevrons} onChange={v => set("hideChevrons", v)} />
-                                <FormSwitch title="Lock Button Position" description="Prevents Mute, Deafen, and Settings buttons from dropping down to a new row when you have a long status or share screen." value={s.lockButtonPosition} onChange={v => set("lockButtonPosition", v)} hideBorder />
+                                <FormSwitch title="Lock Button Position" description="Prevents Mute, Deafen, and Settings buttons from dropping down to a new row when you have a long status or share screen." value={s.lockButtonPosition} onChange={v => set("lockButtonPosition", v)} />
+                                <FormSwitch title="Hide line" description="Hide the line between user and buttons" value={s.hideLine} onChange={v => set("hideLine", v)} hideBorder />
                             </Card>
                         </>}
 
@@ -1203,7 +1257,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
 
                             <Heading tag="h5">Colorful Plugins</Heading>
                             <Card variant="primary">
-                                <FormSwitch title="Active Button Blobs" description="Gives enabled plugins customizable colored rounded backgrounds." value={s.colorfulActiveButtons} onChange={v => set("colorfulActiveButtons", v)} hideBorder />
+                                <FormSwitch title="Colorful Active Buttons" description="Gives enabled plugins customizable colored rounded backgrounds." value={s.colorfulActiveButtons} onChange={v => set("colorfulActiveButtons", v)} hideBorder />
                             </Card>
                         </>}
 

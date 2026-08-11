@@ -96,12 +96,7 @@ const HighestRoleIndicator = ErrorBoundary.wrap(({ user, channelId, isCompact }:
     const { showBots, useRoleColor, excludedRoles } = settings.use(SETTINGS_KEYS);
 
     const guildId = (!user.bot || showBots) ? ChannelStore.getChannel(channelId)?.guild_id : null;
-    const cached = useStateFromStores(
-        [GuildMemberStore, GuildRoleStore],
-        () => guildId ? getHighestRole(guildId, user.id, excludedRoles) : null,
-        [guildId, user.id, excludedRoles],
-        (a, b) => a === b || (a != null && b != null && a.roleId === b.roleId && a.name === b.name && a.colorString === b.colorString)
-    );
+    const cached = useStateFromStores([GuildMemberStore, GuildRoleStore], () => guildId ? getHighestRole(guildId, user.id, excludedRoles) : null, [guildId, user.id, excludedRoles]);
 
     if (!guildId || !cached) return null;
 

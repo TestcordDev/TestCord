@@ -422,33 +422,11 @@ function injectButtons(navList: Element): void {
     navList.appendChild(wrapper);
 }
 
-let injected = false;
-
-// Check if the currently selected tab is GIF (by text or by id)
-function isGifTabActive(tabList: Element): boolean {
-    const activeTab = tabList.querySelector('[role="tab"][aria-selected="true"]');
-    return activeTab?.textContent?.trim().toUpperCase() === "GIF"
-        || activeTab?.id === "gif-picker-tab"
-        || activeTab?.closest("[id*=gif-picker]") != null;
-}
-
 function tryInject(): void {
     const pickerOpen = document.getElementById("gif-picker-tab") != null;
     if (!pickerOpen) {
-        if (injected) {
-            document.getElementById(BUTTONS_ID)?.remove();
-            injected = false;
-        }
+        document.getElementById(BUTTONS_ID)?.remove();
         return;
-    }
-
-    // Already injected: verify against the owning tablist only, no document sweep.
-    if (injected) {
-        const wrapper = document.getElementById(BUTTONS_ID);
-        const owner = wrapper?.closest('[role="tablist"]');
-        if (owner && isGifTabActive(owner)) return;
-        wrapper?.remove();
-        injected = false;
     }
 
     const allTabLists = document.querySelectorAll('[role="tablist"]');
@@ -461,13 +439,17 @@ function tryInject(): void {
             label.includes("selector") ||
             label.includes("picker")
         ) {
-            if (isGifTabActive(tl)) {
+            // Check if the currently selected tab is GIF (by text or by id)
+            const activeTab = tl.querySelector('[role="tab"][aria-selected="true"]');
+            const activeIsGif =
+                activeTab?.textContent?.trim().toUpperCase() === "GIF" ||
+                activeTab?.id === "gif-picker-tab" ||
+                activeTab?.closest("[id*=gif-picker]") != null;
+            if (activeIsGif) {
                 injectButtons(tl);
-                injected = true;
             } else {
                 // Remove buttons if not on GIF tab
                 tl.querySelector("#" + BUTTONS_ID)?.remove();
-                injected = false;
             }
             return;
         }
@@ -494,7 +476,6 @@ function stopObserver(): void {
         pollInterval = null;
     }
     document.querySelectorAll(`#${BUTTONS_ID}`).forEach(el => el.remove());
-    injected = false;
 }
 
 // ─── Plugin ───────────────────────────────────────────────────────────────────

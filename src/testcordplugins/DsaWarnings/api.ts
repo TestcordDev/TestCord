@@ -237,7 +237,9 @@ export async function fetchActiveWarnings(parsedId: string): Promise<DsaLookupRe
 
         if (!nativeResult?.ok) {
             const msg = (nativeResult as any)?.error ?? "Native fetch returned no result";
-            logger.warn("Native call failed:", msg);
+            if (!msg.includes("No CordCat API key")) {
+                logger.warn("Native call failed:", msg);
+            }
             return setCache(parsedId, { kind: "error", error: msg });
         }
 

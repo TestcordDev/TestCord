@@ -210,11 +210,8 @@ export function subscribePluginFluxEvents(p: Plugin, fluxDispatcher: typeof Flux
             if (p.name === "Encryptcord" && event === "MESSAGE_CREATE") continue;
 
             const wrappedHandler = p.flux[event] = function () {
-                const startTime = performance.now();
                 try {
                     const res = PluginProfiler.profileExecution(p.name, `flux:${event}`, () => handler!.apply(p, arguments as any));
-                    const duration = performance.now() - startTime;
-                    PluginProfiler.profileFluxAction(p.name, event, duration);
                     return res instanceof Promise
                         ? res.catch(e => {
                             logger.error(`${p.name}: Error while handling ${event}\n`, e);
@@ -222,8 +219,6 @@ export function subscribePluginFluxEvents(p: Plugin, fluxDispatcher: typeof Flux
                         })
                         : res;
                 } catch (e) {
-                    const duration = performance.now() - startTime;
-                    PluginProfiler.profileFluxAction(p.name, event, duration);
                     logger.error(`${p.name}: Error while handling ${event}\n`, e);
                     PluginHealth.recordRuntimeError(p.name, `flux:${event}`, e);
                 }

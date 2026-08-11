@@ -4,17 +4,32 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import * as DataStore from "@api/DataStore";
 import { settings } from "@equicordplugins/musicControls/settings";
 import { SpotifyLrcStore } from "@equicordplugins/musicControls/spotify/lyrics/providers/store";
 import { SyncedLyric } from "@equicordplugins/musicControls/spotify/lyrics/providers/types";
 import { SpotifyStore } from "@equicordplugins/musicControls/spotify/SpotifyStore";
 import { classNameFactory } from "@utils/css";
 import { findCssClassesLazy } from "@webpack";
-import { React, useEffect, useState, useStateFromStores } from "@webpack/common";
+import { FluxDispatcher, React, useEffect, useState, useStateFromStores } from "@webpack/common";
 
 export const scrollClasses = findCssClassesLazy("auto", "customTheme");
 
 export const cl = classNameFactory("vc-spotify-lyrics-");
+
+const DATASTORE_KEY = "vc-spotify-custom-song-delays";
+const customSongDelays: Record<string, number> = {};
+let isLoaded = false;
+
+// Pre-load data globally once
+DataStore.get<Record<string, number>>(DATASTORE_KEY).then(saved => {
+    if (saved) {
+        Object.assign(customSongDelays, saved);
+    }
+    isLoaded = true;
+    // Force trigger update across components if needed
+    FluxDispatcher.dispatch({ type: "SPOTIFY_LYRICS_DELAYS_LOADED" });
+});
 
 export function NoteSvg() {
     return (
@@ -72,6 +87,29 @@ export function useLyrics({ scroll = true }: { scroll?: boolean; } = {}) {
     const [nextLyric, setNextLyric] = useState<number | null>(null);
     const [position, setPosition] = useState(storePosition);
     const [lyricRefs, setLyricRefs] = useState<React.RefObject<HTMLDivElement | null>[]>([]);
+    const [, forceUpdate] = useState({});
+
+    const trackKey = track?.id || track?.name;
+    const songCustomDelay = (trackKey && customSongDelays[trackKey]) || 0;
+    const totalDelay = lyricDelay + songCustomDelay;
+
+    useEffect(() => {
+        const handleDelayUpdate = (action: { type: string; trackKey?: string; delay?: number; }) => {
+            if (action.type === "SPOTIFY_LYRICS_CUSTOM_DELAY_CHANGE" && action.trackKey) {
+                customSongDelays[action.trackKey] = action.delay!;
+            }
+            // Trigger a re-render once DataStore finishes loading or delay changes
+            forceUpdate({});
+        };
+
+        FluxDispatcher.subscribe("SPOTIFY_LYRICS_CUSTOM_DELAY_CHANGE", handleDelayUpdate);
+        FluxDispatcher.subscribe("SPOTIFY_LYRICS_DELAYS_LOADED", handleDelayUpdate);
+
+        return () => {
+            FluxDispatcher.unsubscribe("SPOTIFY_LYRICS_CUSTOM_DELAY_CHANGE", handleDelayUpdate);
+            FluxDispatcher.unsubscribe("SPOTIFY_LYRICS_DELAYS_LOADED", handleDelayUpdate);
+        };
+    }, []);
 
     const currentLyrics = lyricsInfo?.lyricsVersions[lyricsInfo.useLyric];
 
@@ -83,14 +121,14 @@ export function useLyrics({ scroll = true }: { scroll?: boolean; } = {}) {
 
     useEffect(() => {
         if (currentLyrics && position != null) {
-            const [currentIndex, nextLyricIndex] = getIndexes(currentLyrics, position, lyricDelay);
+            const [currentIndex, nextLyricIndex] = getIndexes(currentLyrics, position, totalDelay);
             setCurrLrcIndex(currentIndex);
             setNextLyric(nextLyricIndex);
         } else {
             setCurrLrcIndex(null);
             setNextLyric(null);
         }
-    }, [currentLyrics, position, lyricDelay]);
+    }, [currentLyrics, position, totalDelay]);
 
     useEffect(() => {
         if (scroll && currLrcIndex !== null) {

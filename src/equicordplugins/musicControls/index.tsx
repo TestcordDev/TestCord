@@ -29,6 +29,33 @@ import { SpotifyPlayer } from "./spotify/PlayerComponent";
 import { TidalLyrics } from "./tidal/lyrics/components/lyrics";
 import { TidalPlayer } from "./tidal/TidalPlayer";
 
+let isCtrlPressed = false;
+
+function updatePlayerCtrlState() {
+    const players = document.querySelectorAll("#vc-spotify-player, #eq-tdl-player");
+    players.forEach(player => {
+        if (isCtrlPressed) {
+            player.classList.add("vc-ctrl-active");
+        } else {
+            player.classList.remove("vc-ctrl-active");
+        }
+    });
+}
+
+function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === "Control" && !isCtrlPressed) {
+        isCtrlPressed = true;
+        updatePlayerCtrlState();
+    }
+}
+
+function handleKeyUp(e: KeyboardEvent) {
+    if (e.key === "Control") {
+        isCtrlPressed = false;
+        updatePlayerCtrlState();
+    }
+}
+
 export default definePlugin({
     name: "MusicControls",
     description: "Music Controls and Lyrics for multiple services ",
@@ -121,10 +148,14 @@ export default definePlugin({
         await migrateOldLyrics();
         toggleHoverControls(settings.store.hoverControls);
         toggleBetterSpotifyControls(settings.store.betterSpotifyControls);
+        window.addEventListener("keydown", handleKeyDown);
+        window.addEventListener("keyup", handleKeyUp);
     },
 
     stop() {
         toggleHoverControls(false);
         toggleBetterSpotifyControls(false);
+        window.removeEventListener("keydown", handleKeyDown);
+        window.removeEventListener("keyup", handleKeyUp);
     },
 });
