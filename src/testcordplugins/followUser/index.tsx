@@ -128,6 +128,12 @@ export const settings = definePluginSettings({
         restartNeeded: false,
         default: false
     },
+    snipeOnLeave: {
+        type: OptionType.BOOLEAN,
+        description: "Jump into the followed user's voice channel whenever someone leaves it, to grab their freed slot",
+        restartNeeded: false,
+        default: false
+    },
     autoMoveBack: {
         type: OptionType.BOOLEAN,
         description: "Automatically move back to the VC of the followed user when you got moved",
@@ -429,6 +435,15 @@ export default definePlugin({
                     if (settings.store.autoMoveBack && isMe && channelId && oldChannelId) {
                         triggerFollow();
                         continue;
+                    }
+
+                    // snipe: grab a freed slot in the followed user's channel when anyone leaves it
+                    if (settings.store.snipeOnLeave && !isMe && !channelId && oldChannelId && oldChannelId !== SelectedChannelStore.getVoiceChannelId()) {
+                        const followedVs = VoiceStateStore.getVoiceStateForUser(settings.store.followUserId);
+                        if (followedVs?.channelId === oldChannelId && settings.store.followUserId !== userId) {
+                            triggerFollow(oldChannelId);
+                            continue;
+                        }
                     }
 
                     // if you're not in the channel of the followed user and it is no longer full, join

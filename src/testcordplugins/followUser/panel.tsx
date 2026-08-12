@@ -437,6 +437,7 @@ function FollowUserModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                 { label: "Join same VC on follow", value: settings.store.executeOnFollow },
                                 { label: "Leave when they leave", value: settings.store.followLeave },
                                 { label: "Auto move back", value: settings.store.autoMoveBack },
+                                { label: "Snipe on leave", value: settings.store.snipeOnLeave },
                                 { label: "Manual trigger only", value: settings.store.onlyManualTrigger }
                             ].map(({ label, value }) => (
                                 <div key={label} style={{ display: "flex", alignItems: "center", gap: "7px" }}>
