@@ -8,7 +8,7 @@ import "./style.css";
 
 import { ChatBarButton, type ChatBarButtonFactory } from "@api/ChatButtons";
 import ErrorBoundary from "@components/ErrorBoundary";
-import { OpenCordDevs } from "@utils/constants";
+import { TestcordDevs } from "@utils/constants";
 import { classNameFactory } from "@utils/css";
 import definePlugin, { type IconComponent } from "@utils/types";
 import { showToast, Toasts, useEffect, useState } from "@webpack/common";
@@ -111,7 +111,7 @@ export default definePlugin({
     name: "AITranslate",
     description: "Translate your messages with free OpenCode Zen AI models before Discord sends them.",
     tags: ["Chat", "Utility"],
-    authors: [OpenCordDevs.MasuRii],
+    authors: [TestcordDevs.MasuRii],
     settings,
     chatBarButton: {
         icon: AITranslateIcon,

@@ -194,6 +194,7 @@ const CONNECT = 1n << 20n;
 interface VoiceStateStore {
     getAllVoiceStates(): VoiceStateEntry;
     getVoiceStatesForChannel(channelId: string): VoiceStateMember;
+    getVoiceStateForUser(userId: string): VoiceState | undefined;
 }
 
 interface VoiceStateEntry {

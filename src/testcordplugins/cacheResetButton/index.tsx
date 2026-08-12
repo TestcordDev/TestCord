@@ -82,7 +82,7 @@ function clearCaches(): string[] {
     const cleared: string[] = [];
 
     try {
-        MessageStore.clearCache?.();
+        (MessageStore as { clearCache?(): void }).clearCache?.();
         cleared.push("Messages");
     } catch { }
 

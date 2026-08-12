@@ -7,7 +7,7 @@
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
 import type { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { definePluginSettings } from "@api/Settings";
-import { OpenCordDevs } from "@utils/constants";
+import { TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { saveFile } from "@utils/web";
 import type { Channel, Message, MessageAttachment } from "@vencord/discord-types";
@@ -140,7 +140,7 @@ const ChannelContextMenuPatch: NavContextMenuPatchCallback = (children, props: {
 export default definePlugin({
     name: "LoadedMessageExporter",
     description: "Export only messages already loaded in Discord without scraping channel history.",
-    authors: [OpenCordDevs.MasuRii],
+    authors: [TestcordDevs.MasuRii],
     tags: ["Chat", "Utility"],
     settings,
     contextMenus: {

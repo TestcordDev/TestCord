@@ -1512,6 +1512,34 @@ export const TestcordDevs = /* #__PURE__*/ Object.freeze({
     mixi: {
         name: "mixi",
         id: 1517005377214873672n
+    },
+    Leon135: {
+        name: "Leon135",
+        id: 309275452231385088n
+    },
+    Loukios: {
+        name: "Loukios",
+        id: 211461918127292416n
+    },
+    examplegit: {
+        name: "example.user",
+        id: 175411535357673473n
+    },
+    qdnx: {
+        name: "qdnx",
+        id: 1374803023506702508n
+    },
+    LOSTSTR: {
+        name: "LOSTSTR",
+        id: 681465758127226900n
+    },
+    Sharp: {
+        name: "Sharp",
+        id: 0n
+    },
+    MasuRii: {
+        name: "MasuRii",
+        id: 0n
     }
 } satisfies Record<string, Dev>);
 

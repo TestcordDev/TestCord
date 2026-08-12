@@ -5,7 +5,7 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
-import { OpenCordDevs } from "@utils/constants";
+import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
 import type { Channel, Message } from "@vencord/discord-types";
@@ -344,7 +344,7 @@ function restoreChannelStore() {
 export default definePlugin({
     name: "SurfaceTranslate",
     description: "Translate channel names, channel topics, and search result text.",
-    authors: [OpenCordDevs.MasuRii],
+    authors: [TestcordDevs.MasuRii],
     tags: ["Chat", "Utility"],
     settings,
 

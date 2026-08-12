@@ -11,7 +11,7 @@ import { DataStore } from "@api/index";
 import { HeaderBarButton } from "@api/HeaderBar";
 import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
-import { EquicordDevs } from "@utils/constants";
+import { TestcordDevs } from "@utils/constants";
 import { classNameFactory } from "@utils/css";
 import { isArabicMode, t } from "@utils/testcordI18n";
 import { ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/testcordModals";
@@ -312,7 +312,7 @@ const WrappedButton = ErrorBoundary.wrap(FriendsInVoiceButton, { noop: true });
 export default definePlugin({
     name: "FriendsInVoice",
     description: "Adds a top bar button listing which voice channel your friends are in, with one click to join them. Right-click anyone to watch them, so they are tracked even in servers you have not opened. Works while they appear offline, because voice state is not tied to status.",
-    authors: [EquicordDevs.LOSTSTR],
+    authors: [TestcordDevs.LOSTSTR],
     tags: ["Voice", "Friends", "Utility"],
     enabledByDefault: false,
     dependencies: ["HeaderBarAPI", "ContextMenuAPI"],

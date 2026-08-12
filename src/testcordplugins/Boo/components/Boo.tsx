@@ -20,7 +20,7 @@ export default function Boo({ channel }: BooProps) {
     const { id } = channel;
 
     const currentUserId = useStateFromStores([UserStore], () => UserStore.getCurrentUser()?.id);
-    const lastMessage: Message = useStateFromStores([MessageStore], () => MessageStore.getMessages(id)?.last());
+    const lastMessage: Message | undefined = useStateFromStores([MessageStore], () => MessageStore.getMessages(id)?.last());
 
     const [state, setState] = useState({
         isCurrentUser: null as boolean | null,

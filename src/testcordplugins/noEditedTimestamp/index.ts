@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { MallCordDevs } from "@utils/constants";
+import { TestcordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
 
 export default definePlugin({
     name: "NoEditedTimestamp",
     description: "Removes the '(edited)' label from all messages globally, not just your own.",
-    authors: [MallCordDevs.Sharp],
+    authors: [TestcordDevs.Sharp],
     tags: ["Chat", "Utility"],
 
     patches: [

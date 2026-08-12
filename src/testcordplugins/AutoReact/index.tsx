@@ -12,7 +12,7 @@ import { Logger } from "@utils/Logger";
 import { sleep } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
-import { Button, FluxDispatcher, Forms, Menu, React, RestAPI, showToast, TextInput, Toasts, UserStore } from "@webpack/common";
+import { Button, FluxDispatcher, Forms, Menu, React, RestAPI, showToast, TextArea, TextInput, Toasts, UserStore } from "@webpack/common";
 
 const logger = new Logger("AutoReact");
 
@@ -647,7 +647,7 @@ function ContentRulesSection() {
             <Forms.FormText style={{ marginBottom: "8px", color: "var(--text-muted)", fontSize: "12px" }}>
                 React when a message contains a word. Format: <code style={{ background: "var(--background-secondary)", padding: "2px 4px", borderRadius: "3px" }}>word:emoji1,emoji2|word2:emoji3</code>
             </Forms.FormText>
-            <TextInput
+            <TextArea
                 style={{ marginBottom: "12px", minHeight: "80px", fontFamily: "monospace" }}
                 value={text}
                 onChange={(value: string) => {
@@ -655,7 +655,6 @@ function ContentRulesSection() {
                     settings.store.contentRules = value;
                 }}
                 placeholder="happy:😀,🔥|ok:👌"
-                multiLine={true}
             />
             {rules.length > 0 && (
                 <div>

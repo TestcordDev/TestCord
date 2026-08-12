@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ImgHTMLAttributes, ReactNode } from "react";
 /*
  * Vencord, a Discord client mod
  * Copyright (c) 2024 Vendicated and contributors
@@ -17,8 +17,8 @@ export interface Timestamp {
 }
 
 export interface Activity {
-    created_at: number;
-    id: string;
+    created_at?: number;
+    id?: string;
     name: string;
     type: number;
     emoji?: {
