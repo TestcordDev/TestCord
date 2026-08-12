@@ -104,6 +104,8 @@ const settings = definePluginSettings({
     hideActivity: { type: OptionType.BOOLEAN, default: false, description: "Hide activity button in call controls", onChange: () => apply() },
     // Line
     hideLine: { type: OptionType.BOOLEAN, default: true, description: "Hide the line between user and buttons", onChange: () => apply() },
+    // Profile Nameplate
+    fixProfileNameplate: { type: OptionType.BOOLEAN, default: false, description: "Fixes the rounding of the profile nameplate", onChange: () => apply() },
 });
 
 // ─── Selectors & Constants ────────────────────────────────────────────────────
@@ -619,6 +621,14 @@ function buildCSS(): string {
                 max-width: 100% !important;
                 flex: 1 !important;
             }
+        `);
+    }
+
+    if (st.fixProfileNameplate) {
+        lines.push(`
+            ${S.panelContainer} .container_df39b2 { border-radius: 0px !important; }
+            ${S.panelContainer} { border-radius: 0px !important; }
+            .panels__5e434 { overflow: hidden !important; }
         `);
     }
 
@@ -1223,7 +1233,8 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <Card variant="primary">
                                 <FormSwitch title="Hide Dropdown Chevrons" description="Removes the tiny arrows next to Mute/Deafen." value={s.hideChevrons} onChange={v => set("hideChevrons", v)} />
                                 <FormSwitch title="Lock Button Position" description="Prevents Mute, Deafen, and Settings buttons from dropping down to a new row when you have a long status or share screen." value={s.lockButtonPosition} onChange={v => set("lockButtonPosition", v)} />
-                                <FormSwitch title="Hide line" description="Hide the line between user and buttons" value={s.hideLine} onChange={v => set("hideLine", v)} hideBorder />
+                                <FormSwitch title="Hide line" description="Hide the line between user and buttons" value={s.hideLine} onChange={v => set("hideLine", v)} />
+                                <FormSwitch title="Fix Profile Nameplate" description="Fixes the rounding of the profile nameplate" value={s.fixProfileNameplate} onChange={v => set("fixProfileNameplate", v)} hideBorder />
                             </Card>
                         </>}
 
