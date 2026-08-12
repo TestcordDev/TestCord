@@ -1392,7 +1392,7 @@ function FakeUserSwitcherIcon({ className, style }: { className?: string; style?
     const lineLength = 30;
     const lineStyle: React.CSSProperties = {
         strokeDasharray: lineLength,
-        strokeDashoffset: active ? lineLength : 0,
+        strokeDashoffset: !active ? lineLength : 0,
         transition: "stroke-dashoffset 0.1s ease-in-out",
     };
 
@@ -1457,7 +1457,7 @@ function FakeUserSwitcherButton({ iconForeground, hideTooltips, nameplate }: Use
             icon={<FakeUserSwitcherIcon className={iconForeground} />}
             role="button"
             plated={nameplate != null}
-            redGlow={!active}
+            redGlow={active}
             onClick={() => {
                 if (settings.store.uiMode === "legacy") {
                     openModal(modalProps => <FakeUserProfileModal modalProps={modalProps as any} />);
