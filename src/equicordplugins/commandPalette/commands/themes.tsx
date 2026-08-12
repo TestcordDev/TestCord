@@ -357,7 +357,12 @@ async function installedThemeItems(): Promise<PaletteListItem[]> {
         }
     }
 
-    return items;
+    return items.sort((a, b) => {
+        const aPinned = pinned.includes(a.id);
+        const bPinned = pinned.includes(b.id);
+        if (aPinned === bPinned) return 0;
+        return aPinned ? -1 : 1;
+    });
 }
 
 export const themeCommands: PaletteCommand[] = [
@@ -366,7 +371,7 @@ export const themeCommands: PaletteCommand[] = [
         title: "Browse Theme Marketplace",
         subtitle: "Browse and install themes from the Equicord Theme Library",
         section: SECTION,
-        keywords: ["theme", "marketplace", "store", "download", "browse", "install", "equicord"],
+        keywords: ["theme", "marketplace", "store", "download", "browse", "install", "equicord", "testcord"],
         icon: PaintIcon,
         page: () => ({
             title: "Theme Marketplace",
@@ -412,7 +417,7 @@ export const themeCommands: PaletteCommand[] = [
     {
         id: "themes.openSettings",
         title: "Open Themes Settings",
-        subtitle: "Open the Themes tab in Equicord Settings",
+        subtitle: "Open the Themes tab in Testcord Settings",
         section: SECTION,
         keywords: ["theme", "settings", "tab", "appearance"],
         icon: GearIcon,
