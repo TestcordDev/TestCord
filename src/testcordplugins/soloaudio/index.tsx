@@ -562,6 +562,13 @@ function QuickSoloAudioMenu({ onClose }: { onClose(): void; }) {
 }
 
 function SoloAudioIcon({ className, style, active }: { className?: string; style?: React.CSSProperties; active?: boolean }) {
+    const lineLength = 30;
+    const lineStyle: React.CSSProperties = {
+        strokeDasharray: lineLength,
+        strokeDashoffset: active ? lineLength : 0,
+        transition: "stroke-dashoffset 0.1s ease-in-out",
+    };
+
     return (
         <svg className={className} style={style} width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
             <mask id="soloaudioLine">
@@ -575,25 +582,25 @@ function SoloAudioIcon({ className, style, active }: { className?: string; style
                     stroke="#000000"
                     strokeWidth="6"
                     strokeLinecap="round"
+                    style={lineStyle}
                 />
             </mask>
 
-            <g mask={!active ? "url(#soloaudioLine)" : undefined}>
+            <g mask="url(#soloaudioLine)">
                 <path fill={!active ? "var(--status-danger)" : "currentColor"} d="M15.16 16.51c-.57.28-1.16-.2-1.16-.83v-.14c0-.43.28-.8.63-1.02a3 3 0 0 0 0-5.04c-.35-.23-.63-.6-.63-1.02v-.14c0-.63.59-1.1 1.16-.83a5 5 0 0 1 0 9.02Z" />
                 <path fill={!active ? "var(--status-danger)" : "currentColor"} d="M12 3a1 1 0 0 0-1-1h-.06a1 1 0 0 0-.74.32L5.92 7H3a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2.92l4.28 4.68a1 1 0 0 0 .74.32H11a1 1 0 0 0 1-1V3ZM15.1 20.75c-.58.14-1.1-.33-1.1-.92v-.03c0-.5.37-.92.85-1.05a7 7 0 0 0 0-13.5A1.11 1.11 0 0 1 14 4.2v-.03c0-.6.52-1.06 1.1-.92a9 9 0 0 1 0 17.5Z" />
             </g>
 
-            {!active && <>
-                <line
-                    x1="22"
-                    y1="2"
-                    x2="2"
-                    y2="22"
-                    stroke="var(--status-danger, currentColor)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                />
-            </>}
+            <line
+                x1="22"
+                y1="2"
+                x2="2"
+                y2="22"
+                stroke="var(--status-danger, currentColor)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={lineStyle}
+            />
         </svg>
     );
 }

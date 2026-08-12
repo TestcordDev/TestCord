@@ -361,6 +361,21 @@ function buildCSS(): string {
     `);
 
     // Icon color theming
+    lines.push(`
+        [title="Open Soundboard"] *,
+        [title="User Settings"] *,
+        [title="Deafen"] *,
+        [title="Mute"] * {
+            fill: var(--background-brand);
+        }
+
+        [title="Open Soundboard"] [stroke="rgb(88,101,242)"],
+        [title="User Settings"] [stroke="rgb(88,101,242)"],
+        [title="Deafen"] [stroke="rgb(88,101,242)"],
+        [title="Mute"] [stroke="rgb(88,101,242)"] {
+            stroke: var(--background-brand);
+        }
+    `);
     // When a custom icon color is chosen (TestcordHelper -> user area buttons),
     // cascade it to the whole panel via --vc-plugin-icon-color so both plugin
     // buttons and native Mute/Deafen/Settings icons honor it. When no custom
@@ -377,14 +392,14 @@ function buildCSS(): string {
             [title="User Settings"] *,
             [title="Deafen"] *,
             [title="Mute"] * {
-                fill: var(--vc-plugin-icon-color);
+                fill: currentColor;
             }
 
             [title="Open Soundboard"] [stroke="rgb(88,101,242)"],
             [title="User Settings"] [stroke="rgb(88,101,242)"],
             [title="Deafen"] [stroke="rgb(88,101,242)"],
             [title="Mute"] [stroke="rgb(88,101,242)"] {
-                stroke: var(--vc-plugin-icon-color);
+                stroke: currentColor;
             }
         `);
     }
@@ -967,7 +982,7 @@ function ButtonsDragTab() {
                                     cursor: isDragging ? "grabbing" : "grab",
                                     opacity: isDragging ? 0.35 : 1,
                                     transform: isDragging ? "scale(0.94)" : "scale(1)",
-                                    borderLeft: isOver ? "3px solid var(--brand-experiment, #5865F2)" : "3px solid transparent",
+                                    borderLeft: isOver ? "3px solid var(--brand-experiment, var(--background-brand))" : "3px solid transparent",
                                     paddingLeft: isOver ? "6px" : "0px",
                                     transition: "border 0.1s ease, padding 0.1s ease, opacity 0.1s ease, transform 0.1s ease",
                                 }}

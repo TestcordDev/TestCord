@@ -50,13 +50,15 @@ async function disableLoopback() {
 }
 
 function MicLoopbackIcon({ active = false, className = "" }: { active?: boolean; className?: string; }) {
+    const lineLength = 30;
+    const lineStyle: React.CSSProperties = {
+        strokeDasharray: lineLength,
+        strokeDashoffset: active ? lineLength : 0,
+        transition: "stroke-dashoffset 0.1s ease-in-out",
+    };
+
     return (
-        <svg
-            className={className}
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-        >
+        <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <mask id="micLoopbackTesterLine">
                 <rect width="100%" height="100%" fill="#ffffff" />
                 <line
@@ -68,10 +70,11 @@ function MicLoopbackIcon({ active = false, className = "" }: { active?: boolean;
                     stroke="#000000"
                     strokeWidth="6"
                     strokeLinecap="round"
+                    style={lineStyle}
                 />
             </mask>
 
-            <g mask={!active ? "url(#micLoopbackTesterLine)" : undefined}>
+            <g mask="url(#micLoopbackTesterLine)">
                 <path
                     fill={!active ? "var(--status-danger)" : "currentColor"}
                     fillRule="evenodd"
@@ -86,17 +89,16 @@ function MicLoopbackIcon({ active = false, className = "" }: { active?: boolean;
                 />
             </g>
 
-            {!active && <>
-                <line
-                    x1="22"
-                    y1="2"
-                    x2="2"
-                    y2="22"
-                    stroke="var(--status-danger, currentColor)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                />
-            </>}
+            <line
+                x1="22"
+                y1="2"
+                x2="2"
+                y2="22"
+                stroke="var(--status-danger, currentColor)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={lineStyle}
+            />
         </svg>
     );
 }

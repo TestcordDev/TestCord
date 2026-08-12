@@ -5079,6 +5079,14 @@ function RSUserAreaButton({ iconForeground, hideTooltips, nameplate }: UserAreaR
     }, []);
 
     if (!settings.store.showButton) return null;
+
+    const lineLength = 30;
+    const lineStyle: React.CSSProperties = {
+        strokeDasharray: lineLength,
+        strokeDashoffset: active ? lineLength : 0,
+        transition: "stroke-dashoffset 0.1s ease-in-out",
+    };
+
     return (
         <UserAreaButton
             tooltipText={hideTooltips ? void 0 : active ? "Rotator Suite - [Running]" : "Rotator Suite"}
@@ -5097,22 +5105,22 @@ function RSUserAreaButton({ iconForeground, hideTooltips, nameplate }: UserAreaR
                             stroke="#000000"
                             strokeWidth="6"
                             strokeLinecap="round"
+                            style={lineStyle}
                         />
                     </mask>
 
-                    <path mask={!active ? "url(#rotatorSuiteLine)" : undefined} fill={!active ? "var(--status-danger)" : "currentColor"} d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                    <path mask="url(#rotatorSuiteLine)" fill={!active ? "var(--status-danger)" : "currentColor"} d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
 
-                    {!active && <>
-                        <line
-                            x1="22"
-                            y1="2"
-                            x2="2"
-                            y2="22"
-                            stroke="var(--status-danger, currentColor)"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                        />
-                    </>}
+                    <line
+                        x1="22"
+                        y1="2"
+                        x2="2"
+                        y2="22"
+                        stroke="var(--status-danger, currentColor)"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        style={lineStyle}
+                    />
 
                     {active &&
                         <circle cx="18" cy="6" r="4" fill="#9c67ff" stroke="none" />

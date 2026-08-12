@@ -132,6 +132,13 @@ async function disableLoopback(silent = false) {
 }
 
 function MicLoopbackIcon({ active, className }: { active: boolean; className?: string }) {
+    const lineLength = 30;
+    const lineStyle: React.CSSProperties = {
+        strokeDasharray: lineLength,
+        strokeDashoffset: active ? lineLength : 0,
+        transition: "stroke-dashoffset 0.1s ease-in-out",
+    };
+
     return (
         <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
             <mask id="BetterUserToolsMicLoopbackLine">
@@ -145,10 +152,11 @@ function MicLoopbackIcon({ active, className }: { active: boolean; className?: s
                     stroke="#000000"
                     strokeWidth="6"
                     strokeLinecap="round"
+                    style={lineStyle}
                 />
             </mask>
 
-            <g mask={!active ? "url(#BetterUserToolsMicLoopbackLine)" : undefined}>
+            <g mask="url(#BetterUserToolsMicLoopbackLine)">
                 <rect
                     x="9"
                     y="4"
@@ -179,17 +187,16 @@ function MicLoopbackIcon({ active, className }: { active: boolean; className?: s
                 />
             </g>
 
-            {!active && (
-                <line
-                    x1="22"
-                    y1="2"
-                    x2="2"
-                    y2="22"
-                    stroke="var(--status-danger, currentColor)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                />
-            )}
+            <line
+                x1="22"
+                y1="2"
+                x2="2"
+                y2="22"
+                stroke="var(--status-danger, currentColor)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={lineStyle}
+            />
         </svg>
     );
 }
@@ -221,6 +228,13 @@ function MicLoopbackButton({ iconForeground, hideTooltips, nameplate }: UserArea
 }
 
 function RadarIcon({ active, className }: { active: boolean; className?: string }) {
+    const lineLength = 30;
+    const lineStyle: React.CSSProperties = {
+        strokeDasharray: lineLength,
+        strokeDashoffset: active ? lineLength : 0,
+        transition: "stroke-dashoffset 0.1s ease-in-out",
+    };
+
     return (
         <svg
             className={className}
@@ -245,27 +259,27 @@ function RadarIcon({ active, className }: { active: boolean; className?: string 
                     stroke="#000000"
                     strokeWidth="6"
                     strokeLinecap="round"
+                    style={lineStyle}
                 />
             </mask>
 
-            <g mask={!active ? "url(#BetterUserToolsRadarLine)" : undefined}>
+            <g mask="url(#BetterUserToolsRadarLine)">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none" />
                 <path d="M11.291 11.295a1 1 0 0 0 .709 1.705v8c2.488 0 4.74 -1.01 6.37 -2.642m1.675 -2.319a8.962 8.962 0 0 0 .955 -4.039h-5" />
                 <path d="M16 9a5 5 0 0 0 -5.063 -1.88m-2.466 1.347a5 5 0 0 0 .53 7.535" />
                 <path d="M20.486 9a9 9 0 0 0 -12.525 -5.032m-2.317 1.675a9 9 0 0 0 3.36 14.852" />
             </g>
 
-            {!active && <>
-                <line
-                    x1="22"
-                    y1="2"
-                    x2="2"
-                    y2="22"
-                    stroke="var(--status-danger, currentColor)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                />
-            </>}
+            <line
+                x1="22"
+                y1="2"
+                x2="2"
+                y2="22"
+                stroke="var(--status-danger, currentColor)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={lineStyle}
+            />
         </svg>
     );
 }
