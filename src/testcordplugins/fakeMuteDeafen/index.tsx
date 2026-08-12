@@ -172,6 +172,13 @@ function handleKeydown(e: KeyboardEvent) {
 
 function FakeDeafenIcon({ className }: { className?: string; }) {
     const enabled = fakeVoiceState.selfDeaf;
+    const lineLength = 30;
+    const lineStyle: React.CSSProperties = {
+        strokeDasharray: lineLength,
+        strokeDashoffset: enabled ? lineLength : 0,
+        transition: "stroke-dashoffset 0.1s ease-in-out",
+    };
+
     return (
         <svg className={className} width="28" height="28" viewBox="0 0 32 32" fill="none">
             <mask id="fakeMuteDeafenLine">
@@ -185,10 +192,11 @@ function FakeDeafenIcon({ className }: { className?: string; }) {
                     stroke="#000000"
                     strokeWidth="8"
                     strokeLinecap="round"
+                    style={lineStyle}
                 />
             </mask>
 
-            <g mask={!enabled ? "url(#fakeMuteDeafenLine)" : undefined}>
+            <g mask="url(#fakeMuteDeafenLine)">
                 <rect
                     x="6"
                     y="8"
@@ -229,17 +237,16 @@ function FakeDeafenIcon({ className }: { className?: string; }) {
                 />
             </g>
 
-            {!enabled && <>
-                <line
-                    x1="29"
-                    y1="2"
-                    x2="2"
-                    y2="29"
-                    stroke="var(--status-danger, currentColor)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                />
-            </>}
+            <line
+                x1="29"
+                y1="2"
+                x2="2"
+                y2="29"
+                stroke="var(--status-danger, currentColor)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={lineStyle}
+            />
         </svg>
     );
 }

@@ -1388,6 +1388,13 @@ function syncSpoofState() {
 
 function FakeUserSwitcherIcon({ className, style }: { className?: string; style?: React.CSSProperties; }) {
     const active = isActive();
+    const lineLength = 30;
+    const lineStyle: React.CSSProperties = {
+        strokeDasharray: lineLength,
+        strokeDashoffset: active ? lineLength : 0,
+        transition: "stroke-dashoffset 0.1s ease-in-out",
+    };
+
     return (
         <svg className={className} style={style} width="20" height="20" viewBox="0 0 24 24" fill="none">
             <mask id="FakeUserSwitcherLine">
@@ -1401,22 +1408,22 @@ function FakeUserSwitcherIcon({ className, style }: { className?: string; style?
                     stroke="#000000"
                     strokeWidth="6"
                     strokeLinecap="round"
+                    style={lineStyle}
                 />
             </mask>
 
-            <path mask={active ? "url(#FakeUserSwitcherLine)" : undefined} fill={!active ? "var(--status-danger)" : "currentColor"} d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2a7.2 7.2 0 0 1-6-3.22c.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08a7.2 7.2 0 0 1-6 3.22z" />
+            <path mask="url(#FakeUserSwitcherLine)" fill={!active ? "var(--status-danger)" : "currentColor"} d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2a7.2 7.2 0 0 1-6-3.22c.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08a7.2 7.2 0 0 1-6 3.22z" />
 
-            {active && <>
-                <line
-                    x1="22"
-                    y1="2"
-                    x2="2"
-                    y2="22"
-                    stroke="var(--status-danger, currentColor)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                />
-            </>}
+            <line
+                x1="22"
+                y1="2"
+                x2="2"
+                y2="22"
+                stroke="var(--status-danger, currentColor)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                style={lineStyle}
+            />
         </svg>
     );
 }

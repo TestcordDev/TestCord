@@ -49,6 +49,13 @@ function updateDecoder() {
 
 // Icon component using the SVG you provided
 function MonoIcon({ className, active }: { className?: string; active?: boolean; }) {
+    const lineLength = 30;
+    const lineStyle: React.CSSProperties = {
+        strokeDasharray: lineLength,
+        strokeDashoffset: active ? lineLength : 0,
+        transition: "stroke-dashoffset 0.1s ease-in-out",
+    };
+
     return (
         <svg className={className} width="20" height="20" viewBox="0 0 256 256">
             <mask id="foremonoLine">
@@ -62,27 +69,27 @@ function MonoIcon({ className, active }: { className?: string; active?: boolean;
                     stroke="#000000"
                     strokeWidth="64"
                     strokeLinecap="round"
+                    style={lineStyle}
                 />
             </mask>
 
             <path
                 fill={!active ? "var(--status-danger)" : "currentColor"}
                 fillRule="evenodd"
-                mask={!active ? "url(#foremonoLine)" : undefined}
+                mask="url(#foremonoLine)"
                 d="M128.802 95.03c-9.229-9.369-22.39-15.228-37-15.228-27.92 0-50.555 21.402-50.555 47.803 0 26.4 22.634 47.802 50.555 47.802 14.711 0 27.954-5.94 37.193-15.423-12.232-16.88-14.177-19.888-14.177-32.38 0-12.016 5.924-18.458 14.19-31.142 6.753 13.293 13.629 19.445 13.629 31.538 0 12.802-6.03 20.525-13.402 32.614 9.206 9.115 22.185 14.793 36.567 14.793 27.922 0 50.556-21.401 50.556-47.802 0-26.4-22.634-47.803-50.556-47.803-14.608 0-27.77 5.86-37 15.228zM128 75.374C138.501 68.202 151.252 64 165 64c35.899 0 65 28.654 65 64 0 35.346-29.101 64-65 64-13.748 0-26.499-4.202-37-11.374C117.499 187.798 104.748 192 91 192c-35.899 0-65-28.654-65-64 0-35.346 29.101-64 65-64 13.748 0 26.499 4.202 37 11.374z"
             />
 
-            {!active&& (
-                <line
-                    x1="235"
-                    y1="21"
-                    x2="21"
-                    y2="235"
-                    stroke="var(--status-danger, currentColor)"
-                    strokeWidth="21"
-                    strokeLinecap="round"
-                />
-            )}
+            <line
+                x1="235"
+                y1="21"
+                x2="21"
+                y2="235"
+                stroke="var(--status-danger, currentColor)"
+                strokeWidth="21"
+                strokeLinecap="round"
+                style={lineStyle}
+            />
         </svg>
     );
 }
