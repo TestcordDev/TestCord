@@ -17,8 +17,8 @@ import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
 import { Modal, openModal, React, showToast, TextInput, Toasts, useEffect, useMemo, useState } from "@webpack/common";
 
-import { openThemeCodeModal } from "./ThemeMarketplace";
 import { fetchMarketplaceCatalog, getItemLink, MarketplaceItem } from "./MarketplaceData";
+import { openThemeCodeModal } from "./ThemeMarketplace";
 
 const cl = classNameFactory("vc-settings-theme-market-");
 

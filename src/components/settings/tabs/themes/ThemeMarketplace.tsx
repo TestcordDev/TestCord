@@ -14,10 +14,10 @@ import { classNameFactory } from "@utils/css";
 import { openImageModal } from "@utils/discord";
 import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
-import { Modal, openModal, React, Select, showToast, TextInput, Toasts, useEffect, useMemo, useState } from "@webpack/common";
+import { Modal, openModal, React, showToast, TextInput, Toasts, useEffect, useMemo, useState } from "@webpack/common";
 
-import { fetchMarketplaceCatalog, getItemLink, MarketplaceItem } from "./MarketplaceData";
 import { CodeViewerModal } from "./CodeViewerModal";
+import { fetchMarketplaceCatalog, getItemLink, MarketplaceItem } from "./MarketplaceData";
 
 const cl = classNameFactory("vc-settings-theme-market-");
 

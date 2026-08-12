@@ -14,7 +14,7 @@ import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, Mo
 import definePlugin, { OptionType } from "@utils/types";
 import { Button, FluxDispatcher, Forms, Menu, React, RestAPI, showToast, TextInput, Toasts, UserStore } from "@webpack/common";
 
-const logger = new Logger("UserReact");
+const logger = new Logger("AutoReact");
 
 type Emoji = { name: string; id: string | null; animated: boolean; };
 
@@ -43,7 +43,7 @@ const settings = definePluginSettings({
     },
     enabled: {
         type: OptionType.BOOLEAN,
-        description: "Enable UserReact functionality",
+        description: "Enable AutoReact functionality",
         default: true,
     },
     contentRules: {
@@ -70,6 +70,11 @@ const settings = definePluginSettings({
         type: OptionType.STRING,
         description: "Emojis to react to your own messages with (JSON array). Set via /selfreact.",
         default: "[]",
+    },
+    selfReactTargetUserId: {
+        type: OptionType.STRING,
+        description: "When set, self-react applies to this user's messages instead of your own. Configure via the /selfreact user option. Empty = your own messages.",
+        default: "",
     },
 });
 
@@ -201,10 +206,15 @@ function handleMessageCreate(data: any) {
     const isOwnMessage = message.author?.id === UserStore.getCurrentUser().id;
 
     if (isOwnMessage) {
-        // Own messages are skipped unless self-react is explicitly enabled.
-        if (!settings.store.selfReactEnabled) return;
-        const emojis = parseSelfReactEmojis(settings.store.selfReactEmojis);
-        if (emojis.length > 0) addReactionsSequentially(channelId, messageId, emojis);
+        // Self-react: react to your own messages, or to a configured target user's messages.
+        if (settings.store.selfReactEnabled) {
+            const target = settings.store.selfReactTargetUserId?.trim();
+            const isTarget = !target || target === message.author?.id;
+            if (isTarget) {
+                const emojis = parseSelfReactEmojis(settings.store.selfReactEmojis);
+                if (emojis.length > 0) addReactionsSequentially(channelId, messageId, emojis);
+            }
+        }
         return;
     }
 
@@ -277,7 +287,7 @@ function EmojiPickerModal(props: any) {
         }
 
         saveRules(rules);
-        showToast(`UserReact rule ${selectedEmojis.length === 0 ? "removed" : "saved"} for ${username}`, Toasts.Type.SUCCESS);
+        showToast(`AutoReact rule ${selectedEmojis.length === 0 ? "removed" : "saved"} for ${username}`, Toasts.Type.SUCCESS);
         onClose();
     };
 
@@ -290,7 +300,7 @@ function EmojiPickerModal(props: any) {
     return (
         <ModalRoot {...props} size={ModalSize.DYNAMIC}>
             <ModalHeader>
-                <Forms.FormTitle tag="h4">UserReact: {username}</Forms.FormTitle>
+                <Forms.FormTitle tag="h4">AutoReact: {username}</Forms.FormTitle>
                 <ModalCloseButton onClick={onClose} />
             </ModalHeader>
             <ModalContent>
@@ -438,7 +448,7 @@ function UserContextMenuPatch(): NavContextMenuPatchCallback {
             <Menu.MenuGroup>
                 <Menu.MenuItem
                     id="userreact-toggle"
-                    label={hasRule ? "Edit UserReact" : "UserReact"}
+                    label={hasRule ? "Edit AutoReact" : "AutoReact"}
                     action={openEmojiPicker}
                 />
             </Menu.MenuGroup>
@@ -446,7 +456,7 @@ function UserContextMenuPatch(): NavContextMenuPatchCallback {
     };
 }
 
-// Emoji Picker Modal for Channel React
+// Emoji Picker Modal for AutoReact Channel
 function ChannelEmojiPickerModal(props: any) {
     const { channelId, channelName, onClose } = props;
     const [selectedEmojis, setSelectedEmojis] = React.useState<Emoji[]>([]);
@@ -476,14 +486,14 @@ function ChannelEmojiPickerModal(props: any) {
         }
 
         saveChannelRules(rules);
-        showToast(`Channel React ${selectedEmojis.length === 0 ? "removed for" : "saved for"} #${channelName}`, Toasts.Type.SUCCESS);
+        showToast(`AutoReact Channel ${selectedEmojis.length === 0 ? "removed for" : "saved for"} #${channelName}`, Toasts.Type.SUCCESS);
         onClose();
     };
 
     return (
         <ModalRoot {...props} size={ModalSize.DYNAMIC}>
             <ModalHeader>
-                <Forms.FormTitle tag="h4">Channel React: #{channelName}</Forms.FormTitle>
+                <Forms.FormTitle tag="h4">AutoReact Channel: #{channelName}</Forms.FormTitle>
                 <ModalCloseButton onClick={onClose} />
             </ModalHeader>
             <ModalContent>
@@ -599,7 +609,7 @@ function ChannelEmojiPickerModal(props: any) {
     );
 }
 
-// Context Menu Component for Channel React
+// Context Menu Component for AutoReact Channel
 function ChannelContextMenuPatch(): NavContextMenuPatchCallback {
     return (children, props: any) => {
         const channel = props?.channel;
@@ -612,7 +622,7 @@ function ChannelContextMenuPatch(): NavContextMenuPatchCallback {
             <Menu.MenuGroup>
                 <Menu.MenuItem
                     id="userreact-channel-toggle"
-                    label={hasRule ? "Edit Channel React" : "Channel React"}
+                    label={hasRule ? "Edit AutoReact Channel" : "AutoReact Channel"}
                     action={() => openModal(modalProps => (
                         <ChannelEmojiPickerModal
                             {...modalProps}
@@ -627,6 +637,46 @@ function ChannelContextMenuPatch(): NavContextMenuPatchCallback {
 }
 
 // Settings Panel Component
+function ContentRulesSection() {
+    const [text, setText] = React.useState(settings.store.contentRules || "");
+    const rules = parseContentRules(text);
+
+    return (
+        <div style={{ marginTop: "24px" }}>
+            <Forms.FormTitle tag="h5" style={{ marginBottom: "8px" }}>Content Triggers</Forms.FormTitle>
+            <Forms.FormText style={{ marginBottom: "8px", color: "var(--text-muted)", fontSize: "12px" }}>
+                React when a message contains a word. Format: <code style={{ background: "var(--background-secondary)", padding: "2px 4px", borderRadius: "3px" }}>word:emoji1,emoji2|word2:emoji3</code>
+            </Forms.FormText>
+            <TextInput
+                style={{ marginBottom: "12px", minHeight: "80px", fontFamily: "monospace" }}
+                value={text}
+                onChange={(value: string) => {
+                    setText(value);
+                    settings.store.contentRules = value;
+                }}
+                placeholder="happy:😀,🔥|ok:👌"
+                multiLine={true}
+            />
+            {rules.length > 0 && (
+                <div>
+                    {rules.map((rule, i) => (
+                        <div key={i} style={{
+                            padding: "8px",
+                            background: "var(--background-secondary)",
+                            borderRadius: "4px",
+                            marginBottom: "4px"
+                        }}>
+                            <Forms.FormText style={{ fontWeight: 600 }}>
+                                Trigger: "{rule.word}" → {rule.reactions.map(emojiToString).join(" ")}
+                            </Forms.FormText>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
 function SettingsPanel() {
     const [rulesText, setRulesText] = React.useState(() => {
         const rules = parseRules(settings.store.rules);
@@ -637,9 +687,9 @@ function SettingsPanel() {
 
     return (
         <div>
-            <Forms.FormTitle tag="h5" style={{ marginBottom: "12px" }}>UserReact Rules</Forms.FormTitle>
+            <Forms.FormTitle tag="h5" style={{ marginBottom: "12px" }}>AutoReact Rules</Forms.FormTitle>
             <Forms.FormText style={{ marginBottom: "8px", color: "var(--text-muted)" }}>
-                Right-click on a user and select "UserReact" to add or edit rules
+                Right-click on a user and select "AutoReact" to add or edit rules
             </Forms.FormText>
             <Forms.FormText style={{ marginBottom: "16px", color: "var(--text-muted)" }}>
                 Currently configured for <strong>{rules.length} {rules.length === 1 ? "user" : "users"}</strong>
@@ -698,13 +748,14 @@ function SettingsPanel() {
                     No rules configured. Right-click on a user to add one!
                 </Forms.FormText>
             )}
+            <ContentRulesSection />
         </div>
     );
 }
 
 export default definePlugin({
-    name: "UserReact",
-    description: "Automatically react to every message from specific users with custom emojis",
+    name: "AutoReact",
+    description: "Automatically react to messages from specific users, every message in chosen channels, or messages containing trigger words. Also supports self-react and a /selfreact command.",
     tags: ["Reactions", "Utility"],
     authors: [TestcordDevs.x2b],
     settings,
@@ -737,10 +788,17 @@ export default definePlugin({
                     required: false,
                     type: ApplicationCommandOptionType.STRING,
                 },
+                {
+                    name: "user",
+                    description: "Target user (leave empty for your own messages)",
+                    required: false,
+                    type: ApplicationCommandOptionType.USER,
+                },
             ],
             execute: (args, ctx) => {
                 const state = findOption<string>(args, "state", "");
                 const emojisStr = findOption<string>(args, "emojis", "");
+                const targetUserId = findOption<string>(args, "user", "");
 
                 if (state === "off") {
                     settings.store.selfReactEnabled = false;
@@ -757,6 +815,10 @@ export default definePlugin({
                     settings.store.selfReactEmojis = JSON.stringify(emojis);
                 }
 
+                if (targetUserId) {
+                    settings.store.selfReactTargetUserId = targetUserId;
+                }
+
                 if (state === "on" || emojisStr.trim()) {
                     const stored = parseSelfReactEmojis(settings.store.selfReactEmojis);
                     if (stored.length === 0) {
@@ -764,15 +826,17 @@ export default definePlugin({
                         return;
                     }
                     settings.store.selfReactEnabled = true;
+                    const targetLabel = settings.store.selfReactTargetUserId ? `<@${settings.store.selfReactTargetUserId}>` : "your own messages";
                     sendBotMessage(ctx.channel.id, {
-                        content: `Self-react **enabled**.\nEmojis: ${stored.map(emojiToString).join(" ")}`
+                        content: `Self-react **enabled**.\nTarget: ${targetLabel}\nEmojis: ${stored.map(emojiToString).join(" ")}`
                     });
                     return;
                 }
 
                 const stored = parseSelfReactEmojis(settings.store.selfReactEmojis);
+                const targetLabel = settings.store.selfReactTargetUserId ? `<@${settings.store.selfReactTargetUserId}>` : "your own messages";
                 sendBotMessage(ctx.channel.id, {
-                    content: `Self-react is **${settings.store.selfReactEnabled ? "enabled" : "disabled"}**.\nEmojis: ${stored.length > 0 ? stored.map(emojiToString).join(" ") : "None set"}`
+                    content: `Self-react is **${settings.store.selfReactEnabled ? "enabled" : "disabled"}**.\nTarget: ${targetLabel}\nEmojis: ${stored.length > 0 ? stored.map(emojiToString).join(" ") : "None set"}`
                 });
             },
         },

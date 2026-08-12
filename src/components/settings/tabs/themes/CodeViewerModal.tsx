@@ -97,8 +97,8 @@ export function CodeViewerModal({ modalProps, title, code, editable, onSave, onS
 
     // Sync vertical scroll between textarea, line numbers gutter, and syntax highlighter layer
     const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
-        const scrollTop = e.currentTarget.scrollTop;
-        const scrollLeft = e.currentTarget.scrollLeft;
+        const { scrollTop } = e.currentTarget;
+        const { scrollLeft } = e.currentTarget;
         if (gutterRef.current) gutterRef.current.scrollTop = scrollTop;
         if (highlightRef.current) {
             highlightRef.current.scrollTop = scrollTop;

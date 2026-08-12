@@ -24,9 +24,9 @@ import { SyntheticEvent } from "react";
 import { CodeViewerModal } from "./CodeViewerModal";
 import { OnlineThemesSection } from "./OnlineThemes";
 import { QuickActionsSection } from "./QuickActions";
+import { SnippetMarketplaceSection } from "./SnippetMarketplace";
 import { ThemeCard } from "./ThemeCard";
 import { ThemeMarketplaceSection } from "./ThemeMarketplace";
-import { SnippetMarketplaceSection } from "./SnippetMarketplace";
 
 const cl = classNameFactory("vc-settings-theme-");
 

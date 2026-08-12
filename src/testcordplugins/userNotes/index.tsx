@@ -8,10 +8,14 @@ import "./styles.css";
 
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
 import ErrorBoundary from "@components/ErrorBoundary";
+import { getTestcordIconColor } from "@testcordplugins/TestcordHelper/iconColors";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
 import { User } from "@vencord/discord-types";
-import { Button, Menu, TextArea, UserStore, useState } from "@webpack/common";
+import { findComponentByCodeLazy } from "@webpack";
+import { Menu, TextArea, UserStore, useState } from "@webpack/common";
+
+const HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_TOP:", '"top"===c');
 
 import { PopupIcon } from "./components/Icons";
 import { OpenNotesDataButton } from "./components/NotesDataButton";
@@ -51,6 +55,8 @@ const patchUserContext: NavContextMenuPatchCallback = (children, { user }: {
 function ProfileContainer({ user }: { user: User; }) {
     const [userNotes, setUserNotes] = useState(getUserNotes(user.id) ?? "");
 
+    const iconColor = getTestcordIconColor("userAreaButtonIconColor") ?? "var(--interactive-normal)";
+
     return (
         <div className={"vc-user-notes-profile-container"}>
             <TextArea
@@ -60,14 +66,15 @@ function ProfileContainer({ user }: { user: User; }) {
                 onChange={setUserNotes}
                 onBlur={() => saveUserNotes(user.id, userNotes)}
             />
-            <Button
-                className={"vc-user-notes-profile-button"}
-                color={Button.Colors.PRIMARY}
-                size={Button.Sizes.NONE}
-                onClick={() => openUserNotesModal(user)}
-            >
-                <PopupIcon />
-            </Button>
+            <div style={{ "--vc-plugin-icon-color": iconColor } as React.CSSProperties}>
+                <HeaderBarIcon
+                    className="vc-plugin-icon-button vc-user-notes-profile-button"
+                    iconClassName="vc-plugin-icon-button"
+                    icon={PopupIcon}
+                    onClick={() => openUserNotesModal(user)}
+                    tooltip={"Open User Notes"}
+                />
+            </div>
         </div>
     );
 }

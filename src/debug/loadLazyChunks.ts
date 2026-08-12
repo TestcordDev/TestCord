@@ -5,8 +5,8 @@
  */
 
 import { Logger } from "@utils/Logger";
-import { canonicalizeMatch } from "@utils/patches";
 import { sleep } from "@utils/misc";
+import { canonicalizeMatch } from "@utils/patches";
 import { ModuleFactory } from "@vencord/discord-types/webpack";
 import * as Webpack from "@webpack";
 import { wreq } from "@webpack";

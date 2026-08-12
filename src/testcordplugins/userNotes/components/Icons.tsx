@@ -4,16 +4,37 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { useSettings } from "@api/Settings";
+import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { LazyComponent } from "@utils/lazyReact";
+import { classes } from "@utils/misc";
 import { React } from "@webpack/common";
+import type { SVGProps } from "react";
 
-export const NotesDataIcon = LazyComponent(() => React.memo(() => {
+export function NotesDataIcon(props: SVGProps<SVGSVGElement>) {
+    useSettings(["plugins.TestcordHelper.headerBarButtonIconColor"] as const);
+    const color = getTestcordIconColor("headerBarButtonIconColor")
+        ?? getTestcordIconColor("userAreaButtonIconColor")
+        ?? ICON_COLOR_FALLBACK;
     return (
-        <svg stroke="currentColor" width="24" height="24" viewBox="1 1 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" d="M10.0002 4H7.2002C6.08009 4 5.51962 4 5.0918 4.21799C4.71547 4.40973 4.40973 4.71547 4.21799 5.0918C4 5.51962 4 6.08009 4 7.2002V16.8002C4 17.9203 4 18.4801 4.21799 18.9079C4.40973 19.2842 4.71547 19.5905 5.0918 19.7822C5.5192 20 6.07899 20 7.19691 20H16.8031C17.921 20 18.48 20 18.9074 19.7822C19.2837 19.5905 19.5905 19.2839 19.7822 18.9076C20 18.4802 20 17.921 20 16.8031V14M16 5L10 11V14H13L19 8M16 5L19 2L22 5L19 8M16 5L19 8" />
+        <svg
+            {...props}
+            className={classes(props.className, "vc-notes-data-icon")}
+            width={props.width ?? 24}
+            height={props.height ?? 24}
+            viewBox="1 1 22 22"
+            fill="none"
+        >
+            <path
+                stroke={color}
+                strokeWidth={1.7}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M10.0002 4H7.2002C6.08009 4 5.51962 4 5.0918 4.21799C4.71547 4.40973 4.40973 4.71547 5.0918 5.0918C4 5.51962 4 6.08009 4 7.2002V16.8002C4 17.9203 4 18.4801 4.21799 18.9079C4.40973 19.2842 4.71547 19.5905 5.0918 19.7822C5.5192 20 6.07899 20 7.19691 20H16.8031C17.921 20 18.48 20 18.9074 19.7822C19.2837 19.5905 19.5905 19.2839 19.7822 18.9076C20 18.4802 20 17.921 20 16.8031V14M16 5L10 11V14H13L19 8M16 5L19 2L22 5L19 8M16 5L19 8"
+            />
         </svg>
     );
-}));
+}
 
 export const SaveIcon = LazyComponent(() => React.memo(() => {
     return (
@@ -39,14 +60,24 @@ export const RefreshIcon = LazyComponent(() => React.memo(() => {
     );
 }));
 
-export const PopupIcon = LazyComponent(() => React.memo(() => {
+export function PopupIcon(props: SVGProps<SVGSVGElement>) {
+    useSettings(["plugins.TestcordHelper.userAreaButtonIconColor"] as const);
+    const color = getTestcordIconColor("userAreaButtonIconColor")
+        ?? getTestcordIconColor("headerBarButtonIconColor")
+        ?? ICON_COLOR_FALLBACK;
     return (
-        <svg width="32" height="32" viewBox="-4 -4 32 32">
-            <path fill="#fff" d="M10 5V3H5.375C4.06519 3 3 4.06519 3 5.375V18.625C3 19.936 4.06519 21 5.375 21H18.625C19.936 21 21 19.936 21 18.625V14H19V19H5V5H10Z" />
-            <path fill="#fff" d="M21 2.99902H14V4.99902H17.586L9.29297 13.292L10.707 14.706L19 6.41302V9.99902H21V2.99902Z" />
+        <svg
+            {...props}
+            className={classes(props.className, "vc-popup-icon")}
+            width={props.width ?? 24}
+            height={props.height ?? 24}
+            viewBox="0 0 24 24"
+        >
+            <path fill={color} d="M10 5V3H5.375C4.06519 3 3 4.06519 3 5.375V18.625C3 19.936 4.06519 21 5.375 21H18.625C19.936 21 21 19.936 21 18.625V14H19V19H5V5H10Z" />
+            <path fill={color} d="M21 3H14V5H17.586L9.293 13.293L10.707 14.707L19 6.414V10H21V3Z" />
         </svg>
     );
-}));
+}
 
 export const CrossIcon = LazyComponent(() => React.memo(() => {
     return (

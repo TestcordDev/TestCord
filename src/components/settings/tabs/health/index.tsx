@@ -1536,7 +1536,6 @@ function HealthTab() {
                                     )}
                                 </div>
 
-
                             </div>
                         )}
                     </div>

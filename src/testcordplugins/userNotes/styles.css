@@ -2,28 +2,68 @@
 .vc-user-notes-profile-container {
     height: 50px;
     display: grid;
-    grid-template-columns: auto min-content;
+    grid-template-columns: 1fr min-content;
     gap: 4px;
+}
+
+/* Themed form controls — Discord variables. Discord may apply our class to the
+   wrapper OR the inner input/textarea, so style the class directly, and also
+   the inner element (for the wrapper case). */
+.vc-user-notes-profile-text-area,
+.vc-user-notes-modal-text-area,
+.vc-user-notes-data-modal-header-input,
+.vc-user-notes-data-modal-user-text-area {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 8px;
+    background-color: var(--input-background);
+    color: var(--text-default);
+    border: 1px solid var(--background-modifier-accent, transparent);
+    border-radius: var(--radius-sm, 8px);
+    overflow: hidden;
+    font-family: var(--font-primary);
+    font-size: 14px;
+    line-height: 1.375;
+}
+
+.vc-user-notes-profile-text-area textarea,
+.vc-user-notes-modal-text-area textarea,
+.vc-user-notes-data-modal-user-text-area textarea,
+.vc-user-notes-data-modal-header-input input {
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    background-color: transparent;
+    color: var(--text-default);
+    border: none;
+    outline: none;
+    resize: none;
+}
+
+.vc-user-notes-profile-text-area textarea::placeholder,
+.vc-user-notes-modal-text-area textarea::placeholder,
+.vc-user-notes-data-modal-user-text-area textarea::placeholder,
+.vc-user-notes-data-modal-header-input input::placeholder {
+    color: var(--text-muted);
 }
 
 .vc-user-notes-profile-text-area {
     height: 50px;
-    padding: 5px !important;
-    font-size: 14px;
+}
+
+.vc-user-notes-modal-text-area {
+    min-height: 180px;
 }
 
 .vc-user-notes-profile-button {
-    width: 36px;
-    height: 50px;
-}
-
-.vc-user-notes-profile-button div {
-    overflow: visible !important;
-    height: 32px;
-}
-
-.vc-user-notes-profile-button svg {
-    scale: 1.2;
+    flex-shrink: 0;
 }
 
 /* User Notes Modal */
@@ -35,12 +75,11 @@
 }
 
 .vc-user-notes-modal-content {
-    height: 100%;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     padding: 16px;
-}
-
-.vc-user-notes-modal-content * {
-    height: 100%;
 }
 
 /* Part of Cache Popout Data. css linter is awesome */
@@ -85,6 +124,8 @@
 .vc-user-notes-data-modal-header-input {
     width: 100%;
     margin-right: 16px;
+    height: auto;
+    align-self: center;
 }
 
 .vc-user-notes-data-modal-header-user-type {
