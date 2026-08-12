@@ -1267,10 +1267,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <Heading tag="h5">Aesthetics</Heading>
                             <Card variant="primary">
                                 <Dropdown label="Button Base Style" options={BUTTON_STYLES} value={s.buttonStyle} onChange={v => set("buttonStyle", v)} />
-
-                                {settings.store.hoverEffect === "glow" && <>
-                                    <Dropdown label="Interaction Hover Effect" options={HOVER_EFFECTS} value={s.hoverEffect} onChange={v => set("hoverEffect", v)} />
-                                </>}
+                                <Dropdown label="Interaction Hover Effect" options={HOVER_EFFECTS} value={s.hoverEffect} onChange={v => set("hoverEffect", v)} />
                             </Card>
 
                             <Heading tag="h5">Colorful Plugins</Heading>
@@ -1283,7 +1280,10 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <Heading tag="h5">Panel Colors</Heading>
                             <Card variant="primary">
                                 <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} />
-                                <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} />
+
+                                {settings.store.hoverEffect === "glow" && <>
+                                    <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} />
+                                </>}
                             </Card>
 
                             <Heading tag="h5">Native Buttons</Heading>
