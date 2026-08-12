@@ -37,7 +37,7 @@ import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
 import { useAwaiter, useCleanupEffect, useIntersection } from "@utils/react";
 import { PluginTag, PluginTags } from "@utils/types";
-import { Alerts, ConfirmModal, lodash, openModal, Parser, React, SearchableSelect, Select, TextInput, Toasts, Tooltip, useCallback, useMemo, useRef, useState } from "@webpack/common";
+import { Alerts, ConfirmModal, openModal, Parser, React, SearchableSelect, Select, TextInput, Toasts, Tooltip, useCallback, useMemo, useRef, useState } from "@webpack/common";
 import { JSX } from "react";
 
 import Plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
@@ -318,18 +318,29 @@ const sortedPlugins = useMemo(() =>
     const [newPluginsSet] = useAwaiter(() => DataStore.get("Vencord_existingPlugins").then((cachedPlugins: Record<string, number> | undefined) => {
         const now = Date.now() / 1000;
         const existingTimestamps: Record<string, number> = {};
-        const sortedPluginNames = Object.values(sortedPlugins).map(plugin => plugin.name);
+
+        // Genuine first run: no baseline exists, so nothing is "new" yet.
+        // Establish the baseline and return null instead of marking everything new.
+        if (!cachedPlugins) {
+            for (const { name: p } of sortedPlugins) existingTimestamps[p] = now;
+            DataStore.set("Vencord_existingPlugins", existingTimestamps);
+            return null;
+        }
 
         const newPlugins: string[] = [];
         for (const { name: p } of sortedPlugins) {
-            const time = existingTimestamps[p] = cachedPlugins?.[p] ?? now;
-            if ((time + 60 * 60 * 24 * 2) > now) {
+            const cached = cachedPlugins[p];
+            if (cached == null) {
+                // Plugin was added since the previous launch
+                existingTimestamps[p] = now;
                 newPlugins.push(p);
+            } else {
+                existingTimestamps[p] = cached;
             }
         }
         DataStore.set("Vencord_existingPlugins", existingTimestamps);
 
-        return lodash.isEqual(newPlugins, sortedPluginNames) ? null : new Set(newPlugins);
+        return newPlugins.length ? new Set(newPlugins) : null;
     }));
 
     const handleRestartNeeded = useCallback((name: string, key: string) => changes.handleChange(`${name}:${key}`), [changes]);
