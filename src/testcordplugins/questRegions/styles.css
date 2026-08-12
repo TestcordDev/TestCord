@@ -1,0 +1,211 @@
+.vc-quest-regions-about {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.vc-quest-regions-hero,
+.vc-quest-regions-card,
+.vc-quest-regions-status-card {
+    border: 1px solid var(--border-normal);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.vc-quest-regions-hero {
+    padding: 18px;
+}
+
+.vc-quest-regions-hero-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.vc-quest-regions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 12px;
+}
+
+.vc-quest-regions-card {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 200px;
+}
+
+.vc-quest-regions-status-card {
+    padding: 18px;
+}
+
+.vc-quest-regions-loading-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.vc-quest-regions-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    width: fit-content;
+    border-radius: 9999px;
+    padding: 5px 14px 5px 5px;
+    background: rgb(0 0 0 / 78%);
+    color: var(--white-500);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.vc-quest-regions-badge-flag {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--background-primary);
+}
+
+.vc-quest-regions-badge-name {
+    line-height: 1;
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+.vc-quest-regions-card-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.vc-quest-regions-card-count {
+    color: var(--text-muted);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.vc-quest-regions-card-title,
+.vc-quest-regions-status-title,
+.vc-quest-regions-hero-title {
+    margin: 0;
+}
+
+.vc-quest-regions-card-text,
+.vc-quest-regions-status-text,
+.vc-quest-regions-hero-text,
+.vc-quest-regions-hero-note {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.vc-quest-regions-quest-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.vc-quest-regions-quest-link {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 8%);
+    color: var(--text-normal);
+    text-decoration: none;
+    font-size: 12px;
+}
+
+.vc-quest-regions-quest-link:hover {
+    background: rgb(255 255 255 / 14%);
+    text-decoration: underline;
+}
+
+div.vc-quest-regions-quest-region {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: calc(100% - 20px);
+    width: max-content;
+    height: max-content;
+    background: transparent !important;
+    background-image: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.vc-quest-regions-badge-overflow {
+    pointer-events: auto;
+    cursor: default;
+    background: rgb(0 0 0 / 62%);
+}
+
+.vc-quest-regions-age-restricted-badge {
+    pointer-events: auto;
+    cursor: default;
+    padding: 5px 14px;
+    background: rgb(0 0 0 / 78%);
+}
+
+.vc-quest-regions-age-restricted-badge .vc-quest-regions-badge-name {
+    font-size: 28px;
+    line-height: 1;
+    text-transform: none;
+}
+
+.vc-quest-regions-global-badge .vc-quest-regions-badge-flag {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.vc-quest-regions-global-badge .vc-quest-regions-badge-name {
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+.vc-quest-regions-quest-region-overflow-tooltip {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 280px;
+}
+
+.vc-quest-regions-quest-region-overflow-title {
+    color: var(--text-normal);
+}
+
+.vc-quest-regions-quest-region-overflow-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    color: var(--text-muted);
+}
+
+.vc-quest-regions-quest-region-overflow-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 6%);
+    color: var(--text-muted);
+}
+
+.vc-quest-regions-quest-region-overflow-item-flag {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--background-primary);
+}
+
+div:has(> .vc-quest-regions-quest-region) {
+    position: relative;
+}

@@ -805,6 +805,27 @@ const settings = definePluginSettings({
         description: "Apply light containment and async decode to attachment image grids. Off by default to avoid virtualized chat height jumps.",
         default: false
     },
+    reduceFpsBackground: {
+        type: OptionType.BOOLEAN,
+        description: "Limit app rendering to a few FPS when the window is in the background.",
+        default: false,
+    },
+    throttlePresence: {
+        type: OptionType.BOOLEAN,
+        description: "Reduce how often presence/activity updates are sent to the server, saving network requests.",
+        default: false,
+    },
+    limitMsgCache: {
+        type: OptionType.BOOLEAN,
+        description: "Periodically call the native GC to free message memory.",
+        default: false,
+    },
+    noSoundboardPreview: {
+        type: OptionType.BOOLEAN,
+        description: "Disable soundboard audio preview on hover.",
+        default: false,
+        restartNeeded: true
+    },
 });
 
 interface CacheEntry {
@@ -821,6 +842,167 @@ interface SpringMod {
 type WebkitWindow = Window & typeof globalThis & {
     webkitRTCPeerConnection?: typeof RTCPeerConnection;
 };
+
+/* -------------------------------------------------------------------------- */
+/*                       Background RAF throttle (FPS)                        */
+/* -------------------------------------------------------------------------- */
+
+let origRAF: typeof requestAnimationFrame | null = null;
+let origCancelRAF: typeof cancelAnimationFrame | null = null;
+let bgFpsActive = false;
+const rafMap = new Map<number, ReturnType<typeof setTimeout>>();
+let rafSeq = 0;
+
+function bgFrameIntervalMs(): number {
+    return 200;
+}
+
+function onVisibilityChange() {
+    if (document.hidden) {
+        installRafThrottle();
+    } else if (document.hasFocus()) {
+        uninstallRafThrottle();
+    }
+}
+
+function onWindowBlur() {
+    installRafThrottle();
+}
+
+function onWindowFocus() {
+    if (!document.hidden) uninstallRafThrottle();
+}
+
+function applyBgFpsPatch(enable: boolean) {
+    if (enable && !bgFpsActive) {
+        bgFpsActive = true;
+        document.addEventListener("visibilitychange", onVisibilityChange);
+        window.addEventListener("blur", onWindowBlur);
+        window.addEventListener("focus", onWindowFocus);
+        if (document.hidden || !document.hasFocus()) installRafThrottle();
+    } else if (!enable && bgFpsActive) {
+        bgFpsActive = false;
+        document.removeEventListener("visibilitychange", onVisibilityChange);
+        window.removeEventListener("blur", onWindowBlur);
+        window.removeEventListener("focus", onWindowFocus);
+        uninstallRafThrottle();
+    }
+}
+
+function installRafThrottle() {
+    if (origRAF || !bgFpsActive) return;
+    origRAF = window.requestAnimationFrame;
+    origCancelRAF = window.cancelAnimationFrame;
+    let lastT = 0;
+
+    (window as any).requestAnimationFrame = function (cb: FrameRequestCallback) {
+        const id = ++rafSeq;
+        const now = performance.now();
+        const delay = Math.max(0, bgFrameIntervalMs() - (now - lastT));
+        const tId = setTimeout(() => {
+            rafMap.delete(id);
+            lastT = performance.now();
+            cb(performance.now());
+        }, delay);
+        rafMap.set(id, tId);
+        return id;
+    };
+
+    window.cancelAnimationFrame = function (id: number) {
+        const tId = rafMap.get(id);
+        if (tId !== undefined) {
+            clearTimeout(tId);
+            rafMap.delete(id);
+        } else if (origCancelRAF) {
+            origCancelRAF(id);
+        }
+    };
+}
+
+function uninstallRafThrottle() {
+    if (!origRAF) return;
+    window.requestAnimationFrame = origRAF;
+    if (origCancelRAF) window.cancelAnimationFrame = origCancelRAF;
+    origRAF = null;
+    origCancelRAF = null;
+    for (const tId of rafMap.values()) clearTimeout(tId);
+    rafMap.clear();
+}
+
+/* -------------------------------------------------------------------------- */
+/*                       Presence update throttle                             */
+/* -------------------------------------------------------------------------- */
+
+const PRESENCE_DISPATCH_TYPES = new Set([
+    "LOCAL_ACTIVITY_UPDATE",
+    "RUNNING_GAMES_CHANGE",
+]);
+
+let origFluxDispatch: ((event: any) => unknown) | null = null;
+const pendingPresenceDispatch = new Map<string, { event: any; timer: ReturnType<typeof setTimeout>; }>();
+
+function flushPresenceDispatch(type: string) {
+    const pending = pendingPresenceDispatch.get(type);
+    if (!pending) return;
+    pendingPresenceDispatch.delete(type);
+    try {
+        origFluxDispatch?.call(FluxDispatcher, pending.event);
+    } catch (err) {
+        logger.warn("flush presence dispatch failed", err);
+    }
+}
+
+function patchedDispatch(event: any) {
+    if (!settings.store.throttlePresence || !event || !PRESENCE_DISPATCH_TYPES.has(event.type)) {
+        return origFluxDispatch?.call(FluxDispatcher, event);
+    }
+
+    const existing = pendingPresenceDispatch.get(event.type);
+    if (existing) clearTimeout(existing.timer);
+
+    const timer = setTimeout(() => flushPresenceDispatch(event.type), 8000);
+    pendingPresenceDispatch.set(event.type, { event, timer });
+}
+
+function applyPresenceThrottle(enable: boolean) {
+    if (enable && !origFluxDispatch) {
+        origFluxDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
+        (FluxDispatcher as any).dispatch = patchedDispatch;
+    } else if (!enable && origFluxDispatch) {
+        for (const type of Array.from(pendingPresenceDispatch.keys())) {
+            const pending = pendingPresenceDispatch.get(type)!;
+            clearTimeout(pending.timer);
+            try { origFluxDispatch.call(FluxDispatcher, pending.event); } catch { /* ignore */ }
+        }
+        pendingPresenceDispatch.clear();
+        (FluxDispatcher as any).dispatch = origFluxDispatch;
+        origFluxDispatch = null;
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                          Cache cleaner (GC)                                */
+/* -------------------------------------------------------------------------- */
+
+let cacheCleanerInterval: ReturnType<typeof setInterval> | null = null;
+
+function startCacheCleaner() {
+    stopCacheCleaner();
+    cacheCleanerInterval = setInterval(() => {
+        try {
+            if (typeof (window as any).gc === "function") {
+                (window as any).gc();
+            }
+        } catch { /* ignore */ }
+    }, 5 * 60 * 1000);
+}
+
+function stopCacheCleaner() {
+    if (cacheCleanerInterval !== null) {
+        clearInterval(cacheCleanerInterval);
+        cacheCleanerInterval = null;
+    }
+}
 
 migratePluginSettings("TestcordOptimizer", "optimizerPremium");
 
@@ -1102,6 +1284,9 @@ export default definePlugin({
         this.restoreConsoleDirSuppression();
         this.teardownDragAndDrop();
         this.teardownSpellcheckOpt();
+        applyBgFpsPatch(false);
+        applyPresenceThrottle(false);
+        stopCacheCleaner();
         this.teardownReactionSimplifier();
         this.teardownUnreadBadgeKiller();
         this.teardownCanvasSuppressor();

@@ -1,0 +1,243 @@
+.pcl-layout {
+    --main-color: #dcddde;
+
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    z-index: 2147483647 !important;
+    overflow: hidden;
+    color: var(--main-color);
+    pointer-events: auto !important;
+}
+
+.pcl-layout-bg {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    height: 0;
+    width: 0;
+    transform: translate(-50%, -50%) scale(0);
+    background-color: rgb(0 0 0 / 50%);
+    backdrop-filter: blur(30px) brightness(0.38) saturate(0.25);
+    transition: 0.35s transform linear;
+    border-radius: 50%;
+}
+
+.pcl-controls {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: stretch;
+    transition: .3s opacity;
+    z-index: 2147483647 !important;
+    pointer-events: auto !important;
+}
+
+.pcl-animate {
+    transition: .3s transform, .3s opacity;
+    transition-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+    transform: scale(.7);
+    opacity: 0;
+}
+
+.pcl-animated {
+    transform: scale(1);
+    opacity: 1;
+}
+
+/* DiscordLock UI adaptation */
+
+#vcl-avatar {
+    width:               72px;
+    height:              72px;
+    border-radius:       50%;
+    background-size:     cover;
+    background-position: center;
+    background-color:    rgb(255 255 255 / 5%);
+    border:              1.5px solid rgb(255 255 255 / 15%);
+    margin-bottom:       18px;
+    box-shadow:          0 8px 32px rgb(0 0 0 / 45%);
+}
+
+#vcl-username {
+    font-family:    'gg sans','Noto Sans',system-ui,sans-serif;
+    font-size:      18px;
+    font-weight:    600;
+    letter-spacing: -0.3px;
+    color:          rgb(255 255 255 / 92%);
+    margin:         0 0 6px;
+}
+
+#vcl-sub {
+    font-family: 'gg sans','Noto Sans',system-ui,sans-serif;
+    font-size:   13px;
+    color:       rgb(255 255 255 / 32%);
+    margin:      0 0 30px;
+}
+
+#vcl-input-wrap {
+    position:  relative;
+    width:     280px;
+}
+
+#vcl-input-wrap > svg.vcl-icon-lock {
+    position:       absolute;
+    left:           15px;
+    top:            50%;
+    transform:      translateY(-50%);
+    color:          rgb(255 255 255 / 22%);
+    pointer-events: none;
+    transition:     color 0.2s;
+}
+
+#vcl-input-wrap:focus-within > svg.vcl-icon-lock {
+    color: rgb(255 255 255 / 48%);
+}
+
+#vcl-input {
+    width:          100%;
+    padding:        13px 44px 13px 40px;
+    background:     rgb(255 255 255 / 7%);
+    border:         1px solid rgb(255 255 255 / 10%);
+    border-radius:  14px;
+    color:          rgb(255 255 255 / 90%);
+    font-size:      14px;
+    font-family:    'gg sans','Noto Sans',system-ui,sans-serif;
+    letter-spacing: 1px;
+    outline:        none;
+    box-sizing:     border-box;
+    caret-color:    rgb(255 255 255 / 70%);
+    transition:     border-color 0.2s, background 0.2s, box-shadow 0.2s;
+    user-select:    auto;
+    pointer-events: auto;
+}
+
+#vcl-input::placeholder {
+    color: rgb(255 255 255 / 20%);
+    letter-spacing: 0;
+}
+
+#vcl-input:focus {
+    background:   rgb(255 255 255 / 10%);
+    border-color: rgb(255 255 255 / 26%);
+    box-shadow:   0 0 0 3px rgb(255 255 255 / 5%), 0 8px 28px rgb(0 0 0 / 30%);
+}
+
+#vcl-input.vcl-err {
+    border-color: rgb(255 100 100 / 50%);
+    box-shadow:   0 0 0 3px rgb(255 80 80 / 8%);
+    animation:    vcl-shake 0.34s ease;
+}
+
+#vcl-submit {
+    position:      absolute;
+    right:         10px;
+    top:           50%;
+    transform:     translateY(-50%);
+    background:    none;
+    border:        none;
+    color:         rgb(255 255 255 / 25%);
+    font-size:     12px;
+    cursor:        pointer;
+    padding:       6px 8px;
+    border-radius: 8px;
+    transition:    color 0.18s, background 0.18s;
+    line-height:   1;
+    display:       flex;
+    align-items:   center;
+    justify-content: center;
+}
+
+#vcl-submit:hover {
+    color: rgb(255 255 255 / 70%);
+    background: rgb(255 255 255 / 7%);
+}
+
+.pcl-delay {
+    display: none;
+    width:       280px;
+    margin-top:  10px;
+    font-family: 'gg sans','Noto Sans',system-ui,sans-serif;
+    font-size:   12.5px;
+    color:       rgb(255 120 120 / 90%);
+    align-items: center;
+    justify-content: center;
+    gap:         6px;
+    text-align:  center;
+    white-space: pre-wrap;
+    line-height: 1.2;
+}
+
+.pcl-delay-visible {
+    display: flex;
+}
+
+@keyframes vcl-shake {
+    0%,100% { transform: translateX(0);   }
+    20%,60% { transform: translateX(-6px); }
+    40%,80% { transform: translateX(6px);  }
+}
+
+/* ── Lock icon ─────────────────────────────────────────────────────────────────
+ * The icon was originally six animated GIFs fetched from a third-party image host on every
+ * client start. It is now the plugin's own inline SVG, animated here instead: no network
+ * request, no IP leak, a smaller bundle, and smoother motion than a GIF.
+ *
+ * Variants map to what the old GIFs conveyed:
+ *   intro   entrance flourish when the lock screen opens
+ *   shake   a wrong passcode was entered
+ *   rotate  the editor moved to its next step
+ * ── */
+
+.pcl-lockicon {
+    width:  64px;
+    height: 64px;
+
+    /* The SVG is drawn white; this lets the surrounding theme tint it. */
+    filter: drop-shadow(0 2px 8px rgb(0 0 0 / 45%));
+    transform-origin: center;
+}
+
+.pcl-lockicon-intro {
+    animation: pcl-icon-intro 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.pcl-lockicon-shake {
+    animation: pcl-icon-shake 0.45s ease;
+}
+
+.pcl-lockicon-rotate {
+    animation: pcl-icon-rotate 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes pcl-icon-intro {
+    from {
+        transform: scale(0.55) translateY(10px);
+        opacity: 0;
+    }
+
+    to {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+    }
+}
+
+@keyframes pcl-icon-shake {
+    0%, 100% { transform: translateX(0) rotate(0); }
+    20%      { transform: translateX(-7px) rotate(-6deg); }
+    40%      { transform: translateX(7px)  rotate(6deg); }
+    60%      { transform: translateX(-5px) rotate(-4deg); }
+    80%      { transform: translateX(5px)  rotate(4deg); }
+}
+
+@keyframes pcl-icon-rotate {
+    0% { transform: rotate(0)      scale(1);    }
+    50%  { transform: rotate(180deg) scale(0.85); }
+    100%   { transform: rotate(360deg) scale(1);    }
+}
