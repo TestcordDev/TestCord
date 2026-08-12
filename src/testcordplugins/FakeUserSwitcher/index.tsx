@@ -1387,7 +1387,8 @@ function syncSpoofState() {
 }
 
 function FakeUserSwitcherIcon({ className, style }: { className?: string; style?: React.CSSProperties; }) {
-    const active = isActive();
+    const activeTarget = getActiveTargetForGuild(undefined);
+    const active = !!activeTarget;
     const lineLength = 30;
     const lineStyle: React.CSSProperties = {
         strokeDasharray: lineLength,
@@ -1456,7 +1457,7 @@ function FakeUserSwitcherButton({ iconForeground, hideTooltips, nameplate }: Use
             icon={<FakeUserSwitcherIcon className={iconForeground} />}
             role="button"
             plated={nameplate != null}
-            redGlow={active}
+            redGlow={!active}
             onClick={() => {
                 if (settings.store.uiMode === "legacy") {
                     openModal(modalProps => <FakeUserProfileModal modalProps={modalProps as any} />);
