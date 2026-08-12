@@ -1387,11 +1387,12 @@ function syncSpoofState() {
 }
 
 function FakeUserSwitcherIcon({ className, style }: { className?: string; style?: React.CSSProperties; }) {
-    const active = isActive();
+    const activeTarget = getActiveTargetForGuild(undefined);
+    const active = !!activeTarget;
     const lineLength = 30;
     const lineStyle: React.CSSProperties = {
         strokeDasharray: lineLength,
-        strokeDashoffset: active ? lineLength : 0,
+        strokeDashoffset: !active ? lineLength : 0,
         transition: "stroke-dashoffset 0.1s ease-in-out",
     };
 

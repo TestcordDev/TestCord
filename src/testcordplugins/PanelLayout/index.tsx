@@ -542,7 +542,7 @@ function buildCSS(): string {
             lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }`);
 
             for (const id of Object.keys(buttonConfigs)) {
-                if (!getBtnCfg(id).background) {
+                if (getBtnCfg(id).background !== undefined && !getBtnCfg(id).background) {
                     lines.push(`
                         ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
                         ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
@@ -1267,7 +1267,10 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <Heading tag="h5">Aesthetics</Heading>
                             <Card variant="primary">
                                 <Dropdown label="Button Base Style" options={BUTTON_STYLES} value={s.buttonStyle} onChange={v => set("buttonStyle", v)} />
-                                <Dropdown label="Interaction Hover Effect" options={HOVER_EFFECTS} value={s.hoverEffect} onChange={v => set("hoverEffect", v)} />
+
+                                {settings.store.hoverEffect === "glow" && <>
+                                    <Dropdown label="Interaction Hover Effect" options={HOVER_EFFECTS} value={s.hoverEffect} onChange={v => set("hoverEffect", v)} />
+                                </>}
                             </Card>
 
                             <Heading tag="h5">Colorful Plugins</Heading>
