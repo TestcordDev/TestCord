@@ -605,7 +605,7 @@ const settings = definePluginSettings({
 
 function TestCordDiscordIcon({ original }: { original: any; }) {
     const { useTestcordIcon } = useSettings(["useTestcordIcon"]);
-    return useTestcordIcon ? <TestCordIcon size={24} /> : original;
+    return useTestcordIcon ? <TestCordIcon size={35} /> : original;
 }
 
 export default definePlugin({
