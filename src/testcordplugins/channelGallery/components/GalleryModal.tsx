@@ -222,4 +222,3 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
         </ModalRoot>
     );
 }
-

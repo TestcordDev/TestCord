@@ -1,0 +1,77 @@
+.vc-fiv-panel {
+    padding: 8px 0 16px;
+}
+
+.vc-fiv-list {
+    max-height: 420px;
+}
+
+.vc-fiv-empty {
+    padding: 24px 8px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.vc-fiv-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+    border-radius: 8px;
+}
+
+.vc-fiv-row:hover {
+    background: var(--background-modifier-hover);
+}
+
+.vc-fiv-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.vc-fiv-name,
+.vc-fiv-where {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-fiv-where {
+    color: var(--text-muted);
+}
+
+.vc-fiv-state {
+    margin-inline-start: 6px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--background-modifier-selected);
+    color: var(--text-danger);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.vc-fiv-join {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    background: var(--button-positive-background);
+    color: var(--white-500);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.vc-fiv-join:disabled {
+    background: var(--button-secondary-background);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.vc-fiv-join:hover:not(:disabled) {
+    background: var(--button-positive-background-hover);
+}

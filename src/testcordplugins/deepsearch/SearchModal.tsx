@@ -8,7 +8,7 @@ import { showNotification } from "@api/Notifications";
 import { classNameFactory } from "@utils/css";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, ModalSize, RenderModalProps } from "@utils/modal";
 import { saveFile } from "@utils/web";
-import { ChannelStore, GuildStore, IconUtils, NavigationRouter, React, SelectedChannelStore, SelectedGuildStore, UserStore, useCallback, useEffect, useRef, useState } from "@webpack/common";
+import { ChannelStore, GuildStore, IconUtils, NavigationRouter, React, SelectedChannelStore, SelectedGuildStore, useCallback, useEffect, useRef, UserStore, useState } from "@webpack/common";
 
 import { settings } from "./index";
 import { deepSearch, FilterState, loadLastQuery, saveLastQuery, SearchResult, SearchTarget } from "./search";

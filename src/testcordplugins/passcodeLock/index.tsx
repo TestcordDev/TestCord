@@ -84,7 +84,7 @@ const hex2binb = (hex: string) => Uint8Array.from(hex.match(/.{1,2}/g) ?? [], by
 // Marks which KDF produced a stored hash. Without it, changing the KDF would leave an existing
 // user permanently unable to unlock — their old hash could never match. On a mismatch the data
 // is treated as "no passcode set" so they are asked to choose a new one instead of being locked
-// out. (Nothing shipped with the old scheme in Esharq, but a silent lockout is not a risk worth
+// out. (Nothing shipped with the old scheme in Testcord, but a silent lockout is not a risk worth
 // leaving in place.)
 const KDF_VERSION = 2;
 const KDF_ITERATIONS = 600_000;

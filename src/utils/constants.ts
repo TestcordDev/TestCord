@@ -1515,6 +1515,52 @@ export const TestcordDevs = /* #__PURE__*/ Object.freeze({
     }
 } satisfies Record<string, Dev>);
 
+
+
+// OpenCord plugin authors
+export const OpenCordDevs = /* #__PURE__*/ Object.freeze({
+    MasuRii: {
+        name: "MasuRii",
+        id: 0n
+    }
+} satisfies Record<string, Dev>);
+
+export const OpenCordDevsById = /* #__PURE__*/ (() =>
+    Object.freeze(Object.fromEntries(
+        Object.entries(OpenCordDevs)
+            .filter(d => d[1].id !== 0n)
+            .map(([_, v]) => [v.id, v] as const)
+    ))
+)() as Record<string, Dev>;
+
+// MallCord plugin authors
+export const MallCordDevs = /* #__PURE__*/ Object.freeze({
+    Sharp: {
+        name: "Sharp",
+        id: 0n
+    },
+    lastclipped: {
+        name: "lastclipped",
+        id: 0n
+    },
+    VillainsRule: {
+        name: "VillainsRule",
+        id: 0n
+    },
+    nexpid: {
+        name: "Nexpid",
+        id: 853550207039832084n
+    }
+} satisfies Record<string, Dev>);
+
+export const MallCordDevsById = /* #__PURE__*/ (() =>
+    Object.freeze(Object.fromEntries(
+        Object.entries(MallCordDevs)
+            .filter(d => d[1].id !== 0n)
+            .map(([_, v]) => [v.id, v] as const)
+    ))
+)() as Record<string, Dev>;
+
 // Nightcord plugin authors / placeholders for nightcord-fork-only devs
 export const NightcordDevs = /* #__PURE__*/ Object.freeze({
     Nightcord: {

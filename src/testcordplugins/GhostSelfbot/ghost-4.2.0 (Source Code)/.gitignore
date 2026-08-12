@@ -1,0 +1,12 @@
+config.json
+*.pyc
+*.DS_Store
+__pycache__/
+*.egg-info/
+*.egg
+.venv/
+tokens.txt
+build/
+dist/
+Ghost.spec
+changelog.py

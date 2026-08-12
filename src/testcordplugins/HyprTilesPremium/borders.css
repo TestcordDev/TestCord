@@ -1,0 +1,39 @@
+/* Premium Border Features - Fixed */
+.vc-hyprtiles-premium-borders .vc-hyprtiles-tile {
+    border-width: var(--hyprtiles-border-width, 3px) !important;
+    border-style: solid !important;
+    border-radius: 10px !important;
+    position: relative !important;
+}
+
+/* Solid border */
+.vc-hyprtiles-premium-borders:not(.vc-hyprtiles-premium-gradient) .vc-hyprtiles-tile {
+    border-color: var(--hyprtiles-border-color, #7289da) !important;
+}
+
+/* Gradient borders */
+.vc-hyprtiles-premium-borders.vc-hyprtiles-premium-gradient .vc-hyprtiles-tile {
+    background-origin: border-box !important;
+    background-clip: padding-box, border-box !important;
+    border: var(--hyprtiles-border-width, 3px) solid transparent !important;
+}
+
+/* Animated gradient */
+.vc-hyprtiles-premium-borders.vc-hyprtiles-premium-gradient.vc-hyprtiles-premium-animated .vc-hyprtiles-tile {
+    animation: vc-hyprtiles-border-flow var(--hyprtiles-animation-speed, 6s) linear infinite !important;
+}
+
+/* Focused tile */
+.vc-hyprtiles-premium-borders .vc-hyprtiles-tile-focused {
+    box-shadow: 0 0 0 1px var(--hyprtiles-border-color, #7289da), 0 0 15px color-mix(in srgb, var(--hyprtiles-border-color, #7289da) 30%, transparent) !important;
+}
+
+.vc-hyprtiles-premium-hide-channel-name .vc-hyprtiles-tile-title {
+    display: none !important;
+}
+
+@keyframes vc-hyprtiles-border-flow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 200% 50%; }
+}

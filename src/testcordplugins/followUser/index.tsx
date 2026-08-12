@@ -369,6 +369,23 @@ const UserContext: NavContextMenuPatchCallback = (children, { user }: UserContex
     ));
 };
 
+export function follow(userId: string) {
+    settings.store.followUserId = userId;
+    settings.store.followedUsername = UserStore.getUser(userId)?.username ?? "";
+    if (settings.store.executeOnFollow) {
+        triggerFollow();
+    }
+}
+
+export function unfollow() {
+    settings.store.followUserId = "";
+    settings.store.followedUsername = "";
+}
+
+export function useFollowId() {
+    return settings.store.followUserId;
+}
+
 export default definePlugin({
     name: "FollowUser",
     description: "Adds a follow option in the user context menu to always be in the same VC as them",

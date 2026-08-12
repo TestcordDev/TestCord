@@ -14,9 +14,9 @@ import { getUniqueUsername } from "@utils/discord";
 import { sleep } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
-import type { GuildMember, Message, User } from "@vencord/discord-types";
+import type { GuildMember, User } from "@vencord/discord-types";
 import { findStoreLazy } from "@webpack";
-import { Button, ChannelStore, ContextMenuApi, Forms, GuildMemberStore, GuildRoleStore, GuildStore, Menu, PresenceStore, React, ScrollerThin, SelectedChannelStore, SelectedGuildStore, Select, TabBar, Text, TextInput, Toasts, UserProfileStore, UserStore, useEffect, useRef, useState } from "@webpack/common";
+import { Button, ChannelStore, ContextMenuApi, Forms, GuildMemberStore, GuildRoleStore, GuildStore, Menu, PresenceStore, React, ScrollerThin, Select, SelectedChannelStore, SelectedGuildStore, TabBar, Text, TextInput, Toasts, useEffect, useRef, UserProfileStore, UserStore, useState } from "@webpack/common";
 
 const ChannelMemberStore = findStoreLazy("ChannelMemberStore") as {
     getProps(guildId?: string, channelId?: string): { groups: { count: number; id: string; }[]; };
@@ -536,8 +536,8 @@ function toYamlString(obj: any, indent = 0): string {
 function buildMessagesHtml(messages: RichMessage[], channelName: string): string {
     const rows = messages.map(m => {
         const d = new Date(m.timestamp).toLocaleString();
-        const edited = m.editedAt ? `<span class="edited">(edited)</span>` : "";
-        const pinned = m.pinned ? `<span class="pin">[pinned]</span>` : "";
+        const edited = m.editedAt ? "<span class=\"edited\">(edited)</span>" : "";
+        const pinned = m.pinned ? "<span class=\"pin\">[pinned]</span>" : "";
         const avatarUrl = m.authorAvatar
             ? `https://cdn.discordapp.com/avatars/${m.authorId}/${m.authorAvatar}.webp?size=32`
             : `https://cdn.discordapp.com/embed/avatars/${Math.abs(Number((BigInt(m.authorId || "0") >> 22n) % 6n))}.png`;
@@ -640,19 +640,19 @@ function buildMessagesXml(messages: RichMessage[], channelName: string): string 
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<exporter type="messages">',
         `  <channel name="${escapeXml(channelName)}" exportedAt="${new Date().toISOString()}" count="${messages.length}"/>`,
-        '  <messages>'
+        "  <messages>"
     ];
     for (const m of messages) {
         lines.push(`    <message id="${m.id}" timestamp="${m.timestamp}" authorId="${m.authorId}" authorName="${escapeXml(m.authorName)}" deleted="${m.deleted ? "true" : "false"}">`);
         lines.push(`      <content>${escapeXml(m.content)}</content>`);
         if (m.attachments.length) {
-            lines.push('      <attachments>');
+            lines.push("      <attachments>");
             for (const a of m.attachments) lines.push(`        <attachment filename="${escapeXml(a.filename)}" size="${a.size}" url="${escapeXml(a.url)}"/>`);
-            lines.push('      </attachments>');
+            lines.push("      </attachments>");
         }
-        lines.push('    </message>');
+        lines.push("    </message>");
     }
-    lines.push('  </messages>', '</exporter>');
+    lines.push("  </messages>", "</exporter>");
     return lines.join("\n");
 }
 
@@ -701,18 +701,18 @@ function buildMembersHtml(members: SerializedUser[], title: string): string {
       <span class="status-dot ${statusClass}"></span>
     </div>
     <div class="user-names">
-      <div class="display-name">${escapeXml(m.nickname || m.globalName || m.username)}${m.bot ? ' <span class="bot-tag">BOT</span>' : ''}</div>
-      <div class="handle">@${escapeXml(m.username)} ${m.discriminator !== '0' ? `#${m.discriminator}` : ''} • ID: ${m.id}</div>
+      <div class="display-name">${escapeXml(m.nickname || m.globalName || m.username)}${m.bot ? ' <span class="bot-tag">BOT</span>' : ""}</div>
+      <div class="handle">@${escapeXml(m.username)} ${m.discriminator !== "0" ? `#${m.discriminator}` : ""} • ID: ${m.id}</div>
     </div>
   </div>
   <div class="card-body">
-    ${m.customStatus ? `<div class="status-text">${escapeXml(m.customStatus)}</div>` : ''}
-    ${m.bio && settings.store.includeProfileDetails ? `<div class="bio">${escapeXml(m.bio)}</div>` : ''}
-    ${m.pronouns && settings.store.includeProfileDetails ? `<div class="meta-row"><b>Pronouns:</b> ${escapeXml(m.pronouns)}</div>` : ''}
+    ${m.customStatus ? `<div class="status-text">${escapeXml(m.customStatus)}</div>` : ""}
+    ${m.bio && settings.store.includeProfileDetails ? `<div class="bio">${escapeXml(m.bio)}</div>` : ""}
+    ${m.pronouns && settings.store.includeProfileDetails ? `<div class="meta-row"><b>Pronouns:</b> ${escapeXml(m.pronouns)}</div>` : ""}
     <div class="meta-row"><b>Created:</b> ${new Date(m.createdAt).toLocaleDateString()} (${m.accountAgeDays}d ago)</div>
-    ${m.joinedAt ? `<div class="meta-row"><b>Joined:</b> ${new Date(m.joinedAt).toLocaleDateString()} (${m.serverTenureDays}d ago)</div>` : ''}
-    ${badgeTags ? `<div class="badges-row">${badgeTags}</div>` : ''}
-    ${roleTags ? `<div class="roles-row">${roleTags}</div>` : ''}
+    ${m.joinedAt ? `<div class="meta-row"><b>Joined:</b> ${new Date(m.joinedAt).toLocaleDateString()} (${m.serverTenureDays}d ago)</div>` : ""}
+    ${badgeTags ? `<div class="badges-row">${badgeTags}</div>` : ""}
+    ${roleTags ? `<div class="roles-row">${roleTags}</div>` : ""}
   </div>
 </div>`;
     }).join("");
@@ -782,7 +782,7 @@ function buildMembersXml(members: SerializedUser[], title: string): string {
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<exporter type="memberlist">',
         `  <meta title="${escapeXml(title)}" exportedAt="${new Date().toISOString()}" count="${members.length}"/>`,
-        '  <members>'
+        "  <members>"
     ];
 
     for (const m of members) {
@@ -791,14 +791,14 @@ function buildMembersXml(members: SerializedUser[], title: string): string {
         if (m.joinedAt) lines.push(`      <joinedAt>${m.joinedAt}</joinedAt>`);
         lines.push(`      <status>${escapeXml(m.status)}</status>`);
         if (m.roles.length) {
-            lines.push('      <roles>');
+            lines.push("      <roles>");
             for (const r of m.roles) lines.push(`        <role id="${r.id}" name="${escapeXml(r.name)}" colorHex="${r.colorHex}"/>`);
-            lines.push('      </roles>');
+            lines.push("      </roles>");
         }
-        lines.push('    </member>');
+        lines.push("    </member>");
     }
 
-    lines.push('  </members>', '</exporter>');
+    lines.push("  </members>", "</exporter>");
     return lines.join("\n");
 }
 
@@ -826,7 +826,7 @@ function buildMembersBbcode(members: SerializedUser[], title: string): string {
 }
 
 async function saveOrDownloadFile(content: string, filename: string, mime: string = "text/plain"): Promise<boolean> {
-    const DiscordNative = (window as any).DiscordNative;
+    const { DiscordNative } = (window as any);
     if (DiscordNative?.fileManager?.saveWithDialog) {
         try {
             const data = new TextEncoder().encode(content);
@@ -1033,7 +1033,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
 
             // 2. Export Messages Only
             else if (tab === "messages") {
-                let targetChannels = channels.filter(c => selectedChannels.has(c.id));
+                const targetChannels = channels.filter(c => selectedChannels.has(c.id));
                 for (let i = 0; i < targetChannels.length; i++) {
                     if (controller.signal.aborted) return;
                     const ch = targetChannels[i];

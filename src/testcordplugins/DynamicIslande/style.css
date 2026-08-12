@@ -1,0 +1,763 @@
+/*
+ * Nightcord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+.vc-esharq-dynamic-island-root {
+    position: fixed;
+    z-index: 10000;
+    top: 40px;
+    left: 50%;
+    width: min(340px, calc(100vw - 420px));
+    min-width: 260px;
+    color: var(--text-default);
+    background: var(--background-floating);
+    border: 1px solid var(--border-subtle);
+    border-radius: 24px;
+    box-shadow: var(--shadow-high);
+    overflow: hidden;
+    cursor: pointer;
+    pointer-events: auto;
+    isolation: isolate;
+    transform: translateX(-50%);
+    animation: vc-esharq-dynamic-island-arrive 700ms cubic-bezier(.16, 1, .3, 1);
+    transition: width 560ms cubic-bezier(.16, 1, .3, 1), border-radius 480ms cubic-bezier(.16, 1, .3, 1), box-shadow 400ms ease, transform 400ms cubic-bezier(.16, 1, .3, 1), background-color 300ms ease;
+    app-region: no-drag;
+    -webkit-app-region: no-drag;
+}
+
+.vc-esharq-dynamic-island-root:has(~ .vc-esharq-dynamic-island-root) {
+    display: none;
+}
+
+.vc-esharq-dynamic-island-root::before,
+.vc-esharq-dynamic-island-root::after {
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    content: "";
+}
+
+.vc-esharq-dynamic-island-root::before {
+    inset: -160% -60%;
+    background: conic-gradient(from 0deg, transparent 0 36%, color-mix(in srgb, var(--brand-500) 42%, transparent) 45%, color-mix(in srgb, var(--green-360) 35%, transparent) 52%, transparent 61% 100%);
+    opacity: 0;
+    transform: rotate(0deg);
+    transition: opacity 500ms ease;
+}
+
+.vc-esharq-dynamic-island-root::after {
+    inset: 0;
+    background: linear-gradient(105deg, transparent 18%, rgb(255 255 255 / 12%) 42%, transparent 62%);
+    opacity: 0;
+    transform: translateX(-110%);
+}
+
+.vc-esharq-dynamic-island-root > * {
+    position: relative;
+    z-index: 1;
+}
+
+.vc-esharq-dynamic-island-color-transparent {
+    background: transparent;
+}
+
+.vc-esharq-dynamic-island-color-amoled {
+    --background-floating: #000;
+    --background-mod-subtle: #111;
+    --background-mod-strong: #1a1a1a;
+    --background-modifier-hover: #242424;
+    --border-subtle: #2b2b2b;
+    --border-strong: #555;
+    --text-default: #dbdee1;
+    --header-primary: #fff;
+    --text-muted: #aeb1b6;
+    --interactive-normal: #b5bac1;
+    --interactive-hover: #fff;
+}
+
+.vc-esharq-dynamic-island-color-white {
+    --background-floating: #fff;
+    --background-mod-subtle: #f2f3f5;
+    --background-mod-strong: #e3e5e8;
+    --background-modifier-hover: #d9dce1;
+    --border-subtle: #d4d7dc;
+    --border-strong: #9da2aa;
+    --text-default: #313338;
+    --header-primary: #111214;
+    --text-muted: #5c5e66;
+    --interactive-normal: #4e5058;
+    --interactive-hover: #111214;
+}
+
+.vc-esharq-dynamic-island-color-blue {
+    --background-floating: #c9edff;
+    --background-mod-subtle: #b8e5fb;
+    --background-mod-strong: #a6dcf7;
+    --background-modifier-hover: #92d1f0;
+    --border-subtle: #75bddd;
+    --border-strong: #438dac;
+    --text-default: #173849;
+    --header-primary: #092635;
+    --text-muted: #41697b;
+    --interactive-normal: #285b72;
+    --interactive-hover: #092635;
+}
+
+.vc-esharq-dynamic-island-color-pink {
+    --background-floating: #ffd6e9;
+    --background-mod-subtle: #f8c6dd;
+    --background-mod-strong: #efb4d0;
+    --background-modifier-hover: #e8a2c3;
+    --border-subtle: #d98eb2;
+    --border-strong: #a94e79;
+    --text-default: #57253d;
+    --header-primary: #351225;
+    --text-muted: #84546b;
+    --interactive-normal: #77405a;
+    --interactive-hover: #351225;
+}
+
+.vc-esharq-dynamic-island-root * {
+    app-region: no-drag;
+    -webkit-app-region: no-drag;
+}
+
+.vc-esharq-dynamic-island-root:hover,
+.vc-esharq-dynamic-island-root:focus-visible,
+.vc-esharq-dynamic-island-root-expanded {
+    box-shadow: var(--shadow-high), 0 0 0 1px var(--border-strong);
+}
+
+.vc-esharq-dynamic-island-root:hover {
+    transform: translateX(-50%) translateY(-2px) scale(1.008);
+}
+
+.vc-esharq-dynamic-island-root:hover::after {
+    animation: vc-esharq-dynamic-island-shine 900ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.vc-esharq-dynamic-island-root:active {
+    transform: translateX(-50%) scale(.992);
+    transition-duration: 120ms;
+}
+
+.vc-esharq-dynamic-island-root-expanded {
+    width: min(440px, calc(100vw - 320px));
+    border-radius: 20px;
+}
+
+.vc-esharq-dynamic-island-root-notification {
+    width: min(420px, calc(100vw - 360px));
+    border-color: color-mix(in srgb, var(--brand-500) 65%, var(--border-subtle));
+    border-radius: 18px;
+    box-shadow: var(--shadow-high), 0 0 28px color-mix(in srgb, var(--brand-500) 28%, transparent);
+    animation: vc-esharq-dynamic-island-arrive 700ms cubic-bezier(.16, 1, .3, 1), vc-esharq-dynamic-island-notification-expire 1ms 5s forwards;
+}
+
+.vc-esharq-dynamic-island-root-sharing {
+    border-color: color-mix(in srgb, var(--brand-500) 55%, var(--border-subtle));
+    box-shadow: var(--shadow-high), 0 0 24px color-mix(in srgb, var(--brand-500) 18%, transparent);
+}
+
+.vc-esharq-dynamic-island-root-expanded::before {
+    opacity: .55;
+    animation: vc-esharq-dynamic-island-aurora 8s linear infinite;
+}
+
+.vc-esharq-dynamic-island-summary {
+    display: flex;
+    height: 38px;
+    padding: 3px 8px 3px 5px;
+    align-items: center;
+    gap: 8px;
+    cursor: grab;
+    touch-action: pan-y;
+    user-select: none;
+    transition: height 450ms cubic-bezier(.16, 1, .3, 1), padding 450ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.vc-esharq-dynamic-island-summary:active {
+    cursor: grabbing;
+}
+
+.vc-esharq-dynamic-island-root-expanded .vc-esharq-dynamic-island-summary {
+    height: 44px;
+    padding: 5px 10px 3px 7px;
+}
+
+.vc-esharq-dynamic-island-root-notification .vc-esharq-dynamic-island-summary {
+    height: 46px;
+    padding: 5px 10px 5px 6px;
+}
+
+.vc-esharq-dynamic-island-summary-cover,
+.vc-esharq-dynamic-island-cover,
+.vc-esharq-dynamic-island-notification-avatar {
+    flex: none;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.vc-esharq-dynamic-island-notification-avatar {
+    width: 34px;
+    height: 34px;
+    border: 2px solid color-mix(in srgb, var(--brand-500) 70%, white);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--brand-500) 42%, transparent);
+    animation: vc-esharq-dynamic-island-notification-avatar 700ms cubic-bezier(.16, 1, .3, 1), vc-esharq-dynamic-island-notification-avatar-expire 1ms 5s forwards;
+}
+
+.vc-esharq-dynamic-island-summary-cover {
+    width: 32px;
+    height: 32px;
+    animation: vc-esharq-dynamic-island-art-enter 650ms cubic-bezier(.16, 1, .3, 1);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 24%);
+    transition: border-radius 450ms cubic-bezier(.16, 1, .3, 1), transform 450ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.vc-esharq-dynamic-island-root-playing .vc-esharq-dynamic-island-summary-cover {
+    animation: vc-esharq-dynamic-island-art-enter 650ms cubic-bezier(.16, 1, .3, 1), vc-esharq-dynamic-island-art-float 4s 650ms ease-in-out infinite;
+}
+
+.vc-esharq-dynamic-island-root-expanded .vc-esharq-dynamic-island-summary-cover {
+    border-radius: 10px;
+    transform: rotate(-3deg) scale(1.08);
+}
+
+.vc-esharq-dynamic-island-cover {
+    width: 40px;
+    height: 40px;
+}
+
+.vc-esharq-dynamic-island-summary-icon {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+    color: var(--green-360);
+    background: var(--background-mod-subtle);
+    border-radius: 50%;
+    animation: vc-esharq-dynamic-island-icon-breathe 3s ease-in-out infinite;
+}
+
+.vc-esharq-dynamic-island-stream-icon {
+    color: var(--brand-500);
+    background: color-mix(in srgb, var(--brand-500) 18%, var(--background-mod-subtle));
+    border-radius: 9px;
+    animation: vc-esharq-dynamic-island-stream-icon 2.4s ease-in-out infinite;
+}
+
+.vc-esharq-dynamic-island-summary-copy,
+.vc-esharq-dynamic-island-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+}
+
+.vc-esharq-dynamic-island-summary-copy {
+    animation: vc-esharq-dynamic-island-copy-enter 500ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.vc-esharq-dynamic-island-summary-copy strong,
+.vc-esharq-dynamic-island-summary-copy span,
+.vc-esharq-dynamic-island-copy strong,
+.vc-esharq-dynamic-island-copy span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-esharq-dynamic-island-summary-copy strong,
+.vc-esharq-dynamic-island-copy strong {
+    color: var(--header-primary);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.vc-esharq-dynamic-island-summary-copy span,
+.vc-esharq-dynamic-island-copy span,
+.vc-esharq-dynamic-island-empty {
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.vc-esharq-dynamic-island-notification-progress {
+    position: absolute;
+    z-index: 2;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--brand-500), var(--green-360));
+    box-shadow: 0 0 8px var(--brand-500);
+    transform-origin: left;
+    animation: vc-esharq-dynamic-island-notification-progress 5s linear forwards;
+}
+
+.vc-esharq-dynamic-island-live-dot {
+    width: 7px;
+    height: 7px;
+    flex: none;
+    background: var(--green-360);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--green-360);
+    animation: vc-esharq-dynamic-island-live 1.8s ease-in-out infinite;
+}
+
+.vc-esharq-dynamic-island-visualizer {
+    display: flex;
+    width: 15px;
+    height: 15px;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+.vc-esharq-dynamic-island-visualizer span {
+    width: 2px;
+    height: 3px;
+    background: var(--green-360);
+    border-radius: 2px;
+    box-shadow: 0 0 5px color-mix(in srgb, var(--green-360) 60%, transparent);
+    animation: vc-esharq-dynamic-island-equalize 750ms ease-in-out infinite alternate;
+}
+
+.vc-esharq-dynamic-island-visualizer span:nth-child(2) {
+    animation-delay: -520ms;
+    animation-duration: 580ms;
+}
+
+.vc-esharq-dynamic-island-visualizer span:nth-child(3) {
+    animation-delay: -260ms;
+    animation-duration: 920ms;
+}
+
+.vc-esharq-dynamic-island-pages {
+    display: flex;
+    height: 14px;
+    flex: none;
+    align-items: center;
+    gap: 3px;
+}
+
+.vc-esharq-dynamic-island-page {
+    width: 4px;
+    height: 4px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    opacity: .45;
+    transition: width 350ms cubic-bezier(.16, 1, .3, 1), background-color 250ms ease, opacity 250ms ease;
+}
+
+.vc-esharq-dynamic-island-page-active {
+    width: 11px;
+    background: var(--brand-500);
+    border-radius: 4px;
+    opacity: 1;
+}
+
+.vc-esharq-dynamic-island-root:not(.vc-esharq-dynamic-island-root-playing) .vc-esharq-dynamic-island-visualizer span {
+    animation-play-state: paused;
+}
+
+.vc-esharq-dynamic-island-panel-shell {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px) scale(.975);
+    transform-origin: top center;
+    transition: grid-template-rows 560ms cubic-bezier(.16, 1, .3, 1), opacity 260ms ease, transform 560ms cubic-bezier(.16, 1, .3, 1), visibility 0s linear 560ms;
+}
+
+.vc-esharq-dynamic-island-root-expanded .vc-esharq-dynamic-island-panel-shell {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+    transition: grid-template-rows 620ms cubic-bezier(.16, 1, .3, 1), opacity 350ms 80ms ease, transform 620ms cubic-bezier(.16, 1, .3, 1), visibility 0s;
+}
+
+.vc-esharq-dynamic-island-panel-clip {
+    min-height: 0;
+    overflow: hidden;
+}
+
+.vc-esharq-dynamic-island-panel {
+    display: flex;
+    padding: 4px 8px 9px;
+    flex-direction: column;
+    gap: 6px;
+    cursor: default;
+}
+
+.vc-esharq-dynamic-island-section {
+    display: flex;
+    min-width: 0;
+    padding: 8px;
+    align-items: center;
+    gap: 10px;
+    background: var(--background-mod-subtle);
+    border-radius: 14px;
+    box-shadow: inset 0 1px rgb(255 255 255 / 5%);
+    opacity: 0;
+    transform: translateY(-10px) scale(.96);
+    transition: background-color 250ms ease, box-shadow 250ms ease, opacity 250ms ease, transform 250ms ease;
+}
+
+.vc-esharq-dynamic-island-root-expanded .vc-esharq-dynamic-island-section {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    transition: background-color 250ms ease, box-shadow 250ms ease, opacity 420ms 120ms ease, transform 600ms 80ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.vc-esharq-dynamic-island-root-expanded .vc-esharq-dynamic-island-section:nth-child(2) {
+    transition-delay: 0ms, 0ms, 190ms, 150ms;
+}
+
+.vc-esharq-dynamic-island-root-expanded .vc-esharq-dynamic-island-section:nth-child(3) {
+    transition-delay: 0ms, 0ms, 260ms, 220ms;
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+.vc-esharq-dynamic-island-section:hover {
+    background: var(--background-mod-strong);
+    box-shadow: inset 0 1px rgb(255 255 255 / 8%), 0 8px 24px rgb(0 0 0 / 12%);
+}
+
+.vc-esharq-dynamic-island-section-info {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: 9px;
+}
+
+.vc-esharq-dynamic-island-controls {
+    display: flex;
+    flex: none;
+    gap: 4px;
+}
+
+.vc-esharq-dynamic-island-control {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 7px;
+    color: var(--interactive-normal);
+    background: var(--background-mod-strong);
+    border-radius: 50%;
+    transition: color 200ms ease, background-color 200ms ease, box-shadow 250ms ease, transform 400ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.vc-esharq-dynamic-island-control-compact {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    padding: 6px;
+    color: var(--interactive-active);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, currentcolor 24%, transparent);
+}
+
+.vc-esharq-dynamic-island-control:hover {
+    color: var(--interactive-hover);
+    background: var(--background-modifier-hover);
+    box-shadow: 0 6px 16px rgb(0 0 0 / 20%);
+    transform: translateY(-2px) scale(1.1);
+}
+
+.vc-esharq-dynamic-island-control:active {
+    transform: scale(.86);
+    transition-duration: 100ms;
+}
+
+.vc-esharq-dynamic-island-control-active {
+    color: var(--green-360);
+}
+
+.vc-esharq-dynamic-island-control-danger {
+    color: var(--red-400);
+}
+
+.vc-esharq-dynamic-island-control svg {
+    display: block;
+    width: 18px;
+    height: 18px;
+}
+
+.vc-esharq-dynamic-island-voice-icon {
+    position: relative;
+    display: block;
+    width: 18px;
+    height: 18px;
+}
+
+.vc-esharq-dynamic-island-slash {
+    position: absolute;
+    top: -2px;
+    left: 8px;
+    width: 2.5px;
+    height: 22px;
+    background: currentcolor;
+    border-radius: 3px;
+    box-shadow: 0 0 0 1.5px var(--background-mod-strong), 0 0 8px currentcolor;
+    opacity: 0;
+    transform: rotate(45deg) scaleY(0);
+    transition: opacity 160ms ease, transform 500ms cubic-bezier(.34, 1.56, .64, 1);
+}
+
+.vc-esharq-dynamic-island-voice-icon-slashed .vc-esharq-dynamic-island-slash {
+    opacity: 1;
+    transform: rotate(45deg) scaleY(1);
+}
+
+.vc-esharq-dynamic-island-call-indicator {
+    position: relative;
+    display: grid;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    place-items: center;
+    background: var(--green-360-20a);
+    border-radius: 50%;
+}
+
+.vc-esharq-dynamic-island-call-indicator::before,
+.vc-esharq-dynamic-island-call-indicator::after {
+    position: absolute;
+    inset: 6px;
+    border: 1px solid var(--green-360);
+    border-radius: 50%;
+    content: "";
+    animation: vc-esharq-dynamic-island-call-wave 2.4s ease-out infinite;
+}
+
+.vc-esharq-dynamic-island-call-indicator::after {
+    animation-delay: -1.2s;
+}
+
+/* stylelint-disable-next-line no-descending-specificity */
+.vc-esharq-dynamic-island-call-indicator span {
+    width: 12px;
+    height: 12px;
+    background: var(--green-360);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--green-360);
+}
+
+.vc-esharq-dynamic-island-screen-section {
+    background: color-mix(in srgb, var(--brand-500) 10%, var(--background-mod-subtle));
+}
+
+.vc-esharq-dynamic-island-stream-indicator {
+    position: relative;
+    display: grid;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    overflow: hidden;
+    color: var(--brand-500);
+    background: color-mix(in srgb, var(--brand-500) 18%, var(--background-mod-strong));
+    border-radius: 12px;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brand-500) 30%, transparent), 0 0 18px color-mix(in srgb, var(--brand-500) 16%, transparent);
+    place-items: center;
+}
+
+.vc-esharq-dynamic-island-stream-indicator::after {
+    position: absolute;
+    right: 4px;
+    left: 4px;
+    height: 1px;
+    background: color-mix(in srgb, var(--brand-500) 75%, white);
+    box-shadow: 0 0 7px var(--brand-500);
+    content: "";
+    animation: vc-esharq-dynamic-island-stream-scan 2s ease-in-out infinite;
+}
+
+.vc-esharq-dynamic-island-stream-indicator svg {
+    width: 23px;
+    height: 23px;
+}
+
+@keyframes vc-esharq-dynamic-island-arrive {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-18px) scale(.86);
+    }
+}
+
+@keyframes vc-esharq-dynamic-island-shine {
+    0% {
+        opacity: 0;
+        transform: translateX(-110%);
+    }
+
+    35% {
+        opacity: 1;
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateX(110%);
+    }
+}
+
+@keyframes vc-esharq-dynamic-island-aurora {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes vc-esharq-dynamic-island-art-enter {
+    from {
+        opacity: 0;
+        transform: scale(.5) rotate(-18deg);
+    }
+}
+
+@keyframes vc-esharq-dynamic-island-art-float {
+    50% { transform: translateY(-1px) rotate(2deg) scale(1.04); }
+}
+
+@keyframes vc-esharq-dynamic-island-copy-enter {
+    from {
+        opacity: 0;
+        transform: translateX(-8px);
+        filter: blur(4px);
+    }
+}
+
+@keyframes vc-esharq-dynamic-island-icon-breathe {
+    50% {
+        color: var(--interactive-hover);
+        box-shadow: 0 0 20px color-mix(in srgb, var(--green-360) 35%, transparent);
+        transform: scale(1.06);
+    }
+}
+
+@keyframes vc-esharq-dynamic-island-live {
+    50% {
+        box-shadow: 0 0 14px var(--green-360);
+        transform: scale(.72);
+    }
+}
+
+@keyframes vc-esharq-dynamic-island-equalize {
+    to { height: 14px; }
+}
+
+@keyframes vc-esharq-dynamic-island-call-wave {
+    from {
+        opacity: .8;
+        transform: scale(.3);
+    }
+
+    to {
+        opacity: 0;
+        transform: scale(1.35);
+    }
+}
+
+@keyframes vc-esharq-dynamic-island-notification-avatar {
+    0% {
+        opacity: 0;
+        transform: scale(.3) rotate(-20deg);
+    }
+
+    60% { transform: scale(1.12) rotate(3deg); }
+}
+
+@keyframes vc-esharq-dynamic-island-notification-avatar-expire {
+    100% {
+        display: none;
+        visibility: hidden;
+        opacity: 0;
+    }
+}
+
+@keyframes vc-esharq-dynamic-island-notification-expire {
+    100% { display: none; }
+}
+
+@keyframes vc-esharq-dynamic-island-notification-progress {
+    to { transform: scaleX(0); }
+}
+
+@keyframes vc-esharq-dynamic-island-stream-icon {
+    50% {
+        box-shadow: 0 0 22px color-mix(in srgb, var(--brand-500) 40%, transparent);
+        transform: scale(1.06);
+    }
+}
+
+@keyframes vc-esharq-dynamic-island-stream-scan {
+    0%, 100% {
+        opacity: .2;
+        transform: translateY(-12px);
+    }
+
+    50% {
+        opacity: 1;
+        transform: translateY(12px);
+    }
+}
+
+.vc-esharq-dynamic-island-empty {
+    padding: 14px;
+    text-align: center;
+}
+
+@media (width <= 760px) {
+    .vc-esharq-dynamic-island-root,
+    .vc-esharq-dynamic-island-root-expanded,
+    .vc-esharq-dynamic-island-root-notification {
+        width: min(360px, calc(100vw - 24px));
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vc-esharq-dynamic-island-root,
+    .vc-esharq-dynamic-island-root::before,
+    .vc-esharq-dynamic-island-root::after,
+    .vc-esharq-dynamic-island-root *,
+    .vc-esharq-dynamic-island-root *::before,
+    .vc-esharq-dynamic-island-root *::after {
+        animation: none;
+        transition-duration: 1ms;
+        transition-delay: 0s;
+    }
+
+    .vc-esharq-dynamic-island-root .vc-esharq-dynamic-island-notification-avatar {
+        animation: vc-esharq-dynamic-island-notification-avatar-expire 1ms 5s forwards;
+    }
+
+    .vc-esharq-dynamic-island-root-notification {
+        animation: vc-esharq-dynamic-island-notification-expire 1ms 5s forwards;
+    }
+}
+
+.vc-esharq-dynamic-island-voice-participants-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.vc-esharq-dynamic-island-voice-participants-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.vc-esharq-dynamic-island-voice-participants-list::-webkit-scrollbar-thumb {
+    background: rgb(255 255 255 / 15%);
+    border-radius: 99px;
+}
+
+.vc-esharq-dynamic-island-voice-participants-list::-webkit-scrollbar-thumb:hover {
+    background: rgb(255 255 255 / 30%);
+}
+
+.vc-esharq-dynamic-island-participant-row {
+    background: transparent;
+}
+
+.vc-esharq-dynamic-island-participant-row:hover {
+    background: var(--background-modifier-hover);
+}

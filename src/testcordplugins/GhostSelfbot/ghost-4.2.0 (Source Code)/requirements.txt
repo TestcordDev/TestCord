@@ -1,0 +1,20 @@
+art
+colorama
+git+https://github.com/dolfies/discord.py-self.git
+Faker
+requests
+pillow
+pystyle
+psutil
+pycryptodome
+ttkbootstrap==1.14.2
+pyinstaller
+# git+https://github.com/tomlin7/cupcake.git
+cupcake-editor
+filetype
+toml
+pygments
+certifi
+git+https://github.com/ghostselfbot/discord.py-self_embed.git
+bs4
+hPyT; sys_platform == "win32"

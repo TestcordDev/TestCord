@@ -8,8 +8,8 @@ import { createStore, del, entries, set } from "@api/DataStore";
 import { copyWithToast, openUserProfile } from "@utils/discord";
 import { findByPropsLazy } from "@webpack";
 import {
-    Avatar, Button, React, RelationshipStore, RestAPI, TextInput, Toasts, UserProfileStore, UserStore, UserUtils,
-    useCallback, useEffect, useMemo, useRef, useState
+    Avatar, Button, React, RelationshipStore, RestAPI, TextInput, Toasts, useCallback, useEffect, useMemo, useRef, UserProfileStore, UserStore, UserUtils,
+useState
 } from "@webpack/common";
 
 import { deleteUserNotes as deletePluginNote, saveUserNotes as savePluginNote, usersNotes as userNotesPluginMap } from "../../userNotes/data";
@@ -38,7 +38,7 @@ export function NoteSearchTab() {
 
     const updatePillPosition = useCallback(() => {
         if (!filtersContainerRef.current) return;
-        const activeBtn = filtersContainerRef.current.querySelector<HTMLButtonElement>('.vc-note-search-filter-btn.active');
+        const activeBtn = filtersContainerRef.current.querySelector<HTMLButtonElement>(".vc-note-search-filter-btn.active");
         if (activeBtn) {
             setPillStyle({
                 left: `${activeBtn.offsetLeft}px`,

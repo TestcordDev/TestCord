@@ -1,0 +1,30 @@
+{
+  "plugin": {
+    "name": "MullvadDNSCord",
+    "version": "1.2.0",
+    "author": "Irritably",
+    "description": "Force Discord to use Mullvad VPN DNS servers for enhanced privacy"
+  },
+  "features": {
+    "enableLogging": true,
+    "showNotifications": true,
+    "enableXHR": false,
+    "autoStart": true
+  },
+  "dnsRecords": {
+    "discord.com": "162.159.137.233",
+    "gateway.discord.gg": "162.159.135.233",
+    "media.discordapp.net": "152.67.79.60",
+    "cdn.discordapp.com": "152.67.72.12",
+    "status.discord.com": "104.18.33.247",
+    "ptb.discord.com": "162.159.137.233",
+    "canary.discord.com": "162.159.137.233",
+    "discordapp.net": "152.67.79.60"
+  },
+  "advanced": {
+    "cacheTTL": 3600000,
+    "maxCacheSize": 100,
+    "debugMode": false,
+    "preventRecursion": true
+  }
+}
