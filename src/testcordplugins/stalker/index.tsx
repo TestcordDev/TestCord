@@ -59,6 +59,9 @@ interface UserLogCache {
 const cachedLogsPerUser = new Map<string, UserLogCache>();
 const writeLocks = new Map<string, Promise<void>>();
 const typingNotificationCooldowns = new Map<string, number>();
+const pendingWrites = new Map<string, StalkerLogEntry[]>();
+const writeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const WRITE_DEBOUNCE_MS = 2000;
 
 function getTodayDate(): string {
     return new Date().toISOString().slice(0, 10);
@@ -86,32 +89,40 @@ function getCacheForUser(userId: string): UserLogCache | undefined {
     return cache;
 }
 
-export async function logStalkerEvent(entry: StalkerLogEntry) {
+export function logStalkerEvent(entry: StalkerLogEntry) {
     if (!settings.store.enableLogging) return;
     if (!Native?.writeStalkerLog) return;
 
-    const previousLock = writeLocks.get(entry.userId) ?? Promise.resolve();
+    const pending = pendingWrites.get(entry.userId) ?? [];
+    pending.push(entry);
+    pendingWrites.set(entry.userId, pending);
 
-    const newLock = previousLock.then(async () => {
-        try {
-            let cache = getCacheForUser(entry.userId);
+    const existing = writeTimers.get(entry.userId);
+    if (existing) return;
 
-            if (!cache) {
-                const logs = await getLogsFromFile(entry.userId, entry.username);
-                cache = { logs, date: getTodayDate() };
-                cachedLogsPerUser.set(entry.userId, cache);
+    writeTimers.set(entry.userId, setTimeout(async () => {
+        writeTimers.delete(entry.userId);
+        const entries = pendingWrites.get(entry.userId) ?? [];
+        pendingWrites.delete(entry.userId);
+
+        const previousLock = writeLocks.get(entry.userId) ?? Promise.resolve();
+        const newLock = previousLock.then(async () => {
+            try {
+                let cache = getCacheForUser(entry.userId);
+                if (!cache) {
+                    const logs = await getLogsFromFile(entry.userId, entry.username);
+                    cache = { logs, date: getTodayDate() };
+                    cachedLogsPerUser.set(entry.userId, cache);
+                }
+                cache.logs.push(...entries);
+                await Native.writeStalkerLog(JSON.stringify(cache.logs), entry.userId, entry.username);
+            } catch (error) {
+                logger.error("Failed to write stalker log:", error);
             }
-
-            cache.logs.push(entry);
-
-            await Native.writeStalkerLog(JSON.stringify(cache.logs, null, 2), entry.userId, entry.username);
-        } catch (error) {
-            logger.error("Failed to write stalker log:", error);
-        }
-    });
-
-    writeLocks.set(entry.userId, newLock);
-    await newLock;
+        });
+        writeLocks.set(entry.userId, newLock);
+        await newLock;
+    }, WRITE_DEBOUNCE_MS));
 }
 
 export let targets: string[] = [];
@@ -311,6 +322,9 @@ export default definePlugin({
         activity.deinit();
         status.deinit();
         voice.deinit();
+        for (const timer of writeTimers.values()) clearTimeout(timer);
+        writeTimers.clear();
+        pendingWrites.clear();
         cachedLogsPerUser.clear();
         writeLocks.clear();
         typingNotificationCooldowns.clear();

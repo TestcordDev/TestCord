@@ -85,6 +85,7 @@ interface SourceSnippet {
     surface: string;
     label: string;
     code: string;
+    fn?: (() => string) | undefined;
 }
 
 interface ImpactReason {
@@ -350,13 +351,22 @@ function stringifyCodePart(value: unknown) {
 }
 
 function rememberSourceSnippet(pluginName: string, surface: string, label: string, source: unknown) {
-    const code = normalizeCodeSnippet(stringifyCodePart(source));
-    if (!code || code.includes("[native code]")) return;
+    if (typeof source !== "function") {
+        const code = normalizeCodeSnippet(stringifyCodePart(source));
+        if (!code) return;
+        const snippets = sourceSnippets.get(pluginName) ?? [];
+        if (snippets.some(s => s.surface === surface && s.label === label)) return;
+        snippets.push({ surface, label, code });
+        if (snippets.length > 30) snippets.shift();
+        sourceSnippets.set(pluginName, snippets);
+        return;
+    }
 
     const snippets = sourceSnippets.get(pluginName) ?? [];
-    if (snippets.some(snippet => snippet.surface === surface && snippet.code === code)) return;
+    if (snippets.some(s => s.surface === surface && s.fn === source)) return;
 
-    snippets.push({ surface, label, code });
+    const snippet: SourceSnippet = { surface, label, code: "", fn: source as () => string };
+    snippets.push(snippet);
     if (snippets.length > 30) snippets.shift();
     sourceSnippets.set(pluginName, snippets);
 }
@@ -1259,7 +1269,7 @@ function SnippetList({ item }: { item: ImpactAnalysisItem; }) {
                         <BaseText size="xs" color="text-muted">{snippet.surface}</BaseText>
                     </div>
                     <div className={cl("snippet-code")}>
-                        <CodeBlock content={snippet.code} lang="tsx" />
+                        <CodeBlock content={snippet.fn ? snippet.fn() : snippet.code} lang="tsx" />
                     </div>
                 </div>
             ))}

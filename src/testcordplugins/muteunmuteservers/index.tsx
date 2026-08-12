@@ -98,6 +98,7 @@ export default definePlugin({
     description: "Mute or unmute all your servers at once via right-click context menu.",
     tags: ["Servers", "Utility"],
     authors: [TestcordDevs.x2b],
+    dependencies: ["ContextMenuAPI"],
 
     start() {
         addContextMenuPatch("guild-context", guildContextPatch);

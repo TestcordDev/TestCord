@@ -37,8 +37,10 @@ const settings = definePluginSettings({
 
 let _fakeOnlineActive = false;
 
+const _suppressedTypes = new Set(["PRESENCES_REPLACE", "PASSIVE_UPDATE_V1"]);
+
 function fakeOnlineInterceptor(payload: any) {
-    if (payload.type === "PRESENCE_UPDATES" || payload.type === "PRESENCES_REPLACE" || payload.type === "PASSIVE_UPDATE_V1") {
+    if (_suppressedTypes.has(payload.type)) {
         return false;
     }
 }

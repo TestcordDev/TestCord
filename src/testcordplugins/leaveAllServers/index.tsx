@@ -236,6 +236,7 @@ export default definePlugin({
     description: "Leaves all selected servers. Accessible via right-click on a server.",
     tags: ["Servers", "Nightcord"],
     authors: [{ name: "Nightcord", id: 0n }],
+    dependencies: ["ContextMenuAPI"],
     settings,
 
     start() {

@@ -143,6 +143,7 @@ export default definePlugin({
     description: "Forces a user to follow you in voice channels (if you have permissions). Right-click a user -> Follow Me.",
     tags: ["Voice", "Nightcord"],
     authors: [{ name: "Nightcord", id: 0n }],
+    dependencies: ["ContextMenuAPI"],
 
     headerBarButton: {
         icon: () => <FollowMeIcon filled={true} />,

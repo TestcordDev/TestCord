@@ -431,6 +431,7 @@ export default definePlugin({
     description: "Right-click a user to save all GIFs they have sent to your favorites. Due to Discord's search API being non-deterministic, some GIFs may be missed on the first scan — simply run it again to pick up any remaining ones.",
     tags: ["Media", "Utility"],
     authors: [TestcordDevs.nnenaza],
+    dependencies: ["ContextMenuAPI"],
     settings,
 
     settingsAboutComponent() {

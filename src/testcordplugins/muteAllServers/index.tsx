@@ -141,6 +141,7 @@ export default definePlugin({
     description: "Right-click a server → mute all servers and mark all as read in one click.",
     tags: ["Notifications", "Servers", "Nightcord"],
     authors: [{ name: "Nightcord", id: 0n }],
+    dependencies: ["ContextMenuAPI"],
 
     start() {
         addContextMenuPatch("guild-context", guildContextPatch);

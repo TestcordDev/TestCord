@@ -129,21 +129,26 @@ export default definePlugin({
     authors: [{ name: "Nightcord", id: 0n }],
 
     start() {
-        observer = setInterval(() => {
+        this.observer = new MutationObserver(() => {
             if (scanTimer) return;
-            // Check the store before scheduling. Without an outgoing request there is
-            // nothing to patch, so the two substring-class document sweeps inside scan()
-            // would walk the whole tree for nothing.
             if (!hasOutgoingRequests()) return;
             scanTimer = setTimeout(() => {
                 scanTimer = null;
                 scan(document);
             }, 300);
-        }, 1000);
+        });
+        if (document.body) {
+            this.observer.observe(document.body, { childList: true, subtree: true });
+        }
+        observer = setInterval(() => {
+            if (!hasOutgoingRequests()) return;
+            scan(document);
+        }, 5000);
         scan(document);
     },
 
     stop() {
+        if (this.observer) { this.observer.disconnect(); this.observer = null; }
         if (scanTimer) {
             clearTimeout(scanTimer);
             scanTimer = null;

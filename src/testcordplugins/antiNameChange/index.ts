@@ -41,6 +41,16 @@ function handler(c, msg) {
     msg.content = msg.content.replaceAll(`@${settings.store.alias}`, `<@${settings.store.lSeenUserID}>`);
 }
 
+let cachedIds: string[] = [];
+let cachedIdsRaw: string | undefined;
+function getTrackedIds(): string[] {
+    const raw = settings.store.ids || "";
+    if (raw === cachedIdsRaw) return cachedIds;
+    cachedIdsRaw = raw;
+    cachedIds = raw.split(",").map(t => t.trim());
+    return cachedIds;
+}
+
 export default definePlugin({
     name: "AntiNameChange",
     description: "for that one friend who keeps changing their username/account",
@@ -51,8 +61,7 @@ export default definePlugin({
     onBeforeMessageEdit: handler,
     flux: {
         MESSAGE_CREATE(ev) {
-            const idsArray: string[] = (settings.store.ids || "").split(",").map(t => t.trim());
-            if (idsArray.includes(ev.message.author.id)) settings.store.lSeenUserID = ev.message.author.id;
+            if (getTrackedIds().includes(ev.message.author.id)) settings.store.lSeenUserID = ev.message.author.id;
         }
     },
     commands: [

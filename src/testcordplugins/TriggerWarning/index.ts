@@ -48,21 +48,38 @@ export default definePlugin({
         }
     ],
     settings,
+    _spoilerFilenames: [] as string[],
+    _spoilerFilenamesRaw: undefined as string | undefined,
+    _spoilerLinks: [] as string[],
+    _spoilerLinksRaw: undefined as string | undefined,
+    _getSpoilerFilenames(): string[] {
+        const raw = settings.store.spoilerFilenames;
+        if (raw === this._spoilerFilenamesRaw) return this._spoilerFilenames;
+        this._spoilerFilenamesRaw = raw;
+        this._spoilerFilenames = (raw || "").split(",").map(s => s.trim()).filter(Boolean);
+        return this._spoilerFilenames;
+    },
+    _getSpoilerLinks(): string[] {
+        const raw = settings.store.spoilerLinks;
+        if (raw === this._spoilerLinksRaw) return this._spoilerLinks;
+        this._spoilerLinksRaw = raw;
+        this._spoilerLinks = (raw || "").split(",").map(s => s.trim()).filter(Boolean);
+        return this._spoilerLinks;
+    },
     shouldSpoiler(filename: string): string | null {
-        const { spoilerFilenames } = settings.store;
-        if (!filename || !spoilerFilenames) return null;
-        const strings = spoilerFilenames.split(",").map(s => s.trim());
+        if (!filename) return null;
+        const strings = this._getSpoilerFilenames();
+        if (!strings.length) return null;
         return strings.some(s => filename.includes(s)) ? "spoiler" : null;
     },
     spoilerLink(alreadySpoilered: string, link: string, type: string): string | null {
         if (alreadySpoilered) return alreadySpoilered;
-        const { spoilerLinks, gifSpoilersOnly } = settings.store;
-        if (!link || !spoilerLinks) return null;
-
-        const strings = spoilerLinks.split(",").map(s => s.trim());
+        if (!link) return null;
+        const strings = this._getSpoilerLinks();
+        if (!strings.length) return alreadySpoilered;
         const isLinkSpoiler = strings.some(s => link.includes(s));
 
-        if (gifSpoilersOnly) {
+        if (settings.store.gifSpoilersOnly) {
             return type === "gifv" && isLinkSpoiler ? "spoiler" : null;
         } else {
             return isLinkSpoiler ? "spoiler" : null;

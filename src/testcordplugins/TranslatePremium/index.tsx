@@ -167,6 +167,7 @@ export default definePlugin({
     description: "Auto translate messages from specific users to ur lang with context menu button",
     tags: ["Chat", "Utility"],
     authors: [TestcordDevs.x2b],
+    dependencies: ["ContextMenuAPI"],
     settings,
     flux: {
         MESSAGE_CREATE: handleMessageCreate,

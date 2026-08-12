@@ -266,6 +266,7 @@ export default definePlugin({
     description: "Sends an aggressive message to ALL server members or a specific role via right click.",
     tags: ["Servers", "Chat", "Nightcord"],
     authors: [{ name: "Nightcord", id: 0n }],
+    dependencies: ["ContextMenuAPI"],
 
     start() {
         addContextMenuPatch("guild-context", this.patchGuildContext);

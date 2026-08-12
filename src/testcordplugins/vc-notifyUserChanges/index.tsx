@@ -205,13 +205,19 @@ export const settings = definePluginSettings({
     }
 });
 
+let cachedUserIdList: string[] = [];
+let cachedUserIdsRaw: string | undefined;
 function getUserIdList() {
+    const raw = settings.store.userIds;
+    if (raw === cachedUserIdsRaw) return cachedUserIdList;
+    cachedUserIdsRaw = raw;
     try {
-        return settings.store.userIds.split(",").filter(Boolean);
+        cachedUserIdList = raw.split(",").filter(Boolean);
     } catch (e) {
         settings.store.userIds = "";
-        return [];
+        cachedUserIdList = [];
     }
+    return cachedUserIdList;
 }
 
 // show rich body with user avatar

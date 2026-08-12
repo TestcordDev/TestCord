@@ -10,35 +10,54 @@ import definePlugin, { OptionType } from "@utils/types";
 import { Message } from "@vencord/discord-types";
 import { RestAPI, UserStore } from "@webpack/common";
 
-import selfPlugin from ".";
+const settings = definePluginSettings({
+    channelIDs: {
+        type: OptionType.STRING,
+        description: "Comma-separated list of channel IDs to watch"
+    },
+    userIDs: {
+        type: OptionType.STRING,
+        description: "Comma-separated list of user IDs to ignore"
+    },
+    maxChars: {
+        type: OptionType.NUMBER,
+        description: "Maximum chars to check",
+        default: 500
+    }
+});
+
+let cachedUserIds: string[] = [];
+let cachedUserIdsRaw: string | undefined;
+let cachedChannelIds: string[] = [];
+let cachedChannelIdsRaw: string | undefined;
+function getUserIds(): string[] {
+    const raw = settings.store.userIDs || "";
+    if (raw === cachedUserIdsRaw) return cachedUserIds;
+    cachedUserIdsRaw = raw;
+    cachedUserIds = raw.split(",").map(s => s.trim()).filter(Boolean);
+    return cachedUserIds;
+}
+function getChannelIds(): string[] {
+    const raw = settings.store.channelIDs || "";
+    if (raw === cachedChannelIdsRaw) return cachedChannelIds;
+    cachedChannelIdsRaw = raw;
+    cachedChannelIds = raw.split(",").map(s => s.trim()).filter(Boolean);
+    return cachedChannelIds;
+}
 
 export default definePlugin({
     name: "Huskbot",
     description: "A bot to husk. THIS IS A SELFBOT AND MIGHT GET YOU BANNED",
     tags: ["Utility", "Fun"],
     authors: [Devs.nin0dev],
-    settings: definePluginSettings({
-        channelIDs: {
-            type: OptionType.STRING,
-            description: "Comma-separated list of channel IDs to watch"
-        },
-        userIDs: {
-            type: OptionType.STRING,
-            description: "Comma-separated list of user IDs to ignore"
-        },
-        maxChars: {
-            type: OptionType.NUMBER,
-            description: "Maximum chars to check",
-            default: 500
-        }
-    }),
+    settings,
     flux: {
         async MESSAGE_CREATE
             ({ guildId, message }) {
 
             const msg = message as Message;
-            if (UserStore.getCurrentUser().id === msg.author.id || selfPlugin.settings.store.userIDs?.split(",").includes(msg.author.id)) return;
-            if (!selfPlugin.settings.store.channelIDs?.split(",").includes(msg.channel_id) || msg.content.length > selfPlugin.settings.store.maxChars) return;
+            if (UserStore.getCurrentUser().id === msg.author.id || getUserIds().includes(msg.author.id)) return;
+            if (!getChannelIds().includes(msg.channel_id) || msg.content.length > settings.store.maxChars) return;
 
             const res = await fetch("https://huskapi.nin0.dev", {
                 method: "POST",

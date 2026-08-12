@@ -36,7 +36,10 @@ const NON_SCANNABLE_ATTACHMENT_EXTENSIONS = new Set([
     "mp3", "wav", "ogg", "flac", "aac", "m4a"
 ]);
 
+let lastPrune = 0;
 function pruneAnalyzedMessages(now: number) {
+    if (now - lastPrune < 30_000) return;
+    lastPrune = now;
     pruneMap(AUTO_ANALYZED_MESSAGE_IDS, expiresAt => expiresAt <= now, MAX_ANALYZED_MESSAGES);
 }
 

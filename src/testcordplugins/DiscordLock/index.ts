@@ -140,8 +140,13 @@ function unlock() {
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
+let cachedParsedIds: Set<string> = new Set();
+let cachedParsedIdsRaw: string | undefined;
 function parseIds(raw: string): Set<string> {
-    return new Set(raw.split(",").map(s => s.trim()).filter(Boolean));
+    if (raw === cachedParsedIdsRaw) return cachedParsedIds;
+    cachedParsedIdsRaw = raw;
+    cachedParsedIds = new Set(raw.split(",").map(s => s.trim()).filter(Boolean));
+    return cachedParsedIds;
 }
 
 // ─── Channel select handler ───────────────────────────────────────────

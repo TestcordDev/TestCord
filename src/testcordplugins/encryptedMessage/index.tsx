@@ -263,7 +263,7 @@ export default definePlugin({
     description: "Encrypts your messages with 400 unique techniques (0–399). A random technique is chosen each time you send a message. Only those who know the key can decrypt.",
     tags: ["Privacy", "Chat", "Nightcord"],
     authors: [{ name: "Nightcord", id: 0n }, TestcordDevs.x2b],
-    dependencies: ["ChatInputButtonAPI", "MessageEventsAPI", "MessageAccessoriesAPI", "HeaderBarAPI"],
+    dependencies: ["ChatInputButtonAPI", "MessageEventsAPI", "MessageAccessoriesAPI", "HeaderBarAPI", "ContextMenuAPI"],
     settings: encryptSettings,
 
     chatBarButton: {
