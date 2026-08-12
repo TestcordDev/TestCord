@@ -524,7 +524,7 @@ function buildCSS(): string {
             lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
 
             for (const id of Object.keys(buttonConfigs)) {
-                if (!getBtnCfg(id).background) {
+                if (getBtnCfg(id).background !== undefined && !getBtnCfg(id).background) {
                     lines.push(`
                         ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
                         ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
