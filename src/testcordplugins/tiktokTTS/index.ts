@@ -7,7 +7,7 @@
 import { playAudio } from "@api/AudioPlayer";
 import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { definePluginSettings } from "@api/Settings";
-import { Devs, TestcordDevs } from "@utils/constants";
+import { EquicordDevs, TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { Menu, React } from "@webpack/common";
 
@@ -212,7 +212,7 @@ export default definePlugin({
     name: "TiktokTTS",
     description: "Adds a context menu option to read out chat messages with the good ol' Tiktok TTS voice :sob:",
     tags: ["Accessibility", "Chat", "Voice"],
-    authors: [Devs.VillainsRule, TestcordDevs.examplegit],
+    authors: [EquicordDevs.VillainsRule, TestcordDevs.examplegit],
     dependencies: ["AudioPlayerAPI"],
     settings,
     contextMenus: {

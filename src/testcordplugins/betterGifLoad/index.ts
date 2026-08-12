@@ -5,7 +5,7 @@
  */
 
 import { definePluginSettings } from "@api/Settings";
-import { Devs, TestcordDevs } from "@utils/constants";
+import { EquicordDevs, TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 
 const Quality = {
@@ -53,7 +53,7 @@ export default definePlugin({
     name: "BetterGifLoad",
     description: "Change the quality of GIFs in the GIF picker. Improves performance and lowers internet usage.",
     tags: ["Media", "Utility"],
-    authors: [TestcordDevs.Leon135, Devs.nexpid],
+    authors: [TestcordDevs.Leon135, EquicordDevs.nexpid],
     settings,
     patches: [
         {
