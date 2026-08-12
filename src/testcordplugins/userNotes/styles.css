@@ -130,13 +130,11 @@
 
 .vc-user-notes-data-modal-header-user-type {
     min-width: 160px;
-    margin-right: 16px;
 }
 
 .vc-user-notes-data-modal-header-cache {
     width: fit-content;
     height: 100%;
-    margin-right: 16px;
 }
 
 .vc-user-notes-data-modal-content-container {
@@ -371,4 +369,8 @@ div:has(.vc-user-notes-data-modal-user-text-area) {
 
 .vc-user-notes-data-modal-cache-status :nth-child(1) {
     margin: 0 auto;
+}
+
+[class="flex__7c0ba horizontal__7c0ba justifyStart_abf706 alignCenter_abf706 noWrap_abf706 header__49fc1 vc-user-notes-data-modal-header separator__49fc1"] {
+    gap: 8px;
 }

@@ -103,7 +103,7 @@ export function NotesDataModal({ modalProps, close }: {
 
     return (
         <ModalRoot className={cl("root")} {...modalProps as any}>
-            <ModalHeader className={cl("header")}>
+            <ModalHeader className={cl("header")} style={{ gap: "8px" }}>
                 <Text className={cl("header-text")} variant="heading-lg/semibold">Notes Data</Text>
                 <TextInput className={cl("header-input")} value={searchValue.query} onChange={onSearch} placeholder="Filter Notes (ID/Notes and Global/Username if cached)" />
                 <div className={cl("header-user-type")}>
@@ -439,7 +439,7 @@ function NotesDataRow({ userId, userNotes: userNotesArg, refreshNotesData }: {
                             <Button
                                 className={cl("user-actions-refresh")}
                                 size={Button.Sizes.NONE}
-                                color={Button.Colors.LINK}
+                                color={Button.Colors.TRANSPARENT}
                                 onClick={() => setUserNotes(userNotesArg)}
                                 onMouseLeave={onMouseLeave}
                                 onMouseEnter={onMouseEnter}

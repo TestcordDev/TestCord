@@ -607,7 +607,7 @@ function buildCSS(): string {
     if (st.hideScreenShare) lines.push(`${getBtnSelector("Screen Share")} { display: none !important; }`);
     if (st.hideActivity) lines.push(`${getBtnSelector("Activity")} { display: none !important; }`);
 
-    // Lock Button Positions logic (prevents long status text or screen sharing from pushing buttons down to a new row)
+    // Lock Button Positions logic (prevents long status text or screen sharing from pushing buttons down to a new row) max-width: calc(100% - 140px) !important;
     if (st.lockButtonPosition) {
         const isSplit = ["split_row", "split_grid2", "split_grid3", "split_grid4", "all_top"].includes(st.userPanelLayout);
         if (!isSplit) {
@@ -616,29 +616,8 @@ function buildCSS(): string {
         }
         lines.push(`
             ${S.accountWrapper} {
-                flex: 0 1 auto !important;
-                min-width: 120px !important;
-                max-width: 180px !important;
-                overflow: hidden !important;
-            }
-            ${S.accountWrapper} [class*="avatar_"],
-            ${S.accountWrapper} [class*="avatarWrapper_"] {
-                flex-shrink: 0 !important;
-            }
-            ${S.accountWrapper} [class*="nameTag_"],
-            ${S.accountWrapper} [class*="panelSubtextContainer_"],
-            ${S.accountWrapper} [class*="activity_"],
-            ${S.accountWrapper} [class*="subtext_"],
-            ${S.accountWrapper} [class*="text_"],
-            ${S.accountWrapper} [class*="status_"],
-            ${S.accountWrapper} [class*="customStatus_"] {
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
-                white-space: nowrap !important;
-            ${S.audioParent},
-            ${S.panelContainer} [class*="audioButtonParent"] {
-                flex-shrink: 0 !important;
-                white-space: nowrap !important;
+                max-width: 100% !important;
+                flex: 1 !important;
             }
         `);
     }
