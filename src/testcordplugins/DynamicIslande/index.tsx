@@ -22,7 +22,7 @@ import { findByPropsLazy } from "@webpack";
 import { ApplicationStreamingStore, ChannelStore, Clickable, FluxDispatcher, GuildMemberStore, IconUtils, MediaEngineStore, MessageStore, ReactDOM, RelationshipStore, SelectedChannelStore, UserGuildSettingsStore, UserStore, useEffect, useRef, useState, useStateFromStores, VoiceStateStore } from "@webpack/common";
 import type { MouseEvent, PointerEvent, ReactNode, SVGProps } from "react";
 
-import { follow, unfollow, useFollowId } from "../followUser";
+import { follow, unfollow, useFollowId } from "../vc-followUser";
 
 const IslandVoiceActions = findByPropsLazy("toggleSelfMute");
 const IslandChannelActions = findByPropsLazy("selectVoiceChannel");

@@ -7,7 +7,7 @@
 import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { definePluginSettings, useSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
-import { Devs } from "@utils/constants";
+import { Devs, TestcordDevs } from "@utils/constants";
 import { LazyComponent } from "@utils/lazyReact";
 import { classes } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
@@ -24,6 +24,8 @@ import {
     UserStore
 } from "@webpack/common";
 import type { PropsWithChildren, SVGProps } from "react";
+
+import { FollowIcon as PanelFollowIcon, FollowPanelButton } from "./panel";
 
 const HeaderBarIcon = LazyComponent(() => {
     const filter = filters.byCode(".HEADER_BAR_BADGE");
@@ -126,6 +128,12 @@ export const settings = definePluginSettings({
         restartNeeded: false,
         default: false
     },
+    snipeOnLeave: {
+        type: OptionType.BOOLEAN,
+        description: "Jump into the followed user's voice channel whenever someone leaves it, to grab their freed slot",
+        restartNeeded: false,
+        default: false
+    },
     autoMoveBack: {
         type: OptionType.BOOLEAN,
         description: "Automatically move back to the VC of the followed user when you got moved",
@@ -144,6 +152,38 @@ export const settings = definePluginSettings({
         description: "Attempt to move you to the channel when is not full anymore",
         restartNeeded: false,
         default: true,
+    },
+    onlyWhenInVoice: {
+        type: OptionType.BOOLEAN,
+        description: "Only follow while you are in a voice channel yourself",
+        restartNeeded: false,
+        default: false,
+    },
+    showPanelButton: {
+        type: OptionType.BOOLEAN,
+        description: "Show a follow management button in the user area panel",
+        restartNeeded: true,
+        default: true,
+    },
+    showNonFriendsInVoice: {
+        type: OptionType.BOOLEAN,
+        description: "Also list non-friended people who are in voice in the follow panel, so you can join or follow them",
+        restartNeeded: false,
+        default: false,
+    },
+    pinnedUserIds: {
+        type: OptionType.STRING,
+        description: "JSON array of manually pinned user IDs shown in the follow panel",
+        restartNeeded: false,
+        hidden: true, // Managed via context menu and panel
+        default: "[]",
+    },
+    followedUsername: {
+        type: OptionType.STRING,
+        description: "Cached username of the followed user",
+        restartNeeded: false,
+        hidden: true,
+        default: "",
     }
 });
 
@@ -168,7 +208,7 @@ interface VoiceStateMember {
     [userId: string]: VoiceState;
 }
 
-function getChannelId(userId: string) {
+export function getChannelId(userId: string) {
     if (!userId) {
         return null;
     }
@@ -183,7 +223,24 @@ function getChannelId(userId: string) {
     return null;
 }
 
-function triggerFollow(userChannelId: string | null = getChannelId(settings.store.followUserId)) {
+export function getAllUsersInVoice(): { userId: string; channelId: string; }[] {
+    const result: { userId: string; channelId: string; }[] = [];
+    const seen = new Set<string>();
+    try {
+        const states = VoiceStateStore.getAllVoiceStates();
+        for (const users of Object.values(states)) {
+            for (const state of Object.values(users)) {
+                if (!state?.channelId || !state.userId) continue;
+                if (seen.has(state.userId)) continue;
+                seen.add(state.userId);
+                result.push({ userId: state.userId, channelId: state.channelId });
+            }
+        }
+    } catch (e) { }
+    return result;
+}
+
+export function triggerFollow(userChannelId: string | null = getChannelId(settings.store.followUserId)) {
     if (settings.store.followUserId) {
         const myChanId = SelectedChannelStore.getVoiceChannelId();
         if (userChannelId) {
@@ -192,6 +249,7 @@ function triggerFollow(userChannelId: string | null = getChannelId(settings.stor
                 const channel = ChannelStore.getChannel(userChannelId);
                 const voiceStates = VoiceStateStore.getVoiceStatesForChannel(userChannelId);
                 const memberCount = voiceStates ? Object.keys(voiceStates).length : null;
+                if (!channel) return;
                 if (channel.type === 1 || PermissionStore.can(CONNECT, channel)) {
                     if (channel.userLimit !== 0 && memberCount !== null && memberCount >= channel.userLimit && !PermissionStore.can(PermissionsBits.MOVE_MEMBERS, channel)) {
                         Toasts.show({
@@ -247,11 +305,38 @@ function triggerFollow(userChannelId: string | null = getChannelId(settings.stor
     }
 }
 
-function toggleFollow(userId: string) {
+export function getPinnedUserIds(): string[] {
+    try {
+        const parsed = JSON.parse(settings.store.pinnedUserIds || "[]");
+        return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+export function isPinned(userId: string): boolean {
+    return getPinnedUserIds().includes(userId);
+}
+
+export function togglePin(userId: string) {
+    if (!userId) return;
+    const ids = getPinnedUserIds();
+    const idx = ids.indexOf(userId);
+    if (idx === -1) {
+        ids.push(userId);
+    } else {
+        ids.splice(idx, 1);
+    }
+    settings.store.pinnedUserIds = JSON.stringify(ids);
+}
+
+export function toggleFollow(userId: string) {
     if (settings.store.followUserId === userId) {
         settings.store.followUserId = "";
+        settings.store.followedUsername = "";
     } else {
         settings.store.followUserId = userId;
+        settings.store.followedUsername = UserStore.getUser(userId)?.username ?? "";
         if (settings.store.executeOnFollow) {
             triggerFollow();
         }
@@ -270,6 +355,8 @@ const UserContext: NavContextMenuPatchCallback = (children, { user }: UserContex
     const label = isFollowed ? "Unfollow User" : "Follow User";
     const icon = isFollowed ? UnfollowIcon : FollowIcon;
 
+    const pinned = isPinned(user.id);
+
     children.splice(-1, 0, (
         <Menu.MenuGroup>
             <Menu.MenuItem
@@ -278,26 +365,56 @@ const UserContext: NavContextMenuPatchCallback = (children, { user }: UserContex
                 action={() => toggleFollow(user.id)}
                 icon={icon}
             />
+            <Menu.MenuItem
+                id="follow-user-pin"
+                label={pinned ? "Unpin from Follow Panel" : "Pin to Follow Panel"}
+                action={() => togglePin(user.id)}
+                icon={icon}
+            />
         </Menu.MenuGroup>
     ));
 };
 
+export function follow(userId: string) {
+    settings.store.followUserId = userId;
+    settings.store.followedUsername = UserStore.getUser(userId)?.username ?? "";
+    if (settings.store.executeOnFollow) {
+        triggerFollow();
+    }
+}
+
+export function unfollow() {
+    settings.store.followUserId = "";
+    settings.store.followedUsername = "";
+}
+
+export function useFollowId() {
+    return settings.store.followUserId;
+}
+
 export default definePlugin({
     name: "FollowUser",
     description: "Adds a follow option in the user context menu to always be in the same VC as them",
-    authors: [Devs.D3SOX],
+    tags: ["Voice", "Utility"],
+    authors: [Devs.D3SOX, TestcordDevs.x2b],
 
     settings,
 
     patches: [
         {
             find: "toolbar:function",
+            noWarn: true,
             replacement: {
                 match: /(function \i\(\i\){)(.{1,200}toolbar.{1,100}mobileToolbar)/,
                 replace: "$1$self.addIconToToolBar(arguments[0]);$2"
             }
         },
     ],
+
+    userAreaButton: {
+        icon: PanelFollowIcon,
+        render: FollowPanelButton
+    },
 
     contextMenus: {
         "user-context": UserContext
@@ -306,6 +423,9 @@ export default definePlugin({
     flux: {
         VOICE_STATE_UPDATES({ voiceStates }: { voiceStates: VoiceState[]; }) {
             if (settings.store.onlyManualTrigger || !settings.store.followUserId) {
+                return;
+            }
+            if (settings.store.onlyWhenInVoice && !SelectedChannelStore.getVoiceChannelId()) {
                 return;
             }
             for (const { userId, channelId, oldChannelId } of voiceStates) {
@@ -317,12 +437,22 @@ export default definePlugin({
                         continue;
                     }
 
+                    // snipe: grab a freed slot in the followed user's channel when anyone leaves it
+                    if (settings.store.snipeOnLeave && !isMe && !channelId && oldChannelId && oldChannelId !== SelectedChannelStore.getVoiceChannelId()) {
+                        const followedVs = VoiceStateStore.getVoiceStateForUser(settings.store.followUserId);
+                        if (followedVs?.channelId === oldChannelId && settings.store.followUserId !== userId) {
+                            triggerFollow(oldChannelId);
+                            continue;
+                        }
+                    }
+
                     // if you're not in the channel of the followed user and it is no longer full, join
                     if (settings.store.channelFull && !isMe && !channelId && oldChannelId && oldChannelId !== SelectedChannelStore.getVoiceChannelId()) {
                         const channel = ChannelStore.getChannel(oldChannelId);
+                        if (!channel) continue;
                         const channelVoiceStates = VoiceStateStore.getVoiceStatesForChannel(oldChannelId);
                         const memberCount = channelVoiceStates ? Object.keys(channelVoiceStates).length : null;
-                        if (channel.userLimit !== 0 && memberCount !== null && memberCount === (channel.userLimit - 1) && !PermissionStore.can(PermissionsBits.MOVE_MEMBERS, channel)) {
+                        if (memberCount !== null && memberCount === (channel.userLimit - 1) && !PermissionStore.can(PermissionsBits.MOVE_MEMBERS, channel)) {
                             const users = Object.values(channelVoiceStates).map(x => x.userId);
                             if (users.includes(settings.store.followUserId)) {
                                 triggerFollow(oldChannelId);
@@ -355,11 +485,14 @@ export default definePlugin({
                 <HeaderBarIcon
                     tooltip={`Following ${UserStore.getUser(followUserId).username} (click to trigger manually, right-click to unfollow)`}
                     icon={UnfollowIcon}
+                    className="vc-plugin-icon-button"
+                    iconClassName="vc-plugin-icon-button"
                     onClick={() => {
                         triggerFollow();
                     }}
                     onContextMenu={() => {
                         settings.store.followUserId = "";
+                        settings.store.followedUsername = "";
                     }}
                 />
             );
