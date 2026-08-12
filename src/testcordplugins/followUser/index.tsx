@@ -163,7 +163,7 @@ export const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Show a follow management button in the user area panel",
         restartNeeded: true,
-        default: false,
+        default: true,
     },
     showNonFriendsInVoice: {
         type: OptionType.BOOLEAN,
