@@ -120,6 +120,8 @@ export default definePlugin({
     managedStyle,
     settings,
 
+    _bordersRemoved: false,
+
     commands: [
         {
             name: "hyprtiles reload rules",
@@ -289,20 +291,28 @@ export default definePlugin({
 
     applyBorders() {
         const s = settings.store;
-        if (!s.enableBorders) { this.removeBorders(); return; }
+        if (!s.enableBorders) {
+            if (!this._bordersRemoved) {
+                this._bordersRemoved = true;
+                this.removeBorders();
+            }
+            return;
+        }
+        this._bordersRemoved = false;
 
         const border = `${s.borderWidth}px solid ${s.borderColor}`;
         document.querySelectorAll(".vc-hyprtiles-tile").forEach(tile => {
             const t = tile as HTMLElement;
-            t.style.border = border;
-            t.style.borderRadius = "10px";
-            t.style.boxShadow = "";
+            if (t.style.border !== border) t.style.border = border;
+            if (t.style.borderRadius !== "10px") t.style.borderRadius = "10px";
+            if (t.style.boxShadow !== "") t.style.boxShadow = "";
         });
 
         // Make focused tile slightly darker with glow
         document.querySelectorAll(".vc-hyprtiles-tile-focused").forEach(tile => {
             const t = tile as HTMLElement;
-            t.style.boxShadow = `0 0 0 ${s.borderWidth + 1}px ${s.borderColor}, 0 0 20px ${s.borderColor}80`;
+            const shadow = `0 0 0 ${s.borderWidth + 1}px ${s.borderColor}, 0 0 20px ${s.borderColor}80`;
+            if (t.style.boxShadow !== shadow) t.style.boxShadow = shadow;
         });
     },
 

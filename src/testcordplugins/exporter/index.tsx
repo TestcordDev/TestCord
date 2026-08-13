@@ -16,7 +16,7 @@ import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, op
 import definePlugin, { OptionType } from "@utils/types";
 import type { GuildMember, User } from "@vencord/discord-types";
 import { findStoreLazy } from "@webpack";
-import { Button, ChannelStore, ContextMenuApi, Forms, GuildMemberStore, GuildRoleStore, GuildStore, Menu, PresenceStore, React, ScrollerThin, Select, SelectedChannelStore, SelectedGuildStore, TabBar, Text, TextInput, Toasts, useEffect, useRef, UserProfileStore, UserStore, useState } from "@webpack/common";
+import { Button, ChannelStore, ContextMenuApi, Forms, GuildMemberStore, GuildRoleStore, GuildStore, Menu, MessageStore, PresenceStore, React, ScrollerThin, Select, SelectedChannelStore, SelectedGuildStore, TabBar, Text, TextInput, Toasts, useEffect, useRef, UserProfileStore, UserStore, useState } from "@webpack/common";
 
 const ChannelMemberStore = findStoreLazy("ChannelMemberStore") as {
     getProps(guildId?: string, channelId?: string): { groups: { count: number; id: string; }[]; };
@@ -73,6 +73,11 @@ export const settings = definePluginSettings({
     includeEmbeds: { type: OptionType.BOOLEAN, default: true, description: "Include link embeds." },
     includeReactions: { type: OptionType.BOOLEAN, default: true, description: "Include message reactions and stickers." },
     includeBots: { type: OptionType.BOOLEAN, default: true, description: "Include bot accounts in member list exports." },
+    loadedOnly: {
+        type: OptionType.BOOLEAN,
+        default: false,
+        description: "Export only messages already loaded in Discord instead of fetching the full history."
+    },
     location: {
         type: OptionType.SELECT,
         description: "Where to display the export action buttons.",
@@ -322,6 +327,48 @@ async function getDeletedMessagesFromIDB(channelId: string): Promise<any[]> {
     }
 }
 
+function fromCachedMessage(m: any, deleted: boolean): RichMessage {
+    const ref = m.messageReference ?? m.referenced_message;
+    return {
+        id: m.id,
+        timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : (m.timestamp || new Date().toISOString()),
+        editedAt: m.editedTimestamp instanceof Date ? m.editedTimestamp.toISOString() : (m.editedTimestamp || m.edited_timestamp),
+        authorId: m.author?.id ?? "0",
+        authorName: m.author?.globalName ?? m.author?.username ?? "Unknown",
+        authorGlobalName: m.author?.globalName ?? undefined,
+        authorAvatar: m.author?.avatar ?? null,
+        content: m.content ?? "",
+        attachments: (m.attachments ?? []).map((a: any) => ({
+            url: a.url ?? a.oldUrl ?? "", filename: a.filename ?? "file", size: a.size ?? 0,
+            contentType: a.content_type ?? "application/octet-stream",
+        })),
+        embeds: (m.embeds ?? []).map((e: any) => ({
+            title: e.title, description: e.description, url: e.url,
+            image: e.image?.url ?? e.thumbnail?.url, type: e.type ?? "rich",
+        })),
+        stickers: (m.sticker_items ?? m.stickerItems ?? m.stickers ?? []).map((s: any) => ({ name: s.name, id: s.id })),
+        reactions: (m.reactions ?? []).map((r: any) => ({ emoji: r.emoji?.name ?? r.emoji?.id, count: r.count })),
+        referencedMessage: ref ? {
+            id: ref.message_id ?? ref.id ?? "0",
+            authorName: ref.author?.username ?? "Unknown",
+            content: (ref.content ?? "").slice(0, 100),
+        } : undefined,
+        pinned: m.pinned ?? false,
+        type: m.type ?? 0,
+        components: m.components ?? [],
+        deleted,
+    };
+}
+
+function getLoadedRichMessages(channelId: string): RichMessage[] {
+    const cached = MessageStore.getMessages(channelId);
+    const raw = Array.isArray(cached) ? cached : (cached._array ?? Object.values(cached));
+    return raw
+        .filter(m => m && m.state === "SENT" && !m.deleted && !m.mlDeleted)
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        .map(m => fromCachedMessage(m, false));
+}
+
 async function fetchAllMessages(channelId: string, token: string, onProgress: (n: number) => void, signal?: AbortSignal): Promise<RichMessage[]> {
     const messageMap = new Map<string, RichMessage>();
     let beforeId: string | null = null;
@@ -396,35 +443,7 @@ async function fetchAllMessages(channelId: string, token: string, onProgress: (n
                 const raw = Array.isArray(cached) ? cached : (cached._array ?? (typeof cached.toArray === "function" ? cached.toArray() : Object.values(cached)));
                 for (const m of raw) {
                     if (m && (m.deleted || m.state === "DELETED" || m.mlDeleted) && !messageMap.has(m.id)) {
-                        messageMap.set(m.id, {
-                            id: m.id,
-                            timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : (m.timestamp || new Date().toISOString()),
-                            editedAt: m.editedTimestamp instanceof Date ? m.editedTimestamp.toISOString() : (m.editedTimestamp || m.edited_timestamp),
-                            authorId: m.author?.id ?? "0",
-                            authorName: m.author?.globalName ?? m.author?.username ?? "Unknown",
-                            authorGlobalName: m.author?.globalName ?? undefined,
-                            authorAvatar: m.author?.avatar ?? null,
-                            content: m.content ?? "",
-                            attachments: (m.attachments ?? []).map((a: any) => ({
-                                url: a.url, filename: a.filename, size: a.size,
-                                contentType: a.content_type ?? "application/octet-stream",
-                            })),
-                            embeds: (m.embeds ?? []).map((e: any) => ({
-                                title: e.title, description: e.description, url: e.url,
-                                image: e.image?.url ?? e.thumbnail?.url, type: e.type ?? "rich",
-                            })),
-                            stickers: (m.sticker_items ?? m.stickers ?? []).map((s: any) => ({ name: s.name, id: s.id })),
-                            reactions: (m.reactions ?? []).map((r: any) => ({ emoji: r.emoji?.name ?? r.emoji?.id, count: r.count })),
-                            referencedMessage: m.messageReference ? {
-                                id: m.messageReference.message_id || m.messageReference.id || "0",
-                                authorName: "Unknown",
-                                content: ""
-                            } : undefined,
-                            pinned: m.pinned ?? false,
-                            type: m.type ?? 0,
-                            components: m.components ?? [],
-                            deleted: true
-                        });
+                        messageMap.set(m.id, fromCachedMessage(m, true));
                     }
                 }
             }
@@ -435,35 +454,7 @@ async function fetchAllMessages(channelId: string, token: string, onProgress: (n
             for (const record of idbRecords) {
                 const m = record.message;
                 if (!m || messageMap.has(record.message_id)) continue;
-                messageMap.set(record.message_id, {
-                    id: record.message_id,
-                    timestamp: m.timestamp ?? new Date().toISOString(),
-                    editedAt: m.edited_timestamp ?? undefined,
-                    authorId: m.author?.id ?? "0",
-                    authorName: m.author?.global_name ?? m.author?.globalName ?? m.author?.username ?? "Unknown",
-                    authorGlobalName: m.author?.global_name ?? m.author?.globalName ?? undefined,
-                    authorAvatar: m.author?.avatar ?? null,
-                    content: m.content ?? "",
-                    attachments: (m.attachments ?? []).map((a: any) => ({
-                        url: a.url ?? a.oldUrl ?? "", filename: a.filename ?? "file", size: a.size ?? 0,
-                        contentType: a.content_type ?? "application/octet-stream",
-                    })),
-                    embeds: (m.embeds ?? []).map((e: any) => ({
-                        title: e.title, description: e.description, url: e.url,
-                        image: e.image?.url ?? e.thumbnail?.url, type: e.type ?? "rich",
-                    })),
-                    stickers: (m.sticker_items ?? m.stickerItems ?? []).map((s: any) => ({ name: s.name, id: s.id })),
-                    reactions: (m.reactions ?? []).map((r: any) => ({ emoji: r.emoji?.name ?? r.emoji?.id, count: r.count })),
-                    referencedMessage: m.referenced_message ? {
-                        id: m.referenced_message.id ?? m.referenced_message.message_id ?? "0",
-                        authorName: m.referenced_message.author?.username ?? "Unknown",
-                        content: (m.referenced_message.content ?? "").slice(0, 100),
-                    } : undefined,
-                    pinned: m.pinned ?? false,
-                    type: m.type ?? 0,
-                    components: m.components ?? [],
-                    deleted: true
-                });
+                messageMap.set(record.message_id, fromCachedMessage({ ...m, id: record.message_id }, true));
             }
         } catch { }
     }
@@ -905,6 +896,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
     const [includeReactions, setIncludeReactions] = useState(settings.store.includeReactions);
     const [includeDeletedMessages, setIncludeDeletedMessages] = useState(settings.store.includeDeletedMessages);
     const [includeBots, setIncludeBots] = useState(settings.store.includeBots);
+    const [loadedOnly, setLoadedOnly] = useState(settings.store.loadedOnly);
 
     const [search, setSearch] = useState("");
     const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -991,7 +983,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
     async function doExport() {
         if (status === "fetching") return;
         const token = getToken();
-        if ((tab === "messages" || tab === "both") && !token) {
+        if ((tab === "messages" || tab === "both") && !loadedOnly && !token) {
             setStatus("error");
             Toasts.show({ id: Toasts.genId(), type: Toasts.Type.FAILURE, message: "Token not found" });
             return;
@@ -1039,8 +1031,17 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                     const ch = targetChannels[i];
                     const channelPrefix = targetChannels.length > 1 ? `[${i + 1}/${targetChannels.length}] ${ch.name}: ` : "";
 
-                    let msgs = await fetchAllMessages(ch.id, token, n => setProgress(`${channelPrefix}Fetching: ${n} messages...`), controller.signal);
-                    if (controller.signal.aborted) return;
+                    let msgs: RichMessage[];
+                    if (loadedOnly) {
+                        msgs = getLoadedRichMessages(ch.id);
+                        if (!msgs.length) {
+                            setProgress(`${channelPrefix}No loaded messages for ${ch.name}, skipping...`);
+                            continue;
+                        }
+                    } else {
+                        msgs = await fetchAllMessages(ch.id, token, n => setProgress(`${channelPrefix}Fetching: ${n} messages...`), controller.signal);
+                        if (controller.signal.aborted) return;
+                    }
 
                     if (!includeMedia) msgs = msgs.map(m => ({ ...m, attachments: [] }));
                     if (!includeEmbeds) msgs = msgs.map(m => ({ ...m, embeds: [] }));
@@ -1092,8 +1093,17 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                     if (controller.signal.aborted) return;
                     const ch = targetChannels[i];
                     setProgress(`Fetching ${ch.name}...`);
-                    let msgs = await fetchAllMessages(ch.id, token, n => setProgress(`Fetching ${ch.name}: ${n} messages...`), controller.signal);
-                    if (controller.signal.aborted) return;
+                    let msgs: RichMessage[];
+                    if (loadedOnly) {
+                        msgs = getLoadedRichMessages(ch.id);
+                        if (!msgs.length) {
+                            setProgress(`No loaded messages for ${ch.name}, skipping...`);
+                            continue;
+                        }
+                    } else {
+                        msgs = await fetchAllMessages(ch.id, token, n => setProgress(`Fetching ${ch.name}: ${n} messages...`), controller.signal);
+                        if (controller.signal.aborted) return;
+                    }
 
                     if (!includeMedia) msgs = msgs.map(m => ({ ...m, attachments: [] }));
                     if (!includeEmbeds) msgs = msgs.map(m => ({ ...m, embeds: [] }));
@@ -1436,6 +1446,12 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                         onChange={setIncludeBots}
                         title="Include Bots"
                         description="Include bot accounts in member list exports"
+                    />
+                    <FormSwitch
+                        value={loadedOnly}
+                        onChange={setLoadedOnly}
+                        title="Loaded Messages Only"
+                        description="Export only messages already loaded in Discord without fetching full history"
                     />
                 </Forms.FormSection>
             </ModalContent>

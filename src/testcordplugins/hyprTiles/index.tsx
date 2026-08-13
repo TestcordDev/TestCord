@@ -255,6 +255,7 @@ export default definePlugin({
 
     _borderScanQueued: false,
     _borderObserver: null as ReturnType<typeof setInterval> | null,
+    _applyBordersKey: null as string | null,
     _startupTimer: null as ReturnType<typeof setTimeout> | null,
 
     start() {
@@ -298,6 +299,13 @@ export default definePlugin({
 
     applyBorders() {
         const s = settings.store;
+        const key = [
+            s.enableBorders, s.borderWidth, s.borderColor, s.borderColorEnd,
+            s.animationSpeed, s.enableGradients, s.animatedBorder, s.showChannelName
+        ].join(",");
+        if (key === this._applyBordersKey) return;
+        this._applyBordersKey = key;
+
         const root = document.documentElement;
         if (!s.enableBorders) { this.removeBorders(); return; }
 
