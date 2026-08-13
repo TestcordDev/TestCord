@@ -743,7 +743,8 @@ function patchFactory(moduleId: PropertyKey, originalFactory: AnyModuleFactory):
                 patch.plugin,
                 String(patch.find),
                 originalFactoryCode,
-                shouldCheckBuildNumber ? buildNumber : -1
+                shouldCheckBuildNumber ? buildNumber : -1,
+                String(moduleId)
             );
         }
     }
