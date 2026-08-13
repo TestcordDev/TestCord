@@ -1074,9 +1074,10 @@ export default definePlugin({
             find: "AUDIO_RESET:function(){",
             predicate: () => settings.store.preventAudioResetReload,
             replacement: {
-                match: /AUDIO_RESET:function\(\)\{(\i\.\i\.remove\(\i\)),location\.reload\(\)\}/,
-                replace: "AUDIO_RESET:function(){$1,$self.onAudioReset()}"
-            }
+                match: /(?<=AUDIO_RESET:function\(\).{0,300}?)location\.reload\(\)/,
+                replace: "$self.onAudioReset()"
+            },
+            noWarn: true
         },
     ],
 

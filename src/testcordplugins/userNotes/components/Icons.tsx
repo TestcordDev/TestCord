@@ -12,10 +12,6 @@ import { React } from "@webpack/common";
 import type { SVGProps } from "react";
 
 export function NotesDataIcon(props: SVGProps<SVGSVGElement>) {
-    useSettings(["plugins.TestcordHelper.headerBarButtonIconColor"] as const);
-    const color = getTestcordIconColor("headerBarButtonIconColor")
-        ?? getTestcordIconColor("userAreaButtonIconColor")
-        ?? ICON_COLOR_FALLBACK;
     return (
         <svg
             {...props}
@@ -26,7 +22,7 @@ export function NotesDataIcon(props: SVGProps<SVGSVGElement>) {
             fill="none"
         >
             <path
-                stroke={color}
+                stroke="currentColor"
                 strokeWidth={1.7}
                 strokeLinecap="round"
                 strokeLinejoin="round"

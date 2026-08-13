@@ -1484,6 +1484,17 @@ export default definePlugin({
     authors: [{ name: "x2b", id: 996137713432530976n }],
     required: true,
     settings,
+    patches: [
+        {
+            find: "AUDIO_RESET:function(){",
+            predicate: () => Settings.plugins.TestcordOptimizer?.preventAudioResetReload !== false,
+            noWarn: true,
+            replacement: {
+                match: /(?<=AUDIO_RESET:function\(\).{0,300}?)location\.reload\(\)/,
+                replace: "$self.onAudioReset()"
+            }
+        },
+    ],
     dependencies: ["MessageAccessoriesAPI", "MessageEventsAPI"],
 
     commands: [{
@@ -1508,6 +1519,11 @@ export default definePlugin({
         msg.content = replaceAliases(msg.content);
     },
 
+    onAudioReset() {
+        logger.warn("Audio engine reset, skipped Discord's auto reload");
+        showToast("Audio engine reset, skipped reload", Toasts.Type.MESSAGE);
+    },
+
     renderMessageAccessory(props) {
         const { content } = props.message;
         if (content.length < 12) return null;
@@ -1524,12 +1540,19 @@ export default definePlugin({
         );
     },
 
-    syncPronounsBadge() {
+    async syncPronounsBadge() {
         const selfId = UserStore.getCurrentUser()?.id;
         if (!selfId) return;
 
-        const profile = UserProfileStore.getUserProfile(selfId);
-        const current: string | undefined = profile?.pronouns;
+        // The profile store is empty right after boot, so fetch it before
+        // deciding whether to write: writing blind would re-apply the marker
+        // (and refetch the profile) on every startup even when it already
+        // exists server-side.
+        const profile = UserProfileStore.getUserProfile(selfId)
+            ?? await fetchUserProfile(selfId, {}, false).catch(() => undefined);
+        if (!profile) return;
+
+        const current: string | undefined = profile.pronouns;
         const hasMarker = current?.includes(ZWSP) ?? false;
         const wantMarker = settings.store.pronounsBadge;
 
@@ -1547,9 +1570,11 @@ export default definePlugin({
 
     start() {
         if (settings.store.preventCrashes) installCrashGuards();
-        installConsoleCapture();
+        if (settings.store.liveFix) {
+            installConsoleCapture();
+            startLiveFixServer();
+        }
         if (settings.store.debugMode) settings.store.debugMode = false;
-        if (settings.store.liveFix) startLiveFixServer();
         this.syncPronounsBadge();
         if (settings.store.orchestrator || settings.store.messageCoalesce) {
             const p = Plugins.OrchestratorAPI;

@@ -53,6 +53,10 @@ const onRtcConnectionState = () => {
     armSuppress();
 };
 
+const onAudioReset = () => {
+    armSuppress();
+};
+
 const onStreamViewerCountUpdate = () => {
     armSuppress();
 };
@@ -134,6 +138,7 @@ export default definePlugin({
         FluxDispatcher.subscribe("STREAM_START", onStreamStart);
         FluxDispatcher.subscribe("STREAM_STOP", onStreamStop);
         FluxDispatcher.subscribe("RTC_CONNECTION_STATE", onRtcConnectionState);
+        FluxDispatcher.subscribe("AUDIO_RESET", onAudioReset);
         FluxDispatcher.subscribe("STREAM_VIEWER_COUNT_UPDATE", onStreamViewerCountUpdate);
 
         // Use addEventListener so Discord's own window.onerror still runs.
@@ -142,22 +147,19 @@ export default definePlugin({
         preventMediaError = function (event) {
             const msg = event.message ?? "";
             const err = event.error;
-            if (isMediaErrorMsg(msg) || err?.message && isMediaErrorMsg(err.message)) {
-                logErrorSync("error", err ?? msg);
-                event.preventDefault();
-                if (suppressReload) armSuppress(3000);
-            } else {
-                logErrorSync("error", err ?? msg);
-            }
+            const isMedia = isMediaErrorMsg(msg) || (err?.message && isMediaErrorMsg(err.message));
+            if (!isMedia) return;
+            logErrorSync("error", err ?? msg);
+            event.preventDefault();
+            if (suppressReload) armSuppress(3000);
         };
         window.addEventListener("error", preventMediaError);
 
         preventMediaRejection = function (event) {
             const msg = event.reason?.message ?? String(event.reason);
+            if (!isMediaErrorMsg(msg)) return;
             logErrorSync("unhandledRejection", event.reason);
-            if (isMediaErrorMsg(msg)) {
-                event.preventDefault();
-            }
+            event.preventDefault();
         };
         window.addEventListener("unhandledrejection", preventMediaRejection);
 
@@ -221,6 +223,7 @@ export default definePlugin({
         FluxDispatcher.unsubscribe("STREAM_START", onStreamStart);
         FluxDispatcher.unsubscribe("STREAM_STOP", onStreamStop);
         FluxDispatcher.unsubscribe("RTC_CONNECTION_STATE", onRtcConnectionState);
+        FluxDispatcher.unsubscribe("AUDIO_RESET", onAudioReset);
         FluxDispatcher.unsubscribe("STREAM_VIEWER_COUNT_UPDATE", onStreamViewerCountUpdate);
         clearTimeout(suppressTimer);
         suppressReload = false;

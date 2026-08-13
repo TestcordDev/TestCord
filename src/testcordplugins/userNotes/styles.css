@@ -91,20 +91,10 @@
     height: 40px;
 }
 
-/* Open "Notes Data" toolbox button */
-.vc-notes-toolbox-button svg {
-    color: var(--interactive-normal);
-}
-
 /* Part of Notes Modal Data. css linter is awesome */
 .vc-user-notes-data-modal-user-actions * svg {
     width: 32px !important;
     height: 32px !important;
-}
-
-.vc-notes-toolbox-button:hover svg,
-.vc-notes-toolbox-button[class*="selected"] svg {
-    color: var(--interactive-active);
 }
 
 /* Notes Data Modal */
