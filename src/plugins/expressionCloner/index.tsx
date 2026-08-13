@@ -145,7 +145,8 @@ function getGuildCandidates(data: Data) {
 
     return Object.values(GuildStore.getGuilds()).filter(g => {
         const canCreate = g.ownerId === meId ||
-            (PermissionStore.getGuildPermissions({ id: g.id }) & PermissionsBits.CREATE_GUILD_EXPRESSIONS) === PermissionsBits.CREATE_GUILD_EXPRESSIONS;
+            PermissionStore.can(PermissionsBits.CREATE_GUILD_EXPRESSIONS, g) ||
+            PermissionStore.can(PermissionsBits.MANAGE_GUILD_EXPRESSIONS, g);
         if (!canCreate) return false;
 
         if (data.t === "Sticker") {
@@ -161,9 +162,11 @@ function getGuildCandidates(data: Data) {
         const emojis = EmojiStore.getGuildEmoji(g.id);
 
         let count = 0;
-        for (const emoji of emojis) {
-            if (emoji.animated === isAnimated && !emoji.managed) {
-                count++;
+        if (emojis) {
+            for (const emoji of emojis) {
+                if (emoji.animated === isAnimated && !emoji.managed) {
+                    count++;
+                }
             }
         }
 
@@ -374,18 +377,31 @@ const messageContextMenuPatch: NavContextMenuPatchCallback = (children, props) =
     const menuItem = (() => {
         switch (favoriteableType) {
             case "emoji":
-                const match = props.message.content.match(RegExp(`<a?:(\\w+)(?:~\\d+)?:${favoriteableId}>|https://cdn\\.discordapp\\.com/emojis/${favoriteableId}\\.`));
-                const reaction = props.message.reactions.find(reaction => reaction.emoji.id === favoriteableId);
-                if (!match && !reaction) return;
-                const name = (match && match[1]) ?? reaction?.emoji.name ?? "FakeNitroEmoji";
+                const content = props.message?.content ?? "";
+                const match = content.match(RegExp(`<a?:(\\w+)(?:~\\d+)?:${favoriteableId}>|https://cdn\\.discordapp\\.com/emojis/${favoriteableId}\\.`));
+                const reaction = props.message?.reactions?.find?.((reaction: any) => reaction.emoji?.id === favoriteableId);
+                let name = (match && match[1]) ?? reaction?.emoji?.name;
+
+                if (!name && props.message?.embeds) {
+                    for (const embed of props.message.embeds) {
+                        const embedStr = JSON.stringify(embed);
+                        const embedMatch = embedStr.match(RegExp(`<a?:(\\w+)(?:~\\d+)?:${favoriteableId}>`));
+                        if (embedMatch) {
+                            name = embedMatch[1];
+                            break;
+                        }
+                    }
+                }
+
+                name ??= "FakeNitroEmoji";
 
                 return buildMenuItem("Emoji", () => ({
                     id: favoriteableId,
-                    name,
+                    name: name!,
                     isAnimated: isGifUrl(itemHref ?? itemSrc)
                 }));
             case "sticker":
-                const sticker = props.message.stickerItems.find(s => s.id === favoriteableId);
+                const sticker = props.message?.stickerItems?.find?.((s: any) => s.id === favoriteableId);
                 if (sticker?.format_type === 3 /* LOTTIE */) return;
 
                 return buildMenuItem("Sticker", () => fetchSticker(favoriteableId));
@@ -400,12 +416,13 @@ const expressionPickerPatch: NavContextMenuPatchCallback = (children, props: { t
     const { id, name, type } = props?.target?.dataset ?? {};
     if (!id) return;
 
-    if (type === "emoji" && name) {
+    if (type === "emoji") {
+        const emojiName = name || (props.target as HTMLImageElement)?.alt?.replace(/^:|:$/g, "") || "FakeNitroEmoji";
         const firstChild = props.target.firstChild as HTMLImageElement;
 
         children.push(buildMenuItem("Emoji", () => ({
             id,
-            name,
+            name: emojiName,
             isAnimated: firstChild && isGifUrl(firstChild.src)
         })));
     } else if (type === "sticker" && !props.target.className?.includes("lottieCanvas")) {

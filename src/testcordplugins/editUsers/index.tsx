@@ -40,20 +40,20 @@ export default definePlugin({
         {
             find: ",getUserTag:",
             replacement: {
-                match: /if\(\i\((\i)\.global_name\)\)return(?=.{0,100}return"\?\?\?")/,
-                replace: "const vcEuName=$self.getUsername($1);if(vcEuName)return vcEuName;$&"
+                match: /function \i\((\i)\)\{return(?=c\(\1\.global_name\))/,
+                replace: "function $1($2){const vcEuName=$self.getUsername($2);if(vcEuName)return vcEuName;return"
             }
         },
         {
             find: "=this.guildMemberAvatars[",
             replacement: [
                 {
-                    match: /&&null!=this\.guildMemberAvatars\[\i\]/,
+                    match: /null!=(\i)\?this\.guildMemberAvatars\[\1\]:void 0;return null!=\i&&null!=\1/,
                     replace: "$& && !$self.shouldIgnoreGuildAvatar(this)"
                 },
                 {
-                    match: /(?<=null!=(\i))\?(\i\.\i\.getGuildMemberAvatarURLSimple.+?):(?=\i\.\i\.getUserAvatarURL\(this)/,
-                    replace: "&& this.hasAvatarForGuild?.($1) ? $2 : $self.getAvatarUrl(this)||"
+                    match: /:(\i\.\i\.getUserAvatarURL\(this)/,
+                    replace: ":$self.getAvatarUrl(this)||$1"
                 }
             ]
         },
@@ -61,11 +61,11 @@ export default definePlugin({
             find: "this.isUsingGuildMemberBanner()",
             replacement: [
                 {
-                    match: /:\i\.banner\)!=null/,
+                    match: /this\._guildMemberProfile\?\.banner!=null/,
                     replace: "$& && !$self.shouldIgnoreGuildBanner(this.userId)"
                 },
                 {
-                    match: /(?<=:).{0,10}\(\{id:this\.userId,banner/,
+                    match: /(?<=:\s*)\i\.\i\(\{id:this\.userId,banner:this\.banner/,
                     replace: "$self.getBannerUrl(this.userId)||$&"
                 },
                 {
@@ -74,10 +74,6 @@ export default definePlugin({
                         "set pronouns(v){this._vcPronouns=v}" +
                         "get pronouns(){return $self.getPronouns(this.userId)||this._vcPronouns}" +
                         "isUsingGuildMemberPronouns(){"
-                },
-                {
-                    match: /\i\(this,"pronouns",void 0\),/,
-                    replace: ""
                 }
             ]
         },

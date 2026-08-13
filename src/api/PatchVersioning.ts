@@ -93,8 +93,8 @@ export const PatchVersioning = {
      *
      * Called from `patchFactory` after a patch is successfully applied.
      */
-    checkAndStore(plugin: string, find: string, originalSource: string, buildNumber: number) {
-        const key = `${plugin}:${find}`;
+    checkAndStore(plugin: string, find: string, originalSource: string, buildNumber: number, moduleId?: string) {
+        const key = moduleId ? `${plugin}:${find}:${moduleId}` : `${plugin}:${find}`;
         const currentHash = djb2(originalSource);
 
         // Load lazily if not yet loaded — the check will just skip

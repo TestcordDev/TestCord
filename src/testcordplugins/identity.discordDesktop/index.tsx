@@ -141,9 +141,10 @@ export default definePlugin({
     patches: [
         {
             find: "DefaultCustomizationSections",
+            noWarn: true,
             replacement: {
-                match: /(?<=#{intl::USER_SETTINGS_AVATAR_DECORATION}\)},"decoration"\),)/,
-                replace: "$self.ResetCard(),"
+                match: /"decoration"\),/,
+                replace: "$&$self.ResetCard(),"
             }
         },
     ]

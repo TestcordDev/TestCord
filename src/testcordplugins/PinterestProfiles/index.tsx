@@ -35,10 +35,11 @@ export default definePlugin({
     patches: [
         {
             find: "#{intl::EXPRESSION_PICKER_CATEGORIES_A11Y_LABEL}",
+            noWarn: true,
             replacement: [
                 {
-                    match: /(\i)=((\i)\?Vencord\.Plugins\.plugins\["FavouriteAnything"\]\.renderTabs\((\i),(\i)\):null),/,
-                    replace: "$1=$self.renderTabs($2,$4,$5),"
+                    match: /(\i)=((?:\(?\i\)?\?.+?\.renderTabs\((\i),(\i)\):null)|null),/,
+                    replace: "$1=$self.renderTabs($2,$3,$4),"
                 },
                 {
                     match: /((\i)===\i\.\i\.GIF&&\i\?\(0,\i\.jsx\)\(\i\.\i,\{onSelectGIF:(\i),hideFavorites:\i,persistSearch:!0\}\):null,)/,
