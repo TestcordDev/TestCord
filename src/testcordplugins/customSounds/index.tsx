@@ -229,6 +229,7 @@ export default definePlugin({
     name: "CustomSounds",
     description: "Customize Discord's sounds.",
     authors: [Devs.ScattrdBlade, Devs.TheKodeToad],
+    tags: ["Customisation"],
     settings,
     startAt: StartAt.Init,
 

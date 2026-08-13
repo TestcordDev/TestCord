@@ -12,6 +12,7 @@ export default definePlugin({
     name: "AvatarGrabber",
     description: "/avatar grabs the full-resolution avatar of any user (or yourself).",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Commands", "Utility"],
     dependencies: ["CommandsAPI"],
     commands: [
         {

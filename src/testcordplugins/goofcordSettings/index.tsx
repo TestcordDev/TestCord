@@ -33,6 +33,7 @@ export default definePlugin({
     name: "GoofcordSettings",
     description: "Ports GoofCord's renderer-side performance fixes: paint containment on the member/message lists, plus an unlock for Discord's desktop keybinds.",
     authors: [TestcordDevs.x2b],
+    tags: ["Performance", "Utility"],
 
     settings,
     settingsAboutComponent: () => (

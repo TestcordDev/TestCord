@@ -13,6 +13,7 @@ export default definePlugin({
     name: "LeetText",
     description: "/leet rewrites your message in 1337 5p34k.",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Fun", "Chat", "Commands"],
     dependencies: ["CommandsAPI"],
     commands: [
         {

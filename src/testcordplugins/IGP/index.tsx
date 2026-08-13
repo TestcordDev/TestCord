@@ -220,7 +220,7 @@ export function preprocessKey(key: string): string {
 }
 
 // Key Generation Functionality
-async function generateKeyPair(name: string, email: string, passphrase: string, type: "ecc" | "rsa" = "ecc"): Promise<{ publicKey: string; privateKey: string }> {
+async function generateKeyPair(name: string, email: string, passphrase: string, type: "ecc" | "rsa" = "ecc"): Promise<{ publicKey: string; privateKey: string; }> {
     await ensureOpenPGP();
     const pgp = requireOpenPGP();
 
@@ -329,7 +329,7 @@ class KeyManager {
         }
     }
 
-private saveKeys(): void {
+    private saveKeys(): void {
         this.ensureInitialized();
         const obj = Object.fromEntries(this.keyCache);
         settings.store.knownPublicKeys = JSON.stringify(obj);
@@ -365,7 +365,7 @@ private saveKeys(): void {
         return this.keyCache.get(userId)?.publicKey || null;
     }
 
-    getAllKeysWithUsers(): Array<{ userId: string; key: StoredKey }> {
+    getAllKeysWithUsers(): Array<{ userId: string; key: StoredKey; }> {
         this.ensureInitialized();
         return Array.from(this.keyCache.entries()).map(([userId, key]) => ({ userId, key }));
     }
@@ -396,7 +396,7 @@ export const KEYSERVERS = {
 
 export type KeyserverName = keyof typeof KEYSERVERS;
 
-async function searchKeyserver(query: string, keyserver: KeyserverName = "OPENPGP"): Promise<{ found: boolean; keys: string[] }> {
+async function searchKeyserver(query: string, keyserver: KeyserverName = "OPENPGP"): Promise<{ found: boolean; keys: string[]; }> {
     const serverUrl = KEYSERVERS[keyserver];
     try {
         const searchParam = query.includes("@") ? query : (query.startsWith("0x") ? query : `0x${query}`);
@@ -521,7 +521,7 @@ async function decryptMessage(message: string, authorId: string): Promise<any> {
         }
     }
 
-        return { ...decrypted, verified };
+    return { ...decrypted, verified };
 }
 
 // Message signing and verification functions
@@ -556,7 +556,7 @@ async function signMessage(text: string): Promise<string> {
     return await pgp.sign({ message, signingKeys: privateKey, format: "armored" });
 }
 
-async function verifyMessage(signedMessage: string): Promise<{ valid: boolean; text: string; signedBy?: string }> {
+async function verifyMessage(signedMessage: string): Promise<{ valid: boolean; text: string; signedBy?: string; }> {
     await ensureOpenPGP();
     const pgp = requireOpenPGP();
 
@@ -662,7 +662,7 @@ const settings = definePluginSettings({
     pgpPrivateKey: {
         type: OptionType.STRING,
         description: "Your PGP private key (armored format)",
-    tags: ["Utility"],
+        tags: ["Utility"],
         default: "",
         hidden: false,
     },
@@ -700,6 +700,7 @@ export default definePlugin({
     name: "IGP",
     description: "Illegalcord PGP encryption",
     authors: [{ name: "irritably", id: 928787166916640838n }],
+    tags: ["Privacy"],
     dependencies: ["HeaderBarAPI"],
     settings,
 
@@ -764,37 +765,53 @@ export default definePlugin({
             name: "pgp",
             description: "PGP encryption commands",
             options: [
-                { name: "encrypt", description: "Encrypt a message", type: 1, options: [
-                    { name: "message", description: "Message to encrypt", type: 3, required: true },
-                    { name: "user", description: "Recipient", type: 6, required: true }
-                ] },
-                { name: "decrypt", description: "Decrypt a message", type: 1, options: [
-                    { name: "message", description: "PGP message to decrypt", type: 3, required: true }
-                ] },
-                { name: "sign", description: "Sign a message", type: 1, options: [
-                    { name: "message", description: "Message to sign", type: 3, required: true }
-                ] },
-                { name: "verify", description: "Verify a signed message", type: 1, options: [
-                    { name: "message", description: "Signed message to verify", type: 3, required: true }
-                ] },
+                {
+                    name: "encrypt", description: "Encrypt a message", type: 1, options: [
+                        { name: "message", description: "Message to encrypt", type: 3, required: true },
+                        { name: "user", description: "Recipient", type: 6, required: true }
+                    ]
+                },
+                {
+                    name: "decrypt", description: "Decrypt a message", type: 1, options: [
+                        { name: "message", description: "PGP message to decrypt", type: 3, required: true }
+                    ]
+                },
+                {
+                    name: "sign", description: "Sign a message", type: 1, options: [
+                        { name: "message", description: "Message to sign", type: 3, required: true }
+                    ]
+                },
+                {
+                    name: "verify", description: "Verify a signed message", type: 1, options: [
+                        { name: "message", description: "Signed message to verify", type: 3, required: true }
+                    ]
+                },
                 { name: "sharekey", description: "Share your public key", type: 1 },
                 { name: "fingerprint", description: "Show your key fingerprint", type: 1 },
-                { name: "generate", description: "Generate a new PGP key pair", type: 1, options: [
-                    { name: "name", description: "Your name", type: 3, required: true },
-                    { name: "email", description: "Your email", type: 3, required: true },
-                    { name: "passphrase", description: "Passphrase for private key", type: 3, required: true },
-                    { name: "type", description: "Key type", type: 3, choices: [
-                        { name: "ECC (recommended)", label: "ECC (recommended)", value: "ecc" as any },
-                        { name: "RSA 4096", label: "RSA 4096", value: "rsa" as any }
-                    ] }
-                ] },
-                { name: "import", description: "Import a contact's public key", type: 1, options: [
-                    { name: "key", description: "Public key", type: 3, required: true },
-                    { name: "user", description: "User ID", type: 6, required: true }
-                ] },
-                { name: "search", description: "Search for a public key", type: 1, options: [
-                    { name: "query", description: "Email or key ID to search for", type: 3, required: true }
-                ] }
+                {
+                    name: "generate", description: "Generate a new PGP key pair", type: 1, options: [
+                        { name: "name", description: "Your name", type: 3, required: true },
+                        { name: "email", description: "Your email", type: 3, required: true },
+                        { name: "passphrase", description: "Passphrase for private key", type: 3, required: true },
+                        {
+                            name: "type", description: "Key type", type: 3, choices: [
+                                { name: "ECC (recommended)", label: "ECC (recommended)", value: "ecc" as any },
+                                { name: "RSA 4096", label: "RSA 4096", value: "rsa" as any }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    name: "import", description: "Import a contact's public key", type: 1, options: [
+                        { name: "key", description: "Public key", type: 3, required: true },
+                        { name: "user", description: "User ID", type: 6, required: true }
+                    ]
+                },
+                {
+                    name: "search", description: "Search for a public key", type: 1, options: [
+                        { name: "query", description: "Email or key ID to search for", type: 3, required: true }
+                    ]
+                }
             ],
             async execute(args, ctx) {
                 const sub = args[0];

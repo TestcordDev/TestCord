@@ -13,6 +13,7 @@ export default definePlugin({
     name: "PastelMentions",
     description: "Recolors mentions and role pills with a soft pastel vaporwave gradient.",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Appearance"],
     start: () => enableStyle(style),
     stop: () => disableStyle(style),
 });

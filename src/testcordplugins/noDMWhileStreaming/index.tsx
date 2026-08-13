@@ -9,7 +9,7 @@ import "./styles.css";
 import { definePluginSettings } from "@api/Settings";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByProps, findByPropsLazy } from "@webpack";
-import { ChannelStore, FluxDispatcher, React,UserStore, useStateFromStores } from "@webpack/common";
+import { ChannelStore, FluxDispatcher, React, UserStore, useStateFromStores } from "@webpack/common";
 
 const StreamStore = findByPropsLazy("getActiveStreamForUser", "getAllActiveStreams");
 const RTCConnectionStore = findByPropsLazy("getMediaSessionId");
@@ -71,6 +71,7 @@ export default definePlugin({
     name: "NoDMWhileStreaming",
     description: "Hides DM and Group DM notifications and sidebar items while you are streaming",
     authors: [{ name: "Unknown", id: 0n }],
+    tags: ["Appearance", "Utility", "Privacy"],
     enabledByDefault: false,
     settings,
     patches: [
@@ -200,7 +201,7 @@ export default definePlugin({
                             console.log("[NoDMWhileStreaming] [Notification] Blocked desktop notification:", title);
                         }
                         return {
-                            close() {},
+                            close() { },
                             onclick: null,
                             onclose: null,
                             onerror: null,

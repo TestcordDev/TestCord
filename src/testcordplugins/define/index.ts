@@ -19,6 +19,7 @@ export default definePlugin({
     name: "Define",
     description: "/define looks up a word's dictionary definition (sent only to you).",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Commands", "Utility"],
     dependencies: ["CommandsAPI"],
     commands: [
         {

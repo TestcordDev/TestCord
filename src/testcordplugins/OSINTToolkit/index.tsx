@@ -596,7 +596,7 @@ const messageContextMenuPatch: NavContextMenuPatchCallback = (children, { messag
 export default definePlugin({
     name: "OSINTToolkit",
     description: "OSINT - Domain age lookup, IP information, and username search",
-    tags: ["Utility", "Developers"],
+    tags: ["Utility", "Developers", "Privacy"],
     authors: [{ name: "irritably", id: 928787166916640838n }],
     settings,
 

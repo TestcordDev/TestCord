@@ -238,6 +238,7 @@ export default definePlugin({
     name: "AutoReply",
     description: "Automatically replies to received messages. Button in the text bar (next to VoiceDictation).",
     authors: [{ name: "User", id: 0n }],
+    tags: ["Utility"],
     dependencies: ["ChatInputButtonAPI", "HeaderBarAPI"],
     settings,
 

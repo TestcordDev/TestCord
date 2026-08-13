@@ -13,6 +13,7 @@ export default definePlugin({
     name: "PollMaker",
     description: "/poll formats a quick poll. Use: question | option | option ...",
     authors: [{ name: "Dann", id: 0n }],
+    tags: ["Commands", "Utility"],
     dependencies: ["CommandsAPI"],
     commands: [
         {

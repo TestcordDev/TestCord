@@ -571,6 +571,7 @@ export default definePlugin({
     name: "FakeVoicePremium",
     description: "Fake deafen, mute, stream, game, and camera in one plugin. Toggle via the user-area button (right-click for options), audio/video device menus, keybinds, or slash commands.",
     authors: [EquicordDevs.omaw, TestcordDevs.x2b, TestcordDevs.dot, TestcordDevs.sirphantom89, TestcordDevs.hyyven],
+    tags: ["Privacy", "Utility", "Voice"],
     dependencies: ["CommandsAPI", "UserAreaAPI"],
     enabledByDefault: false,
     settings,

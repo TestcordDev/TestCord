@@ -11,5 +11,6 @@ export default definePlugin({
     name: "CreateTheme",
     description: "Create Theme UI — registered via settings.tsx",
     authors: [Devs.Ven],
+    tags: ["Utility"],
     required: false,
 });

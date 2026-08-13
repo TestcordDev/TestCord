@@ -105,6 +105,7 @@ export default definePlugin({
     description:
         "All-in-one server utility. Right-click any guild for an X-Ray inspector and a powerful Duplicate/Clone modal (roles, channels, emojis, stickers, webhooks, server settings, optional overwrite of an existing target).",
     authors: [TestcordDevs.sirphantom89],
+    tags: ["Servers", "Utility"],
     settings,
     contextMenus: {
         "guild-context": guildContextPatch,

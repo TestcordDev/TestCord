@@ -8,10 +8,10 @@ import "./styles.css";
 
 import { HeaderBarButton } from "@api/HeaderBar";
 import { sleep } from "@utils/misc";
-import { ModalCloseButton,ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal } from "@utils/modal";
+import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
 import { findByPropsLazy, findStoreLazy } from "@webpack";
-import { Forms, React, useEffect, useMemo,useState } from "@webpack/common";
+import { Forms, React, useEffect, useMemo, useState } from "@webpack/common";
 
 import { t, useTranslation } from "../autoTranslateNightcord";
 
@@ -213,7 +213,7 @@ function BulkFriendRemoveButton() {
 export default definePlugin({
     name: "BulkFriendRemove",
     description: "Delete multiple friends at once.",
-    tags: ["Friends", "Nightcord"],
     authors: [{ name: "Nightcord", id: 0n }],
+    tags: ["Friends", "Utility", "Nightcord"],
     headerBarButton: { icon: BulkRemoveIcon, render: BulkFriendRemoveButton, priority: 5 },
 });

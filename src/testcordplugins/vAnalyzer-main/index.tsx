@@ -29,7 +29,7 @@ import { autoAnalyzeMessage, extractUrlsFromMessage, manualAnalyzeUrls } from ".
 import { getModulesSync } from "./modularScanStore";
 import { settings } from "./settings";
 import { getThreat } from "./threatStore";
-import { initFilters, setCustomBlocklist,setCustomWhitelist } from "./urlFilter";
+import { initFilters, setCustomBlocklist, setCustomWhitelist } from "./urlFilter";
 import { extractCdnFileUrls, truncateUrl } from "./utils";
 
 async function genericAnalyze(messageId: string, url: string, analyzer: (url: string, silent: boolean) => Promise<any>, silent = false) {
@@ -454,6 +454,7 @@ export default definePlugin({
     name: "vAnalyzer",
     description: "Analyze message attachments, trace URLs, check certificates, avoid scams and more.",
     authors: [{ name: "nay-cat", id: 1159977353661919363n }],
+    tags: ["Privacy", "Utility"],
     settings,
 
     async start() {

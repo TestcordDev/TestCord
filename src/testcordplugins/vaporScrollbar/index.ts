@@ -13,6 +13,7 @@ export default definePlugin({
     name: "VaporScrollbar",
     description: "Replaces scrollbars with a neon pink-to-cyan vaporwave gradient.",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Appearance"],
     start: () => enableStyle(style),
     stop: () => disableStyle(style),
 });

@@ -13,6 +13,7 @@ export default definePlugin({
     name: "CRTEffect",
     description: "Overlays retro CRT scanlines on the client for that old-monitor vaporwave look.",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Appearance", "Fun"],
     start: () => enableStyle(style),
     stop: () => disableStyle(style),
 });

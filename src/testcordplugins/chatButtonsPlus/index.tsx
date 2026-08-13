@@ -329,7 +329,7 @@ migratePluginSettings("ChatButtonsPlus", "Meow", "Woof");
 export default definePlugin({
     name: "ChatButtonsPlus",
     description: "Add custom chat buttons with personalized + messages and SVG icons",
-    tags: ["Chat", "Customisation"],
+    tags: ["Chat", "Customisation", "Utility"],
     authors: [TestcordDevs.x2b],
     dependencies: ["HeaderBarAPI"],
     settings,
@@ -339,21 +339,21 @@ export default definePlugin({
         render: (({ isMainChat }) => {
             if (!isMainChat || settings.store.location !== "chatbar") return null;
 
-        const enabledButtons: React.ReactNode[] = [];
-        for (const entry of buttonEntries) {
-            if (entry.enabled === false) continue;
-            enabledButtons.push(
-                <ChatBarButton
-                    key={entry.id}
-                    tooltip={entry.label}
-                    onClick={() => handleButtonClick(entry.message)}
-                >
-                    <CustomButtonIcon svg={entry.svg} />
-                </ChatBarButton>
-            );
-        }
-        return <>{enabledButtons}</>;
-    }) as any,
+            const enabledButtons: React.ReactNode[] = [];
+            for (const entry of buttonEntries) {
+                if (entry.enabled === false) continue;
+                enabledButtons.push(
+                    <ChatBarButton
+                        key={entry.id}
+                        tooltip={entry.label}
+                        onClick={() => handleButtonClick(entry.message)}
+                    >
+                        <CustomButtonIcon svg={entry.svg} />
+                    </ChatBarButton>
+                );
+            }
+            return <>{enabledButtons}</>;
+        }) as any,
     },
 
     async start() {
