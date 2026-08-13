@@ -104,6 +104,8 @@ const settings = definePluginSettings({
     hideActivity: { type: OptionType.BOOLEAN, default: false, description: "Hide activity button in call controls", onChange: () => apply() },
     // Line
     hideLine: { type: OptionType.BOOLEAN, default: true, description: "Hide the line between user and buttons", onChange: () => apply() },
+    // Profile Nameplate
+    fixProfileNameplate: { type: OptionType.BOOLEAN, default: false, description: "Fixes the rounding of the profile nameplate", onChange: () => apply() },
 });
 
 // ─── Selectors & Constants ────────────────────────────────────────────────────
@@ -524,7 +526,7 @@ function buildCSS(): string {
             lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
 
             for (const id of Object.keys(buttonConfigs)) {
-                if (!getBtnCfg(id).background) {
+                if (getBtnCfg(id).background !== undefined && !getBtnCfg(id).background) {
                     lines.push(`
                         ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
                         ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
@@ -607,7 +609,7 @@ function buildCSS(): string {
     if (st.hideScreenShare) lines.push(`${getBtnSelector("Screen Share")} { display: none !important; }`);
     if (st.hideActivity) lines.push(`${getBtnSelector("Activity")} { display: none !important; }`);
 
-    // Lock Button Positions logic (prevents long status text or screen sharing from pushing buttons down to a new row)
+    // Lock Button Positions logic (prevents long status text or screen sharing from pushing buttons down to a new row) max-width: calc(100% - 140px) !important;
     if (st.lockButtonPosition) {
         const isSplit = ["split_row", "split_grid2", "split_grid3", "split_grid4", "all_top"].includes(st.userPanelLayout);
         if (!isSplit) {
@@ -616,30 +618,17 @@ function buildCSS(): string {
         }
         lines.push(`
             ${S.accountWrapper} {
-                flex: 0 1 auto !important;
-                min-width: 120px !important;
-                max-width: 180px !important;
-                overflow: hidden !important;
+                max-width: 100% !important;
+                flex: 1 !important;
             }
-            ${S.accountWrapper} [class*="avatar_"],
-            ${S.accountWrapper} [class*="avatarWrapper_"] {
-                flex-shrink: 0 !important;
-            }
-            ${S.accountWrapper} [class*="nameTag_"],
-            ${S.accountWrapper} [class*="panelSubtextContainer_"],
-            ${S.accountWrapper} [class*="activity_"],
-            ${S.accountWrapper} [class*="subtext_"],
-            ${S.accountWrapper} [class*="text_"],
-            ${S.accountWrapper} [class*="status_"],
-            ${S.accountWrapper} [class*="customStatus_"] {
-                overflow: hidden !important;
-                text-overflow: ellipsis !important;
-                white-space: nowrap !important;
-            ${S.audioParent},
-            ${S.panelContainer} [class*="audioButtonParent"] {
-                flex-shrink: 0 !important;
-                white-space: nowrap !important;
-            }
+        `);
+    }
+
+    if (st.fixProfileNameplate) {
+        lines.push(`
+            ${S.panelContainer} .container_df39b2 { border-radius: 0px !important; }
+            ${S.panelContainer} { border-radius: 0px !important; }
+            .panels__5e434 { overflow: hidden !important; }
         `);
     }
 
@@ -1244,7 +1233,8 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <Card variant="primary">
                                 <FormSwitch title="Hide Dropdown Chevrons" description="Removes the tiny arrows next to Mute/Deafen." value={s.hideChevrons} onChange={v => set("hideChevrons", v)} />
                                 <FormSwitch title="Lock Button Position" description="Prevents Mute, Deafen, and Settings buttons from dropping down to a new row when you have a long status or share screen." value={s.lockButtonPosition} onChange={v => set("lockButtonPosition", v)} />
-                                <FormSwitch title="Hide line" description="Hide the line between user and buttons" value={s.hideLine} onChange={v => set("hideLine", v)} hideBorder />
+                                <FormSwitch title="Hide line" description="Hide the line between user and buttons" value={s.hideLine} onChange={v => set("hideLine", v)} />
+                                <FormSwitch title="Fix Profile Nameplate" description="Fixes the rounding of the profile nameplate" value={s.fixProfileNameplate} onChange={v => set("fixProfileNameplate", v)} hideBorder />
                             </Card>
                         </>}
 

@@ -29,6 +29,9 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Set a custom message as your status when music stops or you disable the plugin",
         default: true,
+        disabled() {
+            return settings.store.lastStatusOnStop;
+        }
     },
     customMessage: {
         type: OptionType.STRING,
@@ -37,6 +40,19 @@ const settings = definePluginSettings({
         hidden() {
             return !settings.store.customMessageOnStop;
         },
+    },
+    lastStatusOnStop: {
+        type: OptionType.BOOLEAN,
+        description: "Restore status from before music started when music stops or you disable the plugin",
+        default: false,
+        disabled() {
+            return settings.store.customMessageOnStop;
+        }
+    },
+    showPanelButton: {
+        type: OptionType.BOOLEAN,
+        description: "Add a button in the user area panel",
+        default: true,
     },
 });
 
@@ -110,9 +126,26 @@ function getCurrentLine(lines: SyncedLine[], posMs: number): string | null {
 const CustomStatusSetting = getUserSettingLazy("status", "customStatus")!;
 
 let lastSentLine: string | null = null;
+let savedOriginalStatus: any = null;
+
+function saveOriginalStatus() {
+    if (savedOriginalStatus === null && CustomStatusSetting) {
+        const current = CustomStatusSetting.getSetting();
+        savedOriginalStatus = current ? { ...current } : null;
+    }
+}
+
+function restoreOriginalStatus() {
+    if (savedOriginalStatus !== null && CustomStatusSetting) {
+        lastSentLine = null;
+        CustomStatusSetting.updateSetting(savedOriginalStatus);
+        savedOriginalStatus = null;
+    }
+}
 
 function setStatus(text: string) {
     if (text === lastSentLine) return;
+    saveOriginalStatus();
     lastSentLine = text;
     CustomStatusSetting?.updateSetting({
         text: text.slice(0, 128),
@@ -132,6 +165,15 @@ function customStatus() {
         emojiName: "",
         createdAtMs: "0",
     });
+    savedOriginalStatus = null;
+}
+
+function handleStopStatus() {
+    if (settings.store.lastStatusOnStop) {
+        restoreOriginalStatus();
+    } else if (settings.store.customMessageOnStop) {
+        customStatus();
+    }
 }
 
 // ── Tick loop ─────────────────────────────────────────────────────────────────
@@ -188,7 +230,7 @@ function onSpotifyPlayerState(e: SpotifyPlayerState) {
         }
     }
 
-    if (!isPlaying && (settings.store.customMessageOnStop)) customStatus();
+    if (!isPlaying) handleStopStatus();
 }
 
 function Icon({ className, active }: { className?: string; active: boolean; }) {
@@ -237,7 +279,8 @@ function Icon({ className, active }: { className?: string; active: boolean; }) {
 }
 
 function LyricsStatusToggleButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
-    const { active } = settings.use(["active"]);
+    const { active, showPanelButton } = settings.use(["active", "showPanelButton"]);
+    if (!showPanelButton) return null;
 
     return (
         <UserAreaButton
@@ -255,7 +298,7 @@ function LyricsStatusToggleButton({ iconForeground, hideTooltips, nameplate }: U
 
                 if (!nextState) {
                     if (intervalId !== null) { clearInterval(intervalId); intervalId = null; }
-                    customStatus();
+                    handleStopStatus();
                 } else {
                     tick();
                     if (intervalId === null) intervalId = setInterval(tick, 2000);
@@ -290,11 +333,12 @@ export default definePlugin({
         lyricsAbortController = null;
         FluxDispatcher.unsubscribe("SPOTIFY_PLAYER_STATE", onSpotifyPlayerState as any);
         if (intervalId !== null) { clearInterval(intervalId); intervalId = null; }
-        if (!isPlaying && (settings.store.customMessageOnStop)) customStatus();
+        if (!isPlaying) handleStopStatus();
         currentLines = null;
         lyricsCache.clear();
         lastSentLine = null;
         isPlaying = false;
         currentTrackId = "";
+        savedOriginalStatus = null;
     },
 });
