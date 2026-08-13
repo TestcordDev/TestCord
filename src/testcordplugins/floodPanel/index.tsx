@@ -52,6 +52,7 @@ export default definePlugin({
     name: "FloodPanel",
     description: "Send a flood of messages rapidly in any channel. Load a custom .txt file or use the built-in phrases. Accessible from the chat bar.",
     authors: [EquicordDevs.nobody],
+    tags: ["Utility"],
     dependencies: ["HeaderBarAPI"],
     settings,
 

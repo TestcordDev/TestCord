@@ -1009,7 +1009,7 @@ migratePluginSettings("TestcordOptimizer", "optimizerPremium");
 export default definePlugin({
     name: "TestcordOptimizer",
     description: "All-in-one performance suite: webpack patches (tooltip, emoji, spinner, confetti, analytics, reactions, Sentry, member list throttle, audio reset reload prevention), bounded image cache, react-spring skip, offscreen media pause, MutationObserver DOM throttle, CSS containment (messages, members, DMs, embeds, servers, channels, forum, guild list, search), backdrop-blur/sticker/effect/upsell/spoiler/box-shadow/text-shadow/filter/backdrop suppression, lazy images/iframes, rAF reduction, passive listeners, console suppression (log/debug/info/warn/group/count/assert/dir/timers), ResizeObserver throttle, memory manager, GIF freeze (canvas/css), concurrency limit, message cache trimmer, animated avatar freeze, avatar quality reducer, cache limits, idle callback optimizer, drag-and-drop suppression, spellcheck opt-out, overscroll contain, link preview suppress, canvas effects hide, chat input containment (typing lag), large text attachment containment, attachment image grid containment.",
-    tags: ["Utility", "Developers"],
+    tags: ["Utility", "Developers", "Performance"],
     authors: [TestcordDevs.x2b, TestcordDevs.SirPhantom89],
     settings,
 
@@ -1140,10 +1140,10 @@ export default definePlugin({
     originalConsoleAssert: null as typeof console.assert | null,
     originalConsoleDir: null as typeof console.dir | null,
     originalConsoleDirxml: null as typeof console.dirxml | null,
-    fetchQueue: [] as Array<{ target: RequestInfo | URL; init?: RequestInit; resolve: (v: Response) => void; reject: (v: unknown) => void }>,
+    fetchQueue: [] as Array<{ target: RequestInfo | URL; init?: RequestInit; resolve: (v: Response) => void; reject: (v: unknown) => void; }>,
     rICMessagePort: null as MessagePort | null,
     rICMessagePort1: null as MessagePort | null,
-    rICCallbacks: null as Map<number, { cb: IdleRequestCallback; options?: IdleRequestOptions }> | null,
+    rICCallbacks: null as Map<number, { cb: IdleRequestCallback; options?: IdleRequestOptions; }> | null,
     cacheTrimActivityHandler: null as (() => void) | null,
     suppressConsoleWarnEl: null as HTMLStyleElement | null,
     reactionStyleEl: null as HTMLStyleElement | null,
@@ -2648,7 +2648,7 @@ export default definePlugin({
         const channel = new MessageChannel();
         this.rICMessagePort1 = channel.port1;
         this.rICMessagePort = channel.port2;
-        const callbacks = new Map<number, { cb: IdleRequestCallback; options?: IdleRequestOptions }>();
+        const callbacks = new Map<number, { cb: IdleRequestCallback; options?: IdleRequestOptions; }>();
         this.rICCallbacks = callbacks;
         let nextId = 1;
         channel.port1.onmessage = () => {
@@ -3063,14 +3063,14 @@ export default definePlugin({
         if (typeof window.RTCPeerConnection === "undefined") return;
         const noop: any = function () { return noopProto; };
         const noopProto = {
-            close: () => {},
+            close: () => { },
             createOffer: () => Promise.reject(new Error("Voice disabled")),
             createAnswer: () => Promise.reject(new Error("Voice disabled")),
             setLocalDescription: () => Promise.resolve(),
             setRemoteDescription: () => Promise.resolve(),
             addIceCandidate: () => Promise.resolve(),
-            addTrack: () => {},
-            removeTrack: () => {},
+            addTrack: () => { },
+            removeTrack: () => { },
             getTransceivers: () => [],
             getSenders: () => [],
             getReceivers: () => [],

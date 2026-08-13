@@ -15,7 +15,7 @@ let lastRightPressTime = 0;
 export default definePlugin({
     name: "ContextMenuSelectFix",
     description: "Releasing right click when hovering over a context menu entry selects it, bringing the behaviour in line with other apps",
-    tags: ["Utility", "Appearance"],
+    tags: ["Utility"],
     authors: [TestcordDevs.x2b],
     pointerDownEventHandler(e: PointerEvent) {
         if (e.button !== 2) return;

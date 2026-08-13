@@ -30,6 +30,7 @@ export default definePlugin({
     name: "ClickSparkles",
     description: "Sprinkles little neon sparkles wherever you click.",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Fun", "Appearance"],
     start() {
         enableStyle(style);
         document.addEventListener("click", burst);

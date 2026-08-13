@@ -11,6 +11,7 @@ export default definePlugin({
     name: "ClapText",
     description: "Adds /clap to 👏 put 👏 claps 👏 between 👏 your 👏 words.",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Fun"],
     dependencies: ["CommandsAPI"],
     commands: [
         {

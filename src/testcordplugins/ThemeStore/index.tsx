@@ -392,7 +392,7 @@ function removeStyles() { document.getElementById("ts-plugin-styles")?.remove();
 // ─── Sort options ─────────────────────────────────────────────────────────────
 
 type SortKey = "downloads" | "likes" | "name" | "newest";
-const SORTS: { key: SortKey; label: string }[] = [
+const SORTS: { key: SortKey; label: string; }[] = [
     { key: "downloads", label: "↓ Popular" },
     { key: "likes", label: "❤ Liked" },
     { key: "newest", label: "✨ New" },
@@ -406,7 +406,7 @@ function ThemePreview({ theme, installed, onInstall }: {
     installed: boolean;
     onInstall(): Promise<void>;
 }) {
-    const [state, setState] = React.useState<"idle"|"busy"|"done">(installed ? "done" : "idle");
+    const [state, setState] = React.useState<"idle" | "busy" | "done">(installed ? "done" : "idle");
     const [imgErr, setImgErr] = React.useState(false);
 
     React.useEffect(() => {
@@ -503,7 +503,7 @@ function ThemePreview({ theme, installed, onInstall }: {
 
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 
-function ThemeStoreModal({ onClose }: { onClose(): void }) {
+function ThemeStoreModal({ onClose }: { onClose(): void; }) {
     const [themes, setThemes] = React.useState<EquiTheme[]>([]);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
@@ -796,6 +796,7 @@ export default definePlugin({
     name: "ThemeStore",
     description: "Browse and install themes from Equicord's EquiThemesAPI. Requires native.ts companion file.",
     authors: [{ name: "ThemeStore Plugin", id: 0n }],
+    tags: ["Appearance"],
     version: "7.0.0",
 
     start() { injectStyles(); },

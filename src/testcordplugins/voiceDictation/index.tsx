@@ -351,10 +351,10 @@ const VoiceDictationButton: ChatBarButtonFactory = ({ isMainChat }) => {
     if (!isMainChat || settings.store.location !== "chatbar") return null;
 
     const tooltip = errorMsg || (processing
-            ? "Transcribing..."
-            : recording
-                ? "Stop dictation"
-                : "Voice dictation");
+        ? "Transcribing..."
+        : recording
+            ? "Stop dictation"
+            : "Voice dictation");
 
     return (
         <ChatBarButton tooltip={tooltip} onClick={toggle}>
@@ -369,6 +369,7 @@ export default definePlugin({
     name: "VoiceDictation",
     description: "Real-time voice dictation via Groq Whisper (free). API key shared with TestcordAI.",
     authors: [{ name: "User", id: 0n }],
+    tags: ["Voice", "Utility"],
     dependencies: ["ChatInputButtonAPI", "HeaderBarAPI"],
     settings,
 

@@ -216,6 +216,7 @@ export default definePlugin({
     name: "LoginWithToken",
     description: "Adds a 'Login with Token' button on the Discord login page.",
     authors: [EquicordDevs.thororen],
+    tags: ["Privacy", "Shortcuts"],
     start() { startObserver(); },
     stop() { stopObserver(); },
 });

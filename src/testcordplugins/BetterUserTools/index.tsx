@@ -131,7 +131,7 @@ async function disableLoopback(silent = false) {
     }
 }
 
-function MicLoopbackIcon({ active, className }: { active: boolean; className?: string }) {
+function MicLoopbackIcon({ active, className }: { active: boolean; className?: string; }) {
     const lineLength = 30;
     const lineStyle: React.CSSProperties = {
         strokeDasharray: lineLength,
@@ -227,7 +227,7 @@ function MicLoopbackButton({ iconForeground, hideTooltips, nameplate }: UserArea
     );
 }
 
-function RadarIcon({ active, className }: { active: boolean; className?: string }) {
+function RadarIcon({ active, className }: { active: boolean; className?: string; }) {
     const lineLength = 30;
     const lineStyle: React.CSSProperties = {
         strokeDasharray: lineLength,
@@ -366,7 +366,7 @@ const styles = `
 export default definePlugin({
     name: "BetterUserTools",
     description: "Adds mic test shortcut button and off-the-radar button to the user panel, both are toggles. MicTest Simply lets you test your mic without entering the settings page. OffTheRadar Enables idle status and hides activity while enabled. just added before equicord, if the original gets added to equicord I will delete this one.",
-    tags: ["Utility", "Customisation"],
+    tags: ["Utility", "Customisation", "Shortcuts"],
     authors: [EquicordDevs.Benjii, TestcordDevs.x2b, TestcordDevs.nnenaza],
     dependencies: ["UserSettingsAPI"],
     settings,

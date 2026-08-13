@@ -13,6 +13,7 @@ export default definePlugin({
     name: "ReadableSpoilers",
     description: "Gives unrevealed spoilers a subtle neon outline so you can spot them at a glance.",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Appearance", "Accessibility"],
     start: () => enableStyle(style),
     stop: () => disableStyle(style),
 });

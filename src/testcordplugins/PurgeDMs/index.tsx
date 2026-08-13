@@ -271,7 +271,7 @@ export default definePlugin({
     name: "PurgeDMs",
     description: "Right-click a user and delete every message you ever sent them, with a live feed of each deletion.",
     authors: [TestcordDevs.x2b],
-    tags: ["Chat", "Utility"],
+    tags: ["Chat", "Utility", "Privacy"],
     settings,
     contextMenus: {
         "user-context": userContextPatch

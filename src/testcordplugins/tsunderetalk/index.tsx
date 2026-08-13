@@ -149,7 +149,7 @@ export default definePlugin({
     name: "TsundereTalk",
     description: "Rewrites your outgoing messages into a cute tsundere style using TestcordAI.",
     authors: [TestcordDevs.x2b],
-    tags: ["Chat", "Nightcord"],
+    tags: ["Chat", "Fun", "Nightcord"],
     dependencies: ["MessageEventsAPI", "HeaderBarAPI"],
     settings,
 

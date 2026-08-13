@@ -106,6 +106,7 @@ export default definePlugin({
     name: "ReorderAttachments",
     description: "Allows you to reorder attachments before sending them",
     authors: [{ name: "Suffocate", id: 772601756776923187n }, TestcordDevs.sirphantom89],
+    tags: ["Accessibility"],
     patches: [
         {
             find: ')("attachments",',

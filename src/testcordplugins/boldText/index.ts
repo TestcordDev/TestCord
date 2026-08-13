@@ -21,6 +21,7 @@ export default definePlugin({
     name: "BoldText",
     description: "/bold turns your message into 𝐮𝐧𝐢𝐜𝐨𝐝𝐞 bold (works where markdown can't).",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Chat", "Commands"],
     dependencies: ["CommandsAPI"],
     commands: [
         {

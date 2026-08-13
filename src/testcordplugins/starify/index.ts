@@ -11,6 +11,7 @@ export default definePlugin({
     name: "Starify",
     description: "Adds /starify to wrap your message in sparkles ｡ﾟ☆.",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Commands"],
     dependencies: ["CommandsAPI"],
     commands: [
         {

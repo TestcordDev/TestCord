@@ -113,6 +113,7 @@ export default definePlugin({
     name: "FemboyCommand",
     description: "Sends a random femboy picture via /femboy. Uses 7 APIs with random order and automatic fallback.",
     authors: [TestcordDevs.x2b],
+    tags: ["Commands", "Utility"],
     commands: [
         {
             name: "femboy",

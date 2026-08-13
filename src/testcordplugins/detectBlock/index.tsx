@@ -259,6 +259,7 @@ export default definePlugin({
         { name: "justjxke", id: 852558183087472640n },
         { name: "irritably", id: 928787166916640838n }
     ],
+    tags: ["Privacy", "Utility"],
     flux: {
         USER_PROFILE_FETCH_SUCCESS({ userProfile }: { userProfile: { user: User; user_profile: unknown | null; }; }) {
             const userId = userProfile.user.id;

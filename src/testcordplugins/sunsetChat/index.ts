@@ -13,6 +13,7 @@ export default definePlugin({
     name: "SunsetChat",
     description: "Paints a dreamy vaporwave sunset gradient behind the message area.",
     authors: [{ name: "Sharp", id: 0n }],
+    tags: ["Appearance"],
     start: () => enableStyle(style),
     stop: () => disableStyle(style),
 });
