@@ -5,6 +5,7 @@
         opacity: 0;
         transform: translateY(-12px) scale(0.97);
     }
+
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -17,6 +18,7 @@
         transform: translateX(0) scale(1);
         max-height: 500px;
     }
+
     to {
         opacity: 0;
         transform: translateX(40px) scale(0.95);
@@ -32,6 +34,7 @@
         transform: translateY(-6px);
         max-height: 0;
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -43,6 +46,7 @@
     0%, 100% {
         box-shadow: 0 0 0 0 var(--status-danger-text, #f04747);
     }
+
     50% {
         box-shadow: 0 0 0 4px transparent;
     }
@@ -59,6 +63,7 @@
         opacity: 0;
         transform: translateY(4px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -69,6 +74,7 @@
     0%, 100% {
         box-shadow: 0 0 6px 0 rgb(0 168 252 / 0%);
     }
+
     50% {
         box-shadow: 0 0 12px 2px rgb(0 168 252 / 15%);
     }
@@ -78,6 +84,7 @@
     0% {
         background-position: -200% 0;
     }
+
     100% {
         background-position: 200% 0;
     }
@@ -88,10 +95,12 @@
         opacity: 0;
         transform: scale(0.8);
     }
+
     60% {
         opacity: 1;
         transform: scale(1.05);
     }
+
     100% {
         transform: scale(1);
     }
@@ -102,6 +111,7 @@
         opacity: 0;
         transform: translateX(20px);
     }
+
     to {
         opacity: 1;
         transform: translateX(0);
@@ -241,9 +251,25 @@
     color: var(--text-normal, #dbdee1);
 }
 
+.vc-patch-viewer-meta code {
+    background: var(--background-secondary-alt);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-family: var(--font-code, monospace);
+    overflow-wrap: anywhere;
+}
+
+.vc-plugin-health-detail code {
+    background: var(--background-tertiary);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-family: var(--font-code, monospace);
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
+}
+
 .vc-health-table td code {
     overflow-wrap: anywhere;
-    word-break: break-word;
     white-space: normal;
 }
 
@@ -777,15 +803,6 @@
     gap: 0.25em;
 }
 
-.vc-plugin-health-detail code {
-    background: var(--background-tertiary);
-    padding: 0.1em 0.35em;
-    border-radius: 3px;
-    font-family: var(--font-code, monospace);
-    font-size: 0.9em;
-    overflow-wrap: anywhere;
-}
-
 .vc-plugin-health-error {
     background: var(--background-base-lowest);
     padding: 0.5em 0.75em;
@@ -849,6 +866,54 @@
     color: var(--text-subtle);
 }
 
+/* ─── Network activity panel ─────────────────────────────────── */
+
+.vc-plugin-health-network {
+    padding: 1em 1.25em;
+}
+
+.vc-plugin-health-network-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5em;
+}
+
+.vc-plugin-health-network-actions {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+}
+
+.vc-plugin-health-session-list > li {
+    padding: 0.4em 0.6em;
+    border-radius: 4px;
+    transition: background 0.15s ease;
+}
+
+.vc-plugin-health-network-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.vc-plugin-health-network-list > li {
+    padding: 0.5em;
+    border-bottom: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    transition: background 0.2s ease, transform 0.2s ease;
+    animation: vc-health-fade-in 0.25s ease-out;
+}
+
+.vc-plugin-health-network-list > li:last-child {
+    border-bottom: none;
+}
+
+.vc-plugin-health-network-list > li:hover {
+    background: var(--background-modifier-hover, rgb(255 255 255 / 2%));
+    transform: translateX(2px);
+}
+
 /* ─── Session history panel ──────────────────────────────────── */
 
 .vc-plugin-health-history {
@@ -869,12 +934,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.35em;
-}
-
-.vc-plugin-health-session-list > li {
-    padding: 0.4em 0.6em;
-    border-radius: 4px;
-    transition: background 0.15s ease;
 }
 
 .vc-plugin-health-session-list > li:hover {
@@ -916,47 +975,6 @@
     border: 1px solid var(--border-subtle);
 }
 
-/* ─── Network activity panel ─────────────────────────────────── */
-
-.vc-plugin-health-network {
-    padding: 1em 1.25em;
-}
-
-.vc-plugin-health-network-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5em;
-}
-
-.vc-plugin-health-network-actions {
-    display: flex;
-    gap: 0.5em;
-    align-items: center;
-}
-
-.vc-plugin-health-network-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.vc-plugin-health-network-list > li {
-    padding: 0.5em;
-    border-bottom: 1px solid var(--border-subtle);
-    border-radius: 4px;
-    transition: background 0.2s ease, transform 0.2s ease;
-    animation: vc-health-fade-in 0.25s ease-out;
-}
-
-.vc-plugin-health-network-list > li:last-child {
-    border-bottom: none;
-}
-
-.vc-plugin-health-network-list > li:hover {
-    background: var(--background-modifier-hover, rgb(255 255 255 / 2%));
-    transform: translateX(2px);
-}
 
 .vc-plugin-health-network-domain {
     display: flex;
@@ -1071,14 +1089,6 @@
     gap: 0.5em;
     font-size: 0.85em;
     animation: vc-health-slide-in-right 0.3s ease-out;
-}
-
-.vc-patch-viewer-meta code {
-    background: var(--background-secondary-alt);
-    padding: 0.1em 0.35em;
-    border-radius: 3px;
-    font-family: var(--font-code, monospace);
-    overflow-wrap: anywhere;
 }
 
 .vc-patch-viewer-sources {
@@ -1207,13 +1217,6 @@
     &::-webkit-scrollbar-thumb {
         background-color: var(--scrollbar-auto-thumb);
         min-height: 40px;
-    }
-
-    &::-webkit-scrollbar-thumb,
-    &::-webkit-scrollbar-track {
-        background-clip: padding-box;
-        border: 4px solid transparent;
-        border-radius: 8px;
     }
 
     &::-webkit-scrollbar-thumb,

@@ -7,17 +7,17 @@
 import "./style.css";
 
 import { findGroupChildrenByChildId } from "@api/ContextMenu";
-import { DataStore } from "@api/index";
 import { HeaderBarButton } from "@api/HeaderBar";
+import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { TestcordDevs } from "@utils/constants";
 import { classNameFactory } from "@utils/css";
+import { ModalSize } from "@utils/modal";
 import { isArabicMode, t } from "@utils/testcordI18n";
 import { ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/testcordModals";
-import { ModalSize } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
-import { Avatar, ChannelActions, ChannelStore, FluxDispatcher, GuildMemberStore, GuildStore, IconUtils, Menu, PermissionsBits, PermissionStore, React, RelationshipStore, ScrollerThin, Text, useStateFromStores, UserStore, VoiceStateStore } from "@webpack/common";
+import { Avatar, ChannelActions, ChannelStore, FluxDispatcher, GuildMemberStore, GuildStore, IconUtils, Menu, PermissionsBits, PermissionStore, React, RelationshipStore, ScrollerThin, Text, UserStore, useStateFromStores, VoiceStateStore } from "@webpack/common";
 
 const cl = classNameFactory("vc-fiv-");
 const STORE_KEY = "FriendsInVoice_watched";

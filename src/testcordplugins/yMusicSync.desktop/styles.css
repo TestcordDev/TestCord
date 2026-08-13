@@ -1,0 +1,193 @@
+.vc-ymsync-root {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 10px;
+    background: var(--background-base-low);
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.vc-ymsync-head {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: 3em;
+    gap: 0.5em;
+    min-width: 0;
+}
+
+.vc-ymsync-cover {
+    flex: 0 0 auto;
+    height: 90%;
+    width: auto;
+    aspect-ratio: 1;
+    object-fit: contain;
+    border-radius: 3px;
+    background: var(--background-base-lower);
+    transition: filter 0.2s;
+}
+
+.vc-ymsync-meta {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0.2rem;
+    align-items: flex-start;
+    place-content: flex-start center;
+    overflow: hidden;
+}
+
+.vc-ymsync-line {
+    white-space: nowrap;
+    overflow: hidden;
+    width: 100%;
+    text-overflow: ellipsis;
+}
+
+.vc-ymsync-meta > .vc-ymsync-line:first-child {
+    color: var(--text-strong);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.vc-ymsync-meta > .vc-ymsync-line + .vc-ymsync-line {
+    font-size: 12px;
+    color: var(--text-strong);
+}
+
+.vc-ymsync-icon {
+    width: 20px;
+    height: 20px;
+    color: inherit;
+    fill: currentColor;
+}
+
+.vc-ymsync-root .vc-ymsync-btn,
+.vc-ymsync-root button.vc-ymsync-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 2px;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--interactive-icon-default);
+}
+
+.vc-ymsync-root .vc-ymsync-btn:hover:not(:disabled),
+.vc-ymsync-root button.vc-ymsync-btn:hover:not(:disabled) {
+    color: var(--interactive-icon-hover);
+    background-color: var(--background-mod-strong);
+}
+
+.vc-ymsync-root .vc-ymsync-btn:disabled {
+    opacity: 0.4;
+}
+
+.vc-ymsync-root .vc-ymsync-btn .vc-ymsync-icon {
+    color: inherit;
+    fill: currentColor;
+}
+
+.vc-ymsync-root .vc-ymsync-btn-active,
+.vc-ymsync-root button.vc-ymsync-btn-active {
+    color: var(--interactive-icon-active);
+    background-color: color-mix(in hsl, var(--text-brand), transparent 90%);
+}
+
+.vc-ymsync-root .vc-ymsync-btn-active:hover:not(:disabled),
+.vc-ymsync-root button.vc-ymsync-btn-active:hover:not(:disabled) {
+    background-color: color-mix(in hsl, var(--text-brand), transparent 80%);
+}
+
+.vc-ymsync-root .vc-ymsync-btn-primary .vc-ymsync-icon {
+    width: 20px;
+    height: 20px;
+}
+
+.vc-ymsync-head .vc-ymsync-btn .vc-ymsync-icon {
+    width: 20px;
+    height: 20px;
+}
+
+.vc-ymsync-progress {
+    position: relative;
+    width: 100%;
+    color: var(--text-default);
+    margin: 8px 0 0;
+    padding-bottom: 8px;
+}
+
+.vc-ymsync-progress-track > [--slider] {
+    flex-grow: 1;
+    width: 100%;
+
+    /* Discord's slider ships its own padding, which would offset the bar here. */
+    padding: 0 !important;
+}
+
+.vc-ymsync-progress-track > [--slider] [--bar] {
+    /* The bar height is set by Discord on the element itself. */
+    height: 3px !important;
+    top: calc(12px - 4px / 2 + var(--bar-offset));
+}
+
+.vc-ymsync-progress-track > [--slider] [--barFill] {
+    background-color: var(--interactive-icon-active);
+}
+
+.vc-ymsync-progress-track > [--slider] [--grabber] {
+    /* Discord sizes the grabber inline, so a smaller handle needs to win here. */
+    height: 16px !important;
+    width: 16px !important;
+    margin-top: calc(17px / -2 + var(--bar-offset) / 2);
+    margin-left: -0.5px;
+    background-color: var(--interactive-icon-active);
+    border-color: var(--interactive-icon-default);
+    color: var(--interactive-icon-default);
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+
+.vc-ymsync-progress:hover .vc-ymsync-progress-track > [--slider] [--grabber] {
+    opacity: 1;
+}
+
+.vc-ymsync-progress-times {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2px;
+}
+
+.vc-ymsync-time {
+    font-size: 12px;
+    font-family: var(--font-code);
+}
+
+.vc-ymsync-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.vc-ymsync-volume {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    margin-top: 8px;
+    padding-right: 2px;
+}
+
+.vc-ymsync-volume-track {
+    flex: 1 1 auto;
+    min-width: 0;
+}

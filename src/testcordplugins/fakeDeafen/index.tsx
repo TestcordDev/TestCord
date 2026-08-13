@@ -1,8 +1,14 @@
-import definePlugin, { OptionType } from "@utils/types";
-import { TestcordDevs } from "@utils/constants";
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
 import { definePluginSettings } from "@api/Settings";
-import { Toasts, SelectedChannelStore } from "@webpack/common";
+import { TestcordDevs } from "@utils/constants";
+import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
+import { SelectedChannelStore,Toasts } from "@webpack/common";
 
 const states = {
     mute: true,
@@ -23,13 +29,13 @@ const settings = definePluginSettings({
         description: "🔇 Enable or disable fake deafen (automatically includes fake mute for realism)",
         type: OptionType.BOOLEAN,
         default: true,
-        onChange: (value) => states.deafen = value
+        onChange: value => states.deafen = value
     },
     enableFakeMute: {
         description: "🎤 Enable or disable fake mute",
         type: OptionType.BOOLEAN,
         default: true,
-        onChange: (value) => states.mute = value
+        onChange: value => states.mute = value
     },
     muteKeybind: {
         description: "⌨️ Keybind for toggling fake mute only (format: modifier+key, e.g., 'ctrl+j')",
@@ -50,20 +56,20 @@ const settings = definePluginSettings({
 
 // Parse keybind string into components
 function parseKeybind(keybind: string) {
-    const parts = keybind.toLowerCase().split('+');
+    const parts = keybind.toLowerCase().split("+");
     const modifiers = {
         ctrl: false,
         alt: false,
         shift: false,
         meta: false
     };
-    let key = '';
+    let key = "";
 
     for (const part of parts) {
-        if (part === 'ctrl') modifiers.ctrl = true;
-        else if (part === 'alt') modifiers.alt = true;
-        else if (part === 'shift') modifiers.shift = true;
-        else if (part === 'meta' || part === 'cmd') modifiers.meta = true;
+        if (part === "ctrl") modifiers.ctrl = true;
+        else if (part === "alt") modifiers.alt = true;
+        else if (part === "shift") modifiers.shift = true;
+        else if (part === "meta" || part === "cmd") modifiers.meta = true;
         else key = part;
     }
 
@@ -139,9 +145,9 @@ function toggleFakeMute() {
 function handleKeydown(e: KeyboardEvent) {
     // Prevent triggering when typing in input fields
     if (e.target && (
-        (e.target as HTMLElement).tagName === 'INPUT' ||
-        (e.target as HTMLElement).tagName === 'TEXTAREA' ||
-        (e.target as HTMLElement).contentEditable === 'true'
+        (e.target as HTMLElement).tagName === "INPUT" ||
+        (e.target as HTMLElement).tagName === "TEXTAREA" ||
+        (e.target as HTMLElement).contentEditable === "true"
     )) {
         return;
     }
@@ -194,7 +200,7 @@ export default definePlugin({
         this.lastVoiceChannelId = SelectedChannelStore.getVoiceChannelId();
 
         // Add event listeners
-        document.addEventListener('keydown', handleKeydown);
+        document.addEventListener("keydown", handleKeydown);
         SelectedChannelStore.addChangeListener(this.handleVoiceChannelChange.bind(this));
 
         Toasts.show({
@@ -209,7 +215,7 @@ export default definePlugin({
     },
 
     stop() {
-        document.removeEventListener('keydown', handleKeydown);
+        document.removeEventListener("keydown", handleKeydown);
         SelectedChannelStore.removeChangeListener(this.handleVoiceChannelChange.bind(this));
 
         // Clean up tracking

@@ -6,8 +6,8 @@
 
 import { Devs } from "@utils/constants";
 import definePlugin from "@utils/types";
-import { MessageStore } from "@webpack/common";
 import type { Message } from "@vencord/discord-types";
+import { MessageStore } from "@webpack/common";
 
 export default definePlugin({
     name: "BetterPlusReacts",

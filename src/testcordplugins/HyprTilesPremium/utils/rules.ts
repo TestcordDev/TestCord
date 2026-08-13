@@ -9,7 +9,6 @@ import { ChannelType } from "@vencord/discord-types/enums";
 import { ChannelStore, GuildStore, RelationshipStore, UserStore } from "@webpack/common";
 
 import { settings } from "../settings";
-import { defaultRulesTemplate } from "./rulesTemplate";
 import {
     AutoLayoutRule,
     HyprTilesChannelKind,
@@ -26,6 +25,7 @@ import {
     TileTarget,
     WorkspaceIndex,
 } from "../types";
+import { defaultRulesTemplate } from "./rulesTemplate";
 
 const Native = IS_DISCORD_DESKTOP
     ? VencordNative.pluginHelpers.HyprTiles as PluginNative<typeof import("../native")>

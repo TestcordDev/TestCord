@@ -22,6 +22,10 @@
     transition: transform .12s ease, box-shadow .12s ease, filter .12s ease;
 }
 
+.vc-presets-drag-preview button {
+    pointer-events: none;
+}
+
 .vc-presets-toolbar button:hover,
 .vc-presets-row-actions button:hover,
 .vc-presets-modal-actions button:hover,
@@ -140,94 +144,9 @@
     max-width: 0;
     opacity: 0;
     margin-left: -8px;
+
     /* swallow the flex gap so siblings close up */
     pointer-events: none;
-}
-
-/* ── Per-animation kill switches (body classes set from JS) ───────── */
-
-/* Master: kill every transition/animation under the tab and modals. */
-body.vc-presets-noanim-all [class*="vc-presets-"] {
-    animation: none !important;
-    transition: none !important;
-}
-
-body.vc-presets-noanim-all .vc-presets-row::before,
-body.vc-presets-noanim-all .vc-presets-tab::after {
-    transition: none !important;
-}
-
-/* Row hover rail + lift */
-body.vc-presets-noanim-rowHover .vc-presets-row,
-body.vc-presets-noanim-rowHover .vc-presets-row::before {
-    transition: none !important;
-}
-
-body.vc-presets-noanim-rowHover .vc-presets-row:hover {
-    transform: none;
-}
-
-body.vc-presets-noanim-rowHover .vc-presets-row:hover::before {
-    transform: scaleY(0);
-}
-
-/* Tab underline slide */
-body.vc-presets-noanim-tabUnderline .vc-presets-tab::after {
-    transition: none !important;
-}
-
-/* Live badge pulse */
-body.vc-presets-noanim-badgePulse .vc-presets-row-badge::before {
-    animation: none !important;
-}
-
-/* Panel & row fade-ins + duplicate collapse */
-body.vc-presets-noanim-fadeIn .vc-presets-preview,
-body.vc-presets-noanim-fadeIn .vc-presets-stats,
-body.vc-presets-noanim-fadeIn .vc-presets-settings,
-body.vc-presets-noanim-fadeIn .vc-presets-summary,
-body.vc-presets-noanim-fadeIn .vc-presets-json {
-    animation: none !important;
-}
-
-body.vc-presets-noanim-fadeIn .vc-presets-dup-wrap {
-    transition: none !important;
-}
-
-/* Button hover & press */
-body.vc-presets-noanim-buttons .vc-presets-toolbar button,
-body.vc-presets-noanim-buttons .vc-presets-row-actions button,
-body.vc-presets-noanim-buttons .vc-presets-modal-actions button,
-body.vc-presets-noanim-buttons .vc-presets-modal-footer button {
-    transition: none !important;
-}
-
-body.vc-presets-noanim-buttons .vc-presets-toolbar button:hover,
-body.vc-presets-noanim-buttons .vc-presets-row-actions button:hover,
-body.vc-presets-noanim-buttons .vc-presets-modal-actions button:hover,
-body.vc-presets-noanim-buttons .vc-presets-modal-footer button:hover {
-    transform: none;
-    box-shadow: none;
-    filter: none;
-}
-
-/* Gear icon spin */
-body.vc-presets-noanim-gear .vc-presets-row-gear {
-    transition: background-color .15s ease, color .15s ease;
-}
-
-body.vc-presets-noanim-gear .vc-presets-row-gear:hover {
-    transform: none;
-}
-
-/* JSON box hover */
-body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea {
-    transition: none !important;
-}
-
-body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
-    border-color: var(--border-subtle);
-    background: var(--input-background, var(--background-base-lower-alt)) !important;
 }
 
 /* ── Preset row ───────────────────────────────────────────────────── */
@@ -343,10 +262,6 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     animation: vc-presets-drag-preview-lift .14s ease-out;
 }
 
-.vc-presets-drag-preview button {
-    pointer-events: none;
-}
-
 @keyframes vc-presets-drag-preview-lift {
     from {
         opacity: 0;
@@ -397,7 +312,6 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
 }
 
 @keyframes vc-presets-pulse {
-
     0%,
     100% {
         opacity: 1;
@@ -518,6 +432,14 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     border-radius: 8px;
     padding: 10px 12px;
     transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+}
+
+.vc-presets-summary,
+.vc-presets-modal-textarea,
+.vc-presets-modal-textarea textarea,
+.vc-presets-stats {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--text-subtle, #888) 55%, transparent) transparent;
 }
 
 .vc-presets-modal-textarea:hover {
@@ -1024,25 +946,6 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     color: var(--text-default);
 }
 
-/* ── Info modal: json tab ─────────────────────────────────────────── */
-
-.vc-presets-json {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    animation: vc-presets-fade-in .2s ease;
-}
-
-/* ── Scrollbars (themed, slim, floating) ──────────────────────────── */
-
-.vc-presets-summary,
-.vc-presets-modal-textarea,
-.vc-presets-modal-textarea textarea,
-.vc-presets-stats {
-    scrollbar-width: thin;
-    scrollbar-color: color-mix(in srgb, var(--text-subtle, #888) 55%, transparent) transparent;
-}
-
 .vc-presets-summary::-webkit-scrollbar,
 .vc-presets-modal-textarea::-webkit-scrollbar,
 .vc-presets-modal-textarea textarea::-webkit-scrollbar,
@@ -1131,7 +1034,6 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-
     .vc-presets-row,
     .vc-presets-row::before,
     .vc-presets-row-gear,
@@ -1157,4 +1059,101 @@ body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
     .vc-presets-modal-actions button:hover {
         transform: none;
     }
+}
+
+/* ── Per-animation kill switches (body classes set from JS) ───────── */
+
+/* Master: kill every transition/animation under the tab and modals. */
+body.vc-presets-noanim-all [class*="vc-presets-"] {
+    animation: none !important;
+    transition: none !important;
+}
+
+body.vc-presets-noanim-all .vc-presets-row::before,
+body.vc-presets-noanim-all .vc-presets-tab::after {
+    transition: none !important;
+}
+
+/* Row hover rail + lift */
+body.vc-presets-noanim-rowHover .vc-presets-row,
+body.vc-presets-noanim-rowHover .vc-presets-row::before {
+    transition: none !important;
+}
+
+body.vc-presets-noanim-rowHover .vc-presets-row:hover {
+    transform: none;
+}
+
+body.vc-presets-noanim-rowHover .vc-presets-row:hover::before {
+    transform: scaleY(0);
+}
+
+/* Tab underline slide */
+body.vc-presets-noanim-tabUnderline .vc-presets-tab::after {
+    transition: none !important;
+}
+
+/* ── Info modal: json tab ─────────────────────────────────────────── */
+
+.vc-presets-json {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    animation: vc-presets-fade-in .2s ease;
+}
+
+/* ── Scrollbars (themed, slim, floating) ──────────────────────────── */
+
+/* Live badge pulse */
+body.vc-presets-noanim-badgePulse .vc-presets-row-badge::before {
+    animation: none !important;
+}
+
+/* Panel & row fade-ins + duplicate collapse */
+body.vc-presets-noanim-fadeIn .vc-presets-preview,
+body.vc-presets-noanim-fadeIn .vc-presets-stats,
+body.vc-presets-noanim-fadeIn .vc-presets-settings,
+body.vc-presets-noanim-fadeIn .vc-presets-summary,
+body.vc-presets-noanim-fadeIn .vc-presets-json {
+    animation: none !important;
+}
+
+body.vc-presets-noanim-fadeIn .vc-presets-dup-wrap {
+    transition: none !important;
+}
+
+/* Button hover & press */
+body.vc-presets-noanim-buttons .vc-presets-toolbar button,
+body.vc-presets-noanim-buttons .vc-presets-row-actions button,
+body.vc-presets-noanim-buttons .vc-presets-modal-actions button,
+body.vc-presets-noanim-buttons .vc-presets-modal-footer button {
+    transition: none !important;
+}
+
+body.vc-presets-noanim-buttons .vc-presets-toolbar button:hover,
+body.vc-presets-noanim-buttons .vc-presets-row-actions button:hover,
+body.vc-presets-noanim-buttons .vc-presets-modal-actions button:hover,
+body.vc-presets-noanim-buttons .vc-presets-modal-footer button:hover {
+    transform: none;
+    box-shadow: none;
+    filter: none;
+}
+
+/* Gear icon spin */
+body.vc-presets-noanim-gear .vc-presets-row-gear {
+    transition: background-color .15s ease, color .15s ease;
+}
+
+body.vc-presets-noanim-gear .vc-presets-row-gear:hover {
+    transform: none;
+}
+
+/* JSON box hover */
+body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea {
+    transition: none !important;
+}
+
+body.vc-presets-noanim-jsonHover .vc-presets-modal-textarea:hover {
+    border-color: var(--border-subtle);
+    background: var(--input-background, var(--background-base-lower-alt)) !important;
 }

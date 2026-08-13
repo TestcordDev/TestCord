@@ -226,12 +226,17 @@
     border-radius: 12px;
     overflow: hidden;
     border: 1px solid var(--border-subtle, rgb(255 255 255 / 6%));
-    transition: border-color 0.15s, transform 0.1s;
+    transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
 .vc-settings-theme-market-card:hover {
-    border-color: var(--brand-500, #5865f2);
-    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--brand-500, #5865f2) 60%, var(--border-subtle, rgb(255 255 255 / 15%)));
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 30%), 0 1px 0 rgb(255 255 255 / 8%) inset;
+}
+
+.vc-settings-theme-market-card:active {
+    transform: translateY(-1px) scale(0.99);
 }
 
 .vc-settings-theme-market-card-preview {
@@ -247,6 +252,11 @@
     height: 100%;
     object-fit: cover;
     display: block;
+    transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.vc-settings-theme-market-card:hover .vc-settings-theme-market-card-img {
+    transform: scale(1.05);
 }
 
 .vc-settings-theme-market-card-img-placeholder {
@@ -344,28 +354,6 @@
 
 /* ── Theme Marketplace Interactivity & Animations ── */
 
-.vc-settings-theme-market-card {
-    transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
-}
-
-.vc-settings-theme-market-card:hover {
-    transform: translateY(-4px) scale(1.01);
-    border-color: color-mix(in srgb, var(--brand-500, #5865f2) 60%, var(--border-subtle, rgb(255 255 255 / 15%)));
-    box-shadow: 0 8px 24px rgb(0 0 0 / 30%), 0 1px 0 rgb(255 255 255 / 8%) inset;
-}
-
-.vc-settings-theme-market-card:active {
-    transform: translateY(-1px) scale(0.99);
-}
-
-.vc-settings-theme-market-card-img {
-    transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
-}
-
-.vc-settings-theme-market-card:hover .vc-settings-theme-market-card-img {
-    transform: scale(1.05);
-}
-
 .vc-settings-theme-market-tag-btn {
     cursor: pointer;
     border: none;
@@ -375,7 +363,7 @@
 
 .vc-settings-theme-market-tag-btn:hover {
     background: var(--brand-500, #5865f2) !important;
-    color: #ffffff !important;
+    color: #fff !important;
     transform: translateY(-1px);
 }
 
@@ -514,7 +502,7 @@
     display: flex;
     gap: 10px;
     align-items: center;
-    margin: 4px 0 8px 0;
+    margin: 4px 0 8px;
 }
 
 .vc-settings-theme-market-modal-top-action-btn {
@@ -543,6 +531,7 @@
     0% {
         background-position: -200% 0;
     }
+
     100% {
         background-position: 200% 0;
     }
@@ -565,10 +554,7 @@
 
 .vc-settings-theme-market-lightbox-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     z-index: 100000;
     background: rgb(0 0 0 / 85%);
     backdrop-filter: blur(4px);
@@ -583,6 +569,7 @@
     from {
         opacity: 0;
     }
+
     to {
         opacity: 1;
     }

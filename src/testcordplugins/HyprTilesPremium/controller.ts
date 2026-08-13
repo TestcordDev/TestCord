@@ -18,8 +18,6 @@ import {
     UserStore,
 } from "@webpack/common";
 
-import { allActions, getKeybindSettingKey, HyprTilesAction, isEditableTarget, matchesKeybind, workspaceIndices } from "./utils/keybinds";
-import { reloadRulesConfig } from "./utils/rules";
 import { settings } from "./settings";
 import {
     adjustActiveWorkspaceMasterRatio,
@@ -60,6 +58,8 @@ import {
     updateTileTarget,
 } from "./store";
 import { Direction, ManualHyprTilesLayout, OpenedBy, RouteRenderPropsLike, TileDisplayInfo, TileEntity, TileTarget, WorkspaceIndex } from "./types";
+import { allActions, getKeybindSettingKey, HyprTilesAction, isEditableTarget, matchesKeybind, workspaceIndices } from "./utils/keybinds";
+import { reloadRulesConfig } from "./utils/rules";
 
 let running = false;
 let keyListenerAttached = false;

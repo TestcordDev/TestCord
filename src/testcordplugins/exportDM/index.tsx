@@ -8,11 +8,10 @@ import "./styles.css";
 
 import { addHeaderBarButton, HeaderBarButton, removeHeaderBarButton } from "@api/HeaderBar";
 import { TestcordRequestCoordinator } from "@api/index";
-import { ModalCloseButton,ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/modal";
+import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
 import { findStoreLazy } from "@webpack";
-import { React, useEffect,useState } from "@webpack/common";
-import { Forms } from "@webpack/common";
+import { Forms, React, useEffect, useState } from "@webpack/common";
 
 import { t } from "../autoTranslateNightcord";
 

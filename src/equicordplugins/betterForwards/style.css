@@ -1,3 +1,27 @@
+.vc-betterforwards-footer .vc-betterforwards-footer-text,
+.vc-serverprofileforward-footer .vc-serverprofileforward-footer-text,
+[class*="forwardPreview"],
+[class*="forwardPreview"] *,
+[class*="forwardedMessage"],
+[class*="forwardedMessage"] *,
+[class*="forwardFooter"],
+[class*="forwardFooter"] *,
+[class*="forwardHeader"],
+[class*="forwardHeader"] *,
+[class*="originLabel"],
+[class*="originLabel"] * {
+    color: var(--text-normal, var(--header-primary, inherit)) !important;
+}
+
+.vc-betterforwards-footer svg path,
+.vc-serverprofileforward-footer svg path,
+[class*="forwardPreview"] svg path,
+[class*="forwardedMessage"] svg path,
+[class*="forwardFooter"] svg path,
+[class*="originLabel"] svg path {
+    fill: var(--text-normal, var(--header-primary, currentColor)) !important;
+}
+
 .vc-betterforwards-footer {
     margin-top: 3px;
     margin-left: -2px;
@@ -5,7 +29,7 @@
     .vc-betterforwards-footer-text {
         font-weight: 400;
         font-size: 14px;
-        color: var(--text-normal, #ffffff) !important;
+        color: var(--text-normal, #fff) !important;
     }
 
     .vc-betterforwards-guild-icon,
@@ -74,31 +98,6 @@
     overflow: hidden;
     text-wrap: nowrap;
     text-overflow: ellipsis;
-}
-
-/* Fix forwarded message source text to be theme-adaptive and readable */
-.vc-betterforwards-footer .vc-betterforwards-footer-text,
-.vc-serverprofileforward-footer .vc-serverprofileforward-footer-text,
-[class*="forwardPreview"],
-[class*="forwardPreview"] *,
-[class*="forwardedMessage"],
-[class*="forwardedMessage"] *,
-[class*="forwardFooter"],
-[class*="forwardFooter"] *,
-[class*="forwardHeader"],
-[class*="forwardHeader"] *,
-[class*="originLabel"],
-[class*="originLabel"] * {
-    color: var(--text-normal, var(--header-primary, inherit)) !important;
-}
-
-.vc-betterforwards-footer svg path,
-.vc-serverprofileforward-footer svg path,
-[class*="forwardPreview"] svg path,
-[class*="forwardedMessage"] svg path,
-[class*="forwardFooter"] svg path,
-[class*="originLabel"] svg path {
-    fill: var(--text-normal, var(--header-primary, currentColor)) !important;
 }
 
 [class^="forwardPreview"] {

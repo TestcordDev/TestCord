@@ -1,24 +1,11 @@
 /*
- * IllegalCord Stereo Sound Plugin
- * Ported from BetterDiscord StereoSound plugin
- * Copyright (c) 2026 Hisako
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { definePluginSettings } from "@api/Settings";
 import { showNotification } from "@api/Notifications";
+import { definePluginSettings } from "@api/Settings";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
 
@@ -68,7 +55,7 @@ export default definePlugin({
     patchVoiceSettings(thisObj: any) {
         try {
             console.log("[StereoSound] Starting voice settings patch...");
-            
+
             // Check voice settings warnings
             const hasWarnings = this.settingsWarning();
             console.log(`[StereoSound] Voice settings warnings: ${hasWarnings}`);
@@ -80,10 +67,10 @@ export default definePlugin({
 
             const originalSetTransportOptions = thisObj.conn.setTransportOptions;
             console.log("[StereoSound] Successfully hooked setTransportOptions");
-            
+
             thisObj.conn.setTransportOptions = function(obj: any) {
                 console.log("[StereoSound] Transport options being modified:", obj);
-                
+
                 if (obj.audioEncoder) {
                     // Set stereo channels
                     obj.audioEncoder.params = {
@@ -92,13 +79,13 @@ export default definePlugin({
                     obj.audioEncoder.channels = settings.store.stereoChannels;
                     console.log(`[StereoSound] Set stereo channels to: ${settings.store.stereoChannels}`);
                 }
-                
+
                 // Disable FEC (Forward Error Correction) for better quality
                 if (obj.fec) {
                     obj.fec = false;
                     console.log("[StereoSound] Disabled FEC");
                 }
-                
+
                 // Set custom bitrate
                 const bitrateValue = settings.store.bitrate * 1000; // Convert kbps to bps
                 if (obj.encodingVoiceBitRate < bitrateValue) {
@@ -106,7 +93,7 @@ export default definePlugin({
                     obj.encodingVoiceBitRate = bitrateValue;
                     console.log(`[StereoSound] Updated bitrate from ${oldValue} to ${bitrateValue} bps (${settings.store.bitrate} kbps)`);
                 }
-                
+
                 // Priority speaker settings
                 if (obj.prioritySpeaker) {
                     obj.prioritySpeaker = true;
@@ -116,12 +103,12 @@ export default definePlugin({
                     }
                     console.log("[StereoSound] Enabled priority speaker");
                 }
-                
+
                 const result = originalSetTransportOptions.call(this, obj);
                 console.log("[StereoSound] Transport options applied successfully");
                 return result;
             };
-            
+
             // Show success notification
             if (!this.settingsWarning() && settings.store.enableToasts) {
                 showNotification({
@@ -138,12 +125,12 @@ export default definePlugin({
     settingsWarning() {
         try {
             if (!VoiceSettingsStore) return false;
-            
-            const hasIssues = 
+
+            const hasIssues =
                 VoiceSettingsStore.getNoiseSuppression?.() ||
                 VoiceSettingsStore.getNoiseCancellation?.() ||
                 VoiceSettingsStore.getEchoCancellation?.();
-            
+
             if (hasIssues && settings.store.enableToasts) {
                 showNotification({
                     title: "StereoSound Warning",
@@ -151,7 +138,7 @@ export default definePlugin({
                     color: "var(--yellow-360)"
                 });
             }
-            
+
             return hasIssues;
         } catch (err) {
             console.error("[StereoSound] Error checking voice settings:", err);
@@ -162,7 +149,7 @@ export default definePlugin({
     start() {
         console.log("[StereoSound] Plugin started successfully");
         console.log(`[StereoSound] Current settings - Stereo Channels: ${settings.store.stereoChannels}, Bitrate: ${settings.store.bitrate}kbps`);
-        
+
         // Plugin started
         if (settings.store.enableToasts) {
             showNotification({

@@ -19,7 +19,7 @@
     height: 55vh;
     min-height: 380px;
     border-radius: 8px;
-    border: 1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.1));
+    border: 1px solid var(--background-modifier-accent, rgb(255 255 255 / 10%));
     background: #1e1e1e;
     overflow: hidden;
     font-family: var(--font-code, "Consolas", "Fira Code", "Courier New", monospace);
@@ -31,8 +31,8 @@
 .vc-code-viewer-gutter {
     width: 48px;
     min-width: 48px;
-    background: rgba(0, 0, 0, 0.25);
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgb(0 0 0 / 25%);
+    border-right: 1px solid rgb(255 255 255 / 8%);
     user-select: none;
     overflow: hidden;
     padding: 12px 0;
@@ -41,7 +41,7 @@
 
 .vc-code-gutter-line {
     padding-right: 10px;
-    color: rgba(255, 255, 255, 0.3);
+    color: rgb(255 255 255 / 30%);
     font-size: 12px;
     line-height: 1.5;
     height: 19.5px;
@@ -82,7 +82,7 @@
     resize: none;
     background: transparent;
     color: transparent;
-    caret-color: var(--text-normal, #ffffff);
+    caret-color: var(--text-normal, #fff);
     border: none;
     padding: 12px;
     font-family: inherit;
@@ -101,17 +101,17 @@
 }
 
 .vc-code-viewer-textarea::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.2);
+    background: rgb(0 0 0 / 20%);
     border-radius: 4px;
 }
 
 .vc-code-viewer-textarea::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgb(255 255 255 / 20%);
     border-radius: 4px;
 }
 
 .vc-code-viewer-textarea::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.35);
+    background: rgb(255 255 255 / 35%);
 }
 
 .vc-code-viewer-textarea:read-only {
@@ -119,10 +119,20 @@
 }
 
 /* Syntax Token Colors (Dark Modern) */
-.vc-code-token-comment { color: #6a9955; font-style: italic; }
-.vc-code-token-string { color: #ce9178; }
-.vc-code-token-atrule { color: #c586c0; font-weight: 600; }
-.vc-code-token-selector { color: #d7ba7d; font-weight: 600; }
+.vc-code-token-comment {
+    color: #6a9955;
+    font-style: italic;
+}
+
+.vc-code-token-atrule {
+    color: #c586c0;
+    font-weight: 600;
+}
+
+.vc-code-token-selector {
+    color: #d7ba7d;
+    font-weight: 600;
+}
 .vc-code-token-property { color: #9cdcfe; }
 .vc-code-token-color { color: #b5cea8; }
 .vc-code-token-number { color: #b5cea8; }

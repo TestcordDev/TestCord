@@ -8,8 +8,7 @@ import { definePluginSettings } from "@api/Settings";
 import { Flex } from "@components/Flex";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { Button, React, Text, TextArea } from "@webpack/common";
-import { showToast, Toasts } from "@webpack/common";
+import { Button, React, showToast, Text, TextArea, Toasts } from "@webpack/common";
 
 const settings = definePluginSettings({
     importToTokenLogin: {

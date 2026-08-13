@@ -34,7 +34,7 @@ function HighlightedCode({ code }: { code: string }) {
         if (!line) return "\n";
 
         // Regex for basic CSS tokens
-        const tokenRegex = /(\/\*[\s\S]*?\*\/)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(@[\w-]+)|([a-zA-Z0-9_\-\*\.#:\[\]="'>~^$]+)(?=\s*\{)|([\w-]+)(?=\s*:)|(#[a-fA-F0-9]{3,8}|rgba?\(.*?\)|hsla?\(.*?\))|(\d+(?:\.\d+)?(?:px|rem|em|vh|vw|%|ms|s|deg)?)|([{}();,])/g;
+        const tokenRegex = /(\/\*[\s\S]*?\*\/)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')|(@[\w-]+)|([a-zA-Z0-9_\-*.#:[\]="'>~^$]+)(?=\s*\{)|([\w-]+)(?=\s*:)|(#[a-fA-F0-9]{3,8}|rgba?\(.*?\)|hsla?\(.*?\))|(\d+(?:\.\d+)?(?:px|rem|em|vh|vw|%|ms|s|deg)?)|([{}();,])/g;
 
         const elements: React.ReactNode[] = [];
         let lastIndex = 0;

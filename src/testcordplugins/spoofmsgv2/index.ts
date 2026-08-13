@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { ApplicationCommandOptionType, registerCommand, sendBotMessage, unregisterCommand } from "@api/Commands";
+import { ApplicationCommandOptionType, sendBotMessage } from "@api/Commands";
 import { ApplicationCommandInputType } from "@api/Commands/types";
-import { Devs, TestcordDevs } from "@utils/constants";
+import { TestcordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
 import { FluxDispatcher, UserStore } from "@webpack/common";
 
@@ -65,8 +65,6 @@ function validateInput(input: string, maxLength: number, fieldName: string): str
     }
     return null;
 }
-
-
 
 function createServerBoostEmbed(boostTier: number = 1, boosterId?: string) {
     const booster = boosterId ? UserStore.getUser(boosterId) : null;
@@ -230,8 +228,6 @@ function dispatchFakeMessage(channelId: string, messageData: any) {
     });
 }
 
-
-
 function createClydeComponents() {
     return [
         {
@@ -259,7 +255,6 @@ export default definePlugin({
     dependencies: ["CommandsAPI"],
 
     commands: [
-
 
         {
             name: "spoofboost",
@@ -897,8 +892,3 @@ export default definePlugin({
         // Commands are automatically unregistered by the CommandsAPI
     }
 });
-
-
-
-
-

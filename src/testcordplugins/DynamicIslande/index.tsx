@@ -13,13 +13,13 @@ import { HeadphonesIcon, Microphone } from "@components/Icons";
 import { settings as musicControlsSettings } from "@equicordplugins/musicControls/settings";
 import { SpotifyStore } from "@equicordplugins/musicControls/spotify/SpotifyStore";
 import { classNameFactory } from "@utils/css";
-import { t } from "@utils/testcordI18n";
 import { useFixedTimer } from "@utils/react";
+import { t } from "@utils/testcordI18n";
 import { formatDurationMs } from "@utils/text";
 import definePlugin, { OptionType } from "@utils/types";
 import type { Message, Stream } from "@vencord/discord-types";
 import { findByPropsLazy } from "@webpack";
-import { ApplicationStreamingStore, ChannelStore, Clickable, FluxDispatcher, GuildMemberStore, IconUtils, MediaEngineStore, MessageStore, ReactDOM, RelationshipStore, SelectedChannelStore, UserGuildSettingsStore, UserStore, useEffect, useRef, useState, useStateFromStores, VoiceStateStore } from "@webpack/common";
+import { ApplicationStreamingStore, ChannelStore, Clickable, FluxDispatcher, GuildMemberStore, IconUtils, MediaEngineStore, MessageStore, ReactDOM, RelationshipStore, SelectedChannelStore, useEffect, useRef, UserGuildSettingsStore, UserStore, useState, useStateFromStores, VoiceStateStore } from "@webpack/common";
 import type { MouseEvent, PointerEvent, ReactNode, SVGProps } from "react";
 
 import { follow, unfollow, useFollowId } from "../vc-followUser";

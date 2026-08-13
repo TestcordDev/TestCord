@@ -1,0 +1,10 @@
+.vc-voiceguard-note {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border-inline-start: 3px solid var(--text-warning, #f0b232);
+    border-radius: 6px;
+    background: var(--background-modifier-hover);
+    color: var(--header-secondary);
+    font-size: 14px;
+    line-height: 20px;
+}

@@ -1,0 +1,128 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+.vc-voice-server-info-body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+}
+
+.vc-voice-server-info-hero {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    background: var(--background-secondary);
+}
+
+.vc-voice-server-info-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    color: var(--brand-500);
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--brand-500) 14%, transparent);
+}
+
+.vc-voice-server-info-hero-copy {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.vc-voice-server-info-hero-copy span,
+.vc-voice-server-info-row span {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.vc-voice-server-info-hero-copy strong {
+    overflow: hidden;
+    color: var(--text-normal);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-voice-server-info-status {
+    padding: 5px 8px;
+    color: var(--text-normal);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--status-warning) 22%, var(--background-secondary));
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.vc-voice-server-info-status-connected {
+    color: var(--status-positive-text);
+    background: color-mix(in srgb, var(--status-positive) 23%, var(--background-secondary));
+}
+
+.vc-voice-server-info-grid {
+    overflow: hidden;
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+}
+
+.vc-voice-server-info-row {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 16px;
+    align-items: center;
+    min-height: 42px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.vc-voice-server-info-row:last-child {
+    border-bottom: 0;
+}
+
+.vc-voice-server-info-row strong {
+    overflow-wrap: anywhere;
+    color: var(--text-normal);
+    font-family: var(--font-code);
+    font-size: 13px;
+}
+
+.vc-voice-server-info-addresses {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    padding: 10px 0;
+}
+
+.vc-voice-server-info-addresses span {
+    color: var(--text-normal);
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+.vc-voice-server-info-error,
+.vc-voice-server-info-loading {
+    padding: 12px;
+    border-radius: 8px;
+    color: var(--text-muted);
+    background: var(--background-secondary);
+}
+
+.vc-voice-server-info-error {
+    color: var(--text-danger);
+    background: color-mix(in srgb, var(--status-danger) 14%, var(--background-secondary));
+}
+
+.vc-voice-server-info-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}

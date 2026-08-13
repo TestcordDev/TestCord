@@ -5,14 +5,14 @@
  */
 
 export {
-    openModal,
-    closeModal,
     closeAllModals,
-    ModalRoot,
-    ModalHeader,
+    closeModal,
+    ModalCloseButton,
     ModalContent,
     ModalFooter,
-    ModalCloseButton,
+    ModalHeader,
     ModalProps,
+    ModalRoot,
+    openModal,
     RenderModalProps
 } from "@utils/modal";

@@ -11,13 +11,13 @@
 
 .vc-snippet-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 20px rgb(0 0 0 / 30%);
 }
 
 .vc-snippet-placeholder-preview {
     width: 100%;
     height: 140px;
-    background: linear-gradient(135deg, rgba(30, 27, 75, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+    background: linear-gradient(135deg, rgb(30 27 75 / 80%) 0%, rgb(15 23 42 / 90%) 100%);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -29,15 +29,15 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.15), transparent 70%);
+    background: radial-gradient(circle at 50% 50%, rgb(168 85 247 / 15%), transparent 70%);
 }
 
 .vc-snippet-placeholder-tag {
     font-size: 12px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.85);
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: rgb(255 255 255 / 85%);
+    background: rgb(255 255 255 / 10%);
+    border: 1px solid rgb(255 255 255 / 20%);
     padding: 6px 14px;
     border-radius: 20px;
     backdrop-filter: blur(8px);
@@ -48,8 +48,8 @@
     width: 100%;
     height: 160px;
     border-radius: 8px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
-    border: 1px dashed rgba(168, 85, 247, 0.4);
+    background: linear-gradient(135deg, rgb(99 102 241 / 15%) 0%, rgb(168 85 247 / 15%) 100%);
+    border: 1px dashed rgb(168 85 247 / 40%);
     display: flex;
     flex-direction: column;
     align-items: center;

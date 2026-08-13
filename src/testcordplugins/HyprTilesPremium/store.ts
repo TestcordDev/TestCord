@@ -9,8 +9,6 @@ import { proxyLazy } from "@utils/lazy";
 import { FluxStore } from "@vencord/discord-types";
 import { Flux as FluxWP, FluxDispatcher } from "@webpack/common";
 
-import { computeLayoutRects, findDirectionalCandidate, findLeafByTileId, getLeafIds } from "./utils/layout";
-import { buildRuleContext, evaluateRules, getAutoLayoutForTileCount } from "./utils/rules";
 import { settings } from "./settings";
 import {
     Direction,
@@ -32,6 +30,8 @@ import {
     WorkspaceNode,
     WorkspaceState,
 } from "./types";
+import { computeLayoutRects, findDirectionalCandidate, findLeafByTileId, getLeafIds } from "./utils/layout";
+import { buildRuleContext, evaluateRules, getAutoLayoutForTileCount } from "./utils/rules";
 
 interface IFlux {
     PersistedStore: typeof FluxStore;
