@@ -49,6 +49,11 @@ const settings = definePluginSettings({
             return settings.store.customMessageOnStop;
         }
     },
+    showPanelButton: {
+        type: OptionType.BOOLEAN,
+        description: "Add a button in the user area panel",
+        default: true,
+    },
 });
 
 // ── Playback tracking ─────────────────────────────────────────────────────────
@@ -274,7 +279,8 @@ function Icon({ className, active }: { className?: string; active: boolean; }) {
 }
 
 function LyricsStatusToggleButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
-    const { active } = settings.use(["active"]);
+    const { active, showPanelButton } = settings.use(["active", "showPanelButton"]);
+    if (!showPanelButton) return null;
 
     return (
         <UserAreaButton
