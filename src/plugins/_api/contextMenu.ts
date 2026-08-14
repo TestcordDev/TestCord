@@ -50,9 +50,19 @@ export default definePlugin({
                 {
                     match: /navId:(?=.+?([,}].*?\)))/g,
                     replace: (m, rest, ...args) => {
+                        const offset = +args[0];
+                        const input = args[1] as string;
+                        const before = input?.slice(Math.max(0, offset - 2000), offset);
+                        const after = input?.slice(offset + m.length, offset + m.length + 200);
+
+                        if (before && (/(?:let|const|var|\()\s*\{[^}]*$/.test(before))) {
+                            if (/^\s*[\w$]+\s*[,}\)]/.test(after)) return m;
+                        }
+                        if (/^\s*[\w$]+\s*[,}][^=]*=/.test(after) || /^\s*[\w$]+\s*[,}\)]\s*=/.test(after)) {
+                            return m;
+                        }
                         if (rest.match(/}=.+/)) return m;
-                        const src = args[1]?.slice(Math.max(0, +args[0] - 2000), +args[0]);
-                        if (src && Math.max(src.lastIndexOf("PureComponent{"), src.lastIndexOf("Component{")) > src.lastIndexOf("function")) return m;
+                        if (before && Math.max(before.lastIndexOf("PureComponent{"), before.lastIndexOf("Component{")) > before.lastIndexOf("function")) return m;
                         return `contextMenuAPIArguments:typeof arguments!=='undefined'?arguments:[],${m}`;
                     }
                 }
@@ -61,6 +71,7 @@ export default definePlugin({
 
         {
             find: "Menu API only allows Items",
+            noWarn: true,
             replacement: [
                 // Patch the central context menu handler
                 {
