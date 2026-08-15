@@ -4,14 +4,15 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+// Note: Auto-translated
+
 import { app, IpcMainInvokeEvent } from "electron";
 import { rm } from "fs/promises";
 import { constants as osConstants, setPriority as setOsPriority } from "os";
 import { join } from "path";
 
-// كل عمليات Discord (الرئيسية + العرض + GPU) عبر Electron app.getAppMetrics() —
-// لا PowerShell (تجنّباً لإطلاق عملية خارجية مريبة أمنياً/AV) ولا C++.
-// عند الفشل نرجع للعملية الرئيسية فقط (process.pid).
+// Get all Discord process PIDs via Electron app.getAppMetrics().
+// Falls back to main process PID if appMetrics fails.
 function getAllDiscordPids(): number[] {
     try {
         const pids = app.getAppMetrics()
@@ -23,10 +24,7 @@ function getAllDiscordPids(): number[] {
     }
 }
 
-// ✅ إجمالي استهلاك المعالج لكل عمليات Discord (نسبة من نواة واحدة؛ قد تتجاوز 100).
-// عبر Electron app.getAppMetrics() نفسه — لا PowerShell ولا أي عملية خارجية.
-// percentCPUUsage تُحتسب منذ النداء السابق، فالنداء الأول يُرجِع 0 — غير ضارّ لأن مراقب
-// الحمل يشترط عيّنتين متتاليتين فوق الحدّ قبل أي تصرّف.
+// Total CPU usage across all Discord processes via Electron app.getAppMetrics().
 export function getTotalCpu(_e: IpcMainInvokeEvent): number {
     try {
         let total = 0;
@@ -37,8 +35,7 @@ export function getTotalCpu(_e: IpcMainInvokeEvent): number {
     }
 }
 
-// ✅ خفض أولوية كل عمليات Discord عبر os.setPriority المدمج (Windows فقط).
-// خفض الأولوية لعملياتك لا يتطلب صلاحيات مدير؛ بعض العمليات قد ترفض فنتجاهلها.
+// Lower priority of all Discord processes via os.setPriority (Windows only).
 export async function setProcessPriority(_e: IpcMainInvokeEvent, level: "belowNormal" | "normal"): Promise<{ ok: boolean; reason: string; changed: number; }> {
     if (process.platform !== "win32") {
         return { ok: false, reason: "Windows only", changed: 0 };
@@ -53,7 +50,7 @@ export async function setProcessPriority(_e: IpcMainInvokeEvent, level: "belowNo
             setOsPriority(pid, priority);
             changed++;
         } catch {
-            // عملية محميّة/مرفوضة — نتجاهل بأمان لكل PID على حدة
+            // Ignore failures for protected processes
         }
     }
     return changed > 0
@@ -61,30 +58,26 @@ export async function setProcessPriority(_e: IpcMainInvokeEvent, level: "belowNo
         : { ok: false, reason: "no processes updated", changed: 0 };
 }
 
-// ✅ إعادة تشغيل موثوقة عبر Electron مباشرةً (نفس نمط src/main/utils/constants.ts):
-// app.relaunch() يجدول إعادة التشغيل عند الخروج، و app.exit(0) يخرج فوراً.
-// أكثر موثوقية من جسور العارض (DiscordNative/VesktopNative) التي قد تصمت أحياناً.
+// Relaunch Discord via Electron app.relaunch() and app.exit(0).
 export function relaunchApp(_e: IpcMainInvokeEvent): void {
     app.relaunch();
     app.exit(0);
 }
 
-// يحدد مجلد بيانات نسخة Discord الحالية (stable/ptb/canary/development) من مسار التنفيذ.
-// عند أي فشل في الاكتشاف يرجع للمجلد الافتراضي "discord" (خطة احتياطية).
+// Determines Discord app data directory based on executable path.
 function getDiscordAppDataPath(appData: string): string {
     try {
         const exe = process.execPath.toLowerCase();
-        // الأكثر تحديداً أولاً — "discord" جزء من جميع الأسماء.
         if (exe.includes("discorddevelopment")) return join(appData, "discorddevelopment");
         if (exe.includes("discordcanary")) return join(appData, "discordcanary");
         if (exe.includes("discordptb")) return join(appData, "discordptb");
     } catch {
-        // تجاهل — نستخدم الافتراضي أدناه
+        // Fallback to default
     }
     return join(appData, "discord");
 }
 
-// ✅ حقيقي: حذف مجلدات كاش Discord عبر fs. الملفات قيد الاستخدام تفشل بأمان (try/catch).
+// Deletes Discord cache folders via fs.
 export async function cleanCache(_e: IpcMainInvokeEvent): Promise<{ ok: boolean; cleared: number; }> {
     const appData = process.env.APPDATA; // %AppData% (Windows)
     if (!appData) return { ok: false, cleared: 0 };
@@ -102,7 +95,7 @@ export async function cleanCache(_e: IpcMainInvokeEvent): Promise<{ ok: boolean;
             await rm(dir, { recursive: true, force: true });
             cleared++;
         } catch {
-            // مقفول/قيد الاستخدام — نتجاهل بأمان
+            // Ignore locked/in-use files
         }
     }
     return { ok: cleared > 0, cleared };

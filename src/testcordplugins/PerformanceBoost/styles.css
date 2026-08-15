@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/* ✅ تعطيل الحركات/الانتقالات — مفعَّل عبر صنف على <html> */
+/* Note: Auto-translated */
+
+/* Disable animations/transitions via root class */
 html.vc-perfboost-no-anim *,
 html.vc-perfboost-no-anim *::before,
 html.vc-perfboost-no-anim *::after {
@@ -15,13 +17,13 @@ html.vc-perfboost-no-anim *::after {
     scroll-behavior: auto !important;
 }
 
-/* 🟡 إخفاء "نشِط الآن" — best-effort (أصناف Discord مُجزَّأة وقد تتغيّر مع التحديثات) */
+/* Hide "Active Now" column */
 html.vc-perfboost-hide-activities [class*="nowPlayingColumn"],
 html.vc-perfboost-hide-activities [class*="activityFeed"] {
     display: none !important;
 }
 
-/* ⚡ تحسينات عرض خفيفة عند تفعيل وضع الأداء (مدموجة من CacheResetButton) */
+/* Rendering optimizations when performance mode is active */
 html.vc-perfboost-active [class*="messageListItem_"] {
     contain: layout style;
 }
@@ -36,7 +38,7 @@ html.vc-perfboost-active [class*="layer_"] {
     backdrop-filter: none !important;
 }
 
-/* ⚙️ واجهة إدارة الإضافات (مربوطة بوضع الأداء + الاستثناءات) */
+/* Plugin management UI styles */
 .vc-perfboost-pm-controls {
     display: flex;
     flex-direction: column;

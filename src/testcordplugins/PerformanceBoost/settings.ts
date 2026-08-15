@@ -4,44 +4,44 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+// Note: Auto-translated
+
 import { definePluginSettings } from "@api/Settings";
 import { OptionType } from "@utils/types";
 
 import { handleGameModeChange, PluginManagerControls } from "./PluginManager";
 
-// الأوصاف هنا بالإنجليزية؛ العربية تأتي من overlay (src/i18n/plugins/PerformanceBoost.ts).
-// definePluginSettings يحفظ الإعدادات تلقائياً (لا localStorage).
+// Settings definitions for PerformanceBoost.
 export const settings = definePluginSettings({
-    // المفتاح الرئيسي: تفعيله يطبّق تحسينات وقت التشغيل ويُعطّل بقيّة الإضافات (عدا الأساسيّة
-    // واستثناءاتك) مع طلب إعادة تشغيل. الربط عبر onChange (يعمل من الإعدادات أو زرّ الشريط).
-    // ملاحظة: لا تُسمِّ هذا "enabled" — Settings.plugins[name].enabled محجوز لعلَم تفعيل الإضافة نفسها في Vencord
+    // Main toggle: applies runtime optimizations and disables other non-essential plugins.
+    // Note: do not name this "enabled" as Settings.plugins[name].enabled is reserved for plugin activation.
     gameMode: {
         type: OptionType.BOOLEAN, default: false,
         description: "Enable performance / game mode (also disables other plugins except essentials and your exceptions; requires a restart)",
         onChange: handleGameModeChange
     },
-    // زرّ الاستثناءات: اختيار الإضافات التي تبقى مُفعّلة عند تفعيل وضع الأداء (يُرسَم داخل المكوّن).
+    // Exceptions button component
     pluginManager: {
         type: OptionType.COMPONENT,
         description: "Choose which plugins stay enabled when performance mode is on.",
         component: PluginManagerControls
     },
-    // الاستثناءات: أسماء إضافات تبقى مُفعّلة (مفصولة بفواصل) — مخفيّة عن قائمة الإعدادات.
+    // Comma-separated exceptions list
     pluginKeep: {
         type: OptionType.STRING, default: "", hidden: true,
         description: "Comma-separated plugin names kept enabled (exceptions)."
     },
-    // لقطة الإضافات التي كانت مُفعّلة قبل تعطيل البقيّة، لاستعادتها عند الإطفاء.
+    // Snapshot of enabled plugins before toggling mode
     pluginSaved: {
         type: OptionType.STRING, default: "", hidden: true,
         description: "JSON snapshot of plugins enabled before disabling the rest, restored when turned off."
     },
-    // افتراضياً مُطفأ: حرية كاملة للمستخدم — لا تفعيل تلقائي إلا إن طلبه صراحةً.
+    // Auto-detect games option
     autoDetectGames: {
         type: OptionType.BOOLEAN, default: false,
         description: "Automatically enable when a game is detected"
     },
-    // افتراضياً مُطفأ: مراقب حمل اختياري — عيّنة CPU كل 30 ثانية فقط عند تفعيله.
+    // Auto high CPU load monitor option
     autoHighLoad: {
         type: OptionType.BOOLEAN, default: false,
         description: "Automatically enable performance mode when Discord's CPU usage stays above the threshold (checks every 30s, desktop only)"
@@ -57,7 +57,7 @@ export const settings = definePluginSettings({
         type: OptionType.BOOLEAN, default: true,
         description: "Disable hardware acceleration (requires a Discord restart)"
     },
-    // جديد: عند تفعيل خفض تسريع العتاد، اعرض تنبيهاً بزرّ إعادة تشغيل (ليُطبَّق التغيير اليدوي)
+    // Hardware acceleration change restart prompt option
     autoRestartOnHardwareChange: {
         type: OptionType.BOOLEAN, default: true,
         description: "Offer to restart Discord so a hardware-acceleration change takes effect"
