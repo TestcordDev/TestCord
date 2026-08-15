@@ -45,6 +45,10 @@ export const TestcordAdmins = Object.freeze({
     dxrx99: {
         name: "dxrx99",
         id: 1464279455844274188n
+    },
+    Aviv: {
+        name: "Aviv",
+        id: 752564054593110016n
     }
 } satisfies Record<string, TestcordAdmin>);
 
@@ -123,6 +127,10 @@ export const TestcordDevelopers = Object.freeze({
     dxrx99: {
         name: "dxrx99",
         id: 1464279455844274188n
+    },
+    Aviv: {
+        name: "Aviv",
+        id: 752564054593110016n
     }
 } satisfies Record<string, TestcordAdmin>);
 

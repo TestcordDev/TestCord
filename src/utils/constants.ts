@@ -1576,6 +1576,10 @@ export const TestcordDevs = /* #__PURE__*/ Object.freeze({
     Trigger: {
         name: "Trigger",
         id: 0n
+    },
+    Aviv: {
+        name: "Aviv",
+        id: 752564054593110016n
     }
 } satisfies Record<string, Dev>);
 
