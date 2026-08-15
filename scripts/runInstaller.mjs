@@ -18,16 +18,17 @@
 
 import "./checkNodeVersion.js";
 
-import { execFileSync, execSync } from "child_process";
-import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { execFileSync } from "child_process";
+import { createHash } from "crypto";
+import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { Readable } from "stream";
 import { finished } from "stream/promises";
 import { fileURLToPath } from "url";
 
-const BASE_URL = "https://github.com/Equicord/Equilotl/releases/latest/download/";
-const INSTALLER_PATH_DARWIN = "Equilotl.app/Contents/MacOS/Equilotl";
-const INSTALLER_APP_DARWIN = "Equilotl.app";
+const BASE_URL = "https://github.com/TestcordDev/TestCord/releases/latest/download/";
+const RELEASE_API = "https://api.github.com/repos/TestcordDev/TestCord/releases/tags/latest";
+const USER_AGENT = "TestCord (https://github.com/TestcordDev/TestCord)";
 
 const BASE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
 const FILE_DIR = join(BASE_DIR, "dist", "Installer");
@@ -36,21 +37,27 @@ const ETAG_FILE = join(FILE_DIR, "etag.txt");
 function getFilename() {
     switch (process.platform) {
         case "win32":
-            return "EquilotlCli.exe";
-        case "darwin":
-            switch (process.arch) {
-                case "x64":
-                    return "Equilotl-darwin-x64.zip";
-                case "arm64":
-                    return "Equilotl-darwin-arm64.zip";
-                default:
-                    throw new Error("Unsupported macOS architecture: " + process.arch);
-            }
+            return "Windows_Testcord_installer-rel_cli.exe";
         case "linux":
-            return "EquilotlCli-linux";
+            return "Linux_Testcord_installer-rel_cli";
         default:
-            throw new Error("Unsupported platform: " + process.platform);
+            throw new Error(
+                `No TestCord installer exists for ${process.platform}. ` +
+                "Use the GoofCord method (see GoofCordGuide.md) or build the installer from https://github.com/TestcordDev/Testcordinstaller"
+            );
     }
+}
+
+async function fetchAssetDigest(filename) {
+    const res = await fetch(RELEASE_API, { headers: { "User-Agent": USER_AGENT } });
+    if (!res.ok) throw new Error(`Failed to fetch release metadata: ${res.status} ${res.statusText}`);
+
+    const assets = (await res.json()).assets ?? [];
+    const digest = assets.find(asset => asset.name === filename)?.digest;
+    if (typeof digest !== "string" || !digest.startsWith("sha256:"))
+        throw new Error(`Release has no sha256 digest for ${filename}, refusing to run an unverifiable binary`);
+
+    return digest.slice("sha256:".length);
 }
 
 async function ensureBinary() {
@@ -58,14 +65,7 @@ async function ensureBinary() {
     console.log("Downloading " + filename);
 
     mkdirSync(FILE_DIR, { recursive: true });
-
-    const downloadName = join(FILE_DIR, filename);
-    const outputFile = process.platform === "darwin"
-        ? join(FILE_DIR, INSTALLER_PATH_DARWIN)
-        : downloadName;
-    const outputApp = process.platform === "darwin"
-        ? join(FILE_DIR, INSTALLER_APP_DARWIN)
-        : null;
+    const outputFile = join(FILE_DIR, filename);
 
     const etag = existsSync(outputFile) && existsSync(ETAG_FILE)
         ? readFileSync(ETAG_FILE, "utf-8")
@@ -73,7 +73,7 @@ async function ensureBinary() {
 
     const res = await fetch(BASE_URL + filename, {
         headers: {
-            "User-Agent": "Equicord (https://github.com/Equicord/Equicord)",
+            "User-Agent": USER_AGENT,
             "If-None-Match": etag
         }
     });
@@ -85,41 +85,28 @@ async function ensureBinary() {
     if (!res.ok)
         throw new Error(`Failed to download installer: ${res.status} ${res.statusText}`);
 
-    writeFileSync(ETAG_FILE, res.headers.get("etag"));
+    // WHY DOES NODE FETCH RETURN A WEB STREAM OH MY GOD
+    const body = Readable.fromWeb(res.body);
+    await finished(body.pipe(createWriteStream(outputFile, {
+        mode: 0o755,
+        autoClose: true
+    })));
 
-    if (process.platform === "darwin") {
-        console.log("Saving zip...");
-        const zip = new Uint8Array(await res.arrayBuffer());
-        writeFileSync(downloadName, zip);
-
-        console.log("Unzipping app bundle...");
-        execSync(`ditto -x -k '${downloadName}' '${FILE_DIR}'`);
-
-        console.log("Clearing quarantine from installer app (this is required to run it)");
-        console.log("xattr might error, that's okay");
-
-        const logAndRun = cmd => {
-            console.log("Running", cmd);
-            try {
-                execSync(cmd);
-            } catch { }
-        };
-        logAndRun(`sudo xattr -dr com.apple.quarantine '${outputApp}'`);
-    } else {
-        // WHY DOES NODE FETCH RETURN A WEB STREAM OH MY GOD
-        const body = Readable.fromWeb(res.body);
-        await finished(body.pipe(createWriteStream(outputFile, {
-            mode: 0o755,
-            autoClose: true
-        })));
+    console.log("Verifying checksum...");
+    const expected = await fetchAssetDigest(filename);
+    const actual = createHash("sha256").update(readFileSync(outputFile)).digest("hex");
+    if (actual !== expected) {
+        rmSync(outputFile);
+        throw new Error(`Checksum mismatch for ${filename} (expected ${expected}, got ${actual}). Not running it - try again.`);
     }
+
+    // Only cache the etag once the file has actually been verified
+    writeFileSync(ETAG_FILE, res.headers.get("etag"));
 
     console.log("Finished downloading!");
 
     return outputFile;
 }
-
-
 
 const installerBin = await ensureBinary();
 
