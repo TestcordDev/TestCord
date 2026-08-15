@@ -1,0 +1,389 @@
+.vc-dxtokenimporter-content {
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    color: var(--text-default, var(--text-normal, #f2f3f5));
+}
+
+/* The visual-refresh ModalFooter no longer spaces its children, letting the
+ * action buttons touch and overlap. */
+.vc-dxtokenimporter-footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: color-mix(in srgb, var(--text-default, #fff) 3%, transparent);
+}
+
+.vc-dxtokenimporter-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-subtle, var(--background-modifier-accent, rgb(255 255 255 / 8%)));
+    margin-bottom: 4px;
+}
+
+.vc-dxtokenimporter-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 7px 12px 9px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-muted, #b5bac1);
+    transition: color .1s, border-color .1s;
+    font-family: inherit;
+    margin-bottom: -1px;
+}
+
+.vc-dxtokenimporter-tab:hover {
+    color: var(--text-default, var(--text-normal, #f2f3f5));
+}
+
+.vc-dxtokenimporter-tab-active {
+    color: var(--text-default, var(--text-normal, #f2f3f5));
+    border-bottom-color: var(--brand-500, #5865f2);
+    font-weight: 600;
+}
+
+.vc-dxtokenimporter-tab-count {
+    background: color-mix(in srgb, var(--text-default, #fff) 10%, transparent);
+    color: var(--text-muted, #b5bac1);
+    border-radius: 20px;
+    padding: 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.vc-dxtokenimporter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-subtle, var(--background-modifier-accent, rgb(255 255 255 / 8%)));
+    margin-bottom: 8px;
+    gap: 8px;
+}
+
+.vc-dxtokenimporter-search {
+    flex: 1;
+    min-width: 120px;
+}
+
+/* Native full-width input: the mana TextInput renders a wrapper whose visible
+ * box is not the clickable input, leaving a small centered hitbox. */
+.vc-dxtokenimporter-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    background: var(--background-base-low, var(--background-secondary, rgb(0 0 0 / 25%)));
+    color: var(--text-default, var(--text-normal, #f2f3f5));
+    border: 1.5px solid var(--border-subtle, var(--background-modifier-accent, rgb(255 255 255 / 8%)));
+    border-radius: 8px;
+    caret-color: var(--text-default, var(--text-normal, #f2f3f5));
+    outline: none;
+    transition: border-color .15s;
+}
+
+.vc-dxtokenimporter-search-input:focus {
+    border-color: var(--brand-500, #5865f2);
+}
+
+.vc-dxtokenimporter-search-input::placeholder,
+.vc-dxtokenimporter-textarea textarea::placeholder,
+textarea.vc-dxtokenimporter-textarea::placeholder {
+    color: var(--text-subtle, var(--text-muted, #949ba4));
+}
+
+.vc-dxtokenimporter-empty {
+    text-align: center;
+    color: var(--text-muted, #b5bac1);
+    font-size: 13px;
+    padding: 24px 0;
+}
+
+.vc-dxtokenimporter-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-height: 340px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-auto-scrollbar-color-thumb, color-mix(in srgb, var(--text-default, #fff) 15%, transparent)) transparent;
+}
+
+.vc-dxtokenimporter-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.vc-dxtokenimporter-list::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-auto-scrollbar-color-thumb, color-mix(in srgb, var(--text-default, #fff) 15%, transparent));
+    border-radius: 2px;
+}
+
+.vc-dxtokenimporter-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.vc-dxtokenimporter-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: 1.5px solid transparent;
+
+    /* Slight tint over the modal surface; background-base-lowest reads as
+     * near black on darker themes and makes rows look like holes. */
+    background: color-mix(in srgb, var(--text-default, #fff) 4%, transparent);
+    transition: background .1s;
+}
+
+.vc-dxtokenimporter-row:hover {
+    background: color-mix(in srgb, var(--text-default, #fff) 7%, transparent);
+}
+
+.vc-dxtokenimporter-row-valid {
+    border-color: color-mix(in srgb, var(--status-positive, #23a55a) 35%, transparent);
+}
+
+.vc-dxtokenimporter-row-invalid {
+    opacity: .55;
+    border-color: color-mix(in srgb, var(--text-feedback-critical, var(--text-danger, #f23f43)) 35%, transparent);
+}
+
+.vc-dxtokenimporter-row-warn {
+    border-color: color-mix(in srgb, var(--status-warning, #f0b232) 35%, transparent);
+}
+
+.vc-dxtokenimporter-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.vc-dxtokenimporter-avatar-ph {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: color-mix(in srgb, var(--brand-500, #5865f2) 30%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-default, var(--text-normal, #f2f3f5));
+}
+
+.vc-dxtokenimporter-row-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.vc-dxtokenimporter-username {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-strong, var(--header-primary, #f2f3f5));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.vc-dxtokenimporter-token-hidden {
+    font-size: 13px;
+    color: var(--text-muted, #b5bac1);
+    letter-spacing: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.vc-dxtokenimporter-token-copyable {
+    cursor: pointer;
+}
+
+.vc-dxtokenimporter-token-locked {
+    cursor: default;
+    font-weight: 600;
+    letter-spacing: normal;
+}
+
+.vc-dxtokenimporter-st {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.vc-dxtokenimporter-st-ok {
+    background: color-mix(in srgb, var(--status-positive, #23a55a) 20%, transparent);
+    color: var(--text-feedback-positive, var(--text-positive, var(--status-positive, #23a55a)));
+}
+
+.vc-dxtokenimporter-st-bad {
+    background: color-mix(in srgb, var(--text-feedback-critical, var(--text-danger, #f23f43)) 20%, transparent);
+    color: var(--text-feedback-critical, var(--text-danger, #f23f43));
+}
+
+.vc-dxtokenimporter-st-loading {
+    background: color-mix(in srgb, var(--text-default, #fff) 8%, transparent);
+    color: var(--text-muted, #b5bac1);
+    font-size: 10px;
+}
+
+.vc-dxtokenimporter-st-warn {
+    background: color-mix(in srgb, var(--status-warning, #f0b232) 20%, transparent);
+    color: var(--text-feedback-warning, var(--status-warning, #f0b232));
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.vc-dxtokenimporter-row-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.vc-dxtokenimporter-badge {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.vc-dxtokenimporter-badge-valid {
+    background: color-mix(in srgb, var(--status-positive, #23a55a) 20%, transparent);
+    color: var(--text-feedback-positive, var(--text-positive, var(--status-positive, #23a55a)));
+}
+
+.vc-dxtokenimporter-badge-invalid {
+    background: color-mix(in srgb, var(--text-feedback-critical, var(--text-danger, #f23f43)) 20%, transparent);
+    color: var(--text-feedback-critical, var(--text-danger, #f23f43));
+}
+
+.vc-dxtokenimporter-badge-warn {
+    background: color-mix(in srgb, var(--status-warning, #f0b232) 20%, transparent);
+    color: var(--text-feedback-warning, var(--status-warning, #f0b232));
+    font-size: 9px;
+}
+
+.vc-dxtokenimporter-badge-checking,
+.vc-dxtokenimporter-badge-pending {
+    background: color-mix(in srgb, var(--text-default, #fff) 8%, transparent);
+    color: var(--text-muted, #b5bac1);
+    font-size: 10px;
+}
+
+.vc-dxtokenimporter-add-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.vc-dxtokenimporter-textarea textarea,
+textarea.vc-dxtokenimporter-textarea {
+    width: 100%;
+    min-height: 110px;
+    resize: none;
+    background: var(--background-base-low, var(--background-secondary, rgb(0 0 0 / 25%)));
+    color: var(--text-default, var(--text-normal, #f2f3f5));
+    border: 1.5px solid var(--border-subtle, var(--background-modifier-accent, rgb(255 255 255 / 8%)));
+    border-radius: 8px;
+    caret-color: var(--text-default, var(--text-normal, #f2f3f5));
+    outline: none;
+    box-sizing: border-box;
+    font-family: monospace;
+    font-size: 13px;
+    padding: 10px 12px;
+    transition: border-color .15s;
+}
+
+.vc-dxtokenimporter-textarea textarea:focus,
+textarea.vc-dxtokenimporter-textarea:focus {
+    border-color: var(--brand-500, #5865f2);
+}
+
+.vc-dxtokenimporter-add-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.vc-dxtokenimporter-detected {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-muted, #b5bac1);
+}
+
+.vc-dxtokenimporter-results {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.vc-dxtokenimporter-results-summary {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    padding: 0 2px;
+    align-items: center;
+    color: var(--text-muted, #b5bac1);
+}
+
+.vc-dxtokenimporter-settings-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 8px;
+    color: var(--text-default, var(--text-normal, #f2f3f5));
+}
+
+.vc-dxtokenimporter-enc-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+}
+
+.vc-dxtokenimporter-enc-report {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border-subtle, var(--background-modifier-accent, rgb(255 255 255 / 8%)));
+    background: color-mix(in srgb, var(--text-default, #fff) 3%, transparent);
+}
+
+.vc-dxtokenimporter-enc-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-default, var(--text-normal, #f2f3f5));
+}
