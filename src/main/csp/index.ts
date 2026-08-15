@@ -73,6 +73,8 @@ export const CspPolicies: PolicyMap = {
     // Equicord & Spotify & CordCat APIs
     "badges.equicord.org": ImageAndCssSrc,
     "badge.equicord.org": ImageAndCssSrc, // badge images + badges.json (BadgeAPI)
+    "obamabot.me": [...ConnectSrc, "img-src"], // third-party badge service (globalBadges)
+    "*.obamabot.me": [...ConnectSrc, "img-src"],
     "themes.equicord.org": [...ImageAndCssSrc, ...ConnectSrc], // theme marketplace previews, CSS + API
     "equicord.org": ImageSrc, // plugin card / settings icons
     "cloud.equicord.org": ConnectSrc, // Equicord Cloud settings sync
