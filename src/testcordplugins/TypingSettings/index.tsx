@@ -115,8 +115,8 @@ ${smoothChars ? `
             pointer-events: none;
             z-index: 9999;
             animation: caretBlink 1s step-end infinite;
-            transition: left var(--caret-speed, 80ms) cubic-bezier(0.2, 0, 1),
-                        top var(--caret-speed, 80ms) cubic-bezier(0.2, 0, 1),
+            transition: left var(--caret-speed, 80ms) cubic-bezier(0.2, 0, 0, 1),
+                        top var(--caret-speed, 80ms) cubic-bezier(0.2, 0, 0, 1),
                         height var(--caret-speed, 80ms) ease,
                         background 300ms ease;
         }
