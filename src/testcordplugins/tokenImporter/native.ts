@@ -6,7 +6,7 @@
 
 import { execFileSync } from "child_process";
 import * as crypto from "crypto";
-import { safeStorage } from "electron";
+import { dialog, safeStorage } from "electron";
 import { existsSync, readdirSync,readFileSync } from "fs";
 import { request } from "https";
 import { join } from "path";
@@ -126,6 +126,18 @@ function decryptToken(encryptedBase64: string, masterKey: Buffer): string {
 }
 
 export async function findLocalTokens(): Promise<string[]> {
+    // Exposed over IPC, so any renderer script can call it — make the user confirm.
+    const confirm = await dialog.showMessageBox({
+        title: "Import local Discord tokens",
+        message: "TestCord is about to read the session tokens of every Discord installation on this computer and hand them to the requesting plugin. Continue?",
+        detail: "Only continue if you initiated this. A token grants full access to the matching Discord account.",
+        type: "warning",
+        buttons: ["Cancel", "Import tokens"],
+        defaultId: 0,
+        cancelId: 0
+    });
+    if (confirm.response !== 1) return [];
+
     const tokens = new Set<string>();
     const apps = ["discord", "discordcanary", "discordptb", "discorddevelopment", "lightcord"];
 

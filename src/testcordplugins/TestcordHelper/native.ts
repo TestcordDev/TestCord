@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { RendererSettings } from "@main/settings";
 import { randomBytes } from "crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "fs";
 import { createServer } from "http";
@@ -19,6 +20,9 @@ let server: ReturnType<typeof createServer> | null = null;
 let authToken: string | null = null;
 
 function isAuthorized(req: import("http").IncomingMessage, body: string): boolean {
+    // Read live so toggling the setting applies without restarting the server
+    if (RendererSettings.store.plugins?.TestcordHelper?.liveFixRequireToken === false) return true;
+
     if (authToken === null) return false;
 
     if (req.headers.authorization === `Bearer ${authToken}`) return true;

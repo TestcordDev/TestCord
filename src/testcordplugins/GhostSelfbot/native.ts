@@ -8,7 +8,7 @@ import { Logger } from "@utils/Logger";
 import { execFileSync, spawn } from "child_process";
 import type { IpcMainInvokeEvent } from "electron";
 import { unzipSync } from "fflate";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { get as httpsGet } from "https";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 
@@ -383,7 +383,8 @@ export function updateGhostConfig(_event: IpcMainInvokeEvent, token: string): bo
 
         const config = JSON.parse(readFileSync(ghostConfigPath, "utf-8"));
         config.token = token;
-        writeFileSync(ghostConfigPath, JSON.stringify(config, null, 4));
+        writeFileSync(ghostConfigPath, JSON.stringify(config, null, 4), { mode: 0o600 });
+        chmodSync(ghostConfigPath, 0o600);
 
         if (existsSync(ghostTokensPath)) {
             const tokens: GhostToken[] = JSON.parse(readFileSync(ghostTokensPath, "utf-8"));
@@ -402,7 +403,8 @@ export function updateGhostConfig(_event: IpcMainInvokeEvent, token: string): bo
                 });
             }
 
-            writeFileSync(ghostTokensPath, JSON.stringify(tokens, null, 4));
+            writeFileSync(ghostTokensPath, JSON.stringify(tokens, null, 4), { mode: 0o600 });
+            chmodSync(ghostTokensPath, 0o600);
         }
 
         return true;

@@ -490,7 +490,7 @@ LiveFix is an HTTP server on port `18963` inside TestcordHelper. It lets you ins
 
 ### Commands
 
-Send `POST http://127.0.0.1:18963` with `Content-Type: application/json`. Auth required: pass the per-session token via `Authorization: Bearer <token>` header or a `"token"` body field. The token is regenerated on each server start and written to `/tmp/opencode/livefix/token` (Windows: `<drive>:\tmp\opencode\livefix\token`). Fetch it first: `TOKEN=$(cat /tmp/opencode/livefix/token)`. Requests with an `Origin`/`Referer` header or a mismatched `Host` are rejected (403), which blocks browsers and DNS rebinding.
+Send `POST http://127.0.0.1:18963` with `Content-Type: application/json`. Auth required: pass the per-session token via `Authorization: Bearer <token>` header or a `"token"` body field. The token is regenerated on each server start and written to `/tmp/opencode/livefix/token` (Windows: `<drive>:\tmp\opencode\livefix\token`). Fetch it first: `TOKEN=$(cat /tmp/opencode/livefix/token)`. Requests with an `Origin`/`Referer` header or a mismatched `Host` are rejected (403), which blocks browsers and DNS rebinding. The token requirement can be disabled via TestcordHelper's `liveFixRequireToken` setting (default on); the Origin/Referer/Host checks always apply.
 
 | Action | Fields | Description |
 |--------|--------|-------------|

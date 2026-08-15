@@ -24,6 +24,8 @@ TOKEN=$(cat /tmp/opencode/livefix/token)
 
 Requests without it get `401`; requests carrying an `Origin`/`Referer` header or a `Host` other than `127.0.0.1:18963` get `403` (this blocks browsers and DNS rebinding, so only local token-holding processes can talk to the server).
 
+The token requirement can be turned off with the TestcordHelper setting **LiveFix Require Token** (on by default — leave it on unless your tooling cannot send headers). The `Origin`/`Referer`/`Host` checks always stay on.
+
 ### Actions
 
 #### `search` — Search webpack module factories for a string
