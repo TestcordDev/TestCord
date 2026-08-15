@@ -182,6 +182,15 @@ export const CspPolicies: PolicyMap = {
     "top.gg": ConnectSrc,
 
     // Image CDNs loaded by plugins
+    // Moebooru boards serve files/assets from separate CDN hosts than their API
+    "cdn.donmai.us": [...ConnectSrc, "img-src"],
+    "files.yande.re": [...ConnectSrc, "img-src"],
+    "assets.yande.re": [...ConnectSrc, "img-src"],
+    "files.konachan.com": [...ConnectSrc, "img-src"],
+    "assets.konachan.com": [...ConnectSrc, "img-src"],
+    "*.purrbot.site": [...ConnectSrc, "img-src"],
+    "cdn.ipwhois.io": ImageSrc, // ipwho.is country flag images
+    "*.betterdiscord.app": CSPSrc, // BD theme thumbnails/CDN
     "camo.githubusercontent.com": ImageSrc,
     "github.githubassets.com": ImageSrc,
     "dearrow.ajay.app": ImageSrc,
