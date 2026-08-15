@@ -37,6 +37,9 @@ import type { LiteralUnion } from "type-fest";
 
 // exists to export default definePlugin({...})
 export default function definePlugin<P extends PluginDef>(p: P & Record<PropertyKey, any>) {
+    if (p.settings) {
+        p.settings.pluginName = p.name;
+    }
     return p as typeof p & Plugin;
 }
 
