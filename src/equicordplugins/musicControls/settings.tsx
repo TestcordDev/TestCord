@@ -26,6 +26,11 @@ const sliderOptions = {
 
 export function toggleHoverControls(value: boolean) {
     (value ? enableStyle : disableStyle)(hoverOnlyStyle);
+    if (!value) {
+        document.querySelectorAll("#vc-spotify-player, #eq-tdl-player").forEach(player => {
+            player.classList.remove("vc-ctrl-active");
+        });
+    }
 }
 
 export function toggleBetterSpotifyControls(value: boolean) {
@@ -86,7 +91,7 @@ function LyricsProviderSettings() {
 
 export const settings = definePluginSettings({
     hoverControls: {
-        description: "Show controls on hover, press control to cycle",
+        description: "Show controls on hover, hold control or press twice in quick succession to cycle modes",
         type: OptionType.BOOLEAN,
         default: false,
         onChange: v => toggleHoverControls(v)
