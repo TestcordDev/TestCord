@@ -1,11 +1,11 @@
 #!/bin/bash
 
 # Configuration
-INSTALLER_PATH="$HOME/.equilotl"
-GITHUB_URL="https://github.com/Equicord/Equilotl/releases/latest/download/EquilotlCli-Linux"
+INSTALLER_PATH="$HOME/.testcord"
+GITHUB_URL="https://github.com/TestcordDev/TestCord/releases/latest/download/Linux_Testcord_installer-rel_cli"
 PRIVILEGE_CMDS=("sudo" "doas")
 DEBUG=false
-LOG_FILE="$(dirname "$(realpath "$0")")/equicordinstalldebug.log"
+LOG_FILE="$(dirname "$(realpath "$0")")/testcordinstalldebug.log"
 
 # Colors for output
 RED='\033[0;31m'
@@ -115,9 +115,9 @@ main() {
     debug_log "Installation completed successfully"
     echo -e "\n${GREEN}Installation completed successfully!${NC}"
     echo -e "\nCredits:"
-    echo "Original script forked from Vencord"
-    echo "Modified by PhoenixAceVFX for Equicord Updater"
-    echo "Rewrite by PhoenixAceVFX"
+    echo "Original script from Equicord, who forked from Vencord"
+    echo "Originally rewritten by PhoenixAceVFX"
+    echo "Modified by Su6o for Testcord"
 }
 
 # Pass arguments to main
