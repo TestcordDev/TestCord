@@ -1285,7 +1285,7 @@ function handleLiveFixRequest(req: LiveFixRequest): any {
 
             case "eval": {
                 if (!req.code) return { id, error: "Missing code" };
-                const result = eval(req.code);
+                const result = (0, eval)(req.code);
                 return { id, result: typeof result === "object" ? JSON.stringify(result, null, 2) : String(result) };
             }
 

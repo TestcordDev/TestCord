@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { ApplicationCommandInputType, ApplicationCommandOptionType, sendBotMessage } from "@api/Commands";
+import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
-import { addMessagePopoverButton as addButton, removeMessagePopoverButton as removeButton } from "@api/MessagePopover";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
+import type { Message } from "@vencord/discord-types";
 import { ChannelStore, Constants, Menu, RestAPI, UserStore } from "@webpack/common";
 
 const settings = definePluginSettings({
@@ -126,7 +126,7 @@ export default definePlugin({
                 required: true,
             }],
             execute: (opts, ctx) => {
-                const count = opts.find(o => o.name === "count")?.value as unknown as number;
+                const count = findOption(opts, "count", 0);
                 if (!count || count < 1) return;
 
                 const channelId = ctx.channel.id;
@@ -177,9 +177,10 @@ export default definePlugin({
         }
     ],
 
-    start() {
-        addButton("SilentDelete", msg => {
-            if (msg.author.id !== UserStore.getCurrentUser().id || msg.deleted) return null;
+    messagePopoverButton: {
+        icon: SilentDeleteIcon,
+        render(msg: Message) {
+            if (msg.author?.id !== UserStore.getCurrentUser()?.id || msg.deleted) return null;
 
             return {
                 label: "Silent Delete",
@@ -189,10 +190,6 @@ export default definePlugin({
                 onClick: () => silentDeleteMessage(msg.channel_id, msg.id),
                 dangerous: true
             };
-        }, SilentDeleteIcon);
-    },
-
-    stop() {
-        removeButton("SilentDelete");
+        }
     }
 });

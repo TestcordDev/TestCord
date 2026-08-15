@@ -6,7 +6,7 @@
 
 import "./styles.css";
 
-import { addHeaderBarButton, HeaderBarButton,removeHeaderBarButton } from "@api/HeaderBar";
+import { HeaderBarButton } from "@api/HeaderBar";
 import definePlugin from "@utils/types";
 import { React } from "@webpack/common";
 
@@ -23,20 +23,19 @@ export default definePlugin({
     description: "BombParty/WordBomb assistant with persistent overlay, integrated AI, and alphabet tracking.",
     tags: ["Fun", "Nightcord"],
     authors: [{ name: "Nightcord", id: 0n }],
-    dependencies: ["HeaderBarAPI"],
 
-    start() {
-        addHeaderBarButton("wordbomb", () => (
+    headerBarButton: {
+        icon: TrophyIcon,
+        render: () => (
             <HeaderBarButton
                 icon={TrophyIcon}
                 tooltip="WordBomb"
                 onClick={() => toggleWordBombOverlay()}
             />
-        ));
+        )
     },
 
     stop() {
-        removeHeaderBarButton("wordbomb");
         const container = document.getElementById("wordbomb-overlay-container");
         if (container) {
             toggleWordBombOverlay();

@@ -35,7 +35,7 @@ export default definePlugin({
             if (script.includes("await")) script = `(async () => { ${script} })()`;
 
             try {
-                var result = await eval(script);
+                var result = await (0, eval)(script);
             } catch (e: any) {
                 var result = e;
             }

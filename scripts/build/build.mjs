@@ -109,8 +109,8 @@ const globNativesPlugin = {
                 "Betterdiscordplugins",
             ];
             let code = "";
-            let natives = "\n";
             let i = 0;
+            const entries = new Map();
             /**
              * @type {string[]}
              */
@@ -143,9 +143,13 @@ const globNativesPlugin = {
 
                     const mod = `p${i}`;
                     code += `import * as ${mod} from "./${dir}/${fileName}/native";\n`;
-                    natives += `${JSON.stringify(pluginName)}:${mod},\n`;
+                    entries.set(pluginName, mod);
                     i++;
                 }
+            }
+            let natives = "\n";
+            for (const [pluginName, mod] of entries) {
+                natives += `${JSON.stringify(pluginName)}:${mod},\n`;
             }
             code += `export default {${natives}};`;
             return {
