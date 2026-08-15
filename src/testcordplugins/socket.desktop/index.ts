@@ -23,7 +23,7 @@ const settings = definePluginSettings({
     },
     password: {
         type: OptionType.STRING,
-        description: "Password that will be required before sending messages"
+        description: "Password clients must send as their first line before messaging. If left empty, a random one is generated at startup and shown in a notification."
     },
     allowUnauthedLocalConnections: {
         type: OptionType.BOOLEAN,
