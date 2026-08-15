@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { safeFetch } from "@main/utils/safeFetch";
 import { IpcMainInvokeEvent } from "electron";
 import { setTimeout as sleep } from "timers/promises";
 
@@ -162,7 +163,12 @@ export async function sendWebhook(_: IpcMainInvokeEvent, webhookUrl: string, pay
     try {
         const url = new URL(webhookUrl);
         url.searchParams.set("wait", "true");
-        const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload });
+        const response = await safeFetch(url.toString(), {
+            allowedHosts: ["discord.com", "discordapp.com"],
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: payload
+        });
         return { status: response.status, data: await response.text() };
     } catch (error) {
         return { status: -1, data: error instanceof Error ? error.message : String(error) };

@@ -4,10 +4,12 @@ on:
         branches:
             - main
             - dev
+            - dev2
     pull_request:
         branches:
             - main
             - dev
+            - dev2
 
 jobs:
     Test:
@@ -27,7 +29,13 @@ jobs:
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
 
-            - name: Lint & Test if desktop version compiles
+            - name: Typecheck
+              run: pnpm testTsc
+
+            - name: Lint
+              run: pnpm lint
+
+            - name: Test if desktop version compiles
               run: pnpm buildStandalone
 
             - name: Test if web version compiles

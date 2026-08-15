@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { safeFetch } from "@main/utils/safeFetch";
 import { IpcMainInvokeEvent } from "electron";
 
 export interface NativeGroqResponse {
@@ -21,7 +22,7 @@ export async function groqFetch(
     body?: string
 ): Promise<NativeGroqResponse> {
     try {
-        const response = await fetch(url, {
+        const response = await safeFetch(url, {
             method,
             headers: {
                 "Content-Type": "application/json",
