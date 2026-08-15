@@ -10,12 +10,12 @@ import { plugins } from "@api/PluginManager";
 import { Settings } from "@api/Settings";
 
 // Essential plugins that are never disabled
-const ESHARQ_ESSENTIALS = ["DiscordArabicizer", "PerformanceBoost"];
+const TESTCORD_ESSENTIALS = ["PerformanceBoost"];
 
 /** Determines if a plugin is essential and should not be disabled in performance mode. */
 export function isEssentialPlugin(name: string): boolean {
     const p = (plugins as Record<string, { required?: boolean; isDependency?: boolean; }>)[name];
-    return !!(p?.required || p?.isDependency) || ESHARQ_ESSENTIALS.includes(name);
+    return !!(p?.required || p?.isDependency) || TESTCORD_ESSENTIALS.includes(name);
 }
 
 /** Returns all togglable (non-essential) plugin names. */
