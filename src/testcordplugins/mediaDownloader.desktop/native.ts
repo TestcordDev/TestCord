@@ -34,6 +34,34 @@ const MAX_DOWNLOAD_DURATION_SECONDS = 30 * 60;
 const MAX_GIF_DURATION_SECONDS = 30;
 const MAX_RETURN_BYTES = 500 * 1024 * 1024;
 
+// Custom renderer-supplied args must never reach exec-capable or
+// path-capable flags of yt-dlp/ffmpeg
+const BLOCKED_YTDLP_ARGS = [
+    /^--exec/,
+    /^-o$/,
+    /^--output/,
+    /^-P/,
+    /^--paths/,
+    /^--postprocessor-args/,
+    /^--ppa/,
+    /^--downloader-args/,
+    /^--external-downloader/,
+    /^-a$/,
+    /^--batch-file/,
+    /^--config/,
+    /^--plugin-director/
+];
+const looksLikePath = (arg: string) => arg.includes("/") || arg.includes("\\") || arg.startsWith("..") || /^[A-Za-z]:[\\/]/.test(arg);
+
+function validateCustomArgs(tool: string, args: string[] | undefined) {
+    for (const arg of args ?? []) {
+        if (tool === "yt-dlp" && BLOCKED_YTDLP_ARGS.some(re => re.test(arg)))
+            throw new Error(`"${arg}" is not allowed in custom yt-dlp arguments`);
+        if (looksLikePath(arg))
+            throw new Error(`"${arg}" is not allowed in custom ${tool} arguments`);
+    }
+}
+
 const getdir = () => workdir ?? process.cwd();
 const p = (file: string) => path.join(getdir(), file);
 const cleanVideoFiles = () => {
@@ -96,10 +124,10 @@ function ffmpeg(args: string[]): Promise<string> {
 
 }
 
-export async function start(_: IpcMainInvokeEvent, _workdir: string | undefined) {
-    _workdir ||= fs.mkdtempSync(path.join(os.tmpdir(), "vencord_mediaDownloader_"));
-    if (!fs.existsSync(_workdir)) fs.mkdirSync(_workdir, { recursive: true });
-    workdir = _workdir;
+export async function start(_: IpcMainInvokeEvent) {
+    // Always a fresh dir under tmpdir: this path is rmSync'd in stop(),
+    // so it must never be renderer- or user-controllable
+    workdir = fs.mkdtempSync(path.join(os.tmpdir(), "vencord_mediaDownloader_"));
     log("Using workdir: ", workdir);
     return workdir;
 }
@@ -174,6 +202,7 @@ function genFormat({ videoTitle }: { videoTitle: string; }, { maxFileSize, forma
 }
 async function download({ format, videoTitle }: { format: string; videoTitle: string; }, { ytdlpArgs, url, format: usrFormat }: DownloadOptions) {
     cleanVideoFiles();
+    validateCustomArgs("yt-dlp", ytdlpArgs);
     const baseArgs = ["-f", format, "-o", "download.%(ext)s", "--force-overwrites", "-I", "1"];
     const remuxArgs = ffmpegAvailable
         ? usrFormat === "video"
@@ -204,6 +233,7 @@ async function remux({ file, videoTitle }: { file: string; videoTitle: string; }
     const acceptableFormats = ["mp3", "mp4", "webm"];
     const fileSize = fs.statSync(p(file)).size;
     const customArgs = ffmpegArgs?.filter(Boolean) || [];
+    validateCustomArgs("ffmpeg", customArgs);
 
     const isFormatAcceptable = acceptableFormats.includes(sourceExtension ?? "");
     const isFileSizeAcceptable = (!maxFileSize || fileSize <= maxFileSize);

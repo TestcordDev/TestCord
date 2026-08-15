@@ -24,7 +24,6 @@ const MAX_REDIRECTS = 3;
 const GITHUB_API_LATEST_RELEASE_URL = "https://api.github.com/repos/jannskiee/floe/releases/latest";
 const FLOE_REPO_DOWNLOAD_URL = "https://github.com/jannskiee/floe/releases/download";
 const REQUEST_HEADERS = { "User-Agent": "Illegalcord-FloeP2PService" };
-const WINDOWS_SCRIPT_INSTALL_COMMAND = "irm https://floe.one/install.ps1 | iex";
 const logger = new Logger("FloeP2PServiceNative");
 
 export interface NativeResult<T> {
@@ -424,12 +423,8 @@ async function installFloeWithFallbacks(operation: "install" | "update"): Promis
     if (wingetResult.code === 0) return mergeInstallerOutput(failures, "Winget", wingetResult);
 
     failures.push(formatInstallerFailure("Winget", wingetResult));
-    const scriptResult = await runInstallerStep("Floe install script", () => runProcess("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", WINDOWS_SCRIPT_INSTALL_COMMAND]));
-    if (scriptResult.code === 0) return mergeInstallerOutput(failures, "Floe install script", scriptResult);
 
-    failures.push(formatInstallerFailure("Floe install script", scriptResult));
-
-    return { code: scriptResult.code, output: failures.join("\n\n").slice(-MAX_OUTPUT_LENGTH) };
+    return { code: wingetResult.code, output: failures.join("\n\n").slice(-MAX_OUTPUT_LENGTH) };
 }
 
 async function runInstallerStep(label: string, action: () => Promise<ProcessResult>): Promise<ProcessResult> {

@@ -13,7 +13,7 @@ import { sleep } from "@utils/misc";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 
 import OBSWebSocket, { OBSWebSocketError } from "./obs-websocket-js/json";
-import { isOBSRunning, parseArgs } from "./utils";
+import { isOBSRunning } from "./utils";
 
 const Native = VencordNative.pluginHelpers["OBS Remote Control"] as PluginNative<typeof import("./native")>;
 const logger = new Logger("OBS Remote Control");
@@ -171,7 +171,7 @@ async function cleanUp() {
 }
 
 async function tryStart(): Promise<boolean> {
-    const result = await Native.startProcess(settings.store.appPath, parseArgs(settings.store.arguments));
+    const result = await Native.startProcess();
     if (result) {
         logger.error("An error occurred while starting OBS:", result, JSON.stringify(result));
         showNotification({

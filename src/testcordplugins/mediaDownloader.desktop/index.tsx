@@ -7,7 +7,6 @@
 import "./style.css";
 
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
-import * as DataStore from "@api/DataStore";
 import { definePluginSettings } from "@api/Settings";
 import { Divider } from "@components/Divider";
 import ErrorBoundary from "@components/ErrorBoundary";
@@ -285,15 +284,11 @@ export default definePlugin({
     start: async () => {
         await Native.checkytdlp();
         await Native.checkffmpeg();
-
-        const videoDir = await DataStore.get<string>("media-downloader-video-dir");
-        const newVideoDir = await Native.start(videoDir);
-        await DataStore.set("media-downloader-video-dir", newVideoDir);
+        await Native.start();
     },
     stop: async () => {
         // Clean up the temp files
         await Native.stop();
-        await DataStore.del("media-downloader-video-dir");
     }
 });
 

@@ -57,6 +57,8 @@ export async function rmPlugin(_, name: string): Promise<string> {
 
 export async function isUpdateAvailableForPlugin(_, name: string): Promise<boolean> {
     return new Promise(resolve => {
+        // name is renderer-controlled and lands in a cwd — never let it traverse
+        if (basename(name) !== name || name.includes("..")) return resolve(false);
         const pluginDir = join(vencordPath, "../src/userplugins", name);
         const otherProc = exec("git fetch", {
             cwd: pluginDir
@@ -130,8 +132,7 @@ export function initPluginInstall(_, link: string, source: string, owner: string
         });
         const reView /* haha got it */ = new WebContentsView({
             webPreferences: {
-                devTools: true,
-                nodeIntegration: true
+                devTools: true
             }
         });
         win.contentView.addChildView(reView);
@@ -268,7 +269,7 @@ function generateReviewPluginContent(meta: {
     usesPreSend: boolean;
     usesNative: boolean;
 }): string {
-    const template = pluginValidateContent.replace("%PLUGINNAME%", meta.name.replaceAll("<", "&lt;")).replace("%PLUGINDESC%", meta.description.replaceAll("<", "&lt;")).replace("%WARNINGHIDER%", !meta.usesNative && !meta.usesPreSend ? "[data-useless=\"warning\"] { display: none !important; }" : "").replace("%NATIVETSHIDER%", meta.usesNative ? "" : "#native-ts-warning { display: none !important; }").replace("%PRESENDHIDER%", meta.usesPreSend ? "" : "#pre-send-warning { display: none !important; }");
+    const template = pluginValidateContent.replace("%PLUGINNAME%", escapeHtml(meta.name)).replace("%PLUGINDESC%", escapeHtml(meta.description)).replace("%WARNINGHIDER%", !meta.usesNative && !meta.usesPreSend ? "[data-useless=\"warning\"] { display: none !important; }" : "").replace("%NATIVETSHIDER%", meta.usesNative ? "" : "#native-ts-warning { display: none !important; }").replace("%PRESENDHIDER%", meta.usesPreSend ? "" : "#pre-send-warning { display: none !important; }");
     const buf = Buffer.from(template).toString("base64");
     return `data:text/html;base64,${buf}`;
 }
@@ -298,7 +299,7 @@ function generateUpdatePluginContent(meta: {
     remote: string;
     commit: string;
 }): string {
-    const template = updateValidateContent.replace("%PLUGINNAME%", meta.name.replaceAll("<", "&lt;")).replace("%PLUGINDESC%", meta.description.replaceAll("<", "&lt;")).replace("%REMOTE%", meta.remote).replace("%COMMITMESSAGE%", meta.commit.replaceAll("\n", "<br />"));
+    const template = updateValidateContent.replace("%PLUGINNAME%", escapeHtml(meta.name)).replace("%PLUGINDESC%", escapeHtml(meta.description)).replace("%REMOTE%", escapeHtml(meta.remote)).replace("%COMMITMESSAGE%", meta.commit.replaceAll("\n", "<br />"));
     const buf = Buffer.from(template).toString("base64");
     return `data:text/html;base64,${buf}`;
 }
@@ -334,6 +335,8 @@ export async function getUserplugins() {
 
 export async function updatePlugin(_, directory: string) {
     return new Promise((resolve, reject) => {
+        // directory is renderer-controlled and lands in a cwd — never let it traverse
+        if (basename(directory) !== directory || directory.includes("..")) return reject("Invalid plugin directory");
         const pluginDir = join(vencordPath, "../src/userplugins", directory);
 
         async function doStuff() {
@@ -356,8 +359,7 @@ export async function updatePlugin(_, directory: string) {
             });
             const reView /* haha got it */ = new WebContentsView({
                 webPreferences: {
-                    devTools: true,
-                    nodeIntegration: true
+                    devTools: true
                 }
             });
             win.contentView.addChildView(reView);
@@ -434,8 +436,7 @@ export async function openGitPathModal(_: any) {
     });
     const reView = new WebContentsView({
         webPreferences: {
-            devTools: true,
-            nodeIntegration: true
+            devTools: true
         }
     });
     win.contentView.addChildView(reView);

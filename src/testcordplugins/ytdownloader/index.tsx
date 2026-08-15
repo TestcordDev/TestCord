@@ -239,10 +239,7 @@ export default definePlugin({
         await Native.checkytdlp();
         await Native.checkdeno();
         await Native.checkffmpeg();
-
-        const downloadFolder = settings.store.downloadFolder || undefined;
-        const newVideoDir = await Native.start(downloadFolder);
-        await DataStore.set("yt-downloader-video-dir", newVideoDir);
+        await Native.start();
     },
     stop: async () => {
         await Native.stop();
