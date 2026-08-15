@@ -12,7 +12,7 @@ You can join our [Discord server](https://discord.gg/UjAbZCgXtB) for commits, ch
 
 ## What makes Testcord different?
 
-- **710+ plugins**, more than any other fork
+- **740+ plugins**, more than any other fork
 - **No rules** on which plugins can be added
 - You decide what plugins you wanna use, not some admin that might not be comfortable with it (indi reference)
 - Less stable, more fun
