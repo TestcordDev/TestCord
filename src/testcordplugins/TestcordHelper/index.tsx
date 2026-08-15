@@ -1432,7 +1432,7 @@ async function startLiveFixServer() {
     if (liveFixInterval) return;
 
     try {
-        await NativeHelper.startLiveFixServer();
+        const token = await NativeHelper.startLiveFixServer();
 
         liveFixInterval = setInterval(async () => {
             let cmd: string | null = null;
@@ -1453,8 +1453,8 @@ async function startLiveFixServer() {
             }
         }, 100);
 
-        logger.info("LiveFix integration started — HTTP server on port 18963");
-        showToast("LiveFix server started on port 18963", Toasts.Type.SUCCESS);
+        logger.info(`LiveFix integration started — HTTP server on port 18963, auth token: ${token}`);
+        showToast(`LiveFix started on port 18963 (token ${token.slice(0, 8)}…, full token in console)`, Toasts.Type.SUCCESS);
     } catch (e) {
         logger.error("Failed to start LiveFix server:", e);
         showToast(`LiveFix failed: ${e}`, Toasts.Type.FAILURE);

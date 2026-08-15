@@ -14,6 +14,16 @@ The server stays running until the toggle is turned off or Discord is closed.
 
 Send HTTP POST requests with a JSON body. Each request must have an `id` (any string for correlating responses) and an `action`. The response is JSON with the same `id`.
 
+### Authentication
+
+Every request must carry the per-session auth token, either in an `Authorization: Bearer <token>` header or as a `"token"` field in the JSON body. The token is regenerated each time the server starts and is written to `/tmp/opencode/livefix/token` (on Windows: `<drive>:\tmp\opencode\livefix\token`, e.g. `C:\tmp\...`):
+
+```bash
+TOKEN=$(cat /tmp/opencode/livefix/token)
+```
+
+Requests without it get `401`; requests carrying an `Origin`/`Referer` header or a `Host` other than `127.0.0.1:18963` get `403` (this blocks browsers and DNS rebinding, so only local token-holding processes can talk to the server).
+
 ### Actions
 
 #### `search` — Search webpack module factories for a string
@@ -117,6 +127,7 @@ Returns all plugins with patch failures and runtime errors:
 
 ```bash
 curl -s -X POST http://127.0.0.1:18963 \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"id":"1","action":"search","query":"openPrivateChannel=()=>{let{user:e}=this.props"}'
 ```
@@ -125,6 +136,7 @@ curl -s -X POST http://127.0.0.1:18963 \
 
 ```bash
 curl -s -X POST http://127.0.0.1:18963 \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"id":"2","action":"eval","code":"Vencord.Webpack.wreq.m[\"688376\"].toString().slice(0,500)"}'
 ```
@@ -133,6 +145,7 @@ curl -s -X POST http://127.0.0.1:18963 \
 
 ```bash
 curl -s -X POST http://127.0.0.1:18963 \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"id":"3","action":"eval","code":"const w=Vencord.Webpack.wreq; const r=[]; for(const id in w.m){const s=w.m[id].toString(); if(s.includes(\"originLabel\")) r.push(id)} r"}'
 ```
@@ -141,6 +154,7 @@ curl -s -X POST http://127.0.0.1:18963 \
 
 ```bash
 curl -s -X POST http://127.0.0.1:18963 \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"id":"4","action":"testPattern","pattern":"popAnimation=\\(\\)=>\\{let\\{opacity","code":"popAnimation=()=>{let{opacity:e,scale:t}=this.state","flags":""}'
 ```
@@ -149,6 +163,7 @@ curl -s -X POST http://127.0.0.1:18963 \
 
 ```bash
 curl -s -X POST http://127.0.0.1:18963 \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"id":"5","action":"eval","code":"const s=Vencord.Webpack.wreq.m[\"994064\"].toString(); const i=s.indexOf(\"popAnimation\"); s.slice(Math.max(0,i-100),i+200)"}'
 ```
