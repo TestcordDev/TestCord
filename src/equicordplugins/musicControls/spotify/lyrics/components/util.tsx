@@ -28,7 +28,7 @@ DataStore.get<Record<string, number>>(DATASTORE_KEY).then(saved => {
     }
     isLoaded = true;
     // Force trigger update across components if needed
-    FluxDispatcher.dispatch({ type: "SPOTIFY_LYRICS_DELAYS_LOADED" });
+    FluxDispatcher?.dispatch?.({ type: "SPOTIFY_LYRICS_DELAYS_LOADED" });
 });
 
 export function NoteSvg() {

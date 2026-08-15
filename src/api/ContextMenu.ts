@@ -185,13 +185,14 @@ function applyAllPatches(
 
     findCacheChildren = children;
     findCache = new Map();
+    const safeArgs = args && args.length > 0 && args[0] !== undefined ? args : [{}];
     try {
         if (contextMenuPatches?.size) {
             let i = 0;
             for (const patch of contextMenuPatches) {
                 const t0 = timed ? performance.now() : 0;
                 try {
-                    patch(children, ...args);
+                    patch(children, ...safeArgs);
                 } catch (err) {
                     ContextMenuLogger.error(`Patch for ${navId} errored,`, err);
                 }
@@ -208,7 +209,7 @@ function applyAllPatches(
             for (const patch of globalPatches) {
                 const t0 = timed ? performance.now() : 0;
                 try {
-                    patch(navId, children, ...args);
+                    patch(navId, children, ...safeArgs);
                 } catch (err) {
                     ContextMenuLogger.error("Global patch errored,", err);
                 }

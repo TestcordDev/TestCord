@@ -55,14 +55,14 @@ export default definePlugin({
                         const before = input?.slice(Math.max(0, offset - 2000), offset);
                         const after = input?.slice(offset + m.length, offset + m.length + 200);
 
-                        if (before && (/(?:let|const|var|\()\s*\{[^}]*$/.test(before))) {
-                            if (/^\s*[\w$]+\s*[,}\)]/.test(after)) return m;
-                        }
-                        if (/^\s*[\w$]+\s*[,}][^=]*=/.test(after) || /^\s*[\w$]+\s*[,}\)]\s*=/.test(after)) {
-                            return m;
-                        }
-                        if (rest.match(/}=.+/)) return m;
+                        // Skip if inside a class component definition
                         if (before && Math.max(before.lastIndexOf("PureComponent{"), before.lastIndexOf("Component{")) > before.lastIndexOf("function")) return m;
+
+                        // Skip if inside a destructuring pattern
+                        if (rest.match(/}=.+/)) return m;
+                        if (/^\s*[\w$]+(?:\s*=\s*[^,}]+)?\s*[,}].*?\}\s*=/.test(after)) return m;
+                        if (before && /(?:let|const|var|\()\s*\{[^}]*$/.test(before) && /^\s*[\w$]+(?:\s*=\s*[^,}]+)?\s*[,}].*?\}\s*\)\s*(?:=>|\{)/.test(after)) return m;
+
                         return `contextMenuAPIArguments:typeof arguments!=='undefined'?arguments:[],${m}`;
                     }
                 }
