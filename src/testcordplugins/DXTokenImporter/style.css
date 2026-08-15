@@ -64,9 +64,17 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    padding: 12px 0;
+    padding: 4px 0 10px;
     border-bottom: 1px solid var(--border-subtle, var(--background-modifier-accent, rgb(255 255 255 / 8%)));
-    margin-bottom: 8px;
+    gap: 8px;
+}
+
+.vc-dxtokenimporter-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 10px 0 4px;
+    margin-bottom: 4px;
     gap: 8px;
 }
 
@@ -386,4 +394,40 @@ textarea.vc-dxtokenimporter-textarea:focus {
     gap: 8px;
     font-size: 13px;
     color: var(--text-default, var(--text-normal, #f2f3f5));
+}
+
+.vc-dxtokenimporter-meta {
+    font-size: 11px;
+    color: var(--text-muted, #b5bac1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vc-dxtokenimporter-meta-stale {
+    color: var(--text-feedback-warning, var(--status-warning, #f0b232));
+}
+
+.vc-dxtokenimporter-filter-select {
+    width: 150px;
+    flex-shrink: 0;
+}
+
+.vc-dxtokenimporter-qs-content {
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.vc-dxtokenimporter-qs-list {
+    max-height: 300px;
+}
+
+.vc-dxtokenimporter-qs-row {
+    cursor: pointer;
+}
+
+.vc-dxtokenimporter-qs-row-selected {
+    border-color: var(--brand-500, #5865f2);
 }

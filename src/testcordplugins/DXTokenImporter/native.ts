@@ -121,25 +121,37 @@ export async function checkToken(_: IpcMainInvokeEvent, token: string): Promise<
 
 export async function encryptToken(_: IpcMainInvokeEvent, token: string): Promise<string | null> {
     if (!validToken(token)) return null;
+    return encryptSecret(_, token);
+}
+
+export async function decryptStoredToken(_: IpcMainInvokeEvent, payload: string): Promise<string | null> {
+    if (typeof payload !== "string" || payload.length > MAX_ENCRYPTED_LENGTH) return null;
+    return decryptSecret(_, payload);
+}
+
+// Generic small-secret version of the token cipher for internal records such
+// as the UI lock verifier: same safeStorage → built-in AES-256-GCM cascade.
+export async function encryptSecret(_: IpcMainInvokeEvent, value: string): Promise<string | null> {
+    if (typeof value !== "string" || value.length === 0 || value.length > 4096) return null;
     // Primary: OS-keychain-backed safeStorage (DPAPI / Keychain / libsecret).
     try {
         if (safeStorage.isEncryptionAvailable()) {
-            return ENCRYPTION_PREFIX + safeStorage.encryptString(token).toString("base64");
+            return ENCRYPTION_PREFIX + safeStorage.encryptString(value).toString("base64");
         }
     } catch (e) {
         console.warn("[DXTokenImporter] safeStorage encrypt failed, using built-in cipher:", (e as Error).message);
     }
     // Never fall through to plaintext: switch to the built-in AES-256-GCM envelope.
     try {
-        return encryptAes(token);
+        return encryptAes(value);
     } catch (e) {
         console.error("[DXTokenImporter] built-in cipher failed:", (e as Error).message);
         return null;
     }
 }
 
-export async function decryptStoredToken(_: IpcMainInvokeEvent, payload: string): Promise<string | null> {
-    if (typeof payload !== "string" || payload.length > MAX_ENCRYPTED_LENGTH) return null;
+export async function decryptSecret(_: IpcMainInvokeEvent, payload: string): Promise<string | null> {
+    if (typeof payload !== "string" || payload.length > 8192) return null;
     if (payload.startsWith(ENCRYPTION_PREFIX)) {
         try {
             return safeStorage.decryptString(Buffer.from(payload.slice(ENCRYPTION_PREFIX.length), "base64"));
@@ -149,6 +161,78 @@ export async function decryptStoredToken(_: IpcMainInvokeEvent, payload: string)
     }
     if (payload.startsWith(FALLBACK_PREFIX)) return decryptAes(payload);
     return null;
+}
+
+// ── Vault backup (portable, passphrase-protected) ──
+// DXVAULT1: base64(salt[16] | iv[12] | gcmTag[16] | ciphertext), key derived
+// per backup with scrypt from the user's passphrase, so backups are portable
+// across machines regardless of OS keychain availability.
+const VAULT_PREFIX = "DXVAULT1:";
+const MAX_VAULT_BYTES = 1024 * 1024;
+
+function validPassphrase(value: unknown): value is string {
+    return typeof value === "string" && value.length >= 8 && value.length <= 256;
+}
+
+function vaultKey(passphrase: string, salt: Buffer): Buffer {
+    return crypto.scryptSync(passphrase, salt, 32, { N: 16384, r: 8, p: 1 });
+}
+
+export async function exportVault(_: IpcMainInvokeEvent, json: string, passphrase: string): Promise<{ ok: true; payload: string; } | { ok: false; error: string; }> {
+    if (!validPassphrase(passphrase) || typeof json !== "string" || Buffer.byteLength(json, "utf8") > MAX_VAULT_BYTES)
+        return { ok: false, error: "invalid_input" };
+    try {
+        const salt = crypto.randomBytes(16);
+        const key = vaultKey(passphrase, salt);
+        const iv = crypto.randomBytes(12);
+        const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+        const ciphertext = Buffer.concat([cipher.update(json, "utf8"), cipher.final()]);
+        return { ok: true, payload: VAULT_PREFIX + Buffer.concat([salt, iv, cipher.getAuthTag(), ciphertext]).toString("base64") };
+    } catch {
+        return { ok: false, error: "encrypt_failed" };
+    }
+}
+
+export async function importVault(_: IpcMainInvokeEvent, payload: string, passphrase: string): Promise<{ ok: true; json: string; } | { ok: false; error: string; }> {
+    if (!validPassphrase(passphrase)
+        || typeof payload !== "string"
+        || !payload.startsWith(VAULT_PREFIX)
+        || payload.length > MAX_VAULT_BYTES * 2)
+        return { ok: false, error: "invalid_input" };
+    try {
+        const buf = Buffer.from(payload.slice(VAULT_PREFIX.length), "base64");
+        const salt = buf.subarray(0, 16);
+        const iv = buf.subarray(16, 28);
+        const tag = buf.subarray(28, 44);
+        const ciphertext = buf.subarray(44);
+        const decipher = crypto.createDecipheriv("aes-256-gcm", vaultKey(passphrase, salt), iv);
+        decipher.setAuthTag(tag);
+        const json = Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+        return { ok: true, json };
+    } catch {
+        // GCM auth fails on wrong passphrase and corruption alike
+        return { ok: false, error: "bad_passphrase_or_corrupt" };
+    }
+}
+
+// ── UI passphrase lock ──
+// Only a scrypt verifier (salt + hash) is stored; the passphrase itself never
+// persists, and the comparison happens here in the main process with a
+// constant-time equality check.
+export async function makeLockSalt(): Promise<string> {
+    return crypto.randomBytes(16).toString("hex");
+}
+
+export async function deriveLockVerifier(_: IpcMainInvokeEvent, passphrase: string, saltHex: string): Promise<string | null> {
+    if (!validPassphrase(passphrase) || typeof saltHex !== "string" || !/^[0-9a-f]{32}$/.test(saltHex)) return null;
+    return crypto.scryptSync(passphrase, Buffer.from(saltHex, "hex"), 32).toString("hex");
+}
+
+export async function verifyLock(_: IpcMainInvokeEvent, passphrase: string, saltHex: string, verifierHex: string): Promise<boolean> {
+    if (typeof verifierHex !== "string" || !/^[0-9a-f]{64}$/.test(verifierHex)) return false;
+    const derived = await deriveLockVerifier(_, passphrase, saltHex);
+    if (!derived) return false;
+    return crypto.timingSafeEqual(Buffer.from(derived, "hex"), Buffer.from(verifierHex, "hex"));
 }
 
 // Built-in cipher for systems where safeStorage is unavailable (e.g. Linux

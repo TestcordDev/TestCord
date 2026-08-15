@@ -6,6 +6,7 @@
 
 import "./style.css";
 
+import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption, sendBotMessage } from "@api/Commands";
 import { HeaderBarButton } from "@api/HeaderBar";
 import { DataStore } from "@api/index";
 import { isPluginEnabled } from "@api/PluginManager";
@@ -18,11 +19,13 @@ import { copyWithToast } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import { identity, sleep } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal, type RenderModalProps } from "@utils/modal";
+import { formatDurationMs } from "@utils/text";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
+import { chooseFile, saveFile } from "@utils/web";
 import { findByProps } from "@webpack";
-import { Button, FluxDispatcher, Forms, IconUtils, React, Select, showToast, TextArea, Toasts, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { Button, FluxDispatcher, Forms, IconUtils, React, Select, showToast, TextArea, Toasts, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
 
-import { type CheckTokenUser,isEncryptedPayload, TOKEN_REGEX_SOURCE } from "./common";
+import { type CheckTokenUser, isEncryptedPayload, TOKEN_REGEX_SOURCE } from "./common";
 
 const cl = classNameFactory("vc-dxtokenimporter-");
 const logger = new Logger("DXTokenImporter");
@@ -156,6 +159,8 @@ async function markAckedDangerous(key: DangerousSetting): Promise<void> {
     }
 }
 
+type VerifyStatus = "valid" | "invalid" | "rate_limited" | "error";
+
 interface SavedAccount {
     id: string;
     token: string;
@@ -165,6 +170,9 @@ interface SavedAccount {
     avatar: string | null;
     /** token blob could not be decrypted (e.g. profile moved to another OS user) */
     undecryptable?: boolean;
+    /** epoch ms of the last conclusive check; absent = never verified */
+    lastVerifiedAt?: number;
+    lastStatus?: VerifyStatus;
 }
 
 function accountFromUser(u: CheckTokenUser, token: string): SavedAccount {
@@ -175,6 +183,35 @@ function accountFromUser(u: CheckTokenUser, token: string): SavedAccount {
         discriminator: u.discriminator ?? "0",
         avatar: u.avatar ?? null,
     };
+}
+
+const STALE_MS = 7 * 24 * 60 * 60 * 1000;
+
+function verifiedAgoLabel(a: SavedAccount): string {
+    if (!a.lastVerifiedAt) return "never verified";
+    return `verified ${formatDurationMs(Date.now() - a.lastVerifiedAt)} ago`;
+}
+
+function isStale(a: SavedAccount): boolean {
+    return a.lastVerifiedAt !== undefined && Date.now() - a.lastVerifiedAt > STALE_MS;
+}
+
+// Single verification pass shared by the modal, headless command, imports and
+// the local scan: checks the token, refreshes profile data from the same
+// response, and stamps lastVerifiedAt/lastStatus. Rate limited and transient
+// errors deliberately keep the previous stamp — the token was NOT re-verified.
+async function verifyToken(tok: string): Promise<{ status: VerifyStatus; rateLimited: boolean; account: SavedAccount | null; }> {
+    try {
+        const r = await Native.checkToken(tok);
+        if (r.valid && r.user) {
+            return { status: "valid", rateLimited: false, account: { ...accountFromUser(r.user, tok), lastVerifiedAt: Date.now(), lastStatus: "valid" } };
+        }
+        if (r.error === "rate_limited") return { status: "rate_limited", rateLimited: true, account: null };
+        if (r.error && r.error !== "unauthorized") return { status: "error", rateLimited: false, account: null };
+        return { status: "invalid", rateLimited: false, account: null };
+    } catch {
+        return { status: "error", rateLimited: false, account: null };
+    }
 }
 
 // Older versions stored full CDN URLs; recover the hash so it can be re-resolved.
@@ -387,27 +424,47 @@ async function importLocalTokens(accounts: SavedAccount[], shouldStop: () => boo
     for (const tok of tokens) {
         // Same token already saved under some account — nothing to do.
         if (accounts.find(a => a.token === tok)) continue;
-        let verified: Awaited<ReturnType<typeof Native.checkToken>>;
-        try {
-            verified = await Native.checkToken(tok);
-        } catch {
-            continue;
-        }
+        const { account, rateLimited } = await verifyToken(tok);
         if (shouldStop()) return null;
-        if (verified.valid && verified.user) {
-            const u = verified.user;
-            const idx = accounts.findIndex(a => a.id === u.id);
+        if (account) {
+            const idx = accounts.findIndex(a => a.id === account.id);
             if (idx === -1) {
-                accounts.push(accountFromUser(u, tok));
+                accounts.push(account);
                 added++;
-            } else if (accounts[idx].token !== tok) {
-                accounts[idx] = accountFromUser(u, tok);
+            } else if (accounts[idx].token !== account.token) {
+                accounts[idx] = account;
                 updated++;
             }
         }
-        await sleep(200);
+        if (rateLimited) await sleep(2500);
+        else await sleep(200);
     }
     return shouldStop() ? null : { added, updated };
+}
+
+// Headless verify+refresh pass used by the /dxtokens verify command; no UI.
+async function verifyAllHeadless(): Promise<{ valid: number; invalid: number; limited: number; refreshed: number; }> {
+    const accounts = [...await getAccounts()];
+    let valid = 0, invalid = 0, limited = 0, refreshed = 0, dirty = false;
+    for (let i = 0; i < accounts.length; i++) {
+        const acc = accounts[i];
+        const { status, account, rateLimited } = await verifyToken(acc.token);
+        if (account) {
+            valid++;
+            if (account.username !== acc.username || account.avatar !== acc.avatar || account.discriminator !== acc.discriminator) refreshed++;
+            accounts[i] = account;
+            dirty = true;
+        } else if (status === "rate_limited") {
+            limited++;
+        } else if (status === "invalid") {
+            invalid++;
+            accounts[i] = { ...acc, lastVerifiedAt: Date.now(), lastStatus: "invalid" };
+            dirty = true;
+        }
+        await sleep(rateLimited ? 2500 : 400);
+    }
+    if (dirty) await saveAccounts(accounts);
+    return { valid, invalid, limited, refreshed };
 }
 
 function FolderIcon({ width = 20, height = 20, style }: { width?: number; height?: number; style?: React.CSSProperties; }) {
@@ -492,16 +549,29 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
     const [done, setDone] = useState(false);
     const [copied, setCopied] = useState(false);
     const [accountSearch, setAccountSearch] = useState("");
+    const [statusFilter, setStatusFilter] = useState<"all" | "valid" | "invalid" | "unverified">("all");
+    const [sortMode, setSortMode] = useState<"name" | "recent" | "stale">("name");
     const fileRef = useRef<HTMLInputElement>(null);
     const mountedRef = useRef(true);
     const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const detectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const filteredAccounts = useMemo(() => {
-        if (!accountSearch.trim()) return accounts;
-        const lowSearch = accountSearch.toLowerCase();
-        return accounts.filter(a => a.username.toLowerCase().includes(lowSearch) || a.id.includes(lowSearch));
-    }, [accounts, accountSearch]);
+        let list = accounts;
+        const q = accountSearch.trim().toLowerCase();
+        if (q) list = list.filter(a => a.username.toLowerCase().includes(q) || a.id.includes(q));
+        if (statusFilter !== "all") {
+            list = list.filter(a => {
+                if (statusFilter === "unverified") return a.lastStatus === undefined;
+                return (statuses[a.id] ?? a.lastStatus) === statusFilter;
+            });
+        }
+        const sorted = [...list];
+        if (sortMode === "name") sorted.sort((a, b) => a.username.localeCompare(b.username));
+        else if (sortMode === "recent") sorted.sort((a, b) => (b.lastVerifiedAt ?? 0) - (a.lastVerifiedAt ?? 0));
+        else sorted.sort((a, b) => (a.lastVerifiedAt ?? Infinity) - (b.lastVerifiedAt ?? Infinity));
+        return sorted;
+    }, [accounts, accountSearch, statusFilter, sortMode, statuses]);
 
     useEffect(() => {
         modalOpen = true;
@@ -538,38 +608,44 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
         setVerifying(true);
         try {
             const ns: Record<string, string> = {};
-            for (const acc of accounts) {
+            const working = [...accounts];
+            let refreshed = 0;
+            let dirty = false;
+            for (let i = 0; i < working.length; i++) {
+                const acc = working[i];
                 ns[acc.id] = "checking";
                 if (!mountedRef.current) return;
                 setStatuses({ ...ns });
-                try {
-                    const r = await Native.checkToken(acc.token);
-                    // A 429 means Discord throttled the check, NOT that the token
-                    // is dead. Counting it as invalid wrongly flags working accounts.
-                    ns[acc.id] = r.valid
-                        ? "valid"
-                        : r.error === "rate_limited"
-                            ? "rate_limited"
-                            : r.error && r.error !== "unauthorized"
-                                ? "error"
-                                : "invalid";
-                    if (r.error === "rate_limited") await sleep(2500);
-                } catch {
-                    ns[acc.id] = "error";
+                const { status, account, rateLimited } = await verifyToken(acc.token);
+                // A 429 means Discord throttled the check, NOT that the token
+                // is dead. Counting it as invalid wrongly flags working accounts.
+                ns[acc.id] = status;
+                if (account) {
+                    if (account.username !== acc.username || account.avatar !== acc.avatar || account.discriminator !== acc.discriminator) refreshed++;
+                    working[i] = account;
+                    dirty = true;
+                } else if (status === "invalid") {
+                    working[i] = { ...acc, lastVerifiedAt: Date.now(), lastStatus: "invalid" };
+                    dirty = true;
                 }
                 if (!mountedRef.current) return;
                 setStatuses({ ...ns });
-                await sleep(400);
+                await sleep(rateLimited ? 2500 : 400);
             }
             if (!mountedRef.current) return;
-            const invalidAccs = accounts.filter(a => ns[a.id] === "invalid");
+            if (dirty) {
+                setAccounts(working);
+                await saveAccounts(working);
+            }
+            if (refreshed > 0) showToast(`${refreshed} profile${refreshed !== 1 ? "s" : ""} refreshed`, Toasts.Type.MESSAGE);
+            const invalidAccs = working.filter(a => ns[a.id] === "invalid");
             if (invalidAccs.length > 0) {
                 openModal(props => (
                     <RemoveInvalidModal
                         rootProps={props}
                         invalidAccounts={invalidAccs}
                         onConfirm={async () => {
-                            const toKeep = accounts.filter(a => ns[a.id] !== "invalid");
+                            const toKeep = working.filter(a => ns[a.id] !== "invalid");
                             setAccounts(toKeep);
                             await saveAccounts(toKeep);
                         }}
@@ -631,36 +707,27 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
                 if (!mountedRef.current) return;
                 updated[i] = { ...updated[i], status: "checking" };
                 setResults([...updated]);
-                try {
-                    const result = await Native.checkToken(tokens[i]);
-                    if (!mountedRef.current) return;
-                    if (result.valid && result.user) {
-                        const account = accountFromUser(result.user, tokens[i]);
-                        if (saveLocally) {
-                            const idx = existing.findIndex(a => a.id === account.id);
-                            if (idx === -1) {
-                                existing.push(account);
-                                dirty = true;
-                            } else if (existing[idx].token !== account.token) {
-                                existing[idx] = account;
-                                dirty = true;
-                            }
+                const { status, account, rateLimited } = await verifyToken(tokens[i]);
+                if (!mountedRef.current) return;
+                if (account) {
+                    if (saveLocally) {
+                        const idx = existing.findIndex(a => a.id === account.id);
+                        if (idx === -1) {
+                            existing.push(account);
+                            dirty = true;
+                        } else if (existing[idx].token !== account.token) {
+                            existing[idx] = account;
+                            dirty = true;
                         }
-                        validForRouting.push({ username: account.username, token: tokens[i] });
-                        updated[i] = { ...updated[i], status: "valid", username: account.username, id: account.id, avatar: account.avatar };
-                    } else if (result.error === "rate_limited") {
-                        updated[i] = { ...updated[i], status: "rate_limited" };
-                    } else if (result.error && result.error !== "unauthorized") {
-                        updated[i] = { ...updated[i], status: "error" };
-                    } else {
-                        updated[i] = { ...updated[i], status: "invalid" };
                     }
-                } catch {
-                    updated[i] = { ...updated[i], status: "error" };
+                    validForRouting.push({ username: account.username, token: tokens[i] });
+                    updated[i] = { ...updated[i], status: "valid", username: account.username, id: account.id, avatar: account.avatar };
+                } else {
+                    updated[i] = { ...updated[i], status };
                 }
                 if (!mountedRef.current) return;
                 setResults([...updated]);
-                await sleep(200);
+                await sleep(rateLimited ? 2500 : 200);
             }
             if (dirty) {
                 await saveAccounts(existing);
@@ -744,6 +811,33 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
                                     onChange={e => setAccountSearch(e.target.value)}
                                 />
                             </div>
+                            <div className={cl("filter-select")}>
+                                <Select
+                                    options={[
+                                        { label: "Filter: All", value: "all" },
+                                        { label: "Filter: Valid", value: "valid" },
+                                        { label: "Filter: Invalid", value: "invalid" },
+                                        { label: "Filter: Unverified", value: "unverified" },
+                                    ]}
+                                    serialize={identity}
+                                    isSelected={(v: string) => v === statusFilter}
+                                    select={(v: string) => setStatusFilter(v as typeof statusFilter)}
+                                />
+                            </div>
+                            <div className={cl("filter-select")}>
+                                <Select
+                                    options={[
+                                        { label: "Sort: Name", value: "name" },
+                                        { label: "Sort: Recently verified", value: "recent" },
+                                        { label: "Sort: Stale first", value: "stale" },
+                                    ]}
+                                    serialize={identity}
+                                    isSelected={(v: string) => v === sortMode}
+                                    select={(v: string) => setSortMode(v as typeof sortMode)}
+                                />
+                            </div>
+                        </div>
+                        <div className={cl("actions")}>
                             {settings.store.enableLocalScan && (
                                 <Button size={Button.Sizes.MIN} color={Button.Colors.PRIMARY} onClick={scanLocalDiscords} disabled={scanning}>
                                     <FolderIcon width={12} height={12} style={{ marginRight: 4 }} />
@@ -773,7 +867,8 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
                                             const st = statuses[a.id] ?? "idle";
                                             const rowClass = st === "invalid" ? "row-invalid"
                                                 : st === "error" || st === "rate_limited" ? "row-warn"
-                                                    : st === "valid" ? "row-valid" : null;
+                                                    : st === "valid" ? "row-valid"
+                                                        : isStale(a) ? "row-warn" : null;
                                             return (
                                                 <div key={a.id} className={cl("row", rowClass)}>
                                                     {a.avatar
@@ -792,13 +887,16 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
                                                             )}
                                                             {st === "checking" && <span className={cl("st", "st-loading")}>...</span>}
                                                         </span>
+                                                        <span className={cl("meta", isStale(a) && "meta-stale")} title={a.lastStatus ? `Last result: ${a.lastStatus}` : undefined}>
+                                                            {verifiedAgoLabel(a)}
+                                                        </span>
                                                         {a.undecryptable
                                                             ? <span className={cl("token-hidden", "token-locked")} title="Token can't be decrypted on this machine">Locked</span>
                                                             : <span
                                                                 className={cl("token-hidden", "token-copyable")}
                                                                 onClick={() => copyWithToast(a.token, "Token copied!")}
                                                                 title="Copy token"
-                                                            >••••••••••••••••••••••••</span>}
+                                                            >•••••••••••••••••••••••••</span>}
                                                     </div>
                                                     <div className={cl("row-actions")}>
                                                         <Button size={Button.Sizes.MIN} color={Button.Colors.BRAND} disabled={a.undecryptable} onClick={() => switchToAccount(a.token, a.id)}>Switch</Button>
@@ -911,6 +1009,406 @@ function DangerousAckModal({ rootProps, settingKey, onConfirm }: { rootProps: Re
                 <Button onClick={() => { onConfirm(); rootProps.onClose(); }} color={Button.Colors.RED}>I understand, enable it</Button>
             </ModalFooter>
         </ModalRoot>
+    );
+}
+
+// ── UI passphrase lock ──
+// A UI gate: opening the modal, quick switcher or commands requires an unlock.
+// Only a scrypt verifier is stored; comparison happens in the main process.
+const LOCK_KEY = "DXTokenImporter_lock";
+
+interface LockRecord { salt: string; verifier: string; }
+
+// The verifier record is stored as an encrypted blob (same cipher as tokens);
+// only a scrypt verifier ever exists — the passphrase itself is never stored.
+async function getLock(): Promise<LockRecord | null> {
+    const stored = await DataStore.get<LockRecord | string>(LOCK_KEY);
+    if (!stored) return null;
+    if (typeof stored === "string") {
+        try {
+            const json = await Native.decryptSecret(stored);
+            return json ? JSON.parse(json) as LockRecord : null;
+        } catch (e) {
+            logger.debug("lock record decrypt failed", e);
+            return null;
+        }
+    }
+    // Records from before at-rest encryption were plain JSON objects.
+    if (typeof stored.salt === "string" && typeof stored.verifier === "string") return stored;
+    return null;
+}
+
+async function setLock(rec: LockRecord | null): Promise<void> {
+    if (!rec) {
+        await DataStore.del(LOCK_KEY);
+        return;
+    }
+    const blob = await Native.encryptSecret(JSON.stringify(rec));
+    if (!blob) {
+        showToast("Could not persist the lock, encryption failed", Toasts.Type.FAILURE);
+        return;
+    }
+    await DataStore.set(LOCK_KEY, blob);
+}
+
+let lockUnlocked = false;
+let unlockFlowBusy = false;
+let pendingAfterUnlock: (() => void) | null = null;
+
+function UnlockModal({ rootProps }: { rootProps: RenderModalProps; }) {
+    const [passphrase, setPassphrase] = useState("");
+    const [error, setError] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+
+    async function submit() {
+        if (busy) return;
+        setBusy(true);
+        setError(null);
+        try {
+            const lock = await getLock();
+            if (!lock) return;
+            const ok = await Native.verifyLock(passphrase, lock.salt, lock.verifier);
+            if (!ok) {
+                setError("Wrong passphrase");
+                await sleep(750); // light throttle against guessing
+                return;
+            }
+            lockUnlocked = true;
+            rootProps.onClose();
+            const next = pendingAfterUnlock;
+            pendingAfterUnlock = null;
+            next?.();
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <ModalRoot {...rootProps} size="small">
+            <ModalHeader separator={false}>
+                <Forms.FormTitle tag="h4" style={{ margin: 0, flex: 1 }}>DXTokenImporter is locked</Forms.FormTitle>
+                <ModalCloseButton onClick={rootProps.onClose} />
+            </ModalHeader>
+            <ModalContent>
+                <input
+                    autoFocus
+                    type="password"
+                    className={cl("search-input")}
+                    style={{ width: "100%" }}
+                    placeholder="Passphrase"
+                    value={passphrase}
+                    onChange={e => setPassphrase(e.target.value)}
+                    onKeyDown={e => {
+                        if (e.key === "Enter") submit();
+                    }}
+                />
+                {error && <Forms.FormText style={{ color: "var(--text-feedback-critical, var(--text-danger, #f23f43))", marginTop: 8 }}>{error}</Forms.FormText>}
+            </ModalContent>
+            <ModalFooter className={cl("footer")}>
+                <Button color={Button.Colors.TRANSPARENT} onClick={rootProps.onClose}>Cancel</Button>
+                <Button color={Button.Colors.BRAND} disabled={busy || passphrase.length === 0} onClick={submit}>{busy ? "Checking..." : "Unlock"}</Button>
+            </ModalFooter>
+        </ModalRoot>
+    );
+}
+
+// Opens a gated surface, showing the unlock modal first when locked.
+async function requestSurface(open: () => void): Promise<void> {
+    const lock = await getLock();
+    if (!lock || lockUnlocked) {
+        open();
+        return;
+    }
+    if (unlockFlowBusy) return;
+    unlockFlowBusy = true;
+    pendingAfterUnlock = open;
+    openModal(props => (
+        <UnlockModal rootProps={{
+            ...props,
+            onClose: () => {
+                unlockFlowBusy = false;
+                pendingAfterUnlock = null;
+                props.onClose();
+            },
+        }} />
+    ));
+}
+
+// ── Vault backup (passphrase-protected portable export) ──
+function PassphraseModal({ rootProps, title, confirmField = false, warnText, onConfirm }: {
+    rootProps: RenderModalProps;
+    title: string;
+    confirmField?: boolean;
+    warnText?: string;
+    onConfirm: (passphrase: string) => Promise<string | null>;
+}) {
+    const [passphrase, setPassphrase] = useState("");
+    const [confirm, setConfirm] = useState("");
+    const [error, setError] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+
+    async function submit() {
+        if (busy) return;
+        if (passphrase.length < 8) {
+            setError("Passphrase must be at least 8 characters");
+            return;
+        }
+        if (confirmField && passphrase !== confirm) {
+            setError("Passphrases don't match");
+            return;
+        }
+        setBusy(true);
+        setError(null);
+        try {
+            const err = await onConfirm(passphrase);
+            if (err) {
+                setError(err);
+                return;
+            }
+            rootProps.onClose();
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <ModalRoot {...rootProps} size="small">
+            <ModalHeader separator={false}>
+                <Forms.FormTitle tag="h4" style={{ margin: 0, flex: 1 }}>{title}</Forms.FormTitle>
+                <ModalCloseButton onClick={rootProps.onClose} />
+            </ModalHeader>
+            <ModalContent>
+                {warnText && <Forms.FormText style={{ marginBottom: 12 }}>{warnText}</Forms.FormText>}
+                <input
+                    autoFocus
+                    type="password"
+                    className={cl("search-input")}
+                    style={{ width: "100%" }}
+                    placeholder="Passphrase (8+ characters)"
+                    value={passphrase}
+                    onChange={e => setPassphrase(e.target.value)}
+                />
+                {confirmField && (
+                    <input
+                        type="password"
+                        className={cl("search-input")}
+                        style={{ width: "100%", marginTop: 8 }}
+                        placeholder="Confirm passphrase"
+                        value={confirm}
+                        onChange={e => setConfirm(e.target.value)}
+                        onKeyDown={e => {
+                            if (e.key === "Enter") submit();
+                        }}
+                    />
+                )}
+                {error && <Forms.FormText style={{ color: "var(--text-feedback-critical, var(--text-danger, #f23f43))", marginTop: 8 }}>{error}</Forms.FormText>}
+            </ModalContent>
+            <ModalFooter className={cl("footer")}>
+                <Button color={Button.Colors.TRANSPARENT} onClick={rootProps.onClose}>Cancel</Button>
+                <Button color={Button.Colors.BRAND} disabled={busy} onClick={submit}>{busy ? "Working..." : "Continue"}</Button>
+            </ModalFooter>
+        </ModalRoot>
+    );
+}
+
+function VaultBackupSection() {
+    const [busy, setBusy] = useState(false);
+    const [hasLock, setHasLockState] = useState<boolean | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        getLock().then(l => {
+            if (!cancelled) setHasLockState(l !== null);
+        });
+        return () => { cancelled = true; };
+    }, []);
+
+    function exportVault() {
+        if (busy) return;
+        openModal(props => (
+            <PassphraseModal
+                rootProps={props}
+                title="Export encrypted backup"
+                confirmField
+                warnText="The backup file contains your tokens (encrypted with this passphrase). Anyone with the file AND the passphrase gets the accounts — store it accordingly."
+                onConfirm={async passphrase => {
+                    const accounts = (await getAccounts()).filter(a => !a.undecryptable);
+                    if (!accounts.length) return "No exportable accounts";
+                    const json = JSON.stringify({ version: 1, exportedAt: Date.now(), accounts });
+                    const res = await Native.exportVault(json, passphrase);
+                    if (!res.ok) return "Encryption failed, nothing was written";
+                    saveFile(new File([res.payload], "dxtokenimporter-backup.txt", { type: "text/plain" }));
+                    showToast(`Exported ${accounts.length} account${accounts.length !== 1 ? "s" : ""}`, Toasts.Type.SUCCESS);
+                    return null;
+                }}
+            />
+        ));
+    }
+
+    async function importVault() {
+        if (busy) return;
+        setBusy(true);
+        try {
+            const file = await chooseFile(".txt,text/plain");
+            if (!file) return;
+            const payload = (await file.text()).trim();
+            if (!payload) {
+                showToast("The selected file is empty", Toasts.Type.FAILURE);
+                return;
+            }
+            openModal(props => (
+                <PassphraseModal
+                    rootProps={props}
+                    title="Import encrypted backup"
+                    warnText="Accounts are merged by user id: new accounts are added, existing ones get refreshed tokens."
+                    onConfirm={async passphrase => {
+                        const res = await Native.importVault(payload, passphrase);
+                        if (!res.ok) return res.error === "bad_passphrase_or_corrupt" ? "Wrong passphrase or corrupted file" : "Import failed";
+                        let parsed: { accounts?: SavedAccount[]; };
+                        try {
+                            parsed = JSON.parse(res.json);
+                        } catch {
+                            return "Backup is valid but not a DXTokenImporter vault";
+                        }
+                        if (!Array.isArray(parsed.accounts)) return "Backup is valid but not a DXTokenImporter vault";
+                        const existing = [...await getAccounts()];
+                        let added = 0;
+                        let refreshed = 0;
+                        for (const imp of parsed.accounts) {
+                            if (!imp || typeof imp.id !== "string" || typeof imp.token !== "string" || !imp.token) continue;
+                            const idx = existing.findIndex(a => a.id === imp.id);
+                            if (idx === -1) {
+                                existing.push(imp);
+                                added++;
+                            } else if (existing[idx].token !== imp.token) {
+                                existing[idx] = imp;
+                                refreshed++;
+                            }
+                        }
+                        if (added + refreshed > 0) {
+                            await saveAccounts(existing);
+                            await patchTokenStore();
+                        }
+                        showToast(`Imported: ${added} added, ${refreshed} refreshed`, added + refreshed > 0 ? Toasts.Type.SUCCESS : Toasts.Type.MESSAGE);
+                        return null;
+                    }}
+                />
+            ));
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <>
+            <Forms.FormTitle tag="h5">Vault backup</Forms.FormTitle>
+            <div className={cl("enc-actions")}>
+                <Button size={Button.Sizes.SMALL} color={Button.Colors.PRIMARY} disabled={busy} onClick={exportVault}>Export encrypted backup</Button>
+                <Button size={Button.Sizes.SMALL} color={Button.Colors.PRIMARY} disabled={busy} onClick={importVault}>Import backup</Button>
+            </div>
+            <Forms.FormText style={{ fontSize: 12, marginTop: 4 }}>
+                Backups are AES-256-GCM encrypted with a scrypt key derived from your passphrase and can be restored on any machine.
+                {hasLock === false && " Tip: set the UI lock below and reuse that passphrase so you only memorize one."}
+            </Forms.FormText>
+        </>
+    );
+}
+
+function LockSection() {
+    const [hasLock, setHasLockState] = useState<boolean | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        getLock().then(l => {
+            if (!cancelled) setHasLockState(l !== null);
+        });
+        return () => { cancelled = true; };
+    }, []);
+
+    function setPassphrase() {
+        openModal(props => (
+            <PassphraseModal
+                rootProps={props}
+                title="Set UI passphrase"
+                confirmField
+                warnText="This locks the DXTokenImporter UI (modal, quick switcher and commands) behind a passphrase. It does not re-encrypt stored tokens."
+                onConfirm={async passphrase => {
+                    const salt = await Native.makeLockSalt();
+                    const verifier = await Native.deriveLockVerifier(passphrase, salt);
+                    if (!verifier) return "Could not derive verifier";
+                    await setLock({ salt, verifier });
+                    setHasLockState(true);
+                    showToast("UI lock enabled", Toasts.Type.SUCCESS);
+                    return null;
+                }}
+            />
+        ));
+    }
+
+    function changePassphrase() {
+        openModal(props => (
+            <PassphraseModal
+                rootProps={props}
+                title="Change UI passphrase"
+                confirmField
+                onConfirm={async passphrase => {
+                    const lock = await getLock();
+                    if (!lock) return "No lock is configured";
+                    const verifier = await Native.deriveLockVerifier(passphrase, lock.salt);
+                    if (!verifier) return "Could not derive verifier";
+                    await setLock({ salt: lock.salt, verifier });
+                    showToast("Passphrase updated", Toasts.Type.SUCCESS);
+                    return null;
+                }}
+            />
+        ));
+    }
+
+    function verifyCurrent(passphrase: string): Promise<boolean> {
+        return getLock().then(lock => {
+            if (!lock) return Promise.resolve(false);
+            return Native.verifyLock(passphrase, lock.salt, lock.verifier);
+        });
+    }
+
+    function removePassphrase() {
+        openModal(props => (
+            <PassphraseModal
+                rootProps={props}
+                title="Remove UI passphrase"
+                warnText="Enter the current passphrase to remove the lock."
+                onConfirm={async passphrase => {
+                    if (!(await verifyCurrent(passphrase))) return "Wrong passphrase";
+                    await setLock(null);
+                    setHasLockState(false);
+                    showToast("UI lock removed", Toasts.Type.MESSAGE);
+                    return null;
+                }}
+            />
+        ));
+    }
+
+    return (
+        <>
+            <Forms.FormTitle tag="h5">UI lock</Forms.FormTitle>
+            <div className={cl("enc-actions")}>
+                {hasLock === null
+                    ? <Forms.FormText>Checking lock state...</Forms.FormText>
+                    : hasLock
+                        ? <>
+                            <Button size={Button.Sizes.SMALL} color={Button.Colors.PRIMARY} onClick={changePassphrase}>Change passphrase</Button>
+                            <Button size={Button.Sizes.SMALL} color={Button.Colors.RED} onClick={removePassphrase}>Remove lock</Button>
+                            <Button size={Button.Sizes.SMALL} color={Button.Colors.TRANSPARENT} onClick={() => {
+                                lockUnlocked = false;
+                                showToast("Locked", Toasts.Type.MESSAGE);
+                            }}>Lock now</Button>
+                        </>
+                        : <Button size={Button.Sizes.SMALL} color={Button.Colors.GREEN} onClick={setPassphrase}>Set passphrase</Button>}
+            </div>
+            <Forms.FormText style={{ fontSize: 12, marginTop: 4 }}>
+                {hasLock
+                    ? "Opening the modal, quick switcher or commands asks for the passphrase once per session. Only a scrypt verifier is stored (encrypted at rest like your tokens), and verification happens in the main process."
+                    : "Optional passphrase that gates the plugin's UI. It protects against people at your keyboard, not against disk access."}
+            </Forms.FormText>
+        </>
     );
 }
 
@@ -1075,9 +1573,11 @@ function DXTokenImporterSettingsPanel() {
                 onChange={setEncrypt}
             />
             <EncryptionCheckSection />
+            <VaultBackupSection />
+            <LockSection />
             <FormSwitch
                 title="Alt+G quick switch hotkey"
-                description="Opens the account switcher modal from anywhere. Takes effect after a reload."
+                description="Opens the compact account switcher from anywhere. Takes effect after a reload."
                 value={store.enableQuickSwitch}
                 onChange={v => settings.store.enableQuickSwitch = v}
             />
@@ -1131,29 +1631,264 @@ function openTokenModal() {
     openModal(props => <TokenModal rootProps={props} />);
 }
 
-function TokenImporterButton() {
-    return <HeaderBarButton icon={FolderIcon} tooltip="DX Token Importer" onClick={() => openTokenModal()} />;
+let qsModalOpen = false;
+let qsLastOpenAttempt = 0;
+
+// Compact keyboard-driven switcher: type to filter, arrows to move, Enter switches.
+function QuickSwitcherModal({ rootProps }: { rootProps: RenderModalProps; }) {
+    const [query, setQuery] = useState("");
+    const [accounts, setAccounts] = useState<SavedAccount[]>(() => accountsCache ?? []);
+    const [loaded, setLoaded] = useState(() => accountsCache !== null);
+    const [selected, setSelected] = useState(0);
+
+    useEffect(() => {
+        qsModalOpen = true;
+        let cancelled = false;
+        if (accountsCache === null) {
+            getAccounts().then(v => {
+                if (!cancelled) { setAccounts(v); setLoaded(true); }
+            });
+        }
+        return () => {
+            cancelled = true;
+            qsModalOpen = false;
+        };
+    }, []);
+
+    const results = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        const list = q
+            ? accounts.filter(a => a.username.toLowerCase().includes(q) || a.id.includes(q))
+            : accounts;
+        return list.slice(0, 12);
+    }, [accounts, query]);
+
+    useEffect(() => setSelected(0), [query]);
+
+    function doSwitch(acc: SavedAccount) {
+        if (acc.undecryptable) return;
+        rootProps.onClose();
+        switchToAccount(acc.token, acc.id);
+    }
+
+    function onKeyDown(e: React.KeyboardEvent) {
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setSelected(s => Math.min(s + 1, results.length - 1));
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setSelected(s => Math.max(s - 1, 0));
+        } else if (e.key === "Enter") {
+            e.preventDefault();
+            const acc = results[selected];
+            if (acc) doSwitch(acc);
+        }
+    }
+
+    return (
+        <ModalRoot {...rootProps} size="small">
+            <ModalHeader separator={false}>
+                <Forms.FormTitle tag="h4" style={{ margin: 0, flex: 1 }}>Quick switcher</Forms.FormTitle>
+                <ModalCloseButton onClick={rootProps.onClose} />
+            </ModalHeader>
+            <ModalContent className={cl("qs-content")}>
+                <input
+                    autoFocus
+                    className={cl("search-input")}
+                    placeholder="Search accounts...  ↑↓ to move, Enter to switch"
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    onKeyDown={onKeyDown}
+                />
+                <div className={cl("list", "qs-list")}>
+                    {results.map((a, i) => (
+                        <div
+                            key={a.id}
+                            className={cl("row", "qs-row", i === selected && "qs-row-selected", a.undecryptable && "row-invalid")}
+                            onClick={() => doSwitch(a)}
+                            onMouseEnter={() => setSelected(i)}
+                        >
+                            {a.avatar
+                                ? <AccountAvatar id={a.id} avatar={a.avatar} />
+                                : <div className={cl("avatar-ph")}>{a.username?.[0]?.toUpperCase() ?? "?"}</div>}
+                            <div className={cl("row-info")}>
+                                <span className={cl("username")}>
+                                    {a.username}{a.discriminator && a.discriminator !== "0" ? `#${a.discriminator}` : ""}
+                                    {a.lastStatus === "valid" && <span className={cl("st", "st-ok")}><CheckIcon /></span>}
+                                    {a.lastStatus === "invalid" && <span className={cl("st", "st-bad")}><CrossIcon /></span>}
+                                    {a.undecryptable && <span className={cl("st", "st-warn")}>!</span>}
+                                </span>
+                                <span className={cl("meta")}>{a.undecryptable ? "locked" : verifiedAgoLabel(a)}</span>
+                            </div>
+                        </div>
+                    ))}
+                    {results.length === 0 && (
+                        <div className={cl("empty")}>{loaded ? "No accounts match." : "Loading accounts..."}</div>
+                    )}
+                </div>
+            </ModalContent>
+        </ModalRoot>
+    );
+}
+
+function openQuickSwitcher() {
+    if (qsModalOpen) return;
+    const now = Date.now();
+    if (now - qsLastOpenAttempt < 300) return;
+    qsLastOpenAttempt = now;
+    openModal(props => <QuickSwitcherModal rootProps={props} />);
+}
+
+function DXTokenImporterButton() {
+    return <HeaderBarButton icon={FolderIcon} tooltip="DX Token Importer" onClick={() => requestSurface(openTokenModal)} />;
+}
+
+// ── /dxtokens command handlers (module-level: command execute is NOT bound
+// to the plugin object, so `this` is unusable inside it) ──
+type CommandCtx = { channel: { id: string; }; };
+
+async function ensureUnlocked(ctx: CommandCtx): Promise<boolean> {
+    const lock = await getLock();
+    if (lock && !lockUnlocked) {
+        sendBotMessage(ctx.channel.id, { content: "DXTokenImporter is locked. Unlock it once via the plugin modal (header button) or Alt+G." });
+        return false;
+    }
+    return true;
+}
+
+async function listAccountsCommand(ctx: CommandCtx): Promise<void> {
+    if (!(await ensureUnlocked(ctx))) return;
+    const accounts = await getAccounts();
+    if (!accounts.length) {
+        sendBotMessage(ctx.channel.id, { content: "No saved accounts yet." });
+        return;
+    }
+    const lines = accounts.slice(0, 25).map(a => {
+        const state = a.undecryptable ? "locked" : a.lastStatus ?? "unverified";
+        return `${a.username} — ${state}${a.lastVerifiedAt ? ` (${verifiedAgoLabel(a)})` : ""}`;
+    });
+    const more = accounts.length > 25 ? `\n…and ${accounts.length - 25} more` : "";
+    sendBotMessage(ctx.channel.id, { content: `**Saved accounts (${accounts.length})**\n${lines.join("\n")}${more}` });
+}
+
+async function verifyAllCommand(ctx: CommandCtx): Promise<void> {
+    if (!(await ensureUnlocked(ctx))) return;
+    sendBotMessage(ctx.channel.id, { content: "Verifying all accounts..." });
+    const { valid, invalid, limited, refreshed } = await verifyAllHeadless();
+    sendBotMessage(ctx.channel.id, {
+        content: `Done. ${valid} valid, ${invalid} invalid${limited ? `, ${limited} rate limited (not re-checked)` : ""}${refreshed ? `, ${refreshed} profile${refreshed !== 1 ? "s" : ""} refreshed` : ""}.`,
+    });
+}
+
+async function switchCommand(ctx: CommandCtx, query: string): Promise<void> {
+    if (!(await ensureUnlocked(ctx))) return;
+    const accounts = await getAccounts();
+    const matches = accounts.filter(a => a.username.toLowerCase().includes(query) || a.id === query);
+    if (matches.length === 0) {
+        sendBotMessage(ctx.channel.id, { content: "No saved account matches that name or id." });
+        return;
+    }
+    if (matches.length > 1) {
+        sendBotMessage(ctx.channel.id, { content: `Ambiguous match, be more specific:\n${matches.slice(0, 8).map(a => a.username).join("\n")}${matches.length > 8 ? "\n…" : ""}` });
+        return;
+    }
+    const target = matches[0];
+    if (target.undecryptable) {
+        sendBotMessage(ctx.channel.id, { content: "That account's token is locked and can't be decrypted on this machine." });
+        return;
+    }
+    sendBotMessage(ctx.channel.id, { content: `Switching to ${target.username}...` });
+    setTimeout(() => switchToAccount(target.token, target.id), 1000);
 }
 
 export default definePlugin({
     name: "DXTokenImporter",
     description: "Import and verify Discord tokens.",
     tags: ["Utility", "Nightcord"],
-    authors: [TestcordDevs.Nightcord, TestcordDevs.x2b, TestcordDevs.sirphantom89],
+    authors: [TestcordDevs.x2b, TestcordDevs.sirphantom89],
     settings,
     settingsAboutComponent: DXTokenImporterSettingsPanel,
     headerBarButton: {
-        render: () => <TokenImporterButton />,
+        render: () => <DXTokenImporterButton />,
         icon: FolderIcon,
         priority: 10,
     },
+    // Built-in commands live only in this client's command index — other users
+    // can neither see nor invoke them — and every handler is gated by the UI
+    // passphrase lock. Replies are ephemeral (sendBotMessage).
+    commands: [
+        {
+            name: "dxtokens",
+            description: "DXTokenImporter: manage saved accounts",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            options: [
+                {
+                    name: "list",
+                    description: "List saved accounts with their last verification state",
+                    type: ApplicationCommandOptionType.SUB_COMMAND,
+                },
+                {
+                    name: "verify",
+                    description: "Verify and refresh every saved account",
+                    type: ApplicationCommandOptionType.SUB_COMMAND,
+                },
+                {
+                    name: "switch",
+                    description: "Switch to a saved account (by username or user id)",
+                    type: ApplicationCommandOptionType.SUB_COMMAND,
+                    options: [
+                        {
+                            name: "account",
+                            description: "Username or user id",
+                            type: ApplicationCommandOptionType.STRING,
+                            required: true,
+                        },
+                    ],
+                },
+                {
+                    name: "open",
+                    description: "Open the account manager",
+                    type: ApplicationCommandOptionType.SUB_COMMAND,
+                },
+            ],
+            execute(args, ctx) {
+                const sub = args[0];
+                if (!sub) return;
+
+                // Defense in depth: built-in commands are local-only, but never
+                // act outside a channel the account owner is in.
+                if (!UserStore.getCurrentUser()) return;
+
+                switch (sub.name) {
+                    case "open":
+                        requestSurface(openTokenModal);
+                        break;
+                    case "list":
+                        listAccountsCommand(ctx);
+                        break;
+                    case "verify":
+                        verifyAllCommand(ctx);
+                        break;
+                    case "switch": {
+                        const query = String(findOption(sub.options, "account", "") ?? "").trim().toLowerCase();
+                        if (!query) {
+                            sendBotMessage(ctx.channel.id, { content: "Specify an account: `/dxtokens switch account:<username or id>`" });
+                            return;
+                        }
+                        switchCommand(ctx, query);
+                        break;
+                    }
+                }
+            },
+        },
+    ],
     _injectTimer: null as ReturnType<typeof setTimeout> | null,
     _started: false,
     handleQuickSwitch(event: KeyboardEvent) {
         if (!event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
         if (event.key.toLowerCase() !== "g") return;
         event.preventDefault();
-        openTokenModal();
+        requestSurface(openQuickSwitcher);
     },
     async start() {
         this._started = true;
@@ -1228,6 +1963,10 @@ export default definePlugin({
         }
         document.removeEventListener("keydown", this.handleQuickSwitch);
         modalOpen = false;
+        qsModalOpen = false;
+        lockUnlocked = false;
+        unlockFlowBusy = false;
+        pendingAfterUnlock = null;
         if (tokenModulePatched) {
             try {
                 const tokenMod = findByProps("getToken", "encryptAndStoreTokens");
