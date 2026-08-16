@@ -58,6 +58,7 @@ if (!IS_COMPANION_TEST && process.argv.includes("--companion-test"))
 
 export const IS_UPDATER_DISABLED = process.argv.includes("--disable-updater");
 export const gitHash =
+    process.env.TESTCORD_HASH ||
     process.env.EQUICORD_HASH ||
     execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
 
@@ -286,7 +287,7 @@ export const gitRemotePlugin = {
             path: args.path,
         }));
         build.onLoad({ filter, namespace: "git-remote" }, async () => {
-            let remote = process.env.EQUICORD_REMOTE;
+            let remote = process.env.TESTCORD_REMOTE || process.env.EQUICORD_REMOTE;
             if (!remote) {
                 const res = await promisify(exec)("git remote get-url origin", {
                     encoding: "utf-8",

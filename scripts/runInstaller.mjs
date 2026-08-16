@@ -120,6 +120,9 @@ try {
         stdio: "inherit",
         env: {
             ...process.env,
+            TESTCORD_USER_DATA_DIR: BASE_DIR,
+            TESTCORD_DIRECTORY: join(BASE_DIR, "dist/desktop"),
+            TESTCORD_DEV_INSTALL: "1",
             EQUICORD_USER_DATA_DIR: BASE_DIR,
             EQUICORD_DIRECTORY: join(BASE_DIR, "dist/desktop"),
             EQUICORD_DEV_INSTALL: "1"
