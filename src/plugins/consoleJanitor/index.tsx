@@ -116,6 +116,13 @@ export default definePlugin({
     start() {
         logAllow.clear();
         this.settings.store.whitelistedLoggers?.split(";").map(x => x.trim()).forEach(logAllow.add.bind(logAllow));
+
+        const mediaPlay = HTMLMediaElement.prototype.play;
+        HTMLMediaElement.prototype.play = function (this: HTMLMediaElement, ...args: Parameters<typeof mediaPlay>) {
+            const result = mediaPlay.apply(this, args);
+            result?.catch(() => { });
+            return result;
+        };
     },
 
     Noop,
