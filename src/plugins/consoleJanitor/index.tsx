@@ -157,6 +157,13 @@ export default definePlugin({
             }
         },
         {
+            find: "Unknown type for applicationId",
+            replacement: {
+                match: /new \i\.\i\("NowPlayingViewStore"\)\.error(?=\(`Unknown type for applicationId: \$\{typeof \i\}, value: \$\{\i\}`)/,
+                replace: "$self.Noop"
+            }
+        },
+        {
             find: "RPCServer:WSS",
             replacement: {
                 match: /\i\.error\(`Error: \$\{(\i)\.message\}/,
