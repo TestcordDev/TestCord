@@ -15,12 +15,9 @@ export interface CoveredSurfacesState {
     metrics: boolean;
     sentry: boolean;
     tokenGuard: boolean;
-    clipboardGuard: boolean;
     webhookGuard: boolean;
     remoteCodeGuard: boolean;
-    updateIntegrity: boolean;
     fetchXhrBeacon: boolean;
-    customFiltering: boolean;
     linkTrackerGuard: boolean;
 }
 
@@ -300,7 +297,12 @@ export function PrivacySecurityPanel() {
 
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === "Escape") setSelectedBlock(null);
+            if (e.key !== "Escape") return;
+            setSelectedBlock(null);
+            setIsAllowedModalOpen(false);
+            setIsDnsOpen(false);
+            setIsLimitOpen(false);
+            setIsAllowedRouteOpen(false);
         };
         document.addEventListener("keydown", handleEscape);
         return () => document.removeEventListener("keydown", handleEscape);
@@ -333,10 +335,8 @@ export function PrivacySecurityPanel() {
         tracking: 0,
         network: 0,
         tokens: 0,
-        clipboard: 0,
         webhooks: 0,
         remoteCode: 0,
-        updateRefusals: 0,
         linkTracker: 0
     });
 
@@ -349,12 +349,9 @@ export function PrivacySecurityPanel() {
         metrics: true,
         sentry: true,
         tokenGuard: true,
-        clipboardGuard: true,
         webhookGuard: true,
         remoteCodeGuard: true,
-        updateIntegrity: true,
         fetchXhrBeacon: true,
-        customFiltering: true,
         linkTrackerGuard: true
     });
 
@@ -380,12 +377,19 @@ export function PrivacySecurityPanel() {
         "OpenDNS FamilyShield": { doh: "https://doh.familyshield.opendns.com/dns-query", fallback: "208.67.222.123" }
     });
     const [selectedDns, setSelectedDns] = useState("Cloudflare 1.1.1.1");
-    const [activeTestBtn, setActiveTestBtn] = useState<"doh" | "dot" | "auto" | null>("dot");
+    const [activeTestBtn, setActiveTestBtn] = useState<"doh" | "dot" | "auto" | null>(null);
+    // Whether the main-process encrypted DNS engine is enabled (gated by the
+    // Custom DNS toggle) and whether the renderer CustomDNS engine is the one
+    // actively resolving traffic.
+    const [dnsEngineEnabled, setDnsEngineEnabled] = useState(true);
+    const [rendererDnsActive, setRendererDnsActive] = useState(false);
+    const [nativeCalls, setNativeCalls] = useState(0);
     const [dnsCacheStats, setDnsCacheStats] = useState({ size: 0, maxCapacity: 256, ttlMinutes: 15, hits: 0, misses: 0 });
     const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([
-        "Secure Connect engine initialized.",
-        "Encrypted DoH channel active."
+        "Secure Connect console ready."
     ]);
+    // True when the IPC bridge to the privacy service failed; shown as a banner.
+    const [ipcError, setIpcError] = useState(false);
 
     // Outbound Surfaces Route Groups
     const [outboundRoutes, setOutboundRoutes] = useState<RouteGroup[]>([
@@ -396,7 +400,7 @@ export function PrivacySecurityPanel() {
             statusType: "monitored",
             endpoints: ["discord.com", "gateway.discord.gg"],
             description: "Core account, message, guild, presence, voice, and call signaling traffic.",
-            count: 362,
+            count: 0,
             blockedCount: 0
         },
         {
@@ -406,7 +410,7 @@ export function PrivacySecurityPanel() {
             statusType: "monitored",
             endpoints: ["cdn.discordapp.com", "media.discordapp.net"],
             description: "Avatars, attachments, embeds, application assets, and other Discord media.",
-            count: 146,
+            count: 0,
             blockedCount: 0
         },
         {
@@ -472,6 +476,8 @@ export function PrivacySecurityPanel() {
                     }
                     if (data.dnsProviders) setDnsProviders(data.dnsProviders);
                     if (data.selectedDnsProvider) setSelectedDns(data.selectedDnsProvider);
+                    if (typeof data.dnsEnabled === "boolean") setDnsEngineEnabled(data.dnsEnabled);
+                    if (data.dnsCacheStats) setDnsCacheStats(data.dnsCacheStats);
 
                     const fetchedLogs: BlockedLog[] = data.logs || [];
                     setLogs(fetchedLogs);
@@ -480,10 +486,33 @@ export function PrivacySecurityPanel() {
                     if (Array.isArray(data.alerts)) setAlerts(data.alerts);
                 }
             }
+            setIpcError(false);
         } catch {
-            // Fallback
+            // Surface the failure instead of silently showing stale defaults.
+            setIpcError(true);
         } finally {
             setLoading(false);
+        }
+
+        // Live stats from the renderer DNS engine when it is the one actively
+        // resolving traffic — the main resolver's cache is otherwise only
+        // populated by diagnostic runs.
+        try {
+            const custom = (globalThis as any).CustomDNS;
+            const active = custom?.isActive?.() === true;
+            setRendererDnsActive(active);
+            if (active) {
+                const cacheStats = custom.getCacheStats?.();
+                if (cacheStats && typeof cacheStats.cacheSize === "number") {
+                    setDnsCacheStats(prev => ({ ...prev, size: cacheStats.cacheSize }));
+                }
+                const stats = custom.getStatistics?.();
+                if (stats && typeof stats.nativeCalls === "number") setNativeCalls(stats.nativeCalls);
+            } else {
+                setNativeCalls(0);
+            }
+        } catch {
+            // The plugin's debug API is best-effort; the panel works without it.
         }
     };
 
@@ -496,7 +525,9 @@ export function PrivacySecurityPanel() {
     // Immediate push for malicious remote-code alerts (no need to wait for poll).
     useEffect(() => {
         if (!VencordNative?.privacy?.onSecurityAlert) return;
-        VencordNative.privacy.onSecurityAlert((alert: SecurityAlert) => {
+        // The bridge returns an unsubscribe function — use it so reopening the
+        // tab doesn't stack duplicate listeners.
+        return VencordNative.privacy.onSecurityAlert((alert: SecurityAlert) => {
             setAlerts(prev => [alert, ...prev.filter(a => a.id !== alert.id)]);
         });
     }, []);
@@ -599,14 +630,30 @@ export function PrivacySecurityPanel() {
         return String(log);
     };
 
+    // Merge returned logs into the console without discarding lines the UI
+    // already added (e.g. the "Running…" notice), deduping identical entries.
+    const mergeDiagnosticLogs = (returned: unknown) => {
+        if (!Array.isArray(returned)) return;
+        setDiagnosticLogs(prev => {
+            const merged = [...prev];
+            for (const raw of returned) {
+                const line = formatDiagnosticLog(raw);
+                if (!merged.includes(line)) merged.push(line);
+            }
+            return merged.slice(-100);
+        });
+    };
+
     const handleRunDiagnostic = async (mode: "doh" | "dot" | "auto") => {
         setActiveTestBtn(mode);
         const logMsg = `Running ${mode.toUpperCase()} resolution test for ${selectedDns}...`;
         setDiagnosticLogs(prev => [...prev, logMsg]);
         if (VencordNative?.privacy?.runDiagnostic) {
-            const returnedLogs = await VencordNative.privacy.runDiagnostic(mode);
-            if (Array.isArray(returnedLogs)) {
-                setDiagnosticLogs(returnedLogs.map(formatDiagnosticLog));
+            try {
+                const returnedLogs = await VencordNative.privacy.runDiagnostic(mode);
+                mergeDiagnosticLogs(returnedLogs);
+            } catch {
+                setDiagnosticLogs(prev => [...prev, "Diagnostic request failed."]);
             }
         }
     };
@@ -615,15 +662,19 @@ export function PrivacySecurityPanel() {
         setActiveTestBtn(null);
         setDiagnosticLogs(prev => [...prev, "Diagnostic test stopped."]);
         if (VencordNative?.privacy?.stopDiagnostic) {
-            const returnedLogs = await VencordNative.privacy.stopDiagnostic();
-            if (Array.isArray(returnedLogs)) {
-                setDiagnosticLogs(returnedLogs.map(formatDiagnosticLog));
+            try {
+                const returnedLogs = await VencordNative.privacy.stopDiagnostic();
+                mergeDiagnosticLogs(returnedLogs);
+            } catch {
+                // Keep the local "stopped" line; nothing else to do.
             }
         }
     };
 
     const handleClearDnsCache = async () => {
         setDnsCacheStats(prev => ({ ...prev, size: 0, hits: 0, misses: 0 }));
+        // Clear the renderer engine's cache too when it is the active one.
+        try { (globalThis as any).CustomDNS?.clearCache?.(); } catch { }
         setDiagnosticLogs(prev => [...prev, "Resolver LRU cache cleared."]);
         if (VencordNative?.privacy?.clearDnsCache) {
             const stats = await VencordNative.privacy.clearDnsCache();
@@ -639,18 +690,17 @@ export function PrivacySecurityPanel() {
         { key: "metrics", title: "Metrics" },
         { key: "sentry", title: "Sentry" },
         { key: "tokenGuard", title: "Token Guard" },
-        { key: "clipboardGuard", title: "Clipboard Guard" },
         { key: "webhookGuard", title: "Webhook Guard" },
         { key: "remoteCodeGuard", title: "Remote Code Guard" },
-        { key: "updateIntegrity", title: "Update Integrity" },
         { key: "fetchXhrBeacon", title: "Fetch / XHR / Beacon" },
         { key: "linkTrackerGuard", title: "Link Tracker Stripper" }
     ];
 
     const currentProviderObj = dnsProviders[selectedDns] || { doh: "https://cloudflare-dns.com/dns-query", fallback: "1.1.1.1" };
     const totalMappedRoutes = outboundRoutes.length;
-    const totalAllowedRoutes = outboundRoutes.reduce((acc, r) => acc + r.count, 0);
     const totalBlockedRoutes = outboundRoutes.reduce((acc, r) => acc + r.blockedCount, 0);
+    const dnsFullyActive = dnsActive && dnsEngineEnabled;
+    const shieldsOffCount = Object.values(shields).filter(v => !v).length;
 
     // Search & Pagination calculations for Recent Blocks
     const filteredLogs = logs.filter(log => {
@@ -711,7 +761,15 @@ export function PrivacySecurityPanel() {
     };
 
     const toggleDns = () => {
-        settings.plugins.CustomDNS.autoStart = !dnsActive;
+        const next = !dnsActive;
+        settings.plugins.CustomDNS.autoStart = next;
+        // Gate the main-process encrypted DNS engine with the same toggle so
+        // turning Custom DNS off actually stops system-wide DoH.
+        if (VencordNative?.privacy?.setDnsEnabled) {
+            VencordNative.privacy.setDnsEnabled(next)
+                .then(enabled => setDnsEngineEnabled(enabled))
+                .catch(() => { });
+        }
     };
 
     const toggleDnsRewrite = () => {
@@ -721,6 +779,23 @@ export function PrivacySecurityPanel() {
     return (
         <SettingsTab>
             <div className="ps-command-center">
+                {ipcError && (
+                    <div className="ps-alert-banner" role="alert">
+                        <div className="ps-alert-banner-head">
+                            <div className="ps-alert-banner-title">
+                                <span className="ps-alert-banner-icon">⚠</span>
+                                Connection issue
+                            </div>
+                        </div>
+                        <div className="ps-alert-list">
+                            <div className="ps-alert-item">
+                                <div className="ps-alert-msg">
+                                    Couldn't reach the privacy service — the data below may be stale. Retrying automatically.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <div className="ps-card">
                     <div className="ps-card-header">
                         <div className="ps-header-title-group">
@@ -839,9 +914,9 @@ export function PrivacySecurityPanel() {
                             <div className="ps-card-header">
                                 <div className="ps-header-title-group">
                                     <h2 className="ps-card-title-text">Secure Connect</h2>
-                                    <span className="ps-badge ps-badge-green">
+                                    <span className={`ps-badge ${dnsFullyActive ? "ps-badge-green" : "ps-badge-muted"}`}>
                                         <span className="ps-badge-dot"></span>
-                                        Active
+                                        {dnsFullyActive ? "Active" : "Disabled"}
                                     </span>
                                 </div>
                             </div>
@@ -905,8 +980,8 @@ export function PrivacySecurityPanel() {
 
                                     <div className="ps-meta-table">
                                         <div className="ps-meta-row">
-                                            <span className="ps-meta-label">Version</span>
-                                            <span className="ps-meta-val">1.3.2</span>
+                                            <span className="ps-meta-label">Engine</span>
+                                            <span className="ps-meta-val">{rendererDnsActive ? "CustomDNS (renderer)" : "Main resolver"}</span>
                                         </div>
                                         <div className="ps-meta-row">
                                             <span className="ps-meta-label">Endpoint</span>
@@ -918,7 +993,7 @@ export function PrivacySecurityPanel() {
                                         </div>
                                         <div className="ps-meta-row">
                                             <span className="ps-meta-label">Native calls</span>
-                                            <span className="ps-meta-val">0</span>
+                                            <span className="ps-meta-val">{nativeCalls}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -947,9 +1022,9 @@ export function PrivacySecurityPanel() {
                             <div className="ps-card-header">
                                 <div className="ps-header-title-group">
                                     <h2 className="ps-card-title-text">Outbound Surfaces</h2>
-                                    <span className="ps-badge ps-badge-green">
+                                    <span className={`ps-badge ${shieldsOffCount === 0 ? "ps-badge-green" : "ps-badge-muted"}`}>
                                         <span className="ps-badge-dot"></span>
-                                        Core guards active
+                                        {shieldsOffCount === 0 ? "Core guards active" : `${shieldsOffCount} shield${shieldsOffCount === 1 ? "" : "s"} off`}
                                     </span>
                                 </div>
                                 <div className="ps-routes-summary">
@@ -964,7 +1039,7 @@ export function PrivacySecurityPanel() {
                                         onClick={() => { setSelectedAllowedRoute("all"); setIsAllowedModalOpen(true); }}
                                         title="Click to view all allowed outbound requests in a popup window"
                                     >
-                                        <span className="ps-summary-num">{allowedLogs.length || totalAllowedRoutes || 0}</span>
+                                        <span className="ps-summary-num">{allowedLogs.length}</span>
                                         <span className="ps-summary-lbl">Allowed</span>
                                     </div>
                                     <div className="ps-summary-badge">
@@ -1011,9 +1086,9 @@ export function PrivacySecurityPanel() {
                             <div className="ps-card-header">
                                 <div className="ps-header-title-group">
                                     <h2 className="ps-card-title-text">Privacy Suite Protection</h2>
-                                    <span className="ps-badge ps-badge-green">
+                                    <span className={`ps-badge ${shieldsOffCount === 0 ? "ps-badge-green" : "ps-badge-muted"}`}>
                                         <span className="ps-badge-dot"></span>
-                                        Core Active
+                                        {shieldsOffCount === 0 ? "Core Active" : "Partial"}
                                     </span>
                                 </div>
                             </div>
@@ -1067,10 +1142,6 @@ export function PrivacySecurityPanel() {
                                     <h2 className="ps-kpi-value">{counters.tokens}</h2>
                                     <p className="ps-kpi-label">Tokens</p>
                                 </div>
-                                <div className="ps-kpi-card ps-hero-cyan">
-                                    <h2 className="ps-kpi-value">{counters.clipboard}</h2>
-                                    <p className="ps-kpi-label">Clipboard</p>
-                                </div>
                                 <div className="ps-kpi-card ps-hero-purple">
                                     <h2 className="ps-kpi-value">{counters.webhooks}</h2>
                                     <p className="ps-kpi-label">Webhooks</p>
@@ -1078,10 +1149,6 @@ export function PrivacySecurityPanel() {
                                 <div className="ps-kpi-card ps-hero-red">
                                     <h2 className="ps-kpi-value">{counters.remoteCode}</h2>
                                     <p className="ps-kpi-label">Remote code</p>
-                                </div>
-                                <div className="ps-kpi-card ps-hero-emerald">
-                                    <h2 className="ps-kpi-value">{counters.updateRefusals}</h2>
-                                    <p className="ps-kpi-label">Update refusals</p>
                                 </div>
                                 <div className="ps-kpi-card ps-hero-teal">
                                     <h2 className="ps-kpi-value">{counters.linkTracker}</h2>
@@ -1104,40 +1171,6 @@ export function PrivacySecurityPanel() {
                                                 {title}
                                             </button>
                                         ))}
-                                    </div>
-                                </div>
-
-                                {/* Update Integrity */}
-                                <div className="ps-sub-section">
-                                    <div className="ps-sub-header">
-                                        <h4 className="ps-sub-title">UPDATE INTEGRITY</h4>
-                                        <span className="ps-badge ps-badge-green ps-badge-xs">Ready</span>
-                                    </div>
-                                    <div className="ps-integrity-table">
-                                        <div className="ps-integ-row">
-                                            <span className="ps-meta-label">Service</span>
-                                            <span className="ps-meta-val">Configured</span>
-                                        </div>
-                                        <div className="ps-integ-row">
-                                            <span className="ps-meta-label">Runtime</span>
-                                            <span className="ps-meta-val">Installed runtime</span>
-                                        </div>
-                                        <div className="ps-integ-row">
-                                            <span className="ps-meta-label">Commit</span>
-                                            <span className="ps-meta-val">Verified</span>
-                                        </div>
-                                        <div className="ps-integ-row">
-                                            <span className="ps-meta-label">Signature</span>
-                                            <span className="ps-meta-val">Verified</span>
-                                        </div>
-                                        <div className="ps-integ-row">
-                                            <span className="ps-meta-label">Checksum</span>
-                                            <span className="ps-meta-val">Required</span>
-                                        </div>
-                                        <div className="ps-integ-row">
-                                            <span className="ps-meta-label">Rollback</span>
-                                            <span className="ps-meta-val">Created on update</span>
-                                        </div>
                                     </div>
                                 </div>
 

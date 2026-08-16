@@ -113,6 +113,7 @@ export default {
         getData: () => invoke<any>(IpcEvents.PRIVACY_GET_DATA),
         toggleShield: (key: string, value: boolean) => invoke<any>(IpcEvents.PRIVACY_TOGGLE_SHIELD, key, value),
         setDnsProvider: (name: string) => invoke<boolean>(IpcEvents.PRIVACY_SET_DNS_PROVIDER, name),
+        setDnsEnabled: (enabled: boolean) => invoke<boolean>(IpcEvents.PRIVACY_SET_DNS_ENABLED, enabled),
         addCustomDns: (name: string, doh: string, fallback: string) => invoke<boolean>(IpcEvents.PRIVACY_ADD_CUSTOM_DNS, name, doh, fallback),
         pingLatencies: () => invoke<Record<string, number>>(IpcEvents.PRIVACY_PING_LATENCIES),
         runDiagnostic: (mode: "doh" | "dot" | "auto") => invoke<any[]>(IpcEvents.PRIVACY_RUN_DIAGNOSTIC, mode),
@@ -126,7 +127,15 @@ export default {
         setHostRule: (host: string, rule: "allow" | "block") => invoke<Record<string, "allow" | "block">>(IpcEvents.PRIVACY_SET_HOST_RULE, host, rule),
         clearHostRule: (host: string) => invoke<Record<string, "allow" | "block">>(IpcEvents.PRIVACY_CLEAR_HOST_RULE, host),
         acknowledgeAlerts: () => invoke<any[]>(IpcEvents.PRIVACY_ACK_ALERTS),
-        onSecurityAlert: (cb: (alert: any) => void) => { ipcRenderer.on(IpcEvents.PRIVACY_SECURITY_ALERT, (_, alert) => cb(alert)); }
+        onSecurityAlert: (cb: (alert: any) => void) => {
+            const listener = (_: unknown, alert: any) => cb(alert);
+            ipcRenderer.on(IpcEvents.PRIVACY_SECURITY_ALERT, listener);
+            // Returning the unsubscribe lets callers clean up on unmount
+            // instead of leaking a listener per panel open.
+            return () => {
+                ipcRenderer.removeListener(IpcEvents.PRIVACY_SECURITY_ALERT, listener);
+            };
+        }
     },
 
     pluginHelpers: PluginHelpers

@@ -127,6 +127,12 @@
     color: var(--brand-experiment, #5865f2);
 }
 
+/* Neutral state for badges whose feature is off or partially on */
+.ps-badge-muted {
+    background: rgb(148 155 164 / 15%);
+    color: var(--text-muted, #949ba4);
+}
+
 .ps-badge-dot {
     width: 6px;
     height: 6px;
@@ -247,20 +253,12 @@
     --vc-stats-accent: #eb459e;
 }
 
-.ps-hero-cyan {
-    --vc-stats-accent: #38bdf8;
-}
-
 .ps-hero-purple {
     --vc-stats-accent: #a855f7;
 }
 
 .ps-hero-red {
     --vc-stats-accent: var(--status-danger, #ef4444);
-}
-
-.ps-hero-emerald {
-    --vc-stats-accent: #10b981;
 }
 
 .ps-hero-teal {
@@ -270,8 +268,7 @@
 /* Outbound Surfaces & Log Item Rows */
 .ps-route-card,
 .ps-block-card-amber,
-.ps-meta-row,
-.ps-integ-row {
+.ps-meta-row {
     position: relative;
     display: flex;
     justify-content: space-between;
@@ -288,8 +285,7 @@
 
 .ps-route-card::before,
 .ps-block-card-amber::before,
-.ps-meta-row::before,
-.ps-integ-row::before {
+.ps-meta-row::before {
     content: "";
     position: absolute;
     left: 0;
@@ -317,8 +313,7 @@
 
 .ps-route-card:hover,
 .ps-block-card-amber:hover,
-.ps-meta-row:hover,
-.ps-integ-row:hover {
+.ps-meta-row:hover {
     background: var(--background-base-low, var(--background-modifier-hover));
     border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 24%, var(--border-subtle));
     box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset;
@@ -327,8 +322,7 @@
 
 .ps-route-card:hover::before,
 .ps-block-card-amber:hover::before,
-.ps-meta-row:hover::before,
-.ps-integ-row:hover::before {
+.ps-meta-row:hover::before {
     opacity: .8;
     transform: scaleY(1);
 }
@@ -750,13 +744,6 @@
 .ps-tag-pill-active:hover {
     background: var(--brand-experiment, color-mix(in srgb, var(--background-brand) 81%, #000));
     color: #fff;
-}
-
-/* Update Integrity Table */
-.ps-integrity-table {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
 }
 
 /* Search Input Styling in Recent Blocks */

@@ -23,6 +23,7 @@ export function registerPrivacyIpcHandlers() {
             alerts: trafficGuard.getAlerts(),
             dnsProviders: dnsResolver.getAllProviders(),
             selectedDnsProvider: dnsResolver.getSelectedProviderName(),
+            dnsEnabled: dnsResolver.isEnabled(),
             dnsLatencies: dnsResolver.getLatencies(),
             dnsCacheStats: dnsResolver.getCacheStats(),
             dnsDiagnosticLogs: dnsResolver.getDiagnosticLogs()
@@ -61,6 +62,10 @@ export function registerPrivacyIpcHandlers() {
 
     ipcMain.handle(IpcEvents.PRIVACY_SET_DNS_PROVIDER, (_, name: string) => {
         return dnsResolver.setSelectedProvider(name);
+    });
+
+    ipcMain.handle(IpcEvents.PRIVACY_SET_DNS_ENABLED, (_, enabled: boolean) => {
+        return dnsResolver.setEnabled(enabled);
     });
 
     ipcMain.handle(IpcEvents.PRIVACY_ADD_CUSTOM_DNS, (_, name: string, doh: string, fallback: string) => {

@@ -46,12 +46,9 @@ export interface CoveredSurfacesState {
     metrics: boolean;
     sentry: boolean;
     tokenGuard: boolean;
-    clipboardGuard: boolean;
     webhookGuard: boolean;
     remoteCodeGuard: boolean;
-    updateIntegrity: boolean;
     fetchXhrBeacon: boolean;
-    customFiltering: boolean;
     linkTrackerGuard: boolean;
 }
 
@@ -70,12 +67,9 @@ const DEFAULT_SURFACES: CoveredSurfacesState = {
     metrics: true,
     sentry: true,
     tokenGuard: true,
-    clipboardGuard: true,
     webhookGuard: true,
     remoteCodeGuard: true,
-    updateIntegrity: true,
     fetchXhrBeacon: true,
-    customFiltering: true,
     linkTrackerGuard: true
 };
 
@@ -172,10 +166,8 @@ class TrafficGuardEngine {
         tracking: 0,
         network: 0,
         tokens: 0,
-        clipboard: 0,
         webhooks: 0,
         remoteCode: 0,
-        updateRefusals: 0,
         sentry: 0,
         metrics: 0,
         linkTracker: 0
@@ -271,6 +263,13 @@ class TrafficGuardEngine {
                     this.maxLogs = parsed.maxLogs;
                     this.maxAllowedLogs = parsed.maxLogs;
                 }
+                if (parsed.shields && typeof parsed.shields === "object") {
+                    for (const [key, value] of Object.entries(parsed.shields)) {
+                        if (key in DEFAULT_SURFACES && typeof value === "boolean") {
+                            this.shields[key as keyof CoveredSurfacesState] = value;
+                        }
+                    }
+                }
                 const rulesObj = parsed.rules && typeof parsed.rules === "object" ? parsed.rules : parsed;
                 for (const [host, rule] of Object.entries(rulesObj)) {
                     if (rule === "allow" || rule === "block") {
@@ -281,6 +280,7 @@ class TrafficGuardEngine {
         } catch {
             // Corrupt or unreadable rules file — start clean rather than crash.
             this.hostRules.clear();
+            this.shields = { ...DEFAULT_SURFACES };
         }
     }
 
@@ -293,6 +293,7 @@ class TrafficGuardEngine {
             for (const [host, rule] of this.hostRules) rules[host] = rule;
             const obj = {
                 maxLogs: this.maxLogs,
+                shields: { ...this.shields },
                 rules
             };
             writeFileSync(path, JSON.stringify(obj, null, 2), "utf8");
@@ -350,15 +351,23 @@ class TrafficGuardEngine {
     // ---- Threat scanning --------------------------------------------------
 
     private scanForThreat(url: string): string | null {
-        const lower = url.toLowerCase();
+        // Only the path is scanned — never the query string, where values like
+        // "?format=rat" are user data, not payload names. Each path segment is
+        // matched with delimiters on both sides so a signature fires on the
+        // standalone token ("rat.js", "token-grabber") but not as an
+        // incidental substring ("corporate.js", "migrate.wasm"). Keywords are
+        // escaped so any regex-special characters are treated literally.
+        let path = "";
+        try {
+            path = new URL(url).pathname.toLowerCase();
+        } catch {
+            path = url.toLowerCase();
+        }
+        const segments = path.split("/").filter(Boolean);
         for (const kw of MALICIOUS_KEYWORDS) {
-            // Word-boundary match so a signature only fires on the standalone
-            // token, not as an incidental substring (e.g. "rat" must not match
-            // "corporate.js" or "migrate.wasm"). Keywords are escaped so any
-            // regex-special characters are treated literally.
             const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const pattern = new RegExp(`\\b${escaped}\\b`);
-            if (pattern.test(lower)) return kw;
+            const pattern = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`);
+            if (segments.some(seg => pattern.test(seg))) return kw;
         }
         return null;
     }
@@ -456,8 +465,6 @@ class TrafficGuardEngine {
                 return callback({ cancel: false });
             }
 
-            this.trackOutboundRoute(url, false);
-
             let host = "";
             try {
                 host = new URL(url).hostname;
@@ -485,14 +492,23 @@ class TrafficGuardEngine {
                     this.raiseAlert(url, host, keyword);
                     return callback({ cancel: true });
                 }
-                // No signature — log for visibility, but let it through.
+                // No signature — log for visibility and let it through. Counted
+                // and logged only here so the request isn't double-bookkept in
+                // the allowed list as well.
                 this.logBlockedEvent(url, "Remote Code Observed", "remoteCode", "monitored");
+                this.trackOutboundRoute(url, false);
+                return callback({ cancel: false });
             }
 
-            const isScienceTrack = (url.includes("/api/") && (url.includes("/science") || url.includes("/track"))) && this.shields.scienceAnalytics;
-            const isMetrics = (url.includes("/api/") && url.includes("/metrics")) && this.shields.metrics;
-            const isSentry = url.includes("sentry.io") && this.shields.sentry;
-            const isPatternMatch = BLOCKED_PATTERNS.some(p => {
+            // Telemetry blocking. Each surface owns its patterns exclusively:
+            // turning a specific shield off stops its requests even while the
+            // generic Fetch/XHR/Beacon shield is on. The generic shield only
+            // applies to telemetry-shaped patterns none of the specific
+            // shields already claimed.
+            const isSentry = url.includes("sentry.io");
+            const isMetrics = url.includes("/api/") && url.includes("/metrics");
+            const isScienceTrack = url.includes("/api/") && (url.includes("/science") || url.includes("/track"));
+            const isResidualPattern = !isSentry && !isMetrics && !isScienceTrack && BLOCKED_PATTERNS.some(p => {
                 if (p.includes("*")) {
                     const regex = new RegExp(p.replace(/\*/g, ".*"));
                     return regex.test(url);
@@ -500,10 +516,19 @@ class TrafficGuardEngine {
                 return url.includes(p);
             });
 
-            if ((isScienceTrack || isMetrics || isSentry || (isPatternMatch && this.shields.fetchXhrBeacon))) {
+            const shouldBlockTelemetry =
+                (isSentry && this.shields.sentry)
+                || (isMetrics && this.shields.metrics)
+                || (isScienceTrack && this.shields.scienceAnalytics)
+                || (isResidualPattern && this.shields.fetchXhrBeacon);
+
+            if (shouldBlockTelemetry) {
                 this.counters.totalBlocked++;
-                this.counters.tracking++;
                 this.counters.network++;
+                if (isSentry) this.counters.sentry++;
+                else if (isMetrics) this.counters.metrics++;
+                else this.counters.tracking++;
+
                 this.trackOutboundRoute(url, true);
 
                 let category = "tracking";
@@ -514,9 +539,13 @@ class TrafficGuardEngine {
                 return callback({ cancel: true });
             }
 
+            // Webhook guard: observe and log, but let the request through.
+            // Logged only here so it doesn't also appear in the allowed list.
             if (url.includes("/api/webhooks/") && this.shields.webhookGuard) {
                 this.counters.webhooks++;
                 this.logBlockedEvent(url, "Webhook Payload Monitored", "webhooks", "monitored");
+                this.trackOutboundRoute(url, false);
+                return callback({ cancel: false });
             }
 
             // Link tracker stripper: remove allowlisted tracking params from
@@ -531,10 +560,13 @@ class TrafficGuardEngine {
                     this.counters.totalStripped++;
                     this.counters.linkTracker++;
                     this.logBlockedEvent(url, `Tracking Params Stripped \u2192 ${cleaned}`, "linkTracker", "stripped");
+                    // The redirected request re-enters this interceptor and is
+                    // counted as allowed there; don't count it here as well.
                     return callback({ redirectURL: cleaned });
                 }
             }
 
+            this.trackOutboundRoute(url, false);
             this.logAllowedEvent(url, details.method, details.resourceType);
             callback({ cancel: false });
         });
@@ -662,8 +694,11 @@ class TrafficGuardEngine {
                 else this.counters.totalBlocked += amount;
             }
 
-            const targetUrl = url || (key === "tracking" ? "https://discord.com/api/v9/science" : "https://discord.com/api");
-            let action = "Dropped & Stripped";
+            // Renderer-patch reports carry no real request URL. Use a synthetic
+            // testcord:// URL so the log entry is visibly not an intercepted
+            // network request instead of fabricating a plausible-looking one.
+            const targetUrl = url || `testcord://renderer-patch/${key}`;
+            let action = "Blocked by renderer patch";
             let outcome: BlockOutcome = "blocked";
             if (key === "tokens") { action = "Authorization Header Stripped"; outcome = "stripped"; }
             else if (key === "sentry") action = "Sentry Telemetry Blocked";
@@ -686,6 +721,8 @@ class TrafficGuardEngine {
     public setShield(key: keyof CoveredSurfacesState, value: boolean) {
         if (this.shields[key] !== undefined) {
             this.shields[key] = value;
+            // Persist so a shield's state survives restarts, like host rules.
+            this.saveHostRules();
         }
     }
 
