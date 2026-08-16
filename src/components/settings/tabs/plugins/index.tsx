@@ -19,6 +19,7 @@
 import "./styles.css";
 
 import * as DataStore from "@api/DataStore";
+import { PluginHealth } from "@api/PluginHealth";
 import { isPluginEnabled, stopPlugin } from "@api/PluginManager";
 import { useSettings } from "@api/Settings";
 import { Button } from "@components/Button";
@@ -399,6 +400,7 @@ const sortedPlugins = useMemo(() =>
 
             if (Plugins[plugin].patches?.length) {
                 pluginSettings.enabled = false;
+                void PluginHealth.recordPluginChange(plugin, false);
                 changes.handleChange(plugin);
                 restartNeeded = true;
                 continue;
@@ -413,6 +415,7 @@ const sortedPlugins = useMemo(() =>
             }
 
             pluginSettings.enabled = false;
+            void PluginHealth.recordPluginChange(plugin, false);
         }
 
         if (restartNeeded) {

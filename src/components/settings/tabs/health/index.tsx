@@ -28,16 +28,6 @@ import Plugins from "~plugins";
 
 type DiagnosticTabKey = "overview" | "diagnostics" | "impact" | "monitor" | "changes" | "guide";
 
-const startTime = Date.now();
-
-function formatUptime(ms: number): string {
-    const totalSeconds = Math.floor(ms / 1000);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-}
-
 function formatRelative(ts: number): string {
     const diff = Date.now() - ts;
     if (diff < 5_000) return "just now";
@@ -110,6 +100,101 @@ function filterEntry(entry: PluginHealthEntry, filter: FilterKey): boolean {
     if (filter === "all") return true;
     if (filter === "runtime") return entry.runtimeErrors.length > 0;
     return entry.patchFailures.some(f => f.kind === filter);
+}
+
+// Dismiss only what the user can currently see: honours the active filter and
+// the conflicts-hidden preference instead of wiping the plugin's whole entry.
+function dismissEntry(name: string, filter: FilterKey, conflictsHidden: boolean) {
+    if (filter === "runtime") {
+        PluginHealth.clearRuntimeErrors(name);
+        return;
+    }
+    if (filter === "all") {
+        if (conflictsHidden) {
+            PluginHealth.clearPatchFailures(name, f => f.kind !== "conflict");
+            PluginHealth.clearRuntimeErrors(name);
+        } else {
+            PluginHealth.clear(name);
+        }
+        return;
+    }
+    PluginHealth.clearPatchFailures(name, f => f.kind === filter);
+}
+
+type DiffLine = { type: "same" | "added" | "removed"; text: string; };
+
+// Line diff with a real LCS on the differing region. Common prefix/suffix are
+// trimmed first (the overwhelmingly common case for a patch), so a one-line
+// insertion no longer marks the whole tail of the file as changed.
+function diffSources(original: string, patched: string): DiffLine[] {
+    const a = original.split("\n");
+    const b = patched.split("\n");
+
+    let start = 0;
+    while (start < a.length && start < b.length && a[start] === b[start]) start++;
+    let endA = a.length, endB = b.length;
+    while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {
+        endA--;
+        endB--;
+    }
+
+    const midA = a.slice(start, endA);
+    const midB = b.slice(start, endB);
+    let mid: DiffLine[];
+
+    if (midA.length === 0) {
+        mid = midB.map(text => ({ type: "added", text }));
+    } else if (midB.length === 0) {
+        mid = midA.map(text => ({ type: "removed", text }));
+    } else if (midA.length <= 400 && midB.length <= 400) {
+        // LCS table over the differing region only.
+        const n = midA.length, m = midB.length;
+        const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0));
+        for (let i = n - 1; i >= 0; i--) {
+            for (let j = m - 1; j >= 0; j--) {
+                dp[i][j] = midA[i] === midB[j]
+                    ? dp[i + 1][j + 1] + 1
+                    : Math.max(dp[i + 1][j], dp[i][j + 1]);
+            }
+        }
+        const out: DiffLine[] = [];
+        let i = 0, j = 0;
+        while (i < n && j < m) {
+            if (midA[i] === midB[j]) {
+                out.push({ type: "same", text: midA[i] });
+                i++;
+                j++;
+            } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+                out.push({ type: "removed", text: midA[i] });
+                i++;
+            } else {
+                out.push({ type: "added", text: midB[j] });
+                j++;
+            }
+        }
+        while (i < n) out.push({ type: "removed", text: midA[i++] });
+        while (j < m) out.push({ type: "added", text: midB[j++] });
+        mid = out;
+    } else {
+        // Very large differing region — index alignment beats a huge table.
+        const maxLen = Math.max(midA.length, midB.length);
+        const out: DiffLine[] = [];
+        for (let k = 0; k < maxLen; k++) {
+            const o = midA[k], p = midB[k];
+            if (o === p) out.push({ type: "same", text: o ?? "" });
+            else {
+                if (o !== undefined) out.push({ type: "removed", text: o });
+                if (p !== undefined) out.push({ type: "added", text: p });
+            }
+        }
+        mid = out;
+    }
+
+    return [
+        ...a.slice(0, start).map(text => ({ type: "same" as const, text })),
+        ...mid,
+        ...a.slice(endA).map(text => ({ type: "same" as const, text })),
+    ];
 }
 
 function getLastSeen(entry: PluginHealthEntry): number {
@@ -257,21 +342,7 @@ function PatchViewerModal({
 
     const diffLines = useMemo(() => {
         if (!originalSource || !patchedSource) return null;
-        const origLines = originalSource.split("\n");
-        const patchedLines = patchedSource.split("\n");
-        const maxLen = Math.max(origLines.length, patchedLines.length);
-        const result: Array<{ type: "same" | "added" | "removed"; text: string; }> = [];
-        for (let i = 0; i < maxLen; i++) {
-            const o = origLines[i];
-            const p = patchedLines[i];
-            if (o === p) {
-                result.push({ type: "same", text: o ?? "" });
-            } else {
-                if (o !== undefined) result.push({ type: "removed", text: o });
-                if (p !== undefined) result.push({ type: "added", text: p });
-            }
-        }
-        return result;
+        return diffSources(originalSource, patchedSource);
     }, [originalSource, patchedSource]);
 
     return (
@@ -441,7 +512,7 @@ function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHi
 
     const handleDismiss = () => {
         setDismissing(true);
-        setTimeout(() => PluginHealth.clear(name), 250);
+        setTimeout(() => dismissEntry(name, filter, conflictsHidden), 250);
     };
 
     return (
@@ -767,6 +838,147 @@ function NetworkActivityPanel() {
     );
 }
 
+function CrashRecoveryPanel() {
+    const [tick, setTick] = useState(0);
+    useEffect(() => {
+        void PluginHealth.loadCrashHistory();
+        void PluginHealth.loadQuarantine();
+        return PluginHealth.subscribe(() => setTick(t => t + 1));
+    }, []);
+
+    const crashes = useMemo(() => PluginHealth.getCrashHistory(), [tick]);
+    const quarantined = useMemo(() => PluginHealth.getQuarantinedPlugins(), [tick]);
+
+    if (crashes.length === 0 && quarantined.length === 0) return null;
+
+    const lastCrashFor = (pluginName: string) =>
+        crashes.find(c => c.pluginName === pluginName);
+
+    const handleUnquarantine = (name: string) => {
+        void PluginHealth.unquarantinePlugin(name).then(() => {
+            Toasts.show({
+                id: Toasts.genId(),
+                type: Toasts.Type.SUCCESS,
+                message: `${name} restored. Restart the client to start it again.`,
+                options: { position: Toasts.Position.TOP }
+            });
+        });
+    };
+
+    return (
+        <Card className="vc-plugin-health-crash-recovery">
+            <div className="vc-plugin-health-history-header">
+                <HeadingSecondary>Crash recovery</HeadingSecondary>
+                {crashes.length > 0 && (
+                    <Button
+                        size="small"
+                        variant="link"
+                        onClick={() => { void PluginHealth.clearCrashHistory(); }}
+                    >
+                        Clear crash history
+                    </Button>
+                )}
+            </div>
+
+            {quarantined.length > 0 && (
+                <>
+                    <Paragraph color="text-subtle" className={Margins.bottom8}>
+                        These plugins crashed three or more times within 24 hours and are kept
+                        disabled at startup. Restoring one takes effect after a restart.
+                    </Paragraph>
+                    <ul className="vc-plugin-health-list">
+                        {quarantined.map(name => {
+                            const last = lastCrashFor(name);
+                            return (
+                                <li key={name}>
+                                    <div className="vc-plugin-health-kind" data-kind="error">quarantined</div>
+                                    <div className="vc-plugin-health-detail">
+                                        <div><strong>{name}</strong></div>
+                                        {last && (
+                                            <ExpandableError text={last.stack ? `${last.reason}\n\n${last.stack}` : last.reason} />
+                                        )}
+                                        <div className="vc-plugin-health-timestamp">
+                                            {last ? `last crash ${formatRelative(last.timestamp)}` : "no recorded crash"}
+                                        </div>
+                                        <Button
+                                            size="min"
+                                            variant="secondary"
+                                            onClick={() => handleUnquarantine(name)}
+                                        >
+                                            Remove from quarantine
+                                        </Button>
+                                    </div>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </>
+            )}
+
+            {crashes.length > 0 && (
+                <>
+                    <Heading className="vc-plugin-health-section-heading">Recent crashes</Heading>
+                    <ul className="vc-plugin-health-list">
+                        {crashes.slice(0, 10).map((c, i) => (
+                            <li key={`${c.timestamp}:${i}`}>
+                                <div className="vc-plugin-health-kind" data-kind={c.pluginName ? "error" : "noModule"}>
+                                    {c.pluginName ?? "unknown plugin"}
+                                </div>
+                                <div className="vc-plugin-health-detail">
+                                    <ExpandableError text={c.stack ? `${c.reason}\n\n${c.stack}` : c.reason} />
+                                    <div className="vc-plugin-health-timestamp">{formatRelative(c.timestamp)}</div>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </>
+            )}
+        </Card>
+    );
+}
+
+function PluginChangesPanel() {
+    const [tick, setTick] = useState(0);
+    useEffect(() => PluginHealth.subscribe(() => setTick(t => t + 1)), []);
+
+    const changes = useMemo(() => PluginHealth.getRecentPluginChanges(), [tick]);
+    if (changes.length === 0) return null;
+
+    return (
+        <Card className="vc-plugin-health-changes">
+            <div className="vc-plugin-health-history-header">
+                <HeadingSecondary>Recent enable/disable changes</HeadingSecondary>
+                <Button
+                    size="small"
+                    variant="link"
+                    onClick={() => { void PluginHealth.clearPluginChanges(); }}
+                >
+                    Clear
+                </Button>
+            </div>
+            <Paragraph color="text-subtle" className={Margins.bottom8}>
+                Plugin toggles you made recently — useful when investigating why a plugin
+                is (no longer) running.
+            </Paragraph>
+            <ul className="vc-plugin-health-session-list">
+                {changes.slice(0, 10).map((c, i) => (
+                    <li key={`${c.timestamp}:${i}`}>
+                        <div className="vc-plugin-health-session-meta">
+                            <div>
+                                <strong>{c.pluginName}</strong>{" "}
+                                {c.enabled ? "enabled" : "disabled"}
+                            </div>
+                            <div className="vc-plugin-health-session-counts">
+                                {formatRelative(c.timestamp)}
+                            </div>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </Card>
+    );
+}
+
 function HealthTab() {
     const [activeTab, setActiveTab] = useState<DiagnosticTabKey>("overview");
     const [tick, setTick] = useState(0);
@@ -806,6 +1018,23 @@ function HealthTab() {
 
     const sortIndicator = (column: keyof PluginProfileData) =>
         column === sortColumn ? (sortDirection === "desc" ? " ▼" : " ▲") : "";
+
+    const SortableTh = ({ column, label }: { column: keyof PluginProfileData; label: string; }) => (
+        <th
+            onClick={() => handleSortColumn(column)}
+            onKeyDown={e => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleSortColumn(column);
+                }
+            }}
+            role="button"
+            tabIndex={0}
+            scope="col"
+        >
+            {label}{sortIndicator(column)}
+        </th>
+    );
     const [selectedPluginName, setSelectedPluginName] = useState<string | null>(null);
     const [safeMode, setSafeModeState] = useState(PluginHealth.isSafeModeEnabled());
 
@@ -975,7 +1204,7 @@ function HealthTab() {
 
     const dismissAll = () => {
         for (const [name] of filtered) {
-            PluginHealth.clear(name);
+            dismissEntry(name, filter, conflictsHidden);
         }
         Toasts.show({
             id: Toasts.genId(),
@@ -1265,6 +1494,12 @@ function HealthTab() {
 
                     <Divider className={Margins.top20 + " " + Margins.bottom16} />
                     <SessionHistoryPanel />
+
+                    <Divider className={Margins.top20 + " " + Margins.bottom16} />
+                    <CrashRecoveryPanel />
+
+                    <Divider className={Margins.top20 + " " + Margins.bottom16} />
+                    <PluginChangesPanel />
                 </div>
             )}
 
@@ -1290,6 +1525,14 @@ function HealthTab() {
                         </div>
                     </div>
 
+                    {!IS_DEV && (
+                        <Paragraph color="text-subtle" className={Margins.bottom8}>
+                            Note: interval and listener attribution only runs in development builds,
+                            so the Resources column reads 0 here. CPU, calls, and slow spikes are
+                            always measured.
+                        </Paragraph>
+                    )}
+
                     <div style={{ marginBottom: "1rem" }}>
                         <TextInput
                             placeholder="Filter plugins by name..."
@@ -1302,13 +1545,13 @@ function HealthTab() {
                         <table className="vc-health-table">
                             <thead>
                                 <tr>
-                                    <th onClick={() => handleSortColumn("pluginName")}>Plugin{sortIndicator("pluginName")}</th>
-                                    <th onClick={() => handleSortColumn("impactScore")}>Impact Score{sortIndicator("impactScore")}</th>
-                                    <th onClick={() => handleSortColumn("totalCpuTimeMs")}>CPU (ms){sortIndicator("totalCpuTimeMs")}</th>
-                                    <th onClick={() => handleSortColumn("callCount")}>Calls{sortIndicator("callCount")}</th>
-                                    <th onClick={() => handleSortColumn("slowSpikes")}>Slow Spikes{sortIndicator("slowSpikes")}</th>
-                                    <th onClick={() => handleSortColumn("maxCallMs")}>Max Call (ms){sortIndicator("maxCallMs")}</th>
-                                    <th onClick={() => handleSortColumn("activeResources")}>Resources{sortIndicator("activeResources")}</th>
+                                    <SortableTh column="pluginName" label="Plugin" />
+                                    <SortableTh column="impactScore" label="Impact Score" />
+                                    <SortableTh column="totalCpuTimeMs" label="CPU (ms)" />
+                                    <SortableTh column="callCount" label="Calls" />
+                                    <SortableTh column="slowSpikes" label="Slow Spikes" />
+                                    <SortableTh column="maxCallMs" label="Max Call (ms)" />
+                                    <SortableTh column="activeResources" label="Resources" />
                                 </tr>
                             </thead>
                             <tbody>
@@ -1408,6 +1651,13 @@ function HealthTab() {
             {/* TAB 4: PLUGIN MONITOR */}
             {activeTab === "monitor" && (
                 <div className="vc-health-tab-content">
+                    {!IS_DEV && (
+                        <Paragraph color="text-subtle" className={Margins.bottom8}>
+                            Note: the Resources / Intervals / Listeners metrics only run in
+                            development builds and read 0 here. CPU, calls, and slow spikes are
+                            always measured.
+                        </Paragraph>
+                    )}
                     <div className="vc-health-master-detail">
                         {/* Master Left Column */}
                         <div className="vc-health-master-column">
@@ -1634,7 +1884,7 @@ function HealthTab() {
                         <Card className="vc-health-guide-card">
                             <HeadingSecondary>Safe Mode & Crash Recovery</HeadingSecondary>
                             <Paragraph color="text-subtle">
-                                Safe Mode boots TestCord with optional plugins disabled to help isolate client stutter and crashes. Quarantined plugins are automatically isolated on startup if repeated exceptions occur.
+                                Safe Mode boots TestCord with optional plugins disabled to help isolate client stutter and crashes. A plugin that crashes three or more times within 24 hours is quarantined automatically and kept disabled at startup; you can restore it from the Crash Recovery card on the Overview tab.
                             </Paragraph>
                         </Card>
                     </div>

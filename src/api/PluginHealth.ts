@@ -429,6 +429,18 @@ export const PluginHealth = {
         notify();
     },
 
+    /** Clear recorded runtime errors for a plugin, dropping the entry if nothing is left. */
+    clearRuntimeErrors(plugin: string) {
+        const entry = registry.get(plugin);
+        if (!entry) return;
+        if (entry.runtimeErrors.length === 0) return;
+        entry.runtimeErrors = [];
+        if (!entry.patchFailures.length) {
+            registry.delete(plugin);
+        }
+        notify();
+    },
+
     /**
      * Clear everything in memory. Does NOT wipe persisted history — call
      * `clearHistory()` for that.
@@ -598,6 +610,19 @@ export const PluginHealth = {
             console.warn("[PluginHealth] Failed to persist crash log:", err);
         }
         notify();
+
+        // Auto-quarantine: a plugin that crashed three or more times within
+        // the last 24 hours is isolated so the next boot starts without it.
+        // The user can restore it from the Crash Recovery card.
+        if (entry.pluginName && !quarantinedPlugins.includes(entry.pluginName)) {
+            const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+            const recentCrashes = crashHistory.filter(
+                c => c.pluginName === entry.pluginName && c.timestamp >= dayAgo
+            ).length;
+            if (recentCrashes >= 3) {
+                await this.quarantinePlugin(entry.pluginName);
+            }
+        }
     },
 
     async clearCrashHistory(): Promise<void> {
@@ -642,6 +667,16 @@ export const PluginHealth = {
             await DataStore.set(DB_KEY_PLUGIN_CHANGES, pluginStateChanges);
         } catch (err) {
             console.warn("[PluginHealth] Failed to persist plugin change log:", err);
+        }
+        notify();
+    },
+
+    async clearPluginChanges(): Promise<void> {
+        pluginStateChanges = [];
+        try {
+            await DataStore.set(DB_KEY_PLUGIN_CHANGES, []);
+        } catch (err) {
+            console.warn("[PluginHealth] Failed to clear plugin change log:", err);
         }
         notify();
     }

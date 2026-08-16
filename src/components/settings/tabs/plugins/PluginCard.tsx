@@ -70,6 +70,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         // Initialize settings if they don't exist (for BD plugins)
         if (!settings) {
             Settings.plugins[plugin.name] = { enabled: !wasEnabled };
+            void PluginHealth.recordPluginChange(plugin.name, !wasEnabled);
             // For BD plugins, also trigger the start/stop
             if (!wasEnabled) {
                 startPlugin(plugin);
@@ -92,6 +93,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
             if (restartNeeded) {
                 // If any dependencies have patches, don't start the plugin yet.
                 settings.enabled = true;
+                void PluginHealth.recordPluginChange(plugin.name, true);
                 onRestartNeeded(plugin.name, "enabled");
                 return;
             }
@@ -100,6 +102,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         // if the plugin requires a restart, don't use stopPlugin/startPlugin. Wait for restart to apply changes.
         if (pluginRequiresRestart(plugin)) {
             settings.enabled = !wasEnabled;
+            void PluginHealth.recordPluginChange(plugin.name, !wasEnabled);
             onRestartNeeded(plugin.name, "enabled");
             return;
         }
@@ -107,6 +110,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         // If the plugin is enabled, but hasn't been started, then we can just toggle it off.
         if (wasEnabled && !plugin.started) {
             settings.enabled = !wasEnabled;
+            void PluginHealth.recordPluginChange(plugin.name, false);
             return;
         }
 
@@ -114,6 +118,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
 
         if (!result) {
             settings.enabled = false;
+            void PluginHealth.recordPluginChange(plugin.name, false);
 
             const msg = `Error while ${wasEnabled ? "stopping" : "starting"} plugin ${plugin.name}`;
             showToast(msg, Toasts.Type.FAILURE, {
@@ -124,6 +129,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         }
 
         settings.enabled = !wasEnabled;
+        void PluginHealth.recordPluginChange(plugin.name, !wasEnabled);
     }
 
     const pluginInfo = [

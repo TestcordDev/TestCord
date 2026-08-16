@@ -141,8 +141,15 @@ export function pluginRequiresRestart(p: Plugin) {
     );
 }
 
-export const startAllPlugins = traceFunction("startAllPlugins", function startAllPlugins(target: StartAt) {
+export const startAllPlugins = traceFunction("startAllPlugins", async function startAllPlugins(target: StartAt) {
     logger.info(`Starting plugins (stage ${target})`);
+
+    // Safe Mode and quarantine state live in DataStore (async). They must be
+    // loaded before any isPluginEnabled() call decides whether a plugin may
+    // start — otherwise the boot pass would see stale defaults and start
+    // plugins the user meant to keep disabled. Both loads are memoized.
+    await PluginHealth.loadSafeMode();
+    await PluginHealth.loadQuarantine();
 
     // Activate profiler auto-instrumentation before any plugin runs so timers
     // and listeners created during start() are attributed. Idempotent, so
@@ -201,17 +208,27 @@ export function startDependenciesRecursive(p: Plugin) {
     return { restartNeeded, failures };
 }
 
+// Original (user-authored) flux handlers, kept separate from the profiling
+// wrappers installed on p.flux. Without this, every subscribe/unsubscribe
+// cycle would wrap the previous wrapper again — stacking nested wrappers and
+// inflating profiler CPU/call counts.
+const originalFluxHandlers = new WeakMap<Plugin, Record<string, (...args: any[]) => any>>();
+
 export function subscribePluginFluxEvents(p: Plugin, fluxDispatcher: typeof FluxDispatcher) {
     if (p.flux && !subscribedFluxEventsPlugins.has(p.name) && (!IS_REPORTER || isReporterTestable(p, ReporterTestable.FluxEvents))) {
         subscribedFluxEventsPlugins.add(p.name);
 
         logger.debug("Subscribing to flux events of plugin", p.name);
-        for (const [event, handler] of Object.entries(p.flux)) {
-            if (p.name === "Encryptcord" && event === "MESSAGE_CREATE") continue;
+        const originals = originalFluxHandlers.get(p) ?? {};
+        for (const [event, currentHandler] of Object.entries(p.flux)) {
+            // p.flux[event] may already be a wrapper from a previous subscribe
+            // cycle; always wrap the original handler, never the wrapper.
+            const original = originals[event] ?? currentHandler;
+            originals[event] = original;
 
             const wrappedHandler = p.flux[event] = function () {
                 try {
-                    const res = PluginProfiler.profileExecution(p.name, `flux:${event}`, () => handler!.apply(p, arguments as any));
+                    const res = PluginProfiler.profileExecution(p.name, `flux:${event}`, () => original.apply(p, arguments as any));
                     return res instanceof Promise
                         ? res.catch(e => {
                             logger.error(`${p.name}: Error while handling ${event}\n`, e);
@@ -226,6 +243,7 @@ export function subscribePluginFluxEvents(p: Plugin, fluxDispatcher: typeof Flux
 
             fluxDispatcher.subscribe(event as FluxEvents, wrappedHandler);
         }
+        originalFluxHandlers.set(p, originals);
     }
 }
 
