@@ -8,7 +8,8 @@ import "./styles.css";
 
 import * as DataStore from "@api/DataStore";
 import { type NetworkDomainSummary, NetworkMonitor } from "@api/NetworkMonitor";
-import { type PatchFailure, PluginHealth, type PluginHealthEntry, type SessionRecord, type StabilityScore } from "@api/PluginHealth";
+import { type PatchFailure, PluginHealth, type PluginHealthEntry, type RuntimeError, type SessionRecord, type StabilityScore } from "@api/PluginHealth";
+import { pluginStartTimings } from "@api/PluginManager";
 import { PluginProfileData,PluginProfiler } from "@api/PluginProfiler";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
@@ -26,7 +27,7 @@ import { getFactoryPatchedSource, SYM_ORIGINAL_FACTORY } from "@webpack/patcher"
 
 import Plugins from "~plugins";
 
-type DiagnosticTabKey = "overview" | "diagnostics" | "impact" | "monitor" | "changes" | "guide";
+type DiagnosticTabKey = "overview" | "diagnostics" | "impact" | "monitor" | "finder" | "guide";
 
 function formatRelative(ts: number): string {
     const diff = Date.now() - ts;
@@ -35,6 +36,38 @@ function formatRelative(ts: number): string {
     if (diff < 3600_000) return `${Math.round(diff / 60_000)}m ago`;
     if (diff < 86_400_000) return `${Math.round(diff / 3600_000)}h ago`;
     return new Date(ts).toLocaleString();
+}
+
+function formatUptime(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return hours > 0
+        ? `${hours}h ${pad(minutes)}m ${pad(seconds)}s`
+        : `${minutes}m ${pad(seconds)}s`;
+}
+
+/** Live "time since the client launched" readout for the score card. */
+function UptimeClock() {
+    const [now, setNow] = useState(Date.now());
+    useEffect(() => {
+        const timer = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+    const { startedAt } = PluginHealth.getCurrentSession();
+    return (
+        <div
+            className="vc-plugin-health-uptime"
+            title={`Client launched ${new Date(startedAt).toLocaleString()}`}
+        >
+            <span className="vc-plugin-health-uptime-label">Uptime</span>
+            <span className="vc-plugin-health-uptime-value">
+                {formatUptime(Math.max(0, now - startedAt))}
+            </span>
+        </div>
+    );
 }
 
 function truncateForDisplay(value: string, max = 140): string {
@@ -195,6 +228,76 @@ function diffSources(original: string, patched: string): DiffLine[] {
         ...mid,
         ...a.slice(endA).map(text => ({ type: "same" as const, text })),
     ];
+}
+
+// Group repeated runtime errors by fingerprint (source + first line) so one
+// noisy handler shows as "×214" instead of flooding the per-plugin buffer.
+function clusterErrors(errors: RuntimeError[]): Array<{ rep: RuntimeError; count: number; lastAt: number; }> {
+    const map = new Map<string, { rep: RuntimeError; count: number; lastAt: number; }>();
+    for (const e of errors) {
+        const key = `${e.source}\u0000${e.error.split("\n")[0]}`;
+        const existing = map.get(key);
+        if (existing) {
+            existing.count++;
+            if (e.at > existing.lastAt) existing.lastAt = e.at;
+        } else {
+            map.set(key, { rep: e, count: 1, lastAt: e.at });
+        }
+    }
+    return Array.from(map.values()).sort((a, b) => b.lastAt - a.lastAt);
+}
+
+interface ModuleFinderResult {
+    id: string;
+    size: number;
+    snippet: string;
+}
+
+// Search every loaded webpack module's source for a `find` string. Accepts a
+// plain substring or a /regex/flags form (matching how patches define finds).
+// Turns "module missing" failures into "the code now lives in module #N".
+function searchModules(query: string): { results: ModuleFinderResult[]; searched: number; regex: boolean; } {
+    const modules = wreq.m;
+    const ids = Object.keys(modules);
+
+    let matcher: (src: string) => boolean = src => src.includes(query);
+    let isRegex = false;
+    const regexForm = query.match(/^\/(.+)\/([a-z]*)$/s);
+    if (regexForm) {
+        try {
+            // 'g' is stateful with .test — strip it.
+            const flags = regexForm[2].replace(/g/g, "");
+            const re = new RegExp(regexForm[1], flags);
+            matcher = src => re.test(src);
+            isRegex = true;
+        } catch {
+            // Invalid regex — fall back to substring matching.
+        }
+    }
+
+    const results: ModuleFinderResult[] = [];
+    for (const id of ids) {
+        const src = String(modules[id as keyof typeof modules]);
+        if (matcher(src)) {
+            results.push({ id, size: src.length, snippet: src.slice(0, 300) });
+            if (results.length >= 25) break;
+        }
+    }
+    return { results, searched: ids.length, regex: isRegex };
+}
+
+function openModuleSource(id: string) {
+    openModal(modalProps => (
+        <Modal
+            {...modalProps}
+            size="lg"
+            title={<div className="vc-patch-viewer-title">Module {id}</div>}
+        >
+            <div className="vc-patch-viewer-body">
+                <pre className="vc-patch-viewer-code">{String(wreq.m[id as PropertyKey] ?? "")}</pre>
+            </div>
+        </Modal>
+    ));
 }
 
 function getLastSeen(entry: PluginHealthEntry): number {
@@ -460,7 +563,7 @@ function ExpandableError({ text, max = 400 }: { text: string; max?: number; }) {
     );
 }
 
-function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHidden }: { name: string; entry: PluginHealthEntry; expanded: boolean; onToggle: () => void; filter: FilterKey; conflictsHidden: boolean; }) {
+function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHidden, onLocate }: { name: string; entry: PluginHealthEntry; expanded: boolean; onToggle: () => void; filter: FilterKey; conflictsHidden: boolean; onLocate?: (find: string) => void; }) {
     const plugin = Plugins[name];
     const showPatchFailures = filter !== "runtime";
     const showRuntimeErrors = filter === "all" || filter === "runtime";
@@ -582,14 +685,27 @@ function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHi
                                                 <ExpandableError text={f.error} />
                                             )}
                                             <div className="vc-plugin-health-timestamp">{formatRelative(f.at)}</div>
-                                            {f.moduleId && (
-                                                <Button
-                                                    size="min"
-                                                    variant="secondary"
-                                                    onClick={() => openPatchViewer(name, f)}
-                                                >
-                                                    View patch
-                                                </Button>
+                                            {(f.moduleId || (f.kind === "noModule" && onLocate)) && (
+                                                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                                                    {f.moduleId && (
+                                                        <Button
+                                                            size="min"
+                                                            variant="secondary"
+                                                            onClick={() => openPatchViewer(name, f)}
+                                                        >
+                                                            View patch
+                                                        </Button>
+                                                    )}
+                                                    {f.kind === "noModule" && onLocate && (
+                                                        <Button
+                                                            size="min"
+                                                            variant="secondary"
+                                                            onClick={() => onLocate(f.find)}
+                                                        >
+                                                            Find module
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             )}
                                         </div>
                                     </li>
@@ -602,12 +718,21 @@ function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHi
                         <>
                             <Heading className="vc-plugin-health-section-heading">Runtime errors</Heading>
                             <ul className="vc-plugin-health-list">
-                                {visibleRuntimeErrors.map((e, i) => (
+                                {clusterErrors(visibleRuntimeErrors).map((cluster, i) => (
                                     <li key={i}>
-                                        <div className="vc-plugin-health-kind" data-kind="error">{e.source}</div>
+                                        <div className="vc-plugin-health-kind" data-kind="error">
+                                            {cluster.rep.source}
+                                            {cluster.count > 1 && (
+                                                <span className="vc-plugin-health-cluster-count">×{cluster.count}</span>
+                                            )}
+                                        </div>
                                         <div className="vc-plugin-health-detail">
-                                            <ExpandableError text={e.error} />
-                                            <div className="vc-plugin-health-timestamp">{formatRelative(e.at)}</div>
+                                            <ExpandableError text={cluster.rep.error} />
+                                            <div className="vc-plugin-health-timestamp">
+                                                {cluster.count > 1
+                                                    ? `last of ${cluster.count} · ${formatRelative(cluster.lastAt)}`
+                                                    : formatRelative(cluster.rep.at)}
+                                            </div>
                                         </div>
                                     </li>
                                 ))}
@@ -1002,8 +1127,35 @@ function HealthTab() {
     const [monitorSort, setMonitorSort] = useState<"impact" | "name" | "cpu" | "calls">("impact");
     const [monitorImpactFilter, setMonitorImpactFilter] = useState<"all" | "high" | "medium" | "low">("all");
 
-    // Patch-changes tab search
-    const [changesSearchQuery, setChangesSearchQuery] = useState("");
+    // Module finder tab (replaces the old patch-changes tab)
+    const [finderQuery, setFinderQuery] = useState("");
+    const [finderState, setFinderState] = useState<{
+        results: ModuleFinderResult[] | null;
+        searched: number;
+        regex: boolean;
+        error: string | null;
+    }>({ results: null, searched: 0, regex: false, error: null });
+
+    const runFinder = (raw?: string) => {
+        const q = (raw ?? finderQuery).trim();
+        setFinderQuery(q);
+        if (q.length < 3) {
+            setFinderState({ results: null, searched: 0, regex: false, error: "Enter at least 3 characters to search." });
+            return;
+        }
+        try {
+            const { results, searched, regex } = searchModules(q);
+            setFinderState({ results, searched, regex, error: null });
+        } catch (e: any) {
+            setFinderState({ results: null, searched: 0, regex: false, error: String(e?.message ?? e) });
+        }
+    };
+
+    /** Jump to the Module finder with a broken patch's `find` pre-filled. */
+    const locateInFinder = (find: string) => {
+        setActiveTab("finder");
+        runFinder(find);
+    };
 
     // Clicking a header sorts by that column. Clicking the already-active
     // column toggles direction; switching to a new column resets to "desc".
@@ -1146,23 +1298,60 @@ function HealthTab() {
             });
     }, [profiles, monitorSearchQuery, monitorImpactFilter, monitorSort]);
 
-    // All `codeChanged` entries across every plugin that has been enabled at
-    // least once. Coverage is inherently limited to plugins whose patches have
-    // actually run, since the source hash is only recorded from patchFactory.
-    const changeRows = useMemo(() => {
-        const rows: Array<{ plugin: string; find: string; error?: string; at: number; }> = [];
-        for (const [name, entry] of PluginHealth.getAll()) {
-            if (Plugins[name]?.required) continue;
-            for (const f of entry.patchFailures) {
-                if (f.kind !== "codeChanged") continue;
-                rows.push({ plugin: name, find: f.find, error: f.error, at: f.at });
-            }
+    // Whole-install health score: 100 minus penalties. Explainable by design —
+    // the formula is shown next to the number.
+    const installHealth = useMemo(() => {
+        const quarantined = PluginHealth.getQuarantinedPlugins().length;
+        const dayAgo = Date.now() - 86_400_000;
+        const crashesDay = PluginHealth.getCrashHistory().filter(c => c.timestamp >= dayAgo).length;
+        let unstable = 0, flaky = 0;
+        for (const name of enabledSet) {
+            const { badge } = PluginHealth.getStability(name);
+            if (badge === "unstable") unstable++;
+            else if (badge === "flaky") flaky++;
         }
-        const query = changesSearchQuery.trim().toLowerCase();
-        return rows
-            .filter(r => !query || r.plugin.toLowerCase().includes(query) || r.find.toLowerCase().includes(query))
-            .sort((a, b) => b.at - a.at);
-    }, [tick, changesSearchQuery]);
+        const score = Math.max(0, Math.min(100,
+            100 - unstable * 8 - flaky * 3 - quarantined * 10 - Math.min(crashesDay * 5, 25)
+        ));
+        const rating = score >= 90 ? "healthy" : score >= 70 ? "fair" : score >= 40 ? "degraded" : "poor";
+        return { score, rating, unstable, flaky, quarantined, crashesDay };
+    }, [tick, enabledSet]);
+
+    // Startup timeline from PluginManager's per-plugin start measurements.
+    const startTimings = useMemo(() => {
+        const entries = Array.from(pluginStartTimings.entries(), ([name, t]) => ({ name, ...t }));
+        const total = entries.reduce((acc, e) => acc + e.duration, 0);
+        const slowest = [...entries].sort((a, b) => b.duration - a.duration).slice(0, 10);
+        const failed = entries.filter(e => !e.success).length;
+        const max = slowest[0]?.duration ?? 0;
+        return { total, slowest, failed, measured: entries.length, max };
+    }, [tick]);
+
+    // "What changed since the last healthy session?" — diffs the enabled
+    // plugin set and newly-broken plugins against the most recent session
+    // that recorded no failures.
+    const sinceHealthy = useMemo(() => {
+        const past = PluginHealth.getHistory();
+        const lastHealthy = [...past].reverse().find(s =>
+            !Object.values(s.plugins ?? {}).some(c => (c.patchFailures + c.runtimeErrors) > 0)
+        );
+        if (!lastHealthy) return null;
+        // Session records include required (always-on) plugins; the current
+        // enabled set excludes them. Filter both sides the same way so core
+        // plugins never show up as "removed", and uninstalled user plugins
+        // (no Plugins entry) still correctly do.
+        const then = new Set(
+            (lastHealthy.enabledPlugins ?? []).filter(n => !Plugins[n]?.required)
+        );
+        const brokenNow = new Set(snapshot.map(([n]) => n));
+        const added = Array.from(enabledSet).filter(n => !then.has(n)).sort();
+        const removed = Array.from(then).filter(n => !enabledSet.has(n)).sort();
+        const newlyBroken = Array.from(brokenNow)
+            .filter(n => enabledSet.has(n) && !lastHealthy.plugins?.[n])
+            .sort();
+        if (!added.length && !removed.length && !newlyBroken.length) return null;
+        return { at: lastHealthy.startedAt, added, removed, newlyBroken };
+    }, [tick, enabledSet, snapshot]);
 
     const handleBannerToggle = (show: boolean) => {
         setBannerDismissed(!show);
@@ -1298,10 +1487,10 @@ function HealthTab() {
                     Plugin monitor
                 </button>
                 <button
-                    className={`vc-health-nav-item ${activeTab === "changes" ? "vc-health-nav-item-active" : ""}`}
-                    onClick={() => setActiveTab("changes")}
+                    className={`vc-health-nav-item ${activeTab === "finder" ? "vc-health-nav-item-active" : ""}`}
+                    onClick={() => setActiveTab("finder")}
                 >
-                    Patch changes
+                    Module finder
                 </button>
                 <button
                     className={`vc-health-nav-item ${activeTab === "guide" ? "vc-health-nav-item-active" : ""}`}
@@ -1324,6 +1513,24 @@ function HealthTab() {
                         dismissed={bannerDismissed}
                         onDismiss={() => handleBannerToggle(false)}
                     />
+
+                    {/* Install health score */}
+                    <Card className="vc-plugin-health-score" defaultPadding>
+                        <div className="vc-plugin-health-score-value" data-rating={installHealth.rating}>
+                            {installHealth.score}
+                        </div>
+                        <div className="vc-plugin-health-score-body">
+                            <HeadingSecondary className={Margins.bottom4}>Install health: {installHealth.rating}</HeadingSecondary>
+                            <div className="vc-plugin-health-score-breakdown">
+                                <span><strong>{installHealth.unstable}</strong> unstable · <strong>{installHealth.flaky}</strong> flaky (of {totalEnabled} enabled)</span>
+                                <span><strong>{installHealth.quarantined}</strong> quarantined · <strong>{installHealth.crashesDay}</strong> crashes in the last 24h</span>
+                                <span className="vc-plugin-health-score-formula">
+                                    100 − 8/unstable − 3/flaky − 10/quarantined − 5/recent crash (max 25)
+                                </span>
+                            </div>
+                        </div>
+                        <UptimeClock />
+                    </Card>
 
                     {/* Notice & System Settings Card */}
                     <Card className="vc-plugin-health-notice-settings">
@@ -1483,6 +1690,7 @@ function HealthTab() {
                                         onToggle={() => toggleCard(name)}
                                         filter={filter}
                                         conflictsHidden={conflictsHidden}
+                                        onLocate={locateInFinder}
                                     />
                                 ))
                             )}
@@ -1491,6 +1699,30 @@ function HealthTab() {
 
                     <Divider className={Margins.top20 + " " + Margins.bottom16} />
                     <NetworkActivityPanel />
+
+                    {sinceHealthy && (
+                        <>
+                            <Divider className={Margins.top20 + " " + Margins.bottom16} />
+                            <Card className="vc-plugin-health-since-healthy">
+                                <HeadingSecondary>Changes since your last healthy session</HeadingSecondary>
+                                <Paragraph color="text-subtle" className={Margins.bottom8}>
+                                    Comparing against {new Date(sinceHealthy.at).toLocaleString()} — the most recent
+                                    session with no recorded failures.
+                                </Paragraph>
+                                <div className="vc-plugin-health-changes-row">
+                                    {sinceHealthy.added.map(n => (
+                                        <span key={`a-${n}`} className="vc-plugin-health-change-chip vc-plugin-health-change-added">+ {n}</span>
+                                    ))}
+                                    {sinceHealthy.removed.map(n => (
+                                        <span key={`r-${n}`} className="vc-plugin-health-change-chip vc-plugin-health-change-removed">− {n}</span>
+                                    ))}
+                                    {sinceHealthy.newlyBroken.map(n => (
+                                        <span key={`b-${n}`} className="vc-plugin-health-change-chip vc-plugin-health-change-broken">⚠ {n}</span>
+                                    ))}
+                                </div>
+                            </Card>
+                        </>
+                    )}
 
                     <Divider className={Margins.top20 + " " + Margins.bottom16} />
                     <SessionHistoryPanel />
@@ -1522,6 +1754,10 @@ function HealthTab() {
                         <div className="vc-health-stat-card">
                             <div className="vc-health-stat-value">{totalActiveResources}</div>
                             <div className="vc-health-stat-label">Active resources</div>
+                        </div>
+                        <div className="vc-health-stat-card">
+                            <div className="vc-health-stat-value">{startTimings.total.toFixed(0)} ms</div>
+                            <div className="vc-health-stat-label">Plugin startup time</div>
                         </div>
                     </div>
 
@@ -1600,6 +1836,38 @@ function HealthTab() {
                             </tbody>
                         </table>
                     </div>
+
+                    <HeadingSecondary className={Margins.top16 + " " + Margins.bottom8}>
+                        Slowest plugin startups
+                    </HeadingSecondary>
+                    {startTimings.measured === 0 ? (
+                        <Paragraph color="text-subtle">
+                            No plugin startups measured yet this session. Timings appear after a restart.
+                        </Paragraph>
+                    ) : (
+                        <div className="vc-health-startup-list">
+                            {startTimings.slowest.map(e => (
+                                <div className="vc-health-startup-row" key={e.name}>
+                                    <span className="vc-health-startup-name" title={e.name}>{e.name}</span>
+                                    <div className="vc-health-startup-bar">
+                                        <div
+                                            className="vc-health-startup-fill"
+                                            data-failed={e.success ? undefined : "true"}
+                                            style={{ width: `${Math.max(2, (e.duration / (startTimings.max || 1)) * 100)}%` }}
+                                        />
+                                    </div>
+                                    <span className="vc-health-startup-ms">
+                                        {e.duration.toFixed(1)} ms{e.success ? "" : " · failed"}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {startTimings.failed > 0 && (
+                        <Paragraph color="text-subtle" className={Margins.top8}>
+                            {startTimings.failed} plugin{startTimings.failed === 1 ? "" : "s"} failed to start this session.
+                        </Paragraph>
+                    )}
                 </div>
             )}
 
@@ -1792,53 +2060,57 @@ function HealthTab() {
                 </div>
             )}
 
-            {/* TAB: PATCH CHANGES */}
-            {activeTab === "changes" && (
+            {/* TAB: MODULE FINDER */}
+            {activeTab === "finder" && (
                 <div className="vc-health-tab-content">
                     <Paragraph color="text-subtle" className={Margins.bottom20}>
-                        When Discord updates the code a plugin patches, the patch may keep working but the underlying source has changed. This tab lists every detected source change so you can spot patches that are drifting before they break. Coverage is limited to plugins that have been enabled at least once, since a change can only be detected after a patch actually runs.
+                        When a patch fails with <code>noModule</code>, Discord usually renamed or moved the module it
+                        targeted. Paste the patch's <code>find</code> string here (or any code snippet) to locate
+                        which currently-loaded webpack module contains that code — plain text or <code>/regex/flags</code>.
+                        Use "Find module" on a failed patch to jump here pre-filled.
                     </Paragraph>
 
-                    <div style={{ marginBottom: "1rem" }}>
+                    <div className="vc-health-finder-controls">
                         <TextInput
-                            placeholder="Filter by plugin or find string..."
-                            value={changesSearchQuery}
-                            onChange={(val: string) => setChangesSearchQuery(val)}
+                            placeholder="e.g. sendMessage:args=> or /displayName.\(\)/"
+                            value={finderQuery}
+                            onChange={(v: string) => setFinderQuery(v)}
+                            onKeyDown={e => {
+                                if (e.key === "Enter") runFinder();
+                            }}
                         />
+                        <Button onClick={() => runFinder()}>Search modules</Button>
                     </div>
 
-                    <div className="vc-health-table-wrapper">
-                        <table className="vc-health-table">
-                            <thead>
-                                <tr>
-                                    <th>Plugin</th>
-                                    <th>Find</th>
-                                    <th>Details</th>
-                                    <th>Detected</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {changeRows.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={4} className="vc-health-table-empty">
-                                            {changesSearchQuery.trim()
-                                                ? "No patch changes match your filter."
-                                                : "No patch changes detected. This is the healthy state: every tracked patch still targets the same Discord source it did last session."}
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    changeRows.map((r, i) => (
-                                        <tr key={`${r.plugin}:${r.find}:${i}`}>
-                                            <td>{r.plugin}</td>
-                                            <td><code>{r.find}</code></td>
-                                            <td>{r.error ?? "Source changed since last session."}</td>
-                                            <td>{new Date(r.at).toLocaleString()}</td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                    {finderState.error && (
+                        <Paragraph color="text-subtle">{finderState.error}</Paragraph>
+                    )}
+
+                    {finderState.results !== null && (
+                        <Paragraph color="text-subtle" className={Margins.bottom8}>
+                            {finderState.results.length >= 25
+                                ? `Showing first ${finderState.results.length} matches `
+                                : `${finderState.results.length} match${finderState.results.length === 1 ? "" : "es"}`}
+                            {" "}across {finderState.searched} loaded modules
+                            {finderState.regex ? " (regex mode)" : ""}.
+                            {finderState.results.length === 0 && " If nothing matched, the code may not be loaded yet (lazy chunk) or was removed entirely."}
+                        </Paragraph>
+                    )}
+
+                    {finderState.results?.map(r => (
+                        <div key={r.id} className="vc-health-finder-result">
+                            <div className="vc-health-finder-head">
+                                <span className="vc-health-finder-id">module #{r.id}</span>
+                                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                    <span className="vc-health-finder-size">{(r.size / 1024).toFixed(1)} kB</span>
+                                    <Button size="min" variant="secondary" onClick={() => openModuleSource(r.id)}>
+                                        View source
+                                    </Button>
+                                </div>
+                            </div>
+                            <pre className="vc-health-finder-snippet">{r.snippet}…</pre>
+                        </div>
+                    ))}
                 </div>
             )}
 
