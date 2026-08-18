@@ -6,9 +6,9 @@
 
 import { TestcordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
-import { Guild, GuildMember } from "@vencord/discord-types";
+import { GuildMember, Role } from "@vencord/discord-types";
 import { findStoreLazy } from "@webpack";
-import { FluxDispatcher, GuildMemberStore,GuildStore, Toasts, UserStore } from "@webpack/common";
+import { FluxDispatcher, GuildMemberStore, GuildRoleStore, Toasts, UserStore } from "@webpack/common";
 
 const VoiceStateStore = findStoreLazy("VoiceStateStore");
 
@@ -39,24 +39,24 @@ const avoidPermission: bigint[] = [
 ];
 
 const cb = async (e: any) => {
-    const state = e.voiceStates[0];
-    if (!state?.channelId) return;
-    if (state.userId === UserStore.getCurrentUser().id || !state.userId) return;
+    const state = e.voiceStates?.[0] ?? e.voiceStates;
+    if (!state?.channelId || !state?.guildId) return;
+    if (state.userId === UserStore.getCurrentUser()?.id || !state.userId) return;
     if (state?.channelId === state?.oldChannelId) return;
 
-    const channelVoiceStates = VoiceStateStore.getVoiceStatesForChannel(state?.channelId) ?? {};
-    if (!Object.prototype.hasOwnProperty.call(channelVoiceStates, UserStore.getCurrentUser().id)) return;
+    const channelVoiceStates = VoiceStateStore?.getVoiceStatesForChannel?.(state?.channelId) ?? {};
+    if (!Object.prototype.hasOwnProperty.call(channelVoiceStates, UserStore.getCurrentUser()?.id)) return;
     const member = GuildMemberStore.getMember(state.guildId, state.userId!);
     if (!member) return;
 
-    const roles = getSortedRoles(GuildStore.getGuild(state.guildId), member)
+    const roles = getSortedRoles(state.guildId, member)
         .map(role => ({
             type: 0,
             ...role
         }));
     for (const role of roles) {
         for (const permission of avoidPermission) {
-            if ((role.permissions & permission) === permission) {
+            if ((BigInt(role.permissions) & permission) === permission) {
                 Toasts.show({
                     message: `MOD ALERT  ${state.userId} detected`,
                     id: "Vc-permissions",
@@ -74,12 +74,12 @@ const cb = async (e: any) => {
 
 };
 
-function getSortedRoles({ id }: Guild, member: GuildMember) {
-    // @ts-expect-error Discord API changed
-    const roles = GuildStore.getRoles(id);
+function getSortedRoles(guildId: string, member: GuildMember): Role[] {
+    const roles = GuildRoleStore?.getRolesSnapshot?.(guildId) ?? {};
 
-    return [...member.roles, id]
+    return [...(member.roles ?? []), guildId]
         .map(id => roles[id])
+        .filter((r): r is Role => Boolean(r))
         .sort((a, b) => b.position - a.position);
 }
 

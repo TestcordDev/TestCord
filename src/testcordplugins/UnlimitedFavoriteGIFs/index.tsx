@@ -8,9 +8,11 @@ import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
 import { Link } from "@components/Link";
 import definePlugin, { OptionType } from "@utils/types";
+import { wreq } from "@webpack";
 import { showToast, Toasts } from "@webpack/common";
 
 const LOCAL_FAVS_KEY = "UnlimitedFavoriteGIFs_localFavs";
+const LIMIT_RE = /\.toBinary\(t\)\.length>\d+/;
 
 function log(...args: any[]) { console.log("[UnlimitedFavoriteGIFs]", ...args); }
 function warn(...args: any[]) { console.warn("[UnlimitedFavoriteGIFs]", ...args); }
@@ -69,21 +71,32 @@ const settings = definePluginSettings({
 // Patch the addFavoriteGif function directly at runtime
 function applyRuntimePatch() {
     try {
-        const wreq = (window as any).Vencord?.Webpack?.wreq;
-        if (!wreq?.m) return false;
+        const webpackReq = wreq ?? (window as any).Vencord?.Webpack?.wreq;
+        if (!webpackReq?.m) return false;
 
-        for (const key of Object.keys(wreq.m)) {
-            const src = wreq.m[key].toString();
-            if (!src.includes("+XYXtZ") || !src.includes("762880")) continue;
+        for (const key of Object.keys(webpackReq.m)) {
+            const src = webpackReq.m[key]?.toString?.();
+            if (!src || !src.includes("+XYXtZ")) continue;
 
-            const patched = src.replace(/\.toBinary\(t\)\.length>\d+/, ".toBinary(t).length>Number.MAX_SAFE_INTEGER");
-            if (patched === src) continue;
+            if (src.includes("Number.MAX_SAFE_INTEGER")) {
+                log("Limit already lifted on module", key);
+                return true;
+            }
 
-            const newFn = new Function("e", "t", "n", patched.slice(patched.indexOf("{") + 1, -1));
-            wreq.m[key] = newFn;
+            if (!LIMIT_RE.test(src)) continue;
 
-            delete wreq.c[key];
-            wreq(key);
+            const patched = src.replace(LIMIT_RE, ".toBinary(t).length>Number.MAX_SAFE_INTEGER");
+            if (patched === src) {
+                log("Limit already lifted on module", key);
+                return true;
+            }
+
+            const isArrow = patched.startsWith("(");
+            const wrapped = "0," + (isArrow ? "" : "function") + patched.slice(patched.indexOf("("));
+            webpackReq.m[key] = (0, eval)(wrapped);
+
+            delete webpackReq.c[key];
+            webpackReq(key);
 
             log("Runtime patch applied to module", key);
             return true;
