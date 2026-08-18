@@ -35,7 +35,7 @@ function MessageMenu({ message, channel, onHeightUpdate }) {
         !(message.author.id === UserStore.getCurrentUser().id || message.author.system);
 
     return useMessageMenu({
-        navId: "message-actions",
+        navId: "message",
         ariaLabel: getIntlMessage("MESSAGE_UTILITIES_A11Y_LABEL"),
 
         message,
@@ -108,6 +108,7 @@ export default definePlugin({
     },
 
     contextMenus: {
+        "message": contextMenuPatch,
         "message-actions": contextMenuPatch
     }
 });

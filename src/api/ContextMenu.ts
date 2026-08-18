@@ -163,12 +163,27 @@ function normalizeChildren(children: ContextMenuProps["children"]): Array<ReactE
     return Array.isArray(children) ? children : [children];
 }
 
+function getPatchesForNavId(navId: string): Set<NavContextMenuPatchCallback> | undefined {
+    const direct = navPatches.get(navId);
+    if (navId === "message-actions" || navId === "message") {
+        const messagePatches = navPatches.get("message");
+        const messageActionPatches = navPatches.get("message-actions");
+        if (messagePatches && messageActionPatches) {
+            const combined = new Set(messagePatches);
+            for (const p of messageActionPatches) combined.add(p);
+            return combined;
+        }
+        return messagePatches ?? messageActionPatches ?? direct;
+    }
+    return direct;
+}
+
 function applyAllPatches(
     navId: string,
     sourceChildren: ContextMenuProps["children"],
     args: Array<any>
 ): Array<ReactElement<any> | null> {
-    const contextMenuPatches = navPatches.get(navId);
+    const contextMenuPatches = getPatchesForNavId(navId);
     const hasPatches = (contextMenuPatches?.size ?? 0) > 0 || globalPatches.size > 0;
 
     let children = hasPatches
@@ -259,7 +274,7 @@ export function _usePatchContextMenu(props: ContextMenuProps) {
     props.contextMenuAPIArguments ??= [];
     const args = props.contextMenuAPIArguments;
 
-    const contextMenuPatches = navPatches.get(props.navId);
+    const contextMenuPatches = getPatchesForNavId(props.navId);
     const hasPatches = (contextMenuPatches?.size ?? 0) > 0 || globalPatches.size > 0;
 
     React.useEffect(() => {

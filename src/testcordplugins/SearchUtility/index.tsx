@@ -1176,7 +1176,7 @@ function MessageMenu({ channel, message, onHeightUpdate }: { channel: Channel; m
     const canReport = Boolean(message.author && !(message.author.id === currentUserId || message.author.system));
 
     return useMessageMenu({
-        navId: "message-actions",
+        navId: "message",
         ariaLabel: getIntlMessage("MESSAGE_UTILITIES_A11Y_LABEL"),
         message,
         channel,
@@ -1636,7 +1636,7 @@ export default definePlugin({
         addContextMenuPatch("message", selectedTextSearchContextMenuPatch);
         addContextMenuPatch("message", reverseImageMessageContextMenuPatch);
         addContextMenuPatch("image-context", reverseImageContextMenuPatch);
-        addContextMenuPatch("message-actions", fullSearchResultContextMenuPatch);
+        addContextMenuPatch(["message", "message-actions"], fullSearchResultContextMenuPatch);
         syncServerSearchButton(settings.store.showServerSearchButton);
         document.addEventListener("click", onDocumentClick, true);
     },
@@ -1646,7 +1646,7 @@ export default definePlugin({
         removeContextMenuPatch("message", selectedTextSearchContextMenuPatch);
         removeContextMenuPatch("message", reverseImageMessageContextMenuPatch);
         removeContextMenuPatch("image-context", reverseImageContextMenuPatch);
-        removeContextMenuPatch("message-actions", fullSearchResultContextMenuPatch);
+        removeContextMenuPatch(["message", "message-actions"], fullSearchResultContextMenuPatch);
         syncServerSearchButton(false);
         favoriteGifPickerInstance = null;
         document.removeEventListener("click", onDocumentClick, true);
