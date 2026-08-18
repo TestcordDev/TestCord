@@ -78,7 +78,7 @@ function SignatureIcon() {
 }
 
 const ChatBarContextCheckbox: NavContextMenuPatchCallback = children => {
-    const { isEnabled, contextMenu } = settings.use(["isEnabled", "contextMenu"]);
+    const { isEnabled, contextMenu } = settings.store;
     if (!contextMenu) return;
 
     const group = findGroupChildrenByChildId("submit-button", children);

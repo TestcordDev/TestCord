@@ -18,23 +18,17 @@
 
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { migratePluginSettings } from "@api/Settings";
+import { getUserSettingLazy } from "@api/UserSettings";
+import { copyToClipboard } from "@utils/clipboard";
 import { Devs } from "@utils/constants";
 import { getIntlMessage } from "@utils/discord";
-import { NoopComponent } from "@utils/react";
 import definePlugin from "@utils/types";
 import { Message } from "@vencord/discord-types";
-import { filters, findByCodeLazy, waitFor } from "@webpack";
-import { ChannelStore, ContextMenuApi, UserStore } from "@webpack/common";
+import { findByCodeLazy } from "@webpack";
+import { ChannelStore, ContextMenuApi, Menu, UserStore } from "@webpack/common";
 
+const DeveloperMode = getUserSettingLazy("appearance", "developerMode");
 const useMessageMenu = findByCodeLazy(".MESSAGE,commandTargetId:");
-
-interface CopyIdMenuItemProps {
-    id: string;
-    label: string;
-}
-
-let CopyIdMenuItem: (props: CopyIdMenuItemProps) => React.ReactElement | null = NoopComponent;
-waitFor(filters.componentByCode('"cannot copy null text"'), m => CopyIdMenuItem = m);
 
 function MessageMenu({ message, channel, onHeightUpdate }) {
     const canReport = message.author &&
@@ -69,11 +63,17 @@ interface MessageActionsProps {
 }
 
 const contextMenuPatch: NavContextMenuPatchCallback = (children, props: MessageActionsProps) => {
-    if (props?.isFullSearchContextMenu == null) return;
+    const authorId = props?.message?.author?.id;
+    if (props?.isFullSearchContextMenu == null || !authorId) return;
+    if (!DeveloperMode?.getSetting()) return;
 
     const group = findGroupChildrenByChildId("devmode-copy-id", children, true);
     group?.push(
-        CopyIdMenuItem({ id: props.message.author.id, label: getIntlMessage("COPY_ID_AUTHOR") })
+        <Menu.MenuItem
+            id="devmode-copy-id-author"
+            label={getIntlMessage("COPY_ID_AUTHOR")}
+            action={() => copyToClipboard(authorId)}
+        />
     );
 };
 

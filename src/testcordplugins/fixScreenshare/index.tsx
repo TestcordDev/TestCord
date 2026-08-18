@@ -17,7 +17,6 @@ let origHrefDescriptor: PropertyDescriptor | undefined;
 let origGo: ((delta?: number) => void) | undefined;
 let preventMediaError: ((event: ErrorEvent) => void) | null = null;
 let preventMediaRejection: ((event: PromiseRejectionEvent) => void) | null = null;
-let origConsoleError: typeof console.error | null = null;
 let suppressTimer: ReturnType<typeof setTimeout> | undefined;
 let suppressReload = false;
 let streaming = false;
@@ -163,17 +162,6 @@ export default definePlugin({
         };
         window.addEventListener("unhandledrejection", preventMediaRejection);
 
-        // Discord's FluxDispatcher catches exceptions in handlers and logs them
-        // via console.error. Intercept to capture those too.
-        origConsoleError = console.error;
-        console.error = function (...args: any[]) {
-            const msg = args.map(a => String(a)).join(" ");
-            if (isMediaErrorMsg(msg)) {
-                logErrorSync("console.error", args[0]);
-            }
-            return origConsoleError!.apply(console, args);
-        };
-
         try {
             const proto = Object.getPrototypeOf(window.location) as any;
 
@@ -236,10 +224,6 @@ export default definePlugin({
         if (preventMediaRejection) {
             window.removeEventListener("unhandledrejection", preventMediaRejection);
             preventMediaRejection = null;
-        }
-        if (origConsoleError) {
-            console.error = origConsoleError;
-            origConsoleError = null;
         }
         try {
             const proto = Object.getPrototypeOf(window.location) as any;

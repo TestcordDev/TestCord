@@ -132,8 +132,8 @@ export default definePlugin({
     },
 
     toolboxActions() {
-        const { location } = settings.use(["location"]);
-        const showCurrentGame = ShowCurrentGame.useSetting();
+        const { location } = settings.store;
+        const showCurrentGame = ShowCurrentGame.getSetting();
 
         if (location !== "TOOLBOX") return null;
 

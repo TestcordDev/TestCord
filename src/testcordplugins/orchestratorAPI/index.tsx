@@ -219,11 +219,12 @@ function makeHardenedNav(fn: NavPatch) {
         } catch (e) {
             const count = (failCounts.get(fn) ?? 0) + 1;
             failCounts.set(fn, count);
+            const patchName = fn.name || (fn as any).__name || "anonymous";
             if (count >= 5) {
                 disabledPatches.add(fn);
-                logger.warn(`Disabled a context menu patch after ${count} failures.`, e);
+                logger.warn(`Disabled context menu patch [${patchName}] after ${count} failures.`, e);
             } else {
-                logger.error("Context menu patch errored,", e);
+                logger.error(`Context menu patch [${patchName}] errored,`, e);
             }
         }
     };
@@ -245,11 +246,12 @@ function makeHardenedGlobal(fn: GlobalPatch) {
         } catch (e) {
             const count = (failCounts.get(fn) ?? 0) + 1;
             failCounts.set(fn, count);
+            const patchName = fn.name || (fn as any).__name || "anonymous";
             if (count >= 5) {
                 disabledPatches.add(fn);
-                logger.warn(`Disabled a global context menu patch after ${count} failures.`, e);
+                logger.warn(`Disabled global context menu patch [${patchName}] after ${count} failures.`, e);
             } else {
-                logger.error("Global context menu patch errored,", e);
+                logger.error(`Global context menu patch [${patchName}] on "${navId}" errored,`, e);
             }
         }
     };
