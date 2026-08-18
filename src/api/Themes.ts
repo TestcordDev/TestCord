@@ -27,6 +27,8 @@ import { coreStyleRootNode, managedStyleRootNode, userStyleRootNode, vencordRoot
 let style: HTMLStyleElement;
 let themesStyle: HTMLStyleElement;
 
+const themeChangeListeners = new Set<() => void>();
+
 function getThemeActivationMode(themeId: string) {
     return Settings.themeActivationModes?.[themeId] ?? "always";
 }
@@ -109,6 +111,7 @@ async function initThemes() {
 
     themesStyle.textContent = Array.from(links).map(link => `@import url("${link.trim()}");`).join("\n");
     updatePopoutWindows();
+    themeChangeListeners.forEach(listener => listener());
 }
 
 function applyToPopout(popoutWindow: Window | undefined, key: string) {
@@ -176,4 +179,12 @@ export function initQuickCssThemeStore(themeStore: ThemeStore) {
         currentTheme = themeStore.theme;
         initThemes();
     });
+}
+
+export function addThemeChangeListener(listener: () => void) {
+    themeChangeListeners.add(listener);
+}
+
+export function removeThemeChangeListener(listener: () => void) {
+    themeChangeListeners.delete(listener);
 }

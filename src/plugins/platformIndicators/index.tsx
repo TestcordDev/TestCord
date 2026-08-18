@@ -31,7 +31,7 @@ const { useStatusFillColor } = mapMangledModuleLazy([".5625*", "translate"], {
 });
 
 const platformMap = {
-    embedded: "Console",
+    embedded: "Embedded (Console or Game)",
     vr: "VR"
 };
 
@@ -89,7 +89,7 @@ const PlatformIcon = ({ platform, status, small, style }: { platform: any; statu
 };
 
 function useEnsureOwnStatus(user: User) {
-    // Member list rows are recycled across users as you scroll, so this instance can go from
+// Member list rows are recycled across users as you scroll, so this instance can go from
     // rendering someone else to rendering you. Gating the hook on that made the hook count
     // flip and tore down the row mid-render.
     const isOwnUser = user?.id === AuthenticationStore.getId();
@@ -143,7 +143,7 @@ const PlatformIndicator = ({ user, isProfile, isMessage, isMemberList }: Platfor
         />
     ));
 
-    if (!icons.length) {
+if (!icons.length) {
         return null;
     }
 

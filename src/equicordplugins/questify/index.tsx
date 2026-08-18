@@ -371,7 +371,7 @@ export default definePlugin({
             }
         },
         {
-            find: "QUEST_HOME_TILE_HEADER_WATCH_VIDEO})},",
+            find: "questNameHeadingId",
             group: true,
             predicate: () => !getQuestifySettings().disableQuestsEverything,
             replacement: [
@@ -420,7 +420,7 @@ export default definePlugin({
             ]
         },
         {
-            find: "QUEST_HOME_TILE_HEADER_WATCH_VIDEO})},",
+            find: "questNameHeadingId",
             group: true,
             predicate: () => !getQuestifySettings().disableQuestsEverything,
             replacement: [
