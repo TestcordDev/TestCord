@@ -5,6 +5,7 @@
  */
 
 import { isPluginEnabled } from "@api/PluginManager";
+import { RuntimeInteractions, RuntimeInterposition, RuntimeInterpositionPriority } from "@api/RuntimeInterposition";
 import { definePluginSettings } from "@api/Settings";
 import { Logger } from "@utils/Logger";
 import { isObject } from "@utils/misc";
@@ -147,56 +148,11 @@ function removeCss() {
 }
 
 /* -------------------------------------------------------------------------- */
-/*                          Cache cleaner (low-end mode)                      */
-/*                                                                            */
-/* IMPORTANT: We do NOT touch MessageStore._channelMessages directly because  */
-/* MessageLoggerEnhanced monkey-patches MessageStore.getMessage and maintains  */
-/* its own cache (combinedMessageCache). Deleting raw store entries bypasses   */
-/* this patch → stale references → crash on DM load.                          */
-/*                                                                            */
-/* Instead, we only force the native GC, which is sufficient to free memory   */
-/* without corrupting the internal state of the stores.                       */
-/* -------------------------------------------------------------------------- */
-
-let cacheCleanerInterval: ReturnType<typeof setInterval> | null = null;
-
-function forceGC() {
-    try {
-        if (typeof (window as any).gc === "function") {
-            (window as any).gc();
-            setTimeout(() => {
-                try { if (typeof (window as any).gc === "function") (window as any).gc(); } catch (err) { log.debug("Ignored error", err); }
-            }, 100);
-        }
-    } catch (err) { log.debug("Ignored error", err); }
-}
-
-function cacheCleanIntervalMs(): number {
-    return settings.store.lowEndMode ? 90 * 1000 : 5 * 60 * 1000;
-}
-
-function startCacheCleaner() {
-    stopCacheCleaner();
-    cacheCleanerInterval = setInterval(() => {
-        if (!settings.store.limitMsgCache) return;
-        // Only use the native GC — no direct manipulation of MessageStore
-        forceGC();
-    }, cacheCleanIntervalMs());
-}
-
-function stopCacheCleaner() {
-    if (cacheCleanerInterval !== null) {
-        clearInterval(cacheCleanerInterval);
-        cacheCleanerInterval = null;
-    }
-}
-
-/* -------------------------------------------------------------------------- */
 /*                       Background RAF throttle (FPS)                        */
 /* -------------------------------------------------------------------------- */
 
-let origRAF: typeof requestAnimationFrame | null = null;
-let origCancelRAF: typeof cancelAnimationFrame | null = null;
+let disposeRAF: (() => void) | null = null;
+let disposeCancelRAF: (() => void) | null = null;
 let bgFpsActive = false;
 const rafMap = new Map<number, ReturnType<typeof setTimeout>>();
 let rafSeq = 0;
@@ -208,7 +164,6 @@ function bgFrameIntervalMs(): number {
 function onVisibilityChange() {
     if (document.hidden) {
         installRafThrottle();
-        forceGC();
     } else if (document.hasFocus()) {
         uninstallRafThrottle();
     }
@@ -216,11 +171,18 @@ function onVisibilityChange() {
 
 function onWindowBlur() {
     installRafThrottle();
-    forceGC();
 }
 
 function onWindowFocus() {
     if (!document.hidden) uninstallRafThrottle();
+}
+
+function onPointerEnter() {
+    if (!document.hidden) uninstallRafThrottle();
+}
+
+function onPointerLeave() {
+    if (!document.hasFocus()) installRafThrottle();
 }
 
 function applyBgFpsPatch(enable: boolean) {
@@ -229,52 +191,60 @@ function applyBgFpsPatch(enable: boolean) {
         document.addEventListener("visibilitychange", onVisibilityChange);
         window.addEventListener("blur", onWindowBlur);
         window.addEventListener("focus", onWindowFocus);
+        window.addEventListener("pointerenter", onPointerEnter, { passive: true });
+        window.addEventListener("pointerleave", onPointerLeave, { passive: true });
         if (document.hidden || !document.hasFocus()) installRafThrottle();
     } else if (!enable && bgFpsActive) {
         bgFpsActive = false;
         document.removeEventListener("visibilitychange", onVisibilityChange);
         window.removeEventListener("blur", onWindowBlur);
         window.removeEventListener("focus", onWindowFocus);
+        window.removeEventListener("pointerenter", onPointerEnter);
+        window.removeEventListener("pointerleave", onPointerLeave);
         uninstallRafThrottle();
     }
 }
 
 function installRafThrottle() {
-    if (origRAF || !bgFpsActive) return;
-    origRAF = window.requestAnimationFrame;
-    origCancelRAF = window.cancelAnimationFrame;
+    if (disposeRAF || !bgFpsActive) return;
     let lastT = 0;
 
-    (window as any).requestAnimationFrame = function (cb: FrameRequestCallback) {
-        const id = ++rafSeq;
-        const now = performance.now();
-        const delay = Math.max(0, bgFrameIntervalMs() - (now - lastT));
-        const tId = setTimeout(() => {
-            rafMap.delete(id);
-            lastT = performance.now();
-            cb(performance.now());
-        }, delay);
-        rafMap.set(id, tId);
-        return id;
-    };
-
-    window.cancelAnimationFrame = function (id: number) {
-        const tId = rafMap.get(id);
-        if (tId !== undefined) {
-            clearTimeout(tId);
-            rafMap.delete(id);
-        } else if (origCancelRAF) {
-            origCancelRAF(id);
+    disposeRAF = RuntimeInterposition.register({
+        owner: "FastDiscord",
+        hook: "requestAnimationFrame",
+        priority: RuntimeInterpositionPriority.BEHAVIOR,
+        wrap: next => cb => {
+            if (RuntimeInteractions.isActive() || !document.hidden && (document.hasFocus() || document.documentElement.matches(":hover"))) return next(cb);
+            const id = ++rafSeq;
+            const now = performance.now();
+            const delay = Math.max(0, bgFrameIntervalMs() - (now - lastT));
+            const timer = setTimeout(() => {
+                rafMap.delete(id);
+                lastT = performance.now();
+                cb(performance.now());
+            }, delay);
+            rafMap.set(id, timer);
+            return id;
         }
-    };
+    });
+    disposeCancelRAF = RuntimeInterposition.register({
+        owner: "FastDiscord",
+        hook: "cancelAnimationFrame",
+        priority: RuntimeInterpositionPriority.BEHAVIOR,
+        wrap: next => id => {
+            const timer = rafMap.get(id);
+            if (timer === undefined) return next(id);
+            clearTimeout(timer);
+            rafMap.delete(id);
+        }
+    });
 }
 
 function uninstallRafThrottle() {
-    if (!origRAF) return;
-    window.requestAnimationFrame = origRAF;
-    if (origCancelRAF) window.cancelAnimationFrame = origCancelRAF;
-    origRAF = null;
-    origCancelRAF = null;
+    disposeRAF?.();
+    disposeCancelRAF?.();
+    disposeRAF = null;
+    disposeCancelRAF = null;
     for (const tId of rafMap.values()) clearTimeout(tId);
     rafMap.clear();
 }
@@ -288,7 +258,8 @@ const PRESENCE_DISPATCH_TYPES = new Set([
     "RUNNING_GAMES_CHANGE",
 ]);
 
-let origFluxDispatch: ((event: any) => unknown) | null = null;
+let origFluxDispatch: typeof FluxDispatcher.dispatch | null = null;
+let disposeFluxDispatch: (() => void) | null = null;
 const pendingPresenceDispatch = new Map<string, { event: any; timer: ReturnType<typeof setTimeout>; }>();
 
 function presenceDebounceMs(): number {
@@ -306,9 +277,9 @@ function flushPresenceDispatch(type: string) {
     }
 }
 
-function patchedDispatch(event: any) {
+function patchedDispatch(event: any): Promise<void> {
     if (!settings.store.throttlePresence || !event || !PRESENCE_DISPATCH_TYPES.has(event.type)) {
-        return origFluxDispatch?.call(FluxDispatcher, event);
+        return origFluxDispatch?.call(FluxDispatcher, event) ?? Promise.resolve();
     }
 
     const existing = pendingPresenceDispatch.get(event.type);
@@ -316,12 +287,20 @@ function patchedDispatch(event: any) {
 
     const timer = setTimeout(() => flushPresenceDispatch(event.type), presenceDebounceMs());
     pendingPresenceDispatch.set(event.type, { event, timer });
+    return Promise.resolve();
 }
 
 function applyPresenceThrottle(enable: boolean) {
-    if (enable && !origFluxDispatch) {
-        origFluxDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
-        (FluxDispatcher as any).dispatch = patchedDispatch;
+    if (enable && !disposeFluxDispatch) {
+        disposeFluxDispatch = RuntimeInterposition.register({
+            owner: "FastDiscord",
+            hook: "fluxDispatch",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: next => {
+                origFluxDispatch = next;
+                return patchedDispatch;
+            }
+        });
     } else if (!enable && origFluxDispatch) {
         for (const type of Array.from(pendingPresenceDispatch.keys())) {
             const pending = pendingPresenceDispatch.get(type)!;
@@ -329,7 +308,8 @@ function applyPresenceThrottle(enable: boolean) {
             try { origFluxDispatch.call(FluxDispatcher, pending.event); } catch (err) { log.debug("Ignored error", err); }
         }
         pendingPresenceDispatch.clear();
-        (FluxDispatcher as any).dispatch = origFluxDispatch;
+        disposeFluxDispatch?.();
+        disposeFluxDispatch = null;
         origFluxDispatch = null;
     }
 }
@@ -400,9 +380,9 @@ const settings = definePluginSettings({
     },
     limitMsgCache: {
         type: OptionType.BOOLEAN,
-        description: t("استدعاء دوري لجامع القمامة لتحرير ذاكرة الرسائل", "Periodically call the native GC to free message memory"),
-        default: true,
-        onChange(v: boolean) { if (!started) return; if (!v) stopCacheCleaner(); else startCacheCleaner(); }
+        description: t("تم تعطيل جمع القمامة القسري لأنه قد يتسبب في توقفات متقطعة", "Disabled because forced garbage collection can cause intermittent pauses"),
+        default: false,
+        disabled: true
     },
     reduceFpsBackground: {
         type: OptionType.BOOLEAN,
@@ -418,11 +398,10 @@ const settings = definePluginSettings({
     },
     lowEndMode: {
         type: OptionType.BOOLEAN,
-        description: t("وضع الأجهزة الضعيفة: جمع قمامة أكثر تكراراً وإطارات خلفية أقل", "Low-end PC mode: more frequent GC and lower background FPS"),
+        description: t("وضع الأجهزة الضعيفة: إطارات خلفية أقل", "Low-end PC mode: lower background FPS"),
         default: false,
         onChange(_v: boolean) {
             if (!started) return;
-            if (settings.store.limitMsgCache) startCacheCleaner();
             if (bgFpsActive) { applyBgFpsPatch(false); applyBgFpsPatch(true); }
         }
     },
@@ -478,6 +457,7 @@ export default definePlugin({
 
     start() {
         started = true;
+        settings.store.limitMsgCache = false;
 
         if (settings.store.disableSpringAnimations && !isPluginEnabled("DisableAnimations")) {
             loadSprings();
@@ -486,7 +466,6 @@ export default definePlugin({
 
         injectCss();
 
-        if (settings.store.limitMsgCache) startCacheCleaner();
         if (settings.store.reduceFpsBackground) applyBgFpsPatch(true);
         if (settings.store.throttlePresence) applyPresenceThrottle(true);
 
@@ -502,7 +481,6 @@ export default definePlugin({
         springs = [];
 
         removeCss();
-        stopCacheCleaner();
         applyBgFpsPatch(false);
         applyPresenceThrottle(false);
 

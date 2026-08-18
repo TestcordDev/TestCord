@@ -8,12 +8,17 @@ import "./PrivacySecurityPanel.css";
 
 import { useSettings } from "@api/Settings";
 import { SettingsTab } from "@components/settings/tabs/BaseTab";
-import { React, useEffect, useRef, useState } from "@webpack/common";
+import { React, TabBar, useEffect, useRef, useState } from "@webpack/common";
+
+import { ExperimentalPanel } from "./ExperimentalPanel";
 
 export interface CoveredSurfacesState {
     scienceAnalytics: boolean;
     metrics: boolean;
     sentry: boolean;
+    experimentalTracing: boolean;
+    experimentalRtcDiagnostics: boolean;
+    experimentalRemoteLogging: boolean;
     tokenGuard: boolean;
     webhookGuard: boolean;
     remoteCodeGuard: boolean;
@@ -249,6 +254,7 @@ function formatAbsoluteTime(ts: number): string {
 }
 
 export function PrivacySecurityPanel() {
+    const [activeView, setActiveView] = useState<"overview" | "experimental">("overview");
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState("");
@@ -348,6 +354,9 @@ export function PrivacySecurityPanel() {
         scienceAnalytics: true,
         metrics: true,
         sentry: true,
+        experimentalTracing: false,
+        experimentalRtcDiagnostics: false,
+        experimentalRemoteLogging: false,
         tokenGuard: true,
         webhookGuard: true,
         remoteCodeGuard: true,
@@ -779,23 +788,33 @@ export function PrivacySecurityPanel() {
     return (
         <SettingsTab>
             <div className="ps-command-center">
-                {ipcError && (
-                    <div className="ps-alert-banner" role="alert">
-                        <div className="ps-alert-banner-head">
-                            <div className="ps-alert-banner-title">
-                                <span className="ps-alert-banner-icon">⚠</span>
-                                Connection issue
+                <TabBar
+                    className="vc-settings-tab-bar"
+                    type="top"
+                    selectedItem={activeView}
+                    onItemSelect={setActiveView}
+                >
+                    <TabBar.Item className="vc-settings-tab-bar-item" id="overview">Overview</TabBar.Item>
+                    <TabBar.Item className="vc-settings-tab-bar-item" id="experimental">Experimental</TabBar.Item>
+                </TabBar>
+                {activeView === "experimental" ? <ExperimentalPanel /> : <>
+                    {ipcError && (
+                        <div className="ps-alert-banner" role="alert">
+                            <div className="ps-alert-banner-head">
+                                <div className="ps-alert-banner-title">
+                                    <span className="ps-alert-banner-icon">⚠</span>
+                                    Connection issue
+                                </div>
                             </div>
-                        </div>
-                        <div className="ps-alert-list">
-                            <div className="ps-alert-item">
-                                <div className="ps-alert-msg">
-                                    Couldn't reach the privacy service — the data below may be stale. Retrying automatically.
+                            <div className="ps-alert-list">
+                                <div className="ps-alert-item">
+                                    <div className="ps-alert-msg">
+                                        Couldn't reach the privacy service — the data below may be stale. Retrying automatically.
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
                 <div className="ps-card">
                     <div className="ps-card-header">
                         <div className="ps-header-title-group">
@@ -1307,6 +1326,7 @@ export function PrivacySecurityPanel() {
                         </div>
                     </div>
                 </div>
+                </>}
             </div>
 
             {selectedBlock && (

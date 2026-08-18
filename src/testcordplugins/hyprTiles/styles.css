@@ -210,7 +210,8 @@
 }
 
 .vc-hyprtiles-tile-live-bounds {
-    transition: none !important;
+    transition: none !important; /* Discord's animated tile transition must not lag behind the pointer. */
+    will-change: transform;
 }
 
 .vc-hyprtiles-tile-header {

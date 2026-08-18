@@ -45,6 +45,9 @@ export interface CoveredSurfacesState {
     scienceAnalytics: boolean;
     metrics: boolean;
     sentry: boolean;
+    experimentalTracing: boolean;
+    experimentalRtcDiagnostics: boolean;
+    experimentalRemoteLogging: boolean;
     tokenGuard: boolean;
     webhookGuard: boolean;
     remoteCodeGuard: boolean;
@@ -66,6 +69,9 @@ const DEFAULT_SURFACES: CoveredSurfacesState = {
     scienceAnalytics: true,
     metrics: true,
     sentry: true,
+    experimentalTracing: false,
+    experimentalRtcDiagnostics: false,
+    experimentalRemoteLogging: false,
     tokenGuard: true,
     webhookGuard: true,
     remoteCodeGuard: true,
@@ -133,10 +139,20 @@ const TRACKING_PARAMS = [
     "ttclid",
     // Twitter / X
     "twclid",
+    // LinkedIn
+    "li_fat_id",
+    // Reddit
+    "rdt_cid",
+    // Snapchat
+    "sccid",
+    // Pinterest
+    "epik",
+    // Impact / Commission Junction affiliate attribution
+    "irclickid", "cjevent",
     // Mailchimp
     "mc_eid", "mc_cid",
     // HubSpot
-    "_hsenc", "_hsmi", "__hssc", "__hstc", "__hsfp", "hsCtaTracking",
+    "_hsenc", "_hsmi", "__hssc", "__hstc", "__hsfp", "hsctatracking",
     // Yandex
     "yclid", "_openstat",
     // Marketo / Vero / Piwik / Matomo
@@ -505,9 +521,14 @@ class TrafficGuardEngine {
             // generic Fetch/XHR/Beacon shield is on. The generic shield only
             // applies to telemetry-shaped patterns none of the specific
             // shields already claimed.
+            const path = new URL(url).pathname.toLowerCase();
+            const isDiscordApi = isFirstParty(host) && path.includes("/api/");
+            const isScienceTrack = isDiscordApi && (path.includes("/science") || path.includes("/track"));
+            const isMetrics = isDiscordApi && path.includes("/metrics");
             const isSentry = url.includes("sentry.io");
-            const isMetrics = url.includes("/api/") && url.includes("/metrics");
-            const isScienceTrack = url.includes("/api/") && (url.includes("/science") || url.includes("/track"));
+            const isTracing = isDiscordApi && path.endsWith("/tracing");
+            const isRtcDiagnostics = isDiscordApi && /\/(?:rtc|voice)\/(?:quality-report|diagnostics)\/?$/.test(path);
+            const isRemoteLogging = isDiscordApi && /\/debug-logs(?:\/|$)/.test(path);
             const isResidualPattern = !isSentry && !isMetrics && !isScienceTrack && BLOCKED_PATTERNS.some(p => {
                 if (p.includes("*")) {
                     const regex = new RegExp(p.replace(/\*/g, ".*"));
@@ -520,6 +541,9 @@ class TrafficGuardEngine {
                 (isSentry && this.shields.sentry)
                 || (isMetrics && this.shields.metrics)
                 || (isScienceTrack && this.shields.scienceAnalytics)
+                || (isTracing && this.shields.experimentalTracing)
+                || (isRtcDiagnostics && this.shields.experimentalRtcDiagnostics)
+                || (isRemoteLogging && this.shields.experimentalRemoteLogging)
                 || (isResidualPattern && this.shields.fetchXhrBeacon);
 
             if (shouldBlockTelemetry) {
@@ -534,6 +558,9 @@ class TrafficGuardEngine {
                 let category = "tracking";
                 if (isSentry) category = "sentry";
                 else if (isMetrics) category = "metrics";
+                else if (isTracing) category = "tracing";
+                else if (isRtcDiagnostics) category = "rtcDiagnostics";
+                else if (isRemoteLogging) category = "remoteLogging";
 
                 this.logBlockedEvent(url, "Dropped & Stripped", category, "blocked");
                 return callback({ cancel: true });

@@ -7,6 +7,7 @@
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
 import { PluginHealth } from "@api/PluginHealth";
 import { isPluginEnabled, isPluginRequired, plugins as Plugins, pluginStartTimings, startPlugin, stopPlugin } from "@api/PluginManager";
+import { RuntimeInterposition, RuntimeInterpositionPriority } from "@api/RuntimeInterposition";
 import { definePluginSettings, Settings, SettingsStore, useSettings } from "@api/Settings";
 import { getUserSettingLazy } from "@api/UserSettings";
 import { BaseText } from "@components/BaseText";
@@ -67,6 +68,8 @@ function uninstallCrashGuards() {
 
 let origDispatch: ((payload: any) => void) | null = null;
 let origSubscribe: ((event: string, handler: (...args: any[]) => void) => void) | null = null;
+let disposeDispatch: (() => void) | null = null;
+let disposeSubscribe: (() => void) | null = null;
 const dispatchStats = new Map<string, { count: number; totalMs: number; maxMs: number; }>();
 const pluginDispatchStats = new Map<string, { count: number; totalMs: number; maxMs: number; }>();
 let channelSwitchStart = 0;
@@ -294,48 +297,68 @@ function installDebugInstrumentation() {
     buildHandlerPluginMap();
 
     if (!FluxDispatcher?.dispatch) return;
-    origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher) as (payload: any) => void;
-    FluxDispatcher.dispatch = function (payload: any) {
-        currentDispatchCost.clear();
-        const t0 = performance.now();
-        const result = (origDispatch as any).call(FluxDispatcher, payload);
-        const dt = performance.now() - t0;
+    disposeDispatch = RuntimeInterposition.register({
+        owner: "TestcordHelper",
+        hook: "fluxDispatch",
+        priority: RuntimeInterpositionPriority.DIAGNOSTICS,
+        wrap: next => {
+            origDispatch = next as (payload: any) => void;
+            return function (payload: any) {
+                currentDispatchCost.clear();
+                const t0 = performance.now();
+                const result = next.call(FluxDispatcher, payload);
+                const dt = performance.now() - t0;
 
-        const stat = dispatchStats.get(payload.type) ?? { count: 0, totalMs: 0, maxMs: 0 };
-        stat.count++;
-        stat.totalMs += dt;
-        stat.maxMs = Math.max(stat.maxMs, dt);
-        dispatchStats.set(payload.type, stat);
+                const stat = dispatchStats.get(payload.type) ?? { count: 0, totalMs: 0, maxMs: 0 };
+                stat.count++;
+                stat.totalMs += dt;
+                stat.maxMs = Math.max(stat.maxMs, dt);
+                dispatchStats.set(payload.type, stat);
 
-        if (dt > SLOW_DISPATCH_MS) {
-            const blame = describeDispatchBlame(payload.type, dt);
-            recentSlowEvents.push({ at: Date.now(), type: payload.type, ms: Math.round(dt * 10) / 10, plugins: blame.plugins });
-            if (recentSlowEvents.length > RECENT_EVENTS_LIMIT) recentSlowEvents.shift();
-            console.warn(`%c[TestcordHelper] Slow dispatch: %c${payload.type}%c took ${dt.toFixed(1)}ms${blame.text}`, "color: #ff4f4f;", "color: #ffaa00; font-weight: bold;", "color: inherit;");
+                if (dt > SLOW_DISPATCH_MS) {
+                    const blame = describeDispatchBlame(payload.type, dt);
+                    recentSlowEvents.push({ at: Date.now(), type: payload.type, ms: Math.round(dt * 10) / 10, plugins: blame.plugins });
+                    if (recentSlowEvents.length > RECENT_EVENTS_LIMIT) recentSlowEvents.shift();
+                    console.warn(`%c[TestcordHelper] Slow dispatch: %c${payload.type}%c took ${dt.toFixed(1)}ms${blame.text}`, "color: #ff4f4f;", "color: #ffaa00; font-weight: bold;", "color: inherit;");
+                }
+
+                if (payload.type === "CHANNEL_SELECT") {
+                    channelSwitchStart = t0;
+                } else if (channelSwitchStart && payload.type === "LOAD_MESSAGES_SUCCESS") {
+                    // Only LOAD_MESSAGES_SUCCESS means "the messages are here". Stopping the clock on
+                    // MESSAGE_CREATE measured how long until somebody happened to send a message,
+                    // which reported multi-second channel loads that never happened.
+                    const elapsed = t0 - channelSwitchStart;
+                    logger.info(`Channel load took ${elapsed.toFixed(1)}ms`);
+                    channelSwitchStart = 0;
+                }
+
+                return result;
+            };
         }
+    });
 
-        if (payload.type === "CHANNEL_SELECT") {
-            channelSwitchStart = t0;
-        } else if (channelSwitchStart && payload.type === "LOAD_MESSAGES_SUCCESS") {
-            // Only LOAD_MESSAGES_SUCCESS means "the messages are here". Stopping the clock on
-            // MESSAGE_CREATE measured how long until somebody happened to send a message,
-            // which reported multi-second channel loads that never happened.
-            const elapsed = t0 - channelSwitchStart;
-            logger.info(`Channel load took ${elapsed.toFixed(1)}ms`);
-            channelSwitchStart = 0;
-        }
-
-        return result;
-    };
-
-    origSubscribe = FluxDispatcher.subscribe.bind(FluxDispatcher) as (event: string, handler: (...args: any[]) => void) => void;
-    FluxDispatcher.subscribe = function (event: string, handler: (...args: any[]) => void) {
-        const name = handlerPluginMap.get(handler);
-        if (name && !handlerWrappers.has(handler)) {
-            handler = wrapHandlerTiming(handler);
-        }
-        return (origSubscribe as any).call(FluxDispatcher, event, handler);
-    };
+    try {
+        disposeSubscribe = RuntimeInterposition.register({
+            owner: "TestcordHelper",
+            hook: "fluxSubscribe",
+            priority: RuntimeInterpositionPriority.DIAGNOSTICS,
+            wrap: next => {
+                origSubscribe = next as (event: string, handler: (...args: any[]) => void) => void;
+                return function (event: any, handler: (...args: any[]) => void) {
+                    const name = handlerPluginMap.get(handler);
+                    if (name && !handlerWrappers.has(handler)) handler = wrapHandlerTiming(handler);
+                    return next.call(FluxDispatcher, event, handler);
+                };
+            }
+        });
+    } catch (error) {
+        disposeDispatch();
+        disposeDispatch = null;
+        origDispatch = null;
+        logger.error("Failed to install debug instrumentation:", error);
+        return;
+    }
 
     let wrappedCount = 0;
     try {
@@ -359,14 +382,12 @@ function installDebugInstrumentation() {
 }
 
 function uninstallDebugInstrumentation() {
-    if (origDispatch) {
-        FluxDispatcher.dispatch = origDispatch as any;
-        origDispatch = null;
-    }
-    if (origSubscribe) {
-        FluxDispatcher.subscribe = origSubscribe as any;
-        origSubscribe = null;
-    }
+    disposeDispatch?.();
+    disposeSubscribe?.();
+    disposeDispatch = null;
+    disposeSubscribe = null;
+    origDispatch = null;
+    origSubscribe = null;
     dispatchStats.clear();
     pluginDispatchStats.clear();
     handlerPluginMap.clear();

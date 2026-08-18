@@ -6,6 +6,8 @@
 
 import { Logger } from "@utils/Logger";
 
+import { type RuntimeHookOwnership,RuntimeInterposition, RuntimeInterpositionPriority } from "./RuntimeInterposition";
+
 const logger = new Logger("PluginProfiler", "#3498db");
 
 // Best-effort plugin attribution from the call stack, mirroring the approach
@@ -42,6 +44,8 @@ export interface PluginProfileData {
     activeResources: number;
     activeIntervals: number;
     activeListeners: number;
+    activeHookLayers: number;
+    hookOwnership: RuntimeHookOwnership[];
     heapBytes: number;
     heapMB: number;
     lastHeapDeltaMB: number;
@@ -77,8 +81,8 @@ let slowCallThresholdMs = 16; // configurable threshold for slow call spikes
 let instrumented = false;
 let originalSetInterval: typeof window.setInterval | null = null;
 let originalClearInterval: typeof window.clearInterval | null = null;
-let originalAddEventListener: typeof EventTarget.prototype.addEventListener | null = null;
-let originalRemoveEventListener: typeof EventTarget.prototype.removeEventListener | null = null;
+let disposeAddEventListener: (() => void) | null = null;
+let disposeRemoveEventListener: (() => void) | null = null;
 
 // Maps a live interval id to the plugin it was attributed to, so clearInterval
 // can decrement the right plugin without re-walking the (now unrelated) stack.
@@ -186,13 +190,9 @@ export const PluginProfiler = {
 
         originalSetInterval = window.setInterval;
         originalClearInterval = window.clearInterval;
-        originalAddEventListener = EventTarget.prototype.addEventListener;
-        originalRemoveEventListener = EventTarget.prototype.removeEventListener;
 
         const setIntervalOrig = originalSetInterval;
         const clearIntervalOrig = originalClearInterval;
-        const addOrig = originalAddEventListener;
-        const removeOrig = originalRemoveEventListener;
 
         window.setInterval = function (this: unknown, ...args: any[]) {
             const id = setIntervalOrig.apply(this, args as any) as unknown as number;
@@ -221,44 +221,54 @@ export const PluginProfiler = {
             return clearIntervalOrig.call(this, id as any);
         } as typeof window.clearInterval;
 
-        EventTarget.prototype.addEventListener = function (
-            this: EventTarget,
-            type: string,
-            listener: EventListenerOrEventListenerObject | null,
-            options?: boolean | AddEventListenerOptions
-        ) {
-            const ret = addOrig.call(this, type, listener, options);
-            if (listener) {
-                const plugin = guessPluginFromStack();
-                if (plugin) {
-                    const metrics = ensureMetrics(plugin);
-                    metrics.activeListeners.add({ target: this, type, listener });
-                    notifySubscribers();
+        disposeAddEventListener = RuntimeInterposition.register({
+            owner: "PluginProfiler",
+            hook: "addEventListener",
+            priority: RuntimeInterpositionPriority.DIAGNOSTICS,
+            wrap: next => function (
+                this: EventTarget,
+                type: string,
+                listener: EventListenerOrEventListenerObject | null,
+                options?: boolean | AddEventListenerOptions
+            ) {
+                const ret = next.call(this, type, listener, options);
+                if (listener) {
+                    const plugin = guessPluginFromStack();
+                    if (plugin) {
+                        const metrics = ensureMetrics(plugin);
+                        metrics.activeListeners.add({ target: this, type, listener });
+                        notifySubscribers();
+                    }
                 }
+                return ret;
             }
-            return ret;
-        };
+        });
 
-        EventTarget.prototype.removeEventListener = function (
-            this: EventTarget,
-            type: string,
-            listener: EventListenerOrEventListenerObject | null,
-            options?: boolean | EventListenerOptions
-        ) {
-            const ret = removeOrig.call(this, type, listener, options);
-            if (listener) {
-                for (const metrics of metricsRegistry.values()) {
-                    for (const item of metrics.activeListeners) {
-                        if (item.target === this && item.type === type && item.listener === listener) {
-                            metrics.activeListeners.delete(item);
-                            notifySubscribers();
-                            break;
+        disposeRemoveEventListener = RuntimeInterposition.register({
+            owner: "PluginProfiler",
+            hook: "removeEventListener",
+            priority: RuntimeInterpositionPriority.DIAGNOSTICS,
+            wrap: next => function (
+                this: EventTarget,
+                type: string,
+                listener: EventListenerOrEventListenerObject | null,
+                options?: boolean | EventListenerOptions
+            ) {
+                const ret = next.call(this, type, listener, options);
+                if (listener) {
+                    for (const metrics of metricsRegistry.values()) {
+                        for (const item of metrics.activeListeners) {
+                            if (item.target === this && item.type === type && item.listener === listener) {
+                                metrics.activeListeners.delete(item);
+                                notifySubscribers();
+                                break;
+                            }
                         }
                     }
                 }
+                return ret;
             }
-            return ret;
-        };
+        });
     },
 
     /**
@@ -270,8 +280,10 @@ export const PluginProfiler = {
         if (!instrumented || typeof window === "undefined") return;
         if (originalSetInterval) window.setInterval = originalSetInterval;
         if (originalClearInterval) window.clearInterval = originalClearInterval;
-        if (originalAddEventListener) EventTarget.prototype.addEventListener = originalAddEventListener;
-        if (originalRemoveEventListener) EventTarget.prototype.removeEventListener = originalRemoveEventListener;
+        disposeAddEventListener?.();
+        disposeRemoveEventListener?.();
+        disposeAddEventListener = null;
+        disposeRemoveEventListener = null;
         instrumented = false;
     },
 
@@ -398,7 +410,9 @@ export const PluginProfiler = {
         const asyncTimeMs = Math.round((metrics?.asyncTimeMs ?? 0) * 10) / 10;
         const activeIntervals = metrics?.activeIntervals.size ?? 0;
         const activeListeners = metrics?.activeListeners.size ?? 0;
-        const activeResources = activeIntervals + activeListeners;
+        const hookOwnership = RuntimeInterposition.getActiveHooks(pluginName);
+        const activeHookLayers = hookOwnership.length;
+        const activeResources = activeIntervals + activeListeners + activeHookLayers;
         const lastHeapDeltaMB = metrics?.lastHeapDeltaMB ?? 0;
 
         const impactScore = calculateImpactScore(cpuMs, slowSpikes, activeResources);
@@ -416,6 +430,8 @@ export const PluginProfiler = {
             activeResources,
             activeIntervals,
             activeListeners,
+            activeHookLayers,
+            hookOwnership,
             heapBytes,
             heapMB,
             lastHeapDeltaMB,

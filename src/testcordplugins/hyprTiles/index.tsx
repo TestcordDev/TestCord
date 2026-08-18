@@ -7,6 +7,7 @@
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption } from "@api/Commands";
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { addHeaderBarButton, removeHeaderBarButton } from "@api/HeaderBar";
+import { SettingsStore } from "@api/Settings";
 import { EquicordDevs } from "@utils/constants";
 import { classNameFactory } from "@utils/css";
 import definePlugin from "@utils/types";
@@ -31,6 +32,7 @@ import {
     toggleAutoLayoutMode,
     toggleScratchpadById,
 } from "./controller";
+import { migrateHyprTilesSettings } from "./migration";
 import { settings } from "./settings";
 import { HyprTilesStore, initializeHyprTilesStore } from "./store";
 import managedStyle from "./styles.css?managed";
@@ -38,6 +40,12 @@ import { RouteRenderPropsLike } from "./types";
 
 type ContextMenuChildren = Array<React.ReactElement<object> | null | undefined>;
 const cl = classNameFactory("vc-hyprtiles-");
+const BORDER_SETTING_PATHS = [
+    "enableBorders", "borderWidth", "borderColor", "borderColorEnd",
+    "animationSpeed", "enableGradients", "animatedBorder", "showChannelName"
+] as const;
+
+if (migrateHyprTilesSettings(SettingsStore.plain.plugins)) SettingsStore.markAsChanged();
 
 function insertItem(children: ContextMenuChildren, item: React.ReactElement<object>, fallbackAtEnd = true) {
     const ids = [
@@ -190,7 +198,7 @@ export default definePlugin({
         {
             find: '"BACK_FORWARD_NAVIGATION"',
             replacement: {
-                match: /(\i&&\(0,\i\.jsx\)\(\i\.\i,\{firstElementFocusJumpSectionProps:"BACK_FORWARD_NAVIGATION"===\i\?\i:void 0\}\))/,
+                match: /(\i&&\(0,\i\.jsx\)\((?:\i\.)?\i,\{firstElementFocusJumpSectionProps:"BACK_FORWARD_NAVIGATION"===\i\?\i:void 0\}\))/,
                 replace: "$1,$self.renderWorkspaceSwitcher()"
             }
         },
@@ -253,10 +261,8 @@ export default definePlugin({
         return wrapped;
     },
 
-    _borderScanQueued: false,
-    _borderObserver: null as ReturnType<typeof setInterval> | null,
     _applyBordersKey: null as string | null,
-    _startupTimer: null as ReturnType<typeof setTimeout> | null,
+    _applyBordersListener: null as (() => void) | null,
 
     start() {
         initializeHyprTilesStore();
@@ -264,20 +270,10 @@ export default definePlugin({
         attachKeyListener();
         addHeaderBarButton("HyprTiles-hotkeys", () => <HotkeyReferenceButton />, 6);
 
-        this._startupTimer = setTimeout(() => {
-            this._startupTimer = null;
-            this.applyBorders();
-        }, 1000);
-
-        const observer = setInterval(() => {
-            if (this._borderScanQueued) return;
-            this._borderScanQueued = true;
-            requestAnimationFrame(() => {
-                this._borderScanQueued = false;
-                this.applyBorders();
-            });
-        }, 1000);
-        this._borderObserver = observer;
+        this._applyBordersListener = () => this.applyBorders();
+        for (const setting of BORDER_SETTING_PATHS)
+            SettingsStore.addChangeListener(`plugins.HyprTiles.${setting}`, this._applyBordersListener);
+        this.applyBorders();
     },
 
     stop() {
@@ -286,14 +282,10 @@ export default definePlugin({
         removeHeaderBarButton("HyprTiles-hotkeys");
         this.removeBorders();
 
-        if (this._startupTimer !== null) {
-            clearTimeout(this._startupTimer);
-            this._startupTimer = null;
-        }
-        this._borderScanQueued = false;
-        if (this._borderObserver) {
-            clearInterval(this._borderObserver);
-            this._borderObserver = null;
+        if (this._applyBordersListener) {
+            for (const setting of BORDER_SETTING_PATHS)
+                SettingsStore.removeChangeListener(`plugins.HyprTiles.${setting}`, this._applyBordersListener);
+            this._applyBordersListener = null;
         }
     },
 

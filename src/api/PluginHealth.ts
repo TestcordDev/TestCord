@@ -60,9 +60,32 @@ export interface RuntimeError {
     at: number;
 }
 
+export interface RuntimeHookEvidence {
+    owner: string;
+    hook: string;
+    priority: number;
+}
+
+export interface ResourceDelta {
+    timers: number;
+    listeners: number;
+    observers: number;
+    subscriptions: number;
+    hookLayers: number;
+}
+
+export interface CallbackPercentiles {
+    p50Ms: number;
+    p95Ms: number;
+    p99Ms: number;
+}
+
 interface PluginHealthEntry {
     patchFailures: PatchFailure[];
     runtimeErrors: RuntimeError[];
+    runtimeHooks?: RuntimeHookEvidence[];
+    resourceDelta?: ResourceDelta;
+    callbackPercentiles?: CallbackPercentiles;
 }
 
 export type { PluginHealthEntry };
@@ -136,6 +159,7 @@ const DB_KEY_HISTORY = "PluginHealthHistory_v1";
 
 const registry = new Map<string, PluginHealthEntry>();
 const listeners = new Set<() => void>();
+let runtimeHookProvider: ((plugin: string) => RuntimeHookEvidence[]) | null = null;
 
 const currentSession: SessionRecord = createSession();
 let history: SessionRecord[] = [];
@@ -167,7 +191,7 @@ function truncate(value: string): string {
 function ensureEntry(plugin: string): PluginHealthEntry {
     let entry = registry.get(plugin);
     if (!entry) {
-        entry = { patchFailures: [], runtimeErrors: [] };
+        entry = { patchFailures: [], runtimeErrors: [], runtimeHooks: [] };
         registry.set(plugin, entry);
     }
     return entry;
@@ -370,11 +394,14 @@ export const PluginHealth = {
     /** Get a snapshot of a plugin's health entry, or `undefined` if the plugin is healthy. */
     get(plugin: string): PluginHealthEntry | undefined {
         const entry = registry.get(plugin);
-        if (!entry) return undefined;
-        if (!entry.patchFailures.length && !entry.runtimeErrors.length) return undefined;
+        const runtimeHooks = runtimeHookProvider?.(plugin) ?? [];
+        if (!entry && !runtimeHooks.length) return undefined;
         return {
-            patchFailures: [...entry.patchFailures],
-            runtimeErrors: [...entry.runtimeErrors]
+            patchFailures: [...(entry?.patchFailures ?? [])],
+            runtimeErrors: [...(entry?.runtimeErrors ?? [])],
+            runtimeHooks,
+            resourceDelta: entry?.resourceDelta,
+            callbackPercentiles: entry?.callbackPercentiles
         };
     },
 
@@ -385,7 +412,10 @@ export const PluginHealth = {
             if (entry.patchFailures.length || entry.runtimeErrors.length) {
                 snapshot.set(name, {
                     patchFailures: [...entry.patchFailures],
-                    runtimeErrors: [...entry.runtimeErrors]
+                    runtimeErrors: [...entry.runtimeErrors],
+                    runtimeHooks: runtimeHookProvider?.(name) ?? [],
+                    resourceDelta: entry.resourceDelta,
+                    callbackPercentiles: entry.callbackPercentiles
                 });
             }
         }
@@ -497,6 +527,11 @@ export const PluginHealth = {
     subscribe(listener: () => void): () => void {
         listeners.add(listener);
         return () => listeners.delete(listener);
+    },
+
+    setRuntimeHookProvider(provider: ((plugin: string) => RuntimeHookEvidence[]) | null) {
+        runtimeHookProvider = provider;
+        notify();
     },
 
     // ─── Safe Mode & Crash Recovery ─────────────────────────

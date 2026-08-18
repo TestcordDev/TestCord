@@ -12,6 +12,7 @@ import * as DataStore from "@api/DataStore";
 import { HeaderBarButton } from "@api/HeaderBar";
 import { popNotice, showNotice } from "@api/Notices";
 import { showNotification } from "@api/Notifications";
+import { RuntimeInterposition, RuntimeInterpositionPriority } from "@api/RuntimeInterposition";
 import { getUserSettingLazy } from "@api/UserSettings";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
@@ -70,7 +71,7 @@ function removeCss() {
 
 // ── Runtime Optimizations (One-shot per activation, no loops/timers) ──
 const PASSIVE_EVENTS = ["wheel", "mousewheel", "touchstart", "touchmove", "touchend"];
-let originalAddEventListener: typeof EventTarget.prototype.addEventListener | null = null;
+let disposePassiveListeners: (() => void) | null = null;
 let springs: { Globals?: { assign?: (o: Record<string, unknown>) => void; }; }[] = [];
 
 // Clear cache of heavy stores to free memory (optional — re-fetches lazily).
@@ -101,16 +102,19 @@ function applyRuntimeOpts() {
         for (const s of springs) s.Globals?.assign?.({ skipAnimation: true });
     }
     // Make scroll/touch listeners passive — smoother scrolling (revertible)
-    if (settings.store.passiveListeners && !originalAddEventListener) {
-        originalAddEventListener = EventTarget.prototype.addEventListener;
-        const orig = originalAddEventListener;
-        EventTarget.prototype.addEventListener = function (this: EventTarget, type: string, listener: any, options?: any) {
-            if (PASSIVE_EVENTS.includes(type) && listener != null) {
-                if (typeof options === "boolean" || options === undefined) options = { capture: !!options, passive: true };
-                else if (options.passive === undefined) options = { ...options, passive: true };
+    if (settings.store.passiveListeners && !disposePassiveListeners) {
+        disposePassiveListeners = RuntimeInterposition.register({
+            owner: "PerformanceBoost",
+            hook: "addEventListener",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: next => function (this: EventTarget, type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) {
+                if (PASSIVE_EVENTS.includes(type) && listener != null) {
+                    if (typeof options === "boolean" || options === undefined) options = { capture: !!options, passive: true };
+                    else if (options.passive === undefined) options = { ...options, passive: true };
+                }
+                return next.call(this, type, listener, options);
             }
-            return orig.call(this, type, listener, options);
-        } as typeof EventTarget.prototype.addEventListener;
+        });
     }
     // Lazy images + async decoding (one-shot). Skip chat images:
     // loading=lazy/decoding=async on chat images breaks auto-scroll to bottom.
@@ -130,10 +134,8 @@ function applyRuntimeOpts() {
 function removeRuntimeOpts() {
     for (const s of springs) s.Globals?.assign?.({ skipAnimation: false });
     springs = [];
-    if (originalAddEventListener) {
-        EventTarget.prototype.addEventListener = originalAddEventListener;
-        originalAddEventListener = null;
-    }
+    disposePassiveListeners?.();
+    disposePassiveListeners = null;
 }
 
 // ── Apply & Restore User Settings (Compact + GIF) ──

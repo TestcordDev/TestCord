@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { definePluginSettings, migratePluginSettings } from "@api/Settings";
+import { RuntimeInteractions, RuntimeInterposition, RuntimeInterpositionPriority } from "@api/RuntimeInterposition";
+import { definePluginSettings, SettingsStore } from "@api/Settings";
 import { resetCacheLimits } from "@utils/cacheLimits";
 import { TestcordDevs } from "@utils/constants";
 import { classNameToSelector } from "@utils/css";
@@ -13,6 +14,8 @@ import { escapeRegExp } from "@utils/text";
 import definePlugin, { OptionType } from "@utils/types";
 import { filters, find, findAll, findByPropsLazy, proxyLazyWebpack } from "@webpack";
 import { FluxDispatcher, MessageStore, SelectedChannelStore, showToast, Toasts, useEffect, useRef, useState } from "@webpack/common";
+
+import { migrateOptimizerSettings } from "./migration";
 
 const logger = new Logger("TestcordOptimizer");
 
@@ -847,8 +850,8 @@ type WebkitWindow = Window & typeof globalThis & {
 /*                       Background RAF throttle (FPS)                        */
 /* -------------------------------------------------------------------------- */
 
-let origRAF: typeof requestAnimationFrame | null = null;
-let origCancelRAF: typeof cancelAnimationFrame | null = null;
+let disposeBackgroundRAF: (() => void) | null = null;
+let disposeBackgroundCancelRAF: (() => void) | null = null;
 let bgFpsActive = false;
 const rafMap = new Map<number, ReturnType<typeof setTimeout>>();
 let rafSeq = 0;
@@ -890,41 +893,51 @@ function applyBgFpsPatch(enable: boolean) {
 }
 
 function installRafThrottle() {
-    if (origRAF || !bgFpsActive) return;
-    origRAF = window.requestAnimationFrame;
-    origCancelRAF = window.cancelAnimationFrame;
+    if (disposeBackgroundRAF || !bgFpsActive) return;
     let lastT = 0;
 
-    (window as any).requestAnimationFrame = function (cb: FrameRequestCallback) {
-        const id = ++rafSeq;
-        const now = performance.now();
-        const delay = Math.max(0, bgFrameIntervalMs() - (now - lastT));
-        const tId = setTimeout(() => {
-            rafMap.delete(id);
-            lastT = performance.now();
-            cb(performance.now());
-        }, delay);
-        rafMap.set(id, tId);
-        return id;
-    };
-
-    window.cancelAnimationFrame = function (id: number) {
-        const tId = rafMap.get(id);
-        if (tId !== undefined) {
-            clearTimeout(tId);
-            rafMap.delete(id);
-        } else if (origCancelRAF) {
-            origCancelRAF(id);
+    disposeBackgroundRAF = RuntimeInterposition.register({
+        owner: "TestcordOptimizer",
+        hook: "requestAnimationFrame",
+        priority: RuntimeInterpositionPriority.BEHAVIOR,
+        wrap: next => cb => {
+            if (RuntimeInteractions.isActive()) return next(cb);
+            const id = ++rafSeq;
+            const now = performance.now();
+            const delay = Math.max(0, bgFrameIntervalMs() - (now - lastT));
+            const timer = setTimeout(() => {
+                rafMap.delete(id);
+                lastT = performance.now();
+                cb(performance.now());
+            }, delay);
+            rafMap.set(id, timer);
+            return id;
         }
-    };
+    });
+    try {
+        disposeBackgroundCancelRAF = RuntimeInterposition.register({
+            owner: "TestcordOptimizer",
+            hook: "cancelAnimationFrame",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: next => id => {
+                const timer = rafMap.get(id);
+                if (timer === undefined) return next(id);
+                clearTimeout(timer);
+                rafMap.delete(id);
+            }
+        });
+    } catch (error) {
+        disposeBackgroundRAF();
+        disposeBackgroundRAF = null;
+        throw error;
+    }
 }
 
 function uninstallRafThrottle() {
-    if (!origRAF) return;
-    window.requestAnimationFrame = origRAF;
-    if (origCancelRAF) window.cancelAnimationFrame = origCancelRAF;
-    origRAF = null;
-    origCancelRAF = null;
+    disposeBackgroundRAF?.();
+    disposeBackgroundCancelRAF?.();
+    disposeBackgroundRAF = null;
+    disposeBackgroundCancelRAF = null;
     for (const tId of rafMap.values()) clearTimeout(tId);
     rafMap.clear();
 }
@@ -938,7 +951,8 @@ const PRESENCE_DISPATCH_TYPES = new Set([
     "RUNNING_GAMES_CHANGE",
 ]);
 
-let origFluxDispatch: ((event: any) => unknown) | null = null;
+let origFluxDispatch: typeof FluxDispatcher.dispatch | null = null;
+let disposePresenceDispatch: (() => void) | null = null;
 const pendingPresenceDispatch = new Map<string, { event: any; timer: ReturnType<typeof setTimeout>; }>();
 
 function flushPresenceDispatch(type: string) {
@@ -952,9 +966,9 @@ function flushPresenceDispatch(type: string) {
     }
 }
 
-function patchedDispatch(event: any) {
+function patchedDispatch(event: any): Promise<void> {
     if (!settings.store.throttlePresence || !event || !PRESENCE_DISPATCH_TYPES.has(event.type)) {
-        return origFluxDispatch?.call(FluxDispatcher, event);
+        return origFluxDispatch?.call(FluxDispatcher, event) ?? Promise.resolve();
     }
 
     const existing = pendingPresenceDispatch.get(event.type);
@@ -962,12 +976,20 @@ function patchedDispatch(event: any) {
 
     const timer = setTimeout(() => flushPresenceDispatch(event.type), 8000);
     pendingPresenceDispatch.set(event.type, { event, timer });
+    return Promise.resolve();
 }
 
 function applyPresenceThrottle(enable: boolean) {
-    if (enable && !origFluxDispatch) {
-        origFluxDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
-        (FluxDispatcher as any).dispatch = patchedDispatch;
+    if (enable && !disposePresenceDispatch) {
+        disposePresenceDispatch = RuntimeInterposition.register({
+            owner: "TestcordOptimizer",
+            hook: "fluxDispatch",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: next => {
+                origFluxDispatch = next;
+                return patchedDispatch;
+            }
+        });
     } else if (!enable && origFluxDispatch) {
         for (const type of Array.from(pendingPresenceDispatch.keys())) {
             const pending = pendingPresenceDispatch.get(type)!;
@@ -975,7 +997,8 @@ function applyPresenceThrottle(enable: boolean) {
             try { origFluxDispatch.call(FluxDispatcher, pending.event); } catch { /* ignore */ }
         }
         pendingPresenceDispatch.clear();
-        (FluxDispatcher as any).dispatch = origFluxDispatch;
+        disposePresenceDispatch?.();
+        disposePresenceDispatch = null;
         origFluxDispatch = null;
     }
 }
@@ -1004,7 +1027,7 @@ function stopCacheCleaner() {
     }
 }
 
-migratePluginSettings("TestcordOptimizer", "optimizerPremium");
+if (migrateOptimizerSettings(SettingsStore.plain.plugins)) SettingsStore.markAsChanged();
 
 export default definePlugin({
     name: "TestcordOptimizer",
@@ -1131,6 +1154,15 @@ export default definePlugin({
     originalIdleCallback: null as typeof requestIdleCallback | null,
     originalCancelIdleCallback: null as typeof cancelIdleCallback | null,
     originalResizeObserver: null as typeof ResizeObserver | null,
+    disposeRafHook: null as (() => void) | null,
+    disposeCancelRafHook: null as (() => void) | null,
+    disposeNetworkFetchHook: null as (() => void) | null,
+    disposePassiveListenerHook: null as (() => void) | null,
+    disposeResizeObserverHook: null as (() => void) | null,
+    disposeIdleCallbackHook: null as (() => void) | null,
+    disposeCancelIdleCallbackHook: null as (() => void) | null,
+    disposeConcurrentFetchHook: null as (() => void) | null,
+    disposeFluxDispatchHook: null as (() => void) | null,
     originalConsoleWarn: null as typeof console.warn | null,
     originalConsoleGroup: null as typeof console.group | null,
     originalConsoleGroupEnd: null as typeof console.groupEnd | null,
@@ -1162,7 +1194,6 @@ export default definePlugin({
     unfocusedVisibilityHandler: null as (() => void) | null,
     deferCssTimer: null as any,
     fluxThrottleState: null as {
-        origDispatch: typeof FluxDispatcher.dispatch;
         wrappedDispatch: typeof FluxDispatcher.dispatch;
         timers: Map<string, ReturnType<typeof setTimeout>>;
     } | null,
@@ -1458,8 +1489,6 @@ export default definePlugin({
     installRafReduction() {
         const skip = settings.store.animationFrameReduction;
         if (skip <= 0) return;
-        this.originalRaf = window.requestAnimationFrame.bind(window);
-        this.originalCancelRaf = window.cancelAnimationFrame.bind(window);
         const minInterval = 1000 / (60 * (1 - Math.min(skip, 95) / 100));
         let lastFrame = 0;
         // closest() walks up the whole ancestor chain, and this runs on every single
@@ -1475,10 +1504,16 @@ export default definePlugin({
             }
             return lastActiveIsEditor;
         };
-        window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+        this.disposeRafHook = RuntimeInterposition.register({
+            owner: "TestcordOptimizer",
+            hook: "requestAnimationFrame",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: next => {
+                this.originalRaf = next.bind(window);
+                return (cb: FrameRequestCallback) => {
             const { originalRaf } = this;
             if (!originalRaf) return 0;
-            if (isEditorFocused()) return originalRaf(cb);
+            if (RuntimeInteractions.isActive() || isEditorFocused()) return originalRaf(cb);
             const id = this.nextRafReductionId++;
             const pending: { raf?: number; timeout?: ReturnType<typeof setTimeout>; } = {};
             this.pendingRafReduction.set(id, pending);
@@ -1501,14 +1536,31 @@ export default definePlugin({
                 }, remaining);
             });
             return id;
-        }) as typeof requestAnimationFrame;
-        window.cancelAnimationFrame = ((id: number) => {
-            const pending = this.pendingRafReduction.get(id);
-            if (!pending) return this.originalCancelRaf?.(id);
-            if (pending.raf !== undefined) this.originalCancelRaf?.(pending.raf);
-            if (pending.timeout !== undefined) clearTimeout(pending.timeout);
-            this.pendingRafReduction.delete(id);
-        }) as typeof cancelAnimationFrame;
+                };
+            }
+        });
+        try {
+            this.disposeCancelRafHook = RuntimeInterposition.register({
+                owner: "TestcordOptimizer",
+                hook: "cancelAnimationFrame",
+                priority: RuntimeInterpositionPriority.BEHAVIOR,
+                wrap: next => {
+                    this.originalCancelRaf = next.bind(window);
+                    return id => {
+                        const pending = this.pendingRafReduction.get(id);
+                        if (!pending) return next(id);
+                        if (pending.raf !== undefined) next(pending.raf);
+                        if (pending.timeout !== undefined) clearTimeout(pending.timeout);
+                        this.pendingRafReduction.delete(id);
+                    };
+                }
+            });
+        } catch (error) {
+            this.disposeRafHook();
+            this.disposeRafHook = null;
+            this.originalRaf = null;
+            throw error;
+        }
         if (settings.store.verboseLogging) logger.info(`rAF reduction active: target ${Math.round(1000 / minInterval)}fps`);
     },
 
@@ -1518,20 +1570,15 @@ export default definePlugin({
             if (pending.timeout !== undefined) clearTimeout(pending.timeout);
         }
         this.pendingRafReduction.clear();
-        if (this.originalRaf) {
-            window.requestAnimationFrame = this.originalRaf;
-            this.originalRaf = null;
-        }
-        if (this.originalCancelRaf) {
-            window.cancelAnimationFrame = this.originalCancelRaf;
-            this.originalCancelRaf = null;
-        }
+        this.disposeRafHook?.();
+        this.disposeCancelRafHook?.();
+        this.disposeRafHook = null;
+        this.disposeCancelRafHook = null;
+        this.originalRaf = null;
+        this.originalCancelRaf = null;
     },
 
     installNetworkLayer() {
-        const originalFetch = window.fetch.bind(window);
-        this.originals.fetch = window.fetch;
-
         const { fastNetwork } = settings.store;
         const cacheEnabled = settings.store.networkCache;
         const cacheMs = settings.store.networkCacheMinutes * 60 * 1000;
@@ -1607,7 +1654,11 @@ export default definePlugin({
 
         const inflight = new Map<string, Promise<Response>>();
 
-        window.fetch = function patched(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+        this.disposeNetworkFetchHook = RuntimeInterposition.register({
+            owner: "TestcordOptimizer",
+            hook: "fetch",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: originalFetch => function patched(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
             const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 
             if (isBlocked(rawUrl)) {
@@ -1666,8 +1717,9 @@ export default definePlugin({
                 inflight.set(normalizeCacheKey(finalUrl), promise);
             }
 
-            return promise;
-        };
+                return promise;
+            }
+        });
 
         if (fastNetwork) {
             for (const href of ["https://cdn.discordapp.com", "https://media.discordapp.net"]) {
@@ -1698,10 +1750,8 @@ export default definePlugin({
     },
 
     restoreNetworkLayer() {
-        if (this.originals.fetch) {
-            window.fetch = this.originals.fetch;
-            this.originals.fetch = undefined;
-        }
+        this.disposeNetworkFetchHook?.();
+        this.disposeNetworkFetchHook = null;
         if (this.cacheCleanupTimer !== null) {
             clearInterval(this.cacheCleanupTimer);
             this.cacheCleanupTimer = null;
@@ -1869,30 +1919,31 @@ export default definePlugin({
 
     installPassiveListeners() {
         const PASSIVE_EVENTS = ["wheel", "mousewheel", "touchstart", "touchmove", "touchend"];
-        const orig = EventTarget.prototype.addEventListener;
-        this.originalPassiveListener = orig;
-        EventTarget.prototype.addEventListener = function (
-            this: EventTarget,
-            type: string,
-            listener: EventListenerOrEventListenerObject | null,
-            options?: boolean | AddEventListenerOptions
-        ): void {
-            if (PASSIVE_EVENTS.includes(type) && listener != null) {
-                if (typeof options === "boolean" || options === undefined) {
-                    options = { capture: !!options, passive: true };
-                } else if (options.passive === undefined) {
-                    options = { ...options, passive: true };
+        this.disposePassiveListenerHook = RuntimeInterposition.register({
+            owner: "TestcordOptimizer",
+            hook: "addEventListener",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: next => function (
+                this: EventTarget,
+                type: string,
+                listener: EventListenerOrEventListenerObject | null,
+                options?: boolean | AddEventListenerOptions
+            ): void {
+                if (PASSIVE_EVENTS.includes(type) && listener != null) {
+                    if (typeof options === "boolean" || options === undefined) {
+                        options = { capture: !!options, passive: true };
+                    } else if (options.passive === undefined) {
+                        options = { ...options, passive: true };
+                    }
                 }
+                return next.call(this, type, listener, options);
             }
-            return orig.call(this, type, listener, options);
-        } as typeof EventTarget.prototype.addEventListener;
+        });
     },
 
     restorePassiveListeners() {
-        if (this.originalPassiveListener) {
-            EventTarget.prototype.addEventListener = this.originalPassiveListener;
-            this.originalPassiveListener = null;
-        }
+        this.disposePassiveListenerHook?.();
+        this.disposePassiveListenerHook = null;
     },
 
     installConsoleSuppression() {
@@ -1918,43 +1969,43 @@ export default definePlugin({
 
     installResizeObserverThrottle() {
         if (typeof ResizeObserver === "undefined") return;
-        const NativeResizeObserver = ResizeObserver;
         const frames = new WeakMap<ResizeObserver, number>();
         const pendingEntries = new WeakMap<ResizeObserver, ResizeObserverEntry[]>();
-        this.originalResizeObserver = NativeResizeObserver;
-
-        window.ResizeObserver = class extends NativeResizeObserver {
-            constructor(callback: ResizeObserverCallback) {
-                super((entries, currentObserver) => {
-                    pendingEntries.set(currentObserver, entries);
-                    if (frames.has(currentObserver)) return;
-                    const frame = requestAnimationFrame(() => {
-                        frames.delete(currentObserver);
-                        const pending = pendingEntries.get(currentObserver) ?? [];
-                        pendingEntries.delete(currentObserver);
-                        callback(pending, currentObserver);
+        this.disposeResizeObserverHook = RuntimeInterposition.register({
+            owner: "TestcordOptimizer",
+            hook: "ResizeObserver",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: NativeResizeObserver => class extends NativeResizeObserver {
+                constructor(callback: ResizeObserverCallback) {
+                    super((entries, currentObserver) => {
+                        pendingEntries.set(currentObserver, entries);
+                        if (frames.has(currentObserver)) return;
+                        const frame = requestAnimationFrame(() => {
+                            frames.delete(currentObserver);
+                            const pending = pendingEntries.get(currentObserver) ?? [];
+                            pendingEntries.delete(currentObserver);
+                            callback(pending, currentObserver);
+                        });
+                        frames.set(currentObserver, frame);
                     });
-                    frames.set(currentObserver, frame);
-                });
-            }
-
-            disconnect() {
-                const frame = frames.get(this);
-                if (frame) {
-                    cancelAnimationFrame(frame);
-                    frames.delete(this);
                 }
-                pendingEntries.delete(this);
-                super.disconnect();
+
+                disconnect() {
+                    const frame = frames.get(this);
+                    if (frame) {
+                        cancelAnimationFrame(frame);
+                        frames.delete(this);
+                    }
+                    pendingEntries.delete(this);
+                    super.disconnect();
+                }
             }
-        };
+        });
     },
 
     restoreResizeObserverThrottle() {
-        if (this.originalResizeObserver) {
-            window.ResizeObserver = this.originalResizeObserver;
-            this.originalResizeObserver = null;
-        }
+        this.disposeResizeObserverHook?.();
+        this.disposeResizeObserverHook = null;
     },
 
     installGifFreezer() {
@@ -2643,8 +2694,6 @@ export default definePlugin({
             if (settings.store.verboseLogging) logger.info("MessageChannel unavailable, skipping idle callback optimizer");
             return;
         }
-        this.originalIdleCallback = window.requestIdleCallback.bind(window);
-        this.originalCancelIdleCallback = window.cancelIdleCallback.bind(window);
         const channel = new MessageChannel();
         this.rICMessagePort1 = channel.port1;
         this.rICMessagePort = channel.port2;
@@ -2663,26 +2712,38 @@ export default definePlugin({
                 }
             }
         };
-        window.requestIdleCallback = ((cb: IdleRequestCallback, options?: IdleRequestOptions) => {
-            const id = nextId++;
-            callbacks.set(id, { cb, options });
-            channel.port2.postMessage(null);
-            return id;
-        }) as typeof requestIdleCallback;
-        window.cancelIdleCallback = ((id: number) => {
-            callbacks.delete(id);
-        }) as typeof cancelIdleCallback;
+        this.disposeIdleCallbackHook = RuntimeInterposition.register({
+            owner: "TestcordOptimizer",
+            hook: "requestIdleCallback",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: () => (cb, options) => {
+                const id = nextId++;
+                callbacks.set(id, { cb, options });
+                channel.port2.postMessage(null);
+                return id;
+            }
+        });
+        try {
+            this.disposeCancelIdleCallbackHook = RuntimeInterposition.register({
+                owner: "TestcordOptimizer",
+                hook: "cancelIdleCallback",
+                priority: RuntimeInterpositionPriority.BEHAVIOR,
+                wrap: next => id => {
+                    if (!callbacks.delete(id)) next(id);
+                }
+            });
+        } catch (error) {
+            this.disposeIdleCallbackHook();
+            this.disposeIdleCallbackHook = null;
+            throw error;
+        }
     },
 
     teardownIdleCallbackOptimizer() {
-        if (this.originalIdleCallback) {
-            window.requestIdleCallback = this.originalIdleCallback;
-            this.originalIdleCallback = null;
-        }
-        if (this.originalCancelIdleCallback) {
-            window.cancelIdleCallback = this.originalCancelIdleCallback;
-            this.originalCancelIdleCallback = null;
-        }
+        this.disposeIdleCallbackHook?.();
+        this.disposeCancelIdleCallbackHook?.();
+        this.disposeIdleCallbackHook = null;
+        this.disposeCancelIdleCallbackHook = null;
         if (this.rICMessagePort) {
             this.rICMessagePort.close();
             this.rICMessagePort = null;
@@ -2757,9 +2818,9 @@ export default definePlugin({
     installConcurrentRequestLimiter() {
         const maxConcurrent = settings.store.limitConcurrentRequests;
         if (maxConcurrent <= 0) return;
-        const origFetch = window.fetch;
         const queue = this.fetchQueue;
         let active = 0;
+        let origFetch: typeof window.fetch;
 
         const processQueue = () => {
             while (active < maxConcurrent && queue.length) {
@@ -2776,28 +2837,32 @@ export default definePlugin({
             }
         };
 
-        window.fetch = function limitedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-            if (active >= maxConcurrent) {
-                return new Promise<Response>((resolve, reject) => {
-                    queue.push({ target: input, init, resolve, reject });
-                });
+        this.disposeConcurrentFetchHook = RuntimeInterposition.register({
+            owner: "TestcordOptimizer",
+            hook: "fetch",
+            priority: RuntimeInterpositionPriority.BEHAVIOR + 10,
+            wrap: next => {
+                origFetch = next;
+                return function limitedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+                    if (active >= maxConcurrent) {
+                        return new Promise<Response>((resolve, reject) => {
+                            queue.push({ target: input, init, resolve, reject });
+                        });
+                    }
+                    active++;
+                    return next.call(window, input, init).finally(() => {
+                        active--;
+                        processQueue();
+                    });
+                };
             }
-            active++;
-            return origFetch.call(window, input, init).finally(() => {
-                active--;
-                processQueue();
-            });
-        };
-        (this as any).__origFetchLimited = origFetch;
+        });
         if (settings.store.verboseLogging) logger.info(`Concurrent request limit: ${maxConcurrent}`);
     },
 
     teardownConcurrentRequestLimiter() {
-        const orig = (this as any).__origFetchLimited;
-        if (orig) {
-            window.fetch = orig;
-            (this as any).__origFetchLimited = undefined;
-        }
+        this.disposeConcurrentFetchHook?.();
+        this.disposeConcurrentFetchHook = null;
         for (const item of this.fetchQueue) item.reject(new Error("TestcordOptimizer stopped"));
         this.fetchQueue = [];
     },
@@ -3132,7 +3197,7 @@ export default definePlugin({
         if (this.fluxThrottleState) return;
         if (!FluxDispatcher?.dispatch) return;
 
-        const origDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
+        let origDispatch: typeof FluxDispatcher.dispatch;
         const THROTTLED = new Set(["TYPING_START", "TYPING_STOP"]);
         const timers = new Map<string, ReturnType<typeof setTimeout>>();
         const DEBOUNCE_MS = 120;
@@ -3154,8 +3219,16 @@ export default definePlugin({
             return origDispatch(payload);
         } as typeof FluxDispatcher.dispatch;
 
-        this.fluxThrottleState = { origDispatch, wrappedDispatch, timers };
-        FluxDispatcher.dispatch = wrappedDispatch;
+        this.disposeFluxDispatchHook = RuntimeInterposition.register({
+            owner: "TestcordOptimizer",
+            hook: "fluxDispatch",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: next => {
+                origDispatch = next.bind(FluxDispatcher);
+                return wrappedDispatch;
+            }
+        });
+        this.fluxThrottleState = { wrappedDispatch, timers };
     },
 
     teardownFluxThrottle() {
@@ -3164,10 +3237,8 @@ export default definePlugin({
             for (const t of state.timers.values()) clearTimeout(t);
             state.timers.clear();
 
-            if (FluxDispatcher.dispatch === state.wrappedDispatch) {
-                FluxDispatcher.dispatch = state.origDispatch;
-            }
-
+            this.disposeFluxDispatchHook?.();
+            this.disposeFluxDispatchHook = null;
             this.fluxThrottleState = null;
         }
     },

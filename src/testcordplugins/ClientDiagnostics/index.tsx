@@ -8,6 +8,7 @@ import "./style.css";
 
 import { showNotification } from "@api/Notifications";
 import { isPluginEnabled, plugins } from "@api/PluginManager";
+import { RuntimeInterposition, RuntimeInterpositionPriority } from "@api/RuntimeInterposition";
 import { definePluginSettings } from "@api/Settings";
 import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
@@ -232,10 +233,7 @@ let originalSetTimeout: typeof window.setTimeout | undefined;
 let originalClearTimeout: typeof window.clearTimeout | undefined;
 let originalSetInterval: typeof window.setInterval | undefined;
 let originalClearInterval: typeof window.clearInterval | undefined;
-let originalRequestAnimationFrame: typeof window.requestAnimationFrame | undefined;
-let originalCancelAnimationFrame: typeof window.cancelAnimationFrame | undefined;
-let originalAddEventListener: typeof EventTarget.prototype.addEventListener | undefined;
-let originalRemoveEventListener: typeof EventTarget.prototype.removeEventListener | undefined;
+let probeDisposers: Array<() => void> = [];
 let lagNotificationInterval: number | undefined;
 const lagNotificationTimes = new Map<string, number>();
 
@@ -588,10 +586,6 @@ function installGlobalProbes() {
     originalClearTimeout = window.clearTimeout;
     originalSetInterval = window.setInterval;
     originalClearInterval = window.clearInterval;
-    originalRequestAnimationFrame = window.requestAnimationFrame;
-    originalCancelAnimationFrame = window.cancelAnimationFrame;
-    originalAddEventListener = EventTarget.prototype.addEventListener;
-    originalRemoveEventListener = EventTarget.prototype.removeEventListener;
 
     window.setTimeout = ((handler: string | ((...args: unknown[]) => void), timeout?: number, ...args: unknown[]) => {
         const context = currentContext();
@@ -638,38 +632,62 @@ function installGlobalProbes() {
         return originalClearInterval!(id);
     }) as typeof window.clearInterval;
 
-    window.requestAnimationFrame = callback => {
-        const context = currentContext();
+    try {
+        probeDisposers = [];
+        probeDisposers.push(RuntimeInterposition.register({
+                owner: "ClientDiagnostics",
+                hook: "requestAnimationFrame",
+                priority: RuntimeInterpositionPriority.DIAGNOSTICS,
+                wrap: next => callback => {
+                    const context = currentContext();
+                    if (!context) return next(callback);
 
-        if (!context) return originalRequestAnimationFrame!(callback);
+                    let id = 0;
+                    const wrapped = (timestamp: DOMHighResTimeStamp) => {
+                        forgetResource(frameOwners, id, "animationFrames");
+                        return runMeasured(context.pluginName, "animation frame", () => callback(timestamp));
+                    };
 
-        let id = 0;
-        const wrapped = (timestamp: DOMHighResTimeStamp) => {
-            forgetResource(frameOwners, id, "animationFrames");
-            return runMeasured(context.pluginName, "animation frame", () => callback(timestamp));
-        };
-
-        rememberSourceSnippet(context.pluginName, "animation frame", "requestAnimationFrame callback", callback);
-        id = originalRequestAnimationFrame!(wrapped);
-        rememberResource(frameOwners, id, context.pluginName, "animationFrames");
-        return id;
-    };
-
-    window.cancelAnimationFrame = id => {
-        forgetResource(frameOwners, id, "animationFrames");
-        return originalCancelAnimationFrame!(id);
-    };
-
-    EventTarget.prototype.addEventListener = function (type, listener, options) {
-        const context = currentContext();
-        if (context && listener) rememberListener(this, type, listener, context.pluginName, options);
-        return originalAddEventListener!.call(this, type, listener, options);
-    };
-
-    EventTarget.prototype.removeEventListener = function (type, listener, options) {
-        if (listener) forgetListener(this, type, listener, options);
-        return originalRemoveEventListener!.call(this, type, listener, options);
-    };
+                    rememberSourceSnippet(context.pluginName, "animation frame", "requestAnimationFrame callback", callback);
+                    id = next(wrapped);
+                    rememberResource(frameOwners, id, context.pluginName, "animationFrames");
+                    return id;
+                }
+            }));
+        probeDisposers.push(RuntimeInterposition.register({
+                owner: "ClientDiagnostics",
+                hook: "cancelAnimationFrame",
+                priority: RuntimeInterpositionPriority.DIAGNOSTICS,
+                wrap: next => id => {
+                    forgetResource(frameOwners, id, "animationFrames");
+                    return next(id);
+                }
+            }));
+        probeDisposers.push(RuntimeInterposition.register({
+                owner: "ClientDiagnostics",
+                hook: "addEventListener",
+                priority: RuntimeInterpositionPriority.DIAGNOSTICS,
+                wrap: next => function (this: EventTarget, type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) {
+                    const context = currentContext();
+                    if (context && listener) rememberListener(this, type, listener, context.pluginName, options);
+                    return next.call(this, type, listener, options);
+                }
+            }));
+        probeDisposers.push(RuntimeInterposition.register({
+                owner: "ClientDiagnostics",
+                hook: "removeEventListener",
+                priority: RuntimeInterpositionPriority.DIAGNOSTICS,
+                wrap: next => function (this: EventTarget, type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | EventListenerOptions) {
+                    if (listener) forgetListener(this, type, listener, options);
+                    return next.call(this, type, listener, options);
+                }
+            }));
+    } catch (error) {
+        for (const dispose of probeDisposers.reverse()) dispose();
+        probeDisposers = [];
+        restoreGlobalProbes();
+        throw error;
+    }
 }
 
 function restoreGlobalProbes() {
@@ -679,19 +697,13 @@ function restoreGlobalProbes() {
     window.clearTimeout = originalClearTimeout!;
     window.setInterval = originalSetInterval!;
     window.clearInterval = originalClearInterval!;
-    window.requestAnimationFrame = originalRequestAnimationFrame!;
-    window.cancelAnimationFrame = originalCancelAnimationFrame!;
-    EventTarget.prototype.addEventListener = originalAddEventListener!;
-    EventTarget.prototype.removeEventListener = originalRemoveEventListener!;
+    for (const dispose of probeDisposers.reverse()) dispose();
+    probeDisposers = [];
 
     originalSetTimeout = undefined;
     originalClearTimeout = undefined;
     originalSetInterval = undefined;
     originalClearInterval = undefined;
-    originalRequestAnimationFrame = undefined;
-    originalCancelAnimationFrame = undefined;
-    originalAddEventListener = undefined;
-    originalRemoveEventListener = undefined;
 }
 
 function rebuildResourceCounters() {

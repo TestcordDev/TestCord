@@ -10,7 +10,7 @@ import * as DataStore from "@api/DataStore";
 import { type NetworkDomainSummary, NetworkMonitor } from "@api/NetworkMonitor";
 import { type PatchFailure, PluginHealth, type PluginHealthEntry, type RuntimeError, type SessionRecord, type StabilityScore } from "@api/PluginHealth";
 import { pluginStartTimings } from "@api/PluginManager";
-import { PluginProfileData,PluginProfiler } from "@api/PluginProfiler";
+import { PluginProfileData, PluginProfiler } from "@api/PluginProfiler";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { Divider } from "@components/Divider";
@@ -19,11 +19,12 @@ import { Link } from "@components/Link";
 import { Paragraph } from "@components/Paragraph";
 import { openPluginModal, SettingsTab, wrapTab } from "@components/settings";
 import { buildIssueUrl, generateGitHubIssueBody } from "@utils/debugReport";
+import { redactDiagnosticValue } from "@utils/diagnosticRedaction";
 import { Margins } from "@utils/margins";
 import { RenderModalProps } from "@vencord/discord-types";
 import { wreq } from "@webpack";
 import { Modal, openModal, React, Select, TextInput, Toasts, useEffect, useMemo, useState } from "@webpack/common";
-import { getFactoryPatchedSource, SYM_ORIGINAL_FACTORY } from "@webpack/patcher";
+import { getBuildNumber, getFactoryPatchedSource, SYM_ORIGINAL_FACTORY } from "@webpack/patcher";
 
 import Plugins from "~plugins";
 
@@ -354,7 +355,18 @@ function buildExportReport(excludeConflicts = false): string {
     const profiles = PluginProfiler.getAllProfiles();
 
     const report: Record<string, unknown> = {
+        schemaVersion: 2,
         exportedAt: new Date().toISOString(),
+        testcordBuild: { version: VERSION, builtAt: BUILD_TIMESTAMP },
+        discordBuild: {
+            number: getBuildNumber(),
+            id: window.GLOBAL_ENV.SENTRY_TAGS.buildId,
+            channel: window.GLOBAL_ENV.RELEASE_CHANNEL
+        },
+        redaction: {
+            applied: true,
+            fields: ["tokens", "message content", "user IDs", "URLs", "headers", "absolute paths"]
+        },
         currentSession,
         sessionHistory: [...history],
         profiles,
@@ -373,7 +385,7 @@ function buildExportReport(excludeConflicts = false): string {
             stability: PluginHealth.getStability(name)
         };
     }
-    return JSON.stringify(report, null, 2);
+    return JSON.stringify(redactDiagnosticValue(report), null, 2);
 }
 
 function downloadExport() {

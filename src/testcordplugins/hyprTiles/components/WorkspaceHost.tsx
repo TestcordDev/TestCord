@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { RuntimeInteractions } from "@api/RuntimeInterposition";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { classNameFactory } from "@utils/css";
 import { classes } from "@utils/misc";
@@ -28,6 +29,12 @@ const cl = classNameFactory("vc-hyprtiles-");
 const DROP_CENTER_RATIO = 0.32;
 const FLOAT_MIN_SIZE = 0.2;
 type ResizeCorner = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+type DragState = { tileId: string; targetTileId: string | null; zone: DropZone | null; groupOnCenter: boolean; };
+type FloatDragState = { tileId: string; startX: number; startY: number; startBounds: FloatBounds; };
+type ResizeState =
+    | { kind: "tiled"; horizontalSplitId: string | null; verticalSplitId: string | null; }
+    | { kind: "floating"; tileId: string; corner: ResizeCorner; startX: number; startY: number; startBounds: FloatBounds; };
+type PointerSession<T> = T & { pointerId: number; target: HTMLElement; endInteraction: () => void; };
 const resizeCorners: ResizeCorner[] = ["top-left", "top-right", "bottom-left", "bottom-right"];
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -70,6 +77,16 @@ function toStyle(bounds: FloatBounds): React.CSSProperties {
         top: `${bounds.y * 100}%`,
         width: `${bounds.w * 100}%`,
         height: `${bounds.h * 100}%`
+    };
+}
+
+function toPreviewStyle(bounds: FloatBounds, preview?: FloatBounds): React.CSSProperties {
+    if (!preview) return toStyle(bounds);
+    return {
+        ...toStyle(bounds),
+        width: `${preview.w * 100}%`,
+        height: `${preview.h * 100}%`,
+        transform: `translate(${(preview.x - bounds.x) / preview.w * 100}%, ${(preview.y - bounds.y) / preview.h * 100}%)`
     };
 }
 
@@ -119,13 +136,14 @@ function WorkspaceHostComponent({ routeTarget, routeElement }: WorkspaceHostProp
     const scratchpads = getVisibleScratchpads(state.activeWorkspace);
     const overviewOpen = isWorkspaceOverviewOpen();
 
-    const [dragState, setDragState] = useState<{ tileId: string; targetTileId: string | null; zone: DropZone | null; groupOnCenter: boolean; } | null>(null);
-    const [floatDragState, setFloatDragState] = useState<{ tileId: string; startX: number; startY: number; startBounds: FloatBounds; } | null>(null);
-    const [resizeState, setResizeState] = useState<
-        | { kind: "tiled"; horizontalSplitId: string | null; verticalSplitId: string | null; }
-        | { kind: "floating"; tileId: string; corner: ResizeCorner; startX: number; startY: number; startBounds: FloatBounds; }
-        | null
-    >(null);
+    const [dragState, setDragState] = useState<DragState | null>(null);
+    const [floatDragState, setFloatDragState] = useState<FloatDragState | null>(null);
+    const [resizeState, setResizeState] = useState<ResizeState | null>(null);
+    const dragSessionRef = useRef<PointerSession<DragState> | null>(null);
+    const floatDragSessionRef = useRef<PointerSession<FloatDragState> | null>(null);
+    const resizeSessionRef = useRef<PointerSession<ResizeState> | null>(null);
+    const dragFrameRef = useRef<number | null>(null);
+    const resizeFrameRef = useRef<number | null>(null);
     const [floatPreview, setFloatPreview] = useState<{ tileId: string; bounds: FloatBounds; } | null>(null);
     const floatPreviewRef = useRef<{ tileId: string; bounds: FloatBounds; } | null>(null);
     const floatPreviewFrameRef = useRef<number | null>(null);
@@ -185,41 +203,70 @@ function WorkspaceHostComponent({ routeTarget, routeElement }: WorkspaceHostProp
     }
 
     useEffect(() => {
-        if (!dragState) return;
-        const activeDrag = dragState;
-
-        function onMouseMove(event: MouseEvent) {
+        function onPointerMove(event: PointerEvent) {
+            const activeDrag = dragSessionRef.current;
+            if (!activeDrag || event.pointerId !== activeDrag.pointerId) return;
+            if (dragFrameRef.current !== null) cancelAnimationFrame(dragFrameRef.current);
+            dragFrameRef.current = requestAnimationFrame(() => {
+                dragFrameRef.current = null;
             const hovered = (document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-hypr-tile-id]") as HTMLElement | null);
             const targetTileId = hovered?.dataset.hyprTileId ?? null;
             const zone = hovered ? getDropZone(hovered.getBoundingClientRect(), event.clientX, event.clientY) : null;
-            setDragState(prev => prev ? { ...prev, targetTileId, zone, groupOnCenter: event.ctrlKey || event.metaKey } : prev);
+                const next = { ...activeDrag, targetTileId, zone, groupOnCenter: event.ctrlKey || event.metaKey };
+                dragSessionRef.current = next;
+                setDragState(next);
+            });
         }
 
-        function onMouseUp() {
-            if (activeDrag.targetTileId && activeDrag.zone)
+        function finishDrag(event?: PointerEvent) {
+            const activeDrag = dragSessionRef.current;
+            if (!activeDrag || event && event.pointerId !== activeDrag.pointerId) return;
+            dragSessionRef.current = null;
+            activeDrag.endInteraction();
+            if (activeDrag.target.hasPointerCapture(activeDrag.pointerId)) activeDrag.target.releasePointerCapture(activeDrag.pointerId);
+            if (dragFrameRef.current !== null) {
+                cancelAnimationFrame(dragFrameRef.current);
+                dragFrameRef.current = null;
+            }
+            if (event?.type === "pointerup" && activeDrag.targetTileId && activeDrag.zone)
                 moveTileByDropAndNavigate(activeDrag.tileId, activeDrag.targetTileId, activeDrag.zone, activeDrag.groupOnCenter);
             setDragState(null);
         }
 
         function onKeyDown(event: KeyboardEvent) {
-            if (event.key === "Escape") setDragState(null);
+            if (event.key === "Escape") finishDrag();
         }
 
-        window.addEventListener("mousemove", onMouseMove);
-        window.addEventListener("mouseup", onMouseUp, { once: true });
+        function onVisibilityChange() {
+            if (document.hidden) finishDrag();
+        }
+        function onBlur() {
+            finishDrag();
+        }
+
+        window.addEventListener("pointermove", onPointerMove);
+        window.addEventListener("pointerup", finishDrag);
+        window.addEventListener("pointercancel", finishDrag);
+        window.addEventListener("lostpointercapture", finishDrag);
+        window.addEventListener("blur", onBlur);
         window.addEventListener("keydown", onKeyDown, true);
+        document.addEventListener("visibilitychange", onVisibilityChange);
         return () => {
-            window.removeEventListener("mousemove", onMouseMove);
-            window.removeEventListener("mouseup", onMouseUp);
+            finishDrag();
+            window.removeEventListener("pointermove", onPointerMove);
+            window.removeEventListener("pointerup", finishDrag);
+            window.removeEventListener("pointercancel", finishDrag);
+            window.removeEventListener("lostpointercapture", finishDrag);
+            window.removeEventListener("blur", onBlur);
             window.removeEventListener("keydown", onKeyDown, true);
+            document.removeEventListener("visibilitychange", onVisibilityChange);
         };
-    }, [dragState]);
+    }, []);
 
     useEffect(() => {
-        if (!floatDragState) return;
-        const activeFloatDrag = floatDragState;
-
-        function onMouseMove(event: MouseEvent) {
+        function onPointerMove(event: PointerEvent) {
+            const activeFloatDrag = floatDragSessionRef.current;
+            if (!activeFloatDrag || event.pointerId !== activeFloatDrag.pointerId) return;
             const canvasRect = canvasRef.current?.getBoundingClientRect();
             if (!canvasRect) return;
 
@@ -234,24 +281,51 @@ function WorkspaceHostComponent({ routeTarget, routeElement }: WorkspaceHostProp
             });
         }
 
-        function onMouseUp() {
-            updateTileFloatBounds(activeFloatDrag.tileId, consumeFloatPreview(activeFloatDrag.tileId, activeFloatDrag.startBounds));
+        function finishFloatDrag(event?: PointerEvent) {
+            const activeFloatDrag = floatDragSessionRef.current;
+            if (!activeFloatDrag || event && event.pointerId !== activeFloatDrag.pointerId) return;
+            floatDragSessionRef.current = null;
+            activeFloatDrag.endInteraction();
+            if (activeFloatDrag.target.hasPointerCapture(activeFloatDrag.pointerId)) activeFloatDrag.target.releasePointerCapture(activeFloatDrag.pointerId);
+            if (event?.type === "pointerup")
+                updateTileFloatBounds(activeFloatDrag.tileId, consumeFloatPreview(activeFloatDrag.tileId, activeFloatDrag.startBounds));
+            else consumeFloatPreview(activeFloatDrag.tileId, activeFloatDrag.startBounds);
             setFloatDragState(null);
         }
 
-        window.addEventListener("mousemove", onMouseMove);
-        window.addEventListener("mouseup", onMouseUp, { once: true });
+        function onVisibilityChange() {
+            if (document.hidden) finishFloatDrag();
+        }
+        function onBlur() {
+            finishFloatDrag();
+        }
+        function onKeyDown(event: KeyboardEvent) {
+            if (event.key === "Escape") finishFloatDrag();
+        }
+
+        window.addEventListener("pointermove", onPointerMove);
+        window.addEventListener("pointerup", finishFloatDrag);
+        window.addEventListener("pointercancel", finishFloatDrag);
+        window.addEventListener("lostpointercapture", finishFloatDrag);
+        window.addEventListener("blur", onBlur);
+        window.addEventListener("keydown", onKeyDown, true);
+        document.addEventListener("visibilitychange", onVisibilityChange);
         return () => {
-            window.removeEventListener("mousemove", onMouseMove);
-            window.removeEventListener("mouseup", onMouseUp);
+            finishFloatDrag();
+            window.removeEventListener("pointermove", onPointerMove);
+            window.removeEventListener("pointerup", finishFloatDrag);
+            window.removeEventListener("pointercancel", finishFloatDrag);
+            window.removeEventListener("lostpointercapture", finishFloatDrag);
+            window.removeEventListener("blur", onBlur);
+            window.removeEventListener("keydown", onKeyDown, true);
+            document.removeEventListener("visibilitychange", onVisibilityChange);
         };
-    }, [floatDragState]);
+    }, []);
 
     useEffect(() => {
-        if (!resizeState) return;
-        const activeResize = resizeState;
-
-        function onMouseMove(event: MouseEvent) {
+        function onPointerMove(event: PointerEvent) {
+            const activeResize = resizeSessionRef.current;
+            if (!activeResize || event.pointerId !== activeResize.pointerId) return;
             const canvasRect = canvasRef.current?.getBoundingClientRect();
             if (!canvasRect) return;
 
@@ -267,38 +341,77 @@ function WorkspaceHostComponent({ routeTarget, routeElement }: WorkspaceHostProp
             }
 
             if (!workspace) return;
-
-            for (const splitId of [activeResize.horizontalSplitId, activeResize.verticalSplitId]) {
-                if (!splitId) continue;
-
-                const splitRect = layoutRects.nodeRects[splitId];
-                if (!splitRect) continue;
-
-                const split = workspace.nodesById[splitId];
-                if (!split || split.kind !== "split") continue;
-
-                const ratio = split.axis === "x"
-                    ? (event.clientX - (canvasRect.left + splitRect.x * canvasRect.width)) / (splitRect.w * canvasRect.width)
-                    : (event.clientY - (canvasRect.top + splitRect.y * canvasRect.height)) / (splitRect.h * canvasRect.height);
-
-                updateSplitRatio(splitId, ratio);
-            }
+            if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current);
+            resizeFrameRef.current = requestAnimationFrame(() => {
+                resizeFrameRef.current = null;
+                for (const splitId of [activeResize.horizontalSplitId, activeResize.verticalSplitId]) {
+                    if (!splitId) continue;
+                    const splitRect = layoutRects.nodeRects[splitId];
+                    const split = workspace.nodesById[splitId];
+                    if (!splitRect || !split || split.kind !== "split") continue;
+                    const ratio = split.axis === "x"
+                        ? (event.clientX - (canvasRect.left + splitRect.x * canvasRect.width)) / (splitRect.w * canvasRect.width)
+                        : (event.clientY - (canvasRect.top + splitRect.y * canvasRect.height)) / (splitRect.h * canvasRect.height);
+                    updateSplitRatio(splitId, ratio);
+                }
+            });
         }
 
-        function onMouseUp() {
+        function finishResize(event?: PointerEvent) {
+            const activeResize = resizeSessionRef.current;
+            if (!activeResize || event && event.pointerId !== activeResize.pointerId) return;
+            resizeSessionRef.current = null;
+            activeResize.endInteraction();
+            if (activeResize.target.hasPointerCapture(activeResize.pointerId)) activeResize.target.releasePointerCapture(activeResize.pointerId);
+            if (resizeFrameRef.current !== null) {
+                cancelAnimationFrame(resizeFrameRef.current);
+                resizeFrameRef.current = null;
+            }
             if (activeResize.kind === "floating") {
-                updateTileFloatBounds(activeResize.tileId, consumeFloatPreview(activeResize.tileId, activeResize.startBounds));
+                const bounds = consumeFloatPreview(activeResize.tileId, activeResize.startBounds);
+                if (event?.type === "pointerup") updateTileFloatBounds(activeResize.tileId, bounds);
             }
             setResizeState(null);
         }
 
-        window.addEventListener("mousemove", onMouseMove);
-        window.addEventListener("mouseup", onMouseUp, { once: true });
+        function onVisibilityChange() {
+            if (document.hidden) finishResize();
+        }
+        function onBlur() {
+            finishResize();
+        }
+        function onKeyDown(event: KeyboardEvent) {
+            if (event.key === "Escape") finishResize();
+        }
+
+        window.addEventListener("pointermove", onPointerMove);
+        window.addEventListener("pointerup", finishResize);
+        window.addEventListener("pointercancel", finishResize);
+        window.addEventListener("lostpointercapture", finishResize);
+        window.addEventListener("blur", onBlur);
+        window.addEventListener("keydown", onKeyDown, true);
+        document.addEventListener("visibilitychange", onVisibilityChange);
         return () => {
-            window.removeEventListener("mousemove", onMouseMove);
-            window.removeEventListener("mouseup", onMouseUp);
+            window.removeEventListener("pointermove", onPointerMove);
+            window.removeEventListener("pointerup", finishResize);
+            window.removeEventListener("pointercancel", finishResize);
+            window.removeEventListener("lostpointercapture", finishResize);
+            window.removeEventListener("blur", onBlur);
+            window.removeEventListener("keydown", onKeyDown, true);
+            document.removeEventListener("visibilitychange", onVisibilityChange);
         };
-    }, [layoutRects.nodeRects, resizeState, workspace]);
+    }, [layoutRects.nodeRects, workspace]);
+
+    useEffect(() => () => {
+        const activeResize = resizeSessionRef.current;
+        if (activeResize) {
+            resizeSessionRef.current = null;
+            activeResize.endInteraction();
+            if (activeResize.target.hasPointerCapture(activeResize.pointerId))
+                activeResize.target.releasePointerCapture(activeResize.pointerId);
+        }
+        if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current);
+    }, []);
 
     if (!pluginRunning || !routeTarget || !workspace) return <>{routeElement}</>;
 
@@ -310,8 +423,8 @@ function WorkspaceHostComponent({ routeTarget, routeElement }: WorkspaceHostProp
             floating?: boolean;
             header?: React.ReactNode;
             body?: React.ReactNode;
-            onHeaderMouseDown?: React.MouseEventHandler<HTMLElement>;
-            onResizeStart?: (corner: ResizeCorner, event: React.MouseEvent<HTMLButtonElement>) => void;
+            onHeaderMouseDown?: React.PointerEventHandler<HTMLElement>;
+            onResizeStart?: (corner: ResizeCorner, event: React.PointerEvent<HTMLButtonElement>) => void;
         }
     ) => {
         const info = tileDisplayMap[tile.id] ?? { title: "Tile", badge: "CHAN" };
@@ -335,7 +448,7 @@ function WorkspaceHostComponent({ routeTarget, routeElement }: WorkspaceHostProp
                 data-hypr-tile-id={tile.id}
             >
                 {showTileHeaders && (
-                    <header className={cl("tile-header")} onMouseDown={options.onHeaderMouseDown}>
+                    <header className={cl("tile-header")} onPointerDown={options.onHeaderMouseDown}>
                         {options.header ?? (
                             <>
                                 <button
@@ -387,7 +500,7 @@ function WorkspaceHostComponent({ routeTarget, routeElement }: WorkspaceHostProp
                         type="button"
                         className={classes(cl("resize-handle"), cl(`resize-${corner}`))}
                         aria-label={`Resize ${info.title}`}
-                        onMouseDown={event => options.onResizeStart?.(corner, event)}
+                        onPointerDown={event => options.onResizeStart?.(corner, event)}
                     />
                 ))}
             </section>
@@ -487,7 +600,10 @@ function WorkspaceHostComponent({ routeTarget, routeElement }: WorkspaceHostProp
                                     if (event.button !== 0) return;
                                     if (event.altKey && event.shiftKey) {
                                         event.preventDefault();
-                                        setDragState({ tileId: leaf.activeTileId, targetTileId: null, zone: null, groupOnCenter: false });
+                                        const drag = { tileId: leaf.activeTileId, targetTileId: null, zone: null, groupOnCenter: false };
+                                        event.currentTarget.setPointerCapture(event.pointerId);
+                                        dragSessionRef.current = { ...drag, pointerId: event.pointerId, target: event.currentTarget, endInteraction: RuntimeInteractions.begin() };
+                                        setDragState(drag);
                                         return;
                                     }
                                 },
@@ -501,7 +617,10 @@ function WorkspaceHostComponent({ routeTarget, routeElement }: WorkspaceHostProp
                                     if (!horizontalSplitId && !verticalSplitId) return;
                                     event.preventDefault();
                                     event.stopPropagation();
-                                    setResizeState({ kind: "tiled", horizontalSplitId, verticalSplitId });
+                                    const resize = { kind: "tiled", horizontalSplitId, verticalSplitId } as const;
+                                    event.currentTarget.setPointerCapture(event.pointerId);
+                                    resizeSessionRef.current = { ...resize, pointerId: event.pointerId, target: event.currentTarget, endInteraction: RuntimeInteractions.begin() };
+                                    setResizeState(resize);
                                 }
                             })}
                         </React.Fragment>
@@ -513,57 +632,72 @@ function WorkspaceHostComponent({ routeTarget, routeElement }: WorkspaceHostProp
                     if (!tile?.floatBounds) return null;
                     const renderedBounds = getRenderedFloatBounds(tile.id, tile.floatBounds);
 
-                    return renderTileShell(tile, toStyle(renderedBounds), {
+                    return renderTileShell(tile, toPreviewStyle(tile.floatBounds, floatPreview?.tileId === tile.id ? renderedBounds : undefined), {
                         focused: workspace.focusedTileId === tile.id,
                         floating: true,
                         onHeaderMouseDown: event => {
                             if (event.button !== 0) return;
                             event.preventDefault();
-                            setFloatDragState({ tileId: tile.id, startX: event.clientX, startY: event.clientY, startBounds: renderedBounds });
+                            const drag = { tileId: tile.id, startX: event.clientX, startY: event.clientY, startBounds: renderedBounds };
+                            event.currentTarget.setPointerCapture(event.pointerId);
+                            floatDragSessionRef.current = { ...drag, pointerId: event.pointerId, target: event.currentTarget, endInteraction: RuntimeInteractions.begin() };
+                            setFloatDragState(drag);
                         },
                         onResizeStart: (corner, event) => {
                             if (event.button !== 0) return;
                             event.preventDefault();
                             event.stopPropagation();
-                            setResizeState({
+                            const resize = {
                                 kind: "floating",
                                 tileId: tile.id,
                                 corner,
                                 startX: event.clientX,
                                 startY: event.clientY,
                                 startBounds: renderedBounds
-                            });
+                            } as const;
+                            event.currentTarget.setPointerCapture(event.pointerId);
+                            resizeSessionRef.current = { ...resize, pointerId: event.pointerId, target: event.currentTarget, endInteraction: RuntimeInteractions.begin() };
+                            setResizeState(resize);
                         }
                     });
                 })}
 
                 {scratchpads.map(({ scratchpad, tile }) =>
-                    renderTileShell(tile, toStyle(getRenderedFloatBounds(tile.id, tile.floatBounds ?? scratchpad.bounds)), {
+                    renderTileShell(tile, toPreviewStyle(
+                        tile.floatBounds ?? scratchpad.bounds,
+                        floatPreview?.tileId === tile.id ? floatPreview.bounds : undefined
+                    ), {
                         focused: workspace.focusedTileId === tile.id,
                         floating: true,
                         onHeaderMouseDown: event => {
                             if (event.button !== 0) return;
                             event.preventDefault();
-                            setFloatDragState({
+                            const drag = {
                                 tileId: tile.id,
                                 startX: event.clientX,
                                 startY: event.clientY,
                                 startBounds: getRenderedFloatBounds(tile.id, tile.floatBounds ?? scratchpad.bounds)
-                            });
+                            };
+                            event.currentTarget.setPointerCapture(event.pointerId);
+                            floatDragSessionRef.current = { ...drag, pointerId: event.pointerId, target: event.currentTarget, endInteraction: RuntimeInteractions.begin() };
+                            setFloatDragState(drag);
                         },
                         onResizeStart: (corner, event) => {
                             const bounds = getRenderedFloatBounds(tile.id, tile.floatBounds ?? scratchpad.bounds);
                             if (event.button !== 0) return;
                             event.preventDefault();
                             event.stopPropagation();
-                            setResizeState({
+                            const resize = {
                                 kind: "floating",
                                 tileId: tile.id,
                                 corner,
                                 startX: event.clientX,
                                 startY: event.clientY,
                                 startBounds: bounds
-                            });
+                            } as const;
+                            event.currentTarget.setPointerCapture(event.pointerId);
+                            resizeSessionRef.current = { ...resize, pointerId: event.pointerId, target: event.currentTarget, endInteraction: RuntimeInteractions.begin() };
+                            setResizeState(resize);
                         }
                     })
                 )}

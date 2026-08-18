@@ -5,6 +5,7 @@
  */
 
 import { showNotification } from "@api/Notifications";
+import { RuntimeInterposition, RuntimeInterpositionPriority } from "@api/RuntimeInterposition";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { identity } from "@utils/misc";
@@ -169,12 +170,11 @@ function injectVirtualDevice() {
         }
 
         // Intercept Discord dispatcher to handle virtual device selection
-        if (FluxDispatcher && FluxDispatcher.dispatch) {
-            const wrappedDispatch = FluxDispatcher.dispatch;
-            const originalDispatch = FluxDispatcher.dispatch.bind(FluxDispatcher);
-            _patchRestores.push(() => { FluxDispatcher.dispatch = wrappedDispatch; });
-
-            FluxDispatcher.dispatch = (action: any) => {
+        _patchRestores.push(RuntimeInterposition.register({
+            owner: "AudioCenter",
+            hook: "fluxDispatch",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: next => async action => {
                 // If it's a virtual input device selection
                 if (
                     action.type === "AUDIO_SET_INPUT_DEVICE" &&
@@ -192,9 +192,9 @@ function injectVirtualDevice() {
                     }
                 }
 
-                return originalDispatch(action);
-            };
-        }
+                return next.call(FluxDispatcher, action);
+            }
+        }));
 
         // Add necessary patches
         patchDiscordComponents();
