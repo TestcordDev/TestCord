@@ -498,7 +498,7 @@ export async function openInstance(
 
         webContents.setWindowOpenHandler(({ url }) => {
             if (isDiscordPopoutUrl(url)) {
-                return { action: isDiscordUrl(url) ? "allow" : "deny" };
+                return { action: "deny" };
             }
 
             if (isDiscordAttachmentUrl(url)) {
