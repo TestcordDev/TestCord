@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { safeFetch } from "@main/utils/safeFetch";
+
 export async function uploadFileToGofileNative(_, url: string, fileBuffer: ArrayBuffer, fileName: string, fileType: string, token?: string): Promise<any> {
     try {
         const formData = new FormData();
@@ -20,7 +22,7 @@ export async function uploadFileToGofileNative(_, url: string, fileBuffer: Array
             body: formData,
         };
 
-        const response = await fetch(url, options);
+        const response = await safeFetch(url, { ...options, allowedHosts: ["gofile.io"] });
         return await response.json();
     } catch (error) {
         console.error("Error during fetch request:", error);
@@ -43,7 +45,7 @@ export async function uploadFileToCatboxNative(_, url: string, fileBuffer: Array
             body: formData,
         };
 
-        const response = await fetch(url, options);
+        const response = await safeFetch(url, { ...options, allowedHosts: ["catbox.moe"] });
         const result = await response.text();
         return result;
     } catch (error) {
@@ -92,7 +94,7 @@ export async function uploadFileCustomNative(_, url: string, fileBuffer: ArrayBu
 
         const headers = new Headers(customHeaders);
 
-        const uploadResponse = await fetch(url, {
+        const uploadResponse = await safeFetch(url, {
             method: "POST",
             body: formData,
             headers: headers

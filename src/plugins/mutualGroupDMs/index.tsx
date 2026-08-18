@@ -94,6 +94,7 @@ export default definePlugin({
         // User Profile Modal
         {
             find: ".BOT_DATA_ACCESS?(",
+            noWarn: true,
             replacement: [
                 {
                     match: /\i\.useEffect.{0,100}(\i)\[0\]\.section/,
@@ -114,6 +115,7 @@ export default definePlugin({
         // User Profile Modal v2
         {
             find: ".WIDGETS?",
+            noWarn: true,
             replacement: [
                 {
                     match: /items:(\i),initialSection:\i,onClose:\i\}=\i.{0,200}?(?=return.{0,30}?\(0,\i\.jsxs?\)\()/,
@@ -132,6 +134,7 @@ export default definePlugin({
         },
         {
             find: 'section:"MUTUAL_FRIENDS"',
+            noWarn: true,
             replacement: [
                 {
                     match: /\i\|\|\i(?=\?\(0,\i\.jsxs?\)\(\i\.\i\.Overlay,)/,

@@ -8,6 +8,8 @@ import * as DataStore from "@api/DataStore";
 import { PlainSettings, Settings, SettingsStore } from "@api/Settings";
 import { debounce } from "@shared/debounce";
 
+import plugins from "~plugins";
+
 export type ScopeKey = "plugins" | "themes" | "quickCss" | "dataStore";
 
 export interface Preset {
@@ -33,6 +35,10 @@ export interface Preset {
     scope?: ScopeKey[];
     // undefined = follow the global restore-on-apply default; true/false = override.
     restoreSettings?: boolean;
+    // undefined = follow the global force-apply default; true/false = override.
+    // Force apply treats the preset as the source of truth: plugins missing from
+    // it get disabled and plugin settings are always overwritten.
+    forceApply?: boolean;
     // when true, this preset auto-resnapshots to current config on every settings change.
     // Live-backup tracks PLUGINS ONLY; other scopes are captured only at explicit save.
     liveBackup?: boolean;
@@ -80,8 +86,14 @@ const persistDebounced = debounce(persist, 500);
 
 // Global restore-on-apply default. A UI preference, so the per-build renderer
 // Settings is fine (only the presets themselves needed to be build-independent).
-export const getRestoreDefault = () => Boolean((Settings as any).presetsRestoreDefault);
+// Defaults to on: a preset is expected to bring back the settings it saved.
+export const getRestoreDefault = () => (Settings as any).presetsRestoreDefault !== false;
 export const setRestoreDefault = (v: boolean) => { (Settings as any).presetsRestoreDefault = v; };
+
+// Global force-apply default. Off by default: it disables plugins missing from
+// the preset, which is only what you want when the preset is the source of truth.
+export const getForceApplyDefault = () => (Settings as any).presetsForceApplyDefault === true;
+export const setForceApplyDefault = (v: boolean) => { (Settings as any).presetsForceApplyDefault = v; };
 
 // UI preference: hide the per-row Duplicate button. Renderer Settings is fine
 // (cosmetic, doesn't need to be build-independent like the presets themselves).
@@ -111,6 +123,22 @@ export const setAnimMaster = (v: boolean) => { (Settings as any).presetsAnimMast
 export const getAnim = (key: AnimKey) => (Settings as any)[`presetsAnim_${key}`] !== false;
 export const setAnim = (key: AnimKey, v: boolean) => { (Settings as any)[`presetsAnim_${key}`] = v; };
 
+// PlainSettings.plugins only contains keys that were written or read through the
+// Settings proxy; settings still sitting at their declared default may be absent.
+// Touch every registered plugin's settings once so the snapshot below is complete.
+function materializePluginSettings() {
+    for (const [name, plugin] of Object.entries(plugins)) {
+        const store = Settings.plugins[name];
+        if (!plugin.settings?.def) continue;
+        for (const key of Object.keys(plugin.settings.def)) void store[key];
+    }
+}
+
+function snapshotPlugins() {
+    materializePluginSettings();
+    return structuredClone(PlainSettings.plugins);
+}
+
 // Live-backup engine: one global listener. Any preset flagged liveBackup re-snapshots
 // itself whenever a plugin is toggled or a plugin setting changes, so it mirrors "now."
 let liveBackupRegistered = false;
@@ -122,7 +150,7 @@ function ensureLiveBackup() {
         let dirty = false;
         for (const p of Object.values(cache)) {
             if (p.liveBackup) {
-                p.plugins = structuredClone(PlainSettings.plugins);
+                p.plugins = snapshotPlugins();
                 dirty = true;
             }
         }
@@ -157,12 +185,20 @@ export function setPresetRestore(name: string, value: boolean | undefined): void
     persist();
 }
 
+export function setPresetForceApply(name: string, value: boolean | undefined): void {
+    const p = store()[name];
+    if (!p) return;
+    if (value === undefined) delete p.forceApply;
+    else p.forceApply = value;
+    persist();
+}
+
 export function setPresetLiveBackup(name: string, value: boolean): void {
     const p = store()[name];
     if (!p) return;
     p.liveBackup = value;
     // Snapshot immediately on enable so it starts in sync, not stale.
-    if (value) p.plugins = structuredClone(PlainSettings.plugins);
+    if (value) p.plugins = snapshotPlugins();
     persist();
 }
 
@@ -191,10 +227,14 @@ export async function savePreset(name: string, createdAt: number, scope: ScopeKe
     const order = existing?.order ?? (ordered.length ? Math.min(...ordered.map(p => p.order!)) - 1 : undefined);
     const preset: Preset = { name, createdAt, plugins: {}, scope: [...scope] };
     if (order !== undefined) preset.order = order;
+    // Overwriting keeps the preset's configured behavior; only the captured data refreshes.
+    if (existing?.restoreSettings !== undefined) preset.restoreSettings = existing.restoreSettings;
+    if (existing?.forceApply !== undefined) preset.forceApply = existing.forceApply;
+    if (existing?.liveBackup) preset.liveBackup = true;
 
     if (scope.includes("plugins")) {
         // Deep-clone via PlainSettings so the stored preset doesn't alias the live proxy.
-        preset.plugins = structuredClone(PlainSettings.plugins);
+        preset.plugins = snapshotPlugins();
     }
     if (scope.includes("themes")) {
         preset.themes = [...((Settings as any).enabledThemes ?? [])];
@@ -223,7 +263,7 @@ export function deletePreset(name: string): void {
 
 export function renamePreset(from: string, to: string): void {
     const s = store();
-    if (!s[from] || from === to) return;
+    if (!s[from] || from === to || s[to]) return;
     s[to] = { ...s[from], name: to };
     delete s[from];
     persist();
@@ -235,8 +275,15 @@ export function duplicatePreset(name: string, copyName: string, createdAt: numbe
     if (!src) return;
     // structuredClone the whole preset so themes/quickCss/dataStore copy too.
     s[copyName] = { ...structuredClone(src), name: copyName, createdAt };
-    if (typeof src.order === "number") s[copyName].order = src.order + 0.5;
     delete s[copyName].liveBackup; // a copy shouldn't inherit live-tracking
+    // Sit the copy right next to its source once manual ordering exists, instead
+    // of dropping it into the unordered (bottom) bucket.
+    if (listPresets().some(p => typeof p.order === "number")) {
+        const list = listPresets();
+        const [copy] = list.splice(list.findIndex(p => p.name === copyName), 1);
+        list.splice(list.findIndex(p => p.name === name) + 1, 0, copy);
+        for (const [index, preset] of list.entries()) s[preset.name].order = index;
+    }
     persist();
 }
 
@@ -259,14 +306,29 @@ export function reorderPresets(sourceName: string, targetName: string, position:
     for (const [index, preset] of ordered.entries()) {
         store()[preset.name].order = index;
     }
-    persist();
+    // Drag reorders fire per row crossing; coalesce the disk writes into one.
+    persistDebounced();
     return true;
+}
+
+// Sort object keys recursively so key insertion order (which depends on when
+// defaults were materialized) can't make equal values compare unequal.
+function normalizeForCompare(value: any): any {
+    if (typeof value === "bigint") return value.toString();
+    if (Array.isArray(value)) return value.map(normalizeForCompare);
+    if (value && typeof value === "object") {
+        return Object.fromEntries(
+            Object.entries(value)
+                .map(([key, v]) => [key, normalizeForCompare(v)] as const)
+                .sort(([a], [b]) => a.localeCompare(b))
+        );
+    }
+    return value;
 }
 
 function sameValue(a: any, b: any): boolean {
     try {
-        const normalize = (_: string, value: any) => typeof value === "bigint" ? value.toString() : value;
-        return JSON.stringify(a, normalize) === JSON.stringify(b, normalize);
+        return JSON.stringify(normalizeForCompare(a)) === JSON.stringify(normalizeForCompare(b));
     } catch {
         return Object.is(a, b);
     }
@@ -298,6 +360,7 @@ function comparablePreset(preset: Preset) {
         quickCss: scope.includes("quickCss") ? preset.quickCss ?? "" : undefined,
         dataStore: scope.includes("dataStore") ? preset.dataStore ?? {} : undefined,
         restoreSettings: preset.restoreSettings,
+        forceApply: preset.forceApply,
     };
 }
 
@@ -555,13 +618,15 @@ export interface ApplyResult {
 
 /**
  * Apply a preset back onto live config. Restores every scope the preset captured:
- * - plugins: always writes `enabled`; if `restoreSettings`, the full settings slice.
+ * - plugins: always writes `enabled`; if `restoreSettings` or `forceApply`, the full
+ *   settings slice. `forceApply` also disables every plugin the preset doesn't
+ *   mention, making the preset the source of truth.
  * - themes: enables stored theme names; missing local files are recreated when
  *   the preset contains saved CSS in `themeFiles`.
  * - quickCss / dataStore: overwrites wholesale.
  * Async because themes/QuickCSS/DataStore reads/writes cross the native bridge.
  */
-export async function applyPreset(name: string, restoreSettings: boolean): Promise<ApplyResult> {
+export async function applyPreset(name: string, restoreSettings: boolean, forceApply = false): Promise<ApplyResult> {
     const preset = store()[name];
     if (!preset) return { changed: false, missingThemes: [] };
     const scope = presetScope(preset);
@@ -569,9 +634,14 @@ export async function applyPreset(name: string, restoreSettings: boolean): Promi
     const missingThemes: string[] = [];
 
     if (scope.includes("plugins")) {
+        if (forceApply) {
+            for (const plugin of Object.keys(PlainSettings.plugins)) {
+                if (!(plugin in preset.plugins)) (Settings.plugins[plugin] ??= { enabled: false }).enabled = false;
+            }
+        }
         for (const [plugin, saved] of Object.entries(preset.plugins)) {
             const current = (Settings.plugins[plugin] ??= { enabled: false });
-            if (restoreSettings) Settings.plugins[plugin] = structuredClone(saved);
+            if (restoreSettings || forceApply) Settings.plugins[plugin] = structuredClone(saved);
             else current.enabled = saved.enabled;
         }
         changed = true;
@@ -604,16 +674,23 @@ export async function applyPreset(name: string, restoreSettings: boolean): Promi
     return { changed, missingThemes };
 }
 
+// BigInt settings values would make JSON.stringify throw; stringify them as strings.
+const stringifyReplacer = (_: string, value: any) => typeof value === "bigint" ? value.toString() : value;
+
+export function stringifyPreset(value: unknown, space?: number): string {
+    return JSON.stringify(value, stringifyReplacer, space);
+}
+
 /** Serialize one preset to a shareable string. */
 export function exportPreset(name: string): string | null {
     const preset = store()[name];
     if (!preset) return null;
-    return JSON.stringify(preset, null, 4);
+    return stringifyPreset(preset, 4);
 }
 
 /** Serialize every preset to one blob (Export all). */
 export function exportAllPresets(): string {
-    return JSON.stringify(store(), null, 4);
+    return stringifyPreset(store(), 4);
 }
 
 export function getPreset(name: string): Preset | undefined {
@@ -647,6 +724,7 @@ function sanitize(parsed: Preset, name: string): Preset {
         if (valid.length) clean.scope = valid;
     }
     if (typeof parsed.restoreSettings === "boolean") clean.restoreSettings = parsed.restoreSettings;
+    if (typeof parsed.forceApply === "boolean") clean.forceApply = parsed.forceApply;
     if (parsed.liveBackup === true) clean.liveBackup = true;
     return clean;
 }

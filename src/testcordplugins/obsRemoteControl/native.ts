@@ -5,9 +5,10 @@
  */
 
 import { exec, spawn } from "node:child_process";
-import { basename, dirname } from "node:path";
+import { dirname } from "node:path";
 import { promisify } from "node:util";
 
+import { RendererSettings } from "@main/settings";
 import { IpcMainInvokeEvent } from "electron";
 
 export async function getProcesses(_: IpcMainInvokeEvent): Promise<string | Error> {
@@ -41,10 +42,24 @@ export async function getProcesses(_: IpcMainInvokeEvent): Promise<string | Erro
     }
 }
 
-export async function startProcess(_: IpcMainInvokeEvent, path: string, args: string[]): Promise<undefined | any> {
+export async function startProcess(_: IpcMainInvokeEvent): Promise<undefined | any> {
+    // Path and args come from the plugin's own settings, never from the
+    // renderer call — this IPC handler is reachable by any renderer script,
+    // and the user-configured OBS launch is the only thing it may do.
+    const settings = RendererSettings.store.plugins?.ObsRemoteControl;
+    const path = settings?.appPath;
+    const argString = settings?.arguments;
+    if (typeof path !== "string" || !path || typeof argString !== "string") {
+        return new Error("No OBS application path configured");
+    }
+
+    const args = argString
+        .split(/(--[^\s]+="[^"]+")|"([^"]+)"|'([^']+)'|([^\s]+)/)
+        .filter((e: string) => typeof e === "string" && e.trim());
+
     return new Promise(resolve => {
         try {
-            const child = spawn(basename(path), args, {
+            const child = spawn(path, args, {
                 cwd: dirname(path),
                 detached: true
             });

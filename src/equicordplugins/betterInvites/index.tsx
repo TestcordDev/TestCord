@@ -39,6 +39,7 @@ export default definePlugin({
     patches: [
         {
             find: "#{intl::xdCLeM::raw}",
+            noWarn: true,
             replacement: [
                 {
                     match: /profile:\i,disableGuildNameClick:!\i/,
@@ -48,6 +49,7 @@ export default definePlugin({
         },
         {
             find: "isBannerVisible:!1})},",
+            noWarn: true,
             replacement: [
                 {
                     match: /children:(\i)\.name\}\)\}\)\}\)/,

@@ -29,12 +29,27 @@ import { SpotifyPlayer } from "./spotify/PlayerComponent";
 import { TidalLyrics } from "./tidal/lyrics/components/lyrics";
 import { TidalPlayer } from "./tidal/TidalPlayer";
 
-let isCtrlPressed = false;
+let isToggled = false;
+let isCtrlHeld = false;
+let lastCtrlPressTime = 0;
+let holdTimeout: ReturnType<typeof setTimeout> | null = null;
+
+export function resetCtrlState() {
+    if (holdTimeout) {
+        clearTimeout(holdTimeout);
+        holdTimeout = null;
+    }
+    isToggled = false;
+    isCtrlHeld = false;
+    lastCtrlPressTime = 0;
+    updatePlayerCtrlState();
+}
 
 function updatePlayerCtrlState() {
+    const isCtrlActive = isToggled !== isCtrlHeld;
     const players = document.querySelectorAll("#vc-spotify-player, #eq-tdl-player");
     players.forEach(player => {
-        if (isCtrlPressed) {
+        if (isCtrlActive) {
             player.classList.add("vc-ctrl-active");
         } else {
             player.classList.remove("vc-ctrl-active");
@@ -43,15 +58,61 @@ function updatePlayerCtrlState() {
 }
 
 function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === "Control" && !isCtrlPressed) {
-        isCtrlPressed = true;
-        updatePlayerCtrlState();
+    if (!settings.store.hoverControls) return;
+
+    if (e.key === "Control") {
+        if (e.repeat) return;
+        const now = Date.now();
+
+        if (holdTimeout) {
+            clearTimeout(holdTimeout);
+            holdTimeout = null;
+        }
+
+        if (now - lastCtrlPressTime < 300) {
+            isToggled = !isToggled;
+            isCtrlHeld = false;
+            lastCtrlPressTime = 0;
+            updatePlayerCtrlState();
+        } else {
+            lastCtrlPressTime = now;
+            holdTimeout = setTimeout(() => {
+                isCtrlHeld = true;
+                updatePlayerCtrlState();
+                holdTimeout = null;
+            }, 180);
+        }
+    } else {
+        lastCtrlPressTime = 0;
+        if (holdTimeout) {
+            clearTimeout(holdTimeout);
+            holdTimeout = null;
+        }
     }
 }
 
 function handleKeyUp(e: KeyboardEvent) {
+    if (!settings.store.hoverControls) return;
+
     if (e.key === "Control") {
-        isCtrlPressed = false;
+        if (holdTimeout) {
+            clearTimeout(holdTimeout);
+            holdTimeout = null;
+        }
+        if (isCtrlHeld) {
+            isCtrlHeld = false;
+            updatePlayerCtrlState();
+        }
+    }
+}
+
+function handleWindowBlur() {
+    if (holdTimeout) {
+        clearTimeout(holdTimeout);
+        holdTimeout = null;
+    }
+    if (isCtrlHeld) {
+        isCtrlHeld = false;
         updatePlayerCtrlState();
     }
 }
@@ -150,6 +211,7 @@ export default definePlugin({
         toggleBetterSpotifyControls(settings.store.betterSpotifyControls);
         window.addEventListener("keydown", handleKeyDown);
         window.addEventListener("keyup", handleKeyUp);
+        window.addEventListener("blur", handleWindowBlur);
     },
 
     stop() {
@@ -157,5 +219,7 @@ export default definePlugin({
         toggleBetterSpotifyControls(false);
         window.removeEventListener("keydown", handleKeyDown);
         window.removeEventListener("keyup", handleKeyUp);
+        window.removeEventListener("blur", handleWindowBlur);
+        resetCtrlState();
     },
 });

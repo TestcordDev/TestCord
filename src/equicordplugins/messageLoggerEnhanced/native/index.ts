@@ -180,17 +180,21 @@ export async function downloadAttachment(_event: IpcMainInvokeEvent, attachment:
         const res = await fetch(useOldUrl ? attachment.oldUrl : attachment.url);
 
         if (res.status !== 200) {
-            if (res.status === 404 || res.status === 403 || res.status === 415)
-                useOldUrl = true;
+            if (res.status === 404 || res.status === 403 || res.status === 410 || res.status === 415) {
+                if (!useOldUrl && attachment.oldUrl && attachment.oldUrl !== attachment.url) {
+                    return downloadAttachment(_event, attachment, attempts + 1, true);
+                }
+                nativeDeadImages.add(attachment.id);
+                return {
+                    error: `Attachment ${attachment.id} is dead or expired (status ${res.status})`,
+                    path: null,
+                };
+            }
 
             attempts++;
-            if (attempts > 3) {
-                // Both the fresh and the old URL are gone, so stop asking.
-                if (res.status === 404 || res.status === 403 || res.status === 410) {
-                    nativeDeadImages.add(attachment.id);
-                }
+            if (attempts > 2) {
                 return {
-                    error: `Failed to get attachment ${attachment.id} for caching. too many attempts, error code ${res.status}`,
+                    error: `Failed to download attachment ${attachment.id} after ${attempts} attempts (status ${res.status})`,
                     path: null,
                 };
             }
@@ -214,8 +218,7 @@ export async function downloadAttachment(_event: IpcMainInvokeEvent, attachment:
         };
 
     } catch (error: any) {
-        console.error(error);
-        return { error: error.message, path: null };
+        return { error: error?.message || "Unknown download error", path: null };
     }
 }
 

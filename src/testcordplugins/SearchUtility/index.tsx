@@ -9,18 +9,19 @@ import { addContextMenuPatch, findGroupChildrenByChildId, type NavContextMenuPat
 import { TestcordRequestCoordinator } from "@api/index";
 import { addServerListElement, removeServerListElement, ServerListRenderPosition } from "@api/ServerList";
 import { definePluginSettings } from "@api/Settings";
+import { getUserSettingLazy } from "@api/UserSettings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Flex } from "@components/Flex";
 import { OpenExternalIcon } from "@components/Icons";
+import { copyToClipboard } from "@utils/clipboard";
 import { TestcordDevs } from "@utils/constants";
 import { classNameFactory } from "@utils/css";
 import { getCurrentChannel, getCurrentGuild, getIntlMessage, getUniqueUsername } from "@utils/discord";
 import { classes } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
-import { NoopComponent } from "@utils/react";
 import definePlugin, { OptionType } from "@utils/types";
 import type { Channel, Embed, Message, User } from "@vencord/discord-types";
-import { filters, findByCodeLazy, findComponentByCodeLazy, waitFor } from "@webpack";
+import { findByCodeLazy, findComponentByCodeLazy } from "@webpack";
 import { Avatar, ChannelStore, Constants, ContextMenuApi, FluxDispatcher, Menu, MessageStore, NavigationRouter, PermissionsBits, PermissionStore, React, RestAPI, useCallback, useEffect, useRef, UserSettingsActionCreators, UserStore, useState } from "@webpack/common";
 
 import { SearchModal } from "./SearchModal";
@@ -99,11 +100,6 @@ interface FullSearchMessageMenuProps {
 interface MessageActionsProps {
     message?: Message;
     isFullSearchContextMenu?: boolean;
-}
-
-interface CopyIdMenuItemProps {
-    id: string;
-    label: string;
 }
 
 interface FavoriteGif {
@@ -232,12 +228,9 @@ const defaultCustomSearchEngine = "https://google.com/search?q={query}";
 const useMessageMenu = findByCodeLazy(".MESSAGE,commandTargetId:") as (props: FullSearchMessageMenuProps) => React.ReactElement | null;
 const GuildlessServerListItemComponent = findComponentByCodeLazy("tooltip:", "lowerBadgeSize:");
 const GuildedServerListItemPillComponent = findComponentByCodeLazy("overlay:d=!1", "unread:r=!1");
-
-let CopyIdMenuItem: (props: CopyIdMenuItemProps) => React.ReactElement | null = NoopComponent;
+const DeveloperMode = getUserSettingLazy("appearance", "developerMode");
 let favoriteGifPickerInstance: FavoriteGifPickerInstance | null = null;
 let isServerSearchButtonRegistered = false;
-
-waitFor(filters.componentByCode('"cannot copy null text"'), component => CopyIdMenuItem = component);
 
 function renderServerSearchButton() {
     return <SearchServerButton />;
@@ -1183,7 +1176,7 @@ function MessageMenu({ channel, message, onHeightUpdate }: { channel: Channel; m
     const canReport = Boolean(message.author && !(message.author.id === currentUserId || message.author.system));
 
     return useMessageMenu({
-        navId: "message-actions",
+        navId: "message",
         ariaLabel: getIntlMessage("MESSAGE_UTILITIES_A11Y_LABEL"),
         message,
         channel,
@@ -1203,11 +1196,17 @@ function MessageMenu({ channel, message, onHeightUpdate }: { channel: Channel; m
 }
 
 const fullSearchResultContextMenuPatch: NavContextMenuPatchCallback = (children, props: MessageActionsProps) => {
-    if (props.isFullSearchContextMenu == null || !props.message?.author) return;
+    const authorId = props.message?.author?.id;
+    if (props.isFullSearchContextMenu == null || !authorId) return;
+    if (!DeveloperMode?.getSetting()) return;
 
     const group = findGroupChildrenByChildId("devmode-copy-id", children, true);
     group?.push(
-        CopyIdMenuItem({ id: props.message.author.id, label: getIntlMessage("COPY_ID_AUTHOR") })
+        <Menu.MenuItem
+            id="devmode-copy-id-author"
+            label={getIntlMessage("COPY_ID_AUTHOR")}
+            action={() => copyToClipboard(authorId)}
+        />
     );
 };
 
@@ -1637,7 +1636,7 @@ export default definePlugin({
         addContextMenuPatch("message", selectedTextSearchContextMenuPatch);
         addContextMenuPatch("message", reverseImageMessageContextMenuPatch);
         addContextMenuPatch("image-context", reverseImageContextMenuPatch);
-        addContextMenuPatch("message-actions", fullSearchResultContextMenuPatch);
+        addContextMenuPatch(["message", "message-actions"], fullSearchResultContextMenuPatch);
         syncServerSearchButton(settings.store.showServerSearchButton);
         document.addEventListener("click", onDocumentClick, true);
     },
@@ -1647,7 +1646,7 @@ export default definePlugin({
         removeContextMenuPatch("message", selectedTextSearchContextMenuPatch);
         removeContextMenuPatch("message", reverseImageMessageContextMenuPatch);
         removeContextMenuPatch("image-context", reverseImageContextMenuPatch);
-        removeContextMenuPatch("message-actions", fullSearchResultContextMenuPatch);
+        removeContextMenuPatch(["message", "message-actions"], fullSearchResultContextMenuPatch);
         syncServerSearchButton(false);
         favoriteGifPickerInstance = null;
         document.removeEventListener("click", onDocumentClick, true);

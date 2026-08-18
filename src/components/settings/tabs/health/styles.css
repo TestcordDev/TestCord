@@ -178,7 +178,8 @@
 
 .vc-health-stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    /* Five stat cards — always one row so the last card doesn't wrap below. */
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.75rem;
     margin-bottom: 1.25rem;
 }
@@ -198,9 +199,16 @@
 }
 
 .vc-health-stat-value {
-    font-size: 1.4rem;
+    font-size: 1.25rem;
     font-weight: 700;
     color: var(--header-primary, #f2f3f5);
+    /* Values update constantly — keep them on exactly one line with stable
+       digit widths so the cards never grow/shrink and jiggle the row. */
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
 }
 
 .vc-health-stat-label {
@@ -484,6 +492,13 @@
     border-radius: 6px;
     padding: 0.65rem;
     text-align: center;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+/* Same interactive hover as the Client Diagnostics stat cards */
+.vc-health-metric-card-sm:hover {
+    transform: translateY(-2px);
+    border-color: var(--brand-experiment, var(--background-brand));
 }
 
 .vc-health-metric-val {
@@ -1229,4 +1244,225 @@
     &::-webkit-scrollbar-track {
         background-color: var(--scrollbar-auto-track);
     }
+}
+
+/* ─── Install health score ─────────────────────────────────────────────── */
+
+.vc-plugin-health-score {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.vc-plugin-health-score-value {
+    font-size: 2.4rem;
+    font-weight: 800;
+    line-height: 1;
+    min-width: 3.5ch;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.vc-plugin-health-score-value[data-rating="healthy"] {
+    color: var(--text-positive, #23a55a);
+}
+
+.vc-plugin-health-score-value[data-rating="fair"] {
+    color: var(--text-warning, #f0b232);
+}
+
+.vc-plugin-health-score-value[data-rating="degraded"] {
+    color: var(--text-warning, #f0b232);
+}
+
+.vc-plugin-health-score-value[data-rating="poor"] {
+    color: var(--text-danger, #f23f43);
+}
+
+.vc-plugin-health-score-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.85rem;
+    color: var(--text-muted, #949ba4);
+}
+
+.vc-plugin-health-score-breakdown strong {
+    color: var(--text-normal, #f2f3f5);
+}
+
+.vc-plugin-health-score-formula {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+.vc-plugin-health-uptime {
+    margin-left: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    text-align: right;
+}
+
+.vc-plugin-health-uptime-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-muted, #949ba4);
+}
+
+.vc-plugin-health-uptime-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-normal, #f2f3f5);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ─── Startup timeline ─────────────────────────────────────────────────── */
+
+.vc-health-startup-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.vc-health-startup-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.vc-health-startup-name {
+    width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text-normal, #f2f3f5);
+}
+
+.vc-health-startup-bar {
+    flex: 1;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--background-modifier-accent, rgb(255 255 255 / 8%));
+    overflow: hidden;
+}
+
+.vc-health-startup-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--brand-experiment, #5865f2);
+}
+
+.vc-health-startup-fill[data-failed="true"] {
+    background: var(--text-danger, #f23f43);
+}
+
+.vc-health-startup-ms {
+    width: 110px;
+    text-align: right;
+    font-size: 0.8rem;
+    color: var(--text-muted, #949ba4);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* ─── Error cluster badge ──────────────────────────────────────────────── */
+
+.vc-plugin-health-cluster-count {
+    margin-left: 6px;
+    font-weight: 700;
+    color: var(--text-danger, #f23f43);
+}
+
+/* ─── Changes since last healthy session ───────────────────────────────── */
+
+.vc-plugin-health-changes-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.vc-plugin-health-change-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.vc-plugin-health-change-added {
+    background: rgb(35 165 90 / 15%);
+    color: var(--text-positive, #23a55a);
+}
+
+.vc-plugin-health-change-removed {
+    background: rgb(148 155 164 / 15%);
+    color: var(--text-muted, #949ba4);
+}
+
+.vc-plugin-health-change-broken {
+    background: rgb(240 71 71 / 15%);
+    color: var(--text-danger, #f04747);
+}
+
+/* ─── Module finder ────────────────────────────────────────────────────── */
+
+.vc-health-finder-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.vc-health-finder-result {
+    border: 1px solid var(--border-subtle, rgb(255 255 255 / 8%));
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background: var(--card-background-default, #2b2d31);
+}
+
+.vc-health-finder-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.vc-health-finder-id {
+    font-family: monospace;
+    font-weight: 700;
+    color: var(--text-normal, #f2f3f5);
+}
+
+.vc-health-finder-size {
+    font-size: 0.8rem;
+    color: var(--text-muted, #949ba4);
+}
+
+.vc-health-finder-snippet {
+    margin: 6px 0 0;
+    font-family: monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted, #949ba4);
+    white-space: pre;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-height: 3.4em;
+}
+
+/* ─── New cards: match the network card's padding ──────────────────────── */
+
+.vc-plugin-health-since-healthy,
+.vc-plugin-health-crash-recovery,
+.vc-plugin-health-changes {
+    padding: 1em 1.25em;
+    margin-bottom: 0.5em;
 }

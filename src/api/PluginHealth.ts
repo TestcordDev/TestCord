@@ -429,6 +429,18 @@ export const PluginHealth = {
         notify();
     },
 
+    /** Clear recorded runtime errors for a plugin, dropping the entry if nothing is left. */
+    clearRuntimeErrors(plugin: string) {
+        const entry = registry.get(plugin);
+        if (!entry) return;
+        if (entry.runtimeErrors.length === 0) return;
+        entry.runtimeErrors = [];
+        if (!entry.patchFailures.length) {
+            registry.delete(plugin);
+        }
+        notify();
+    },
+
     /**
      * Clear everything in memory. Does NOT wipe persisted history — call
      * `clearHistory()` for that.
@@ -598,6 +610,19 @@ export const PluginHealth = {
             console.warn("[PluginHealth] Failed to persist crash log:", err);
         }
         notify();
+
+        // Auto-quarantine: a plugin that crashed three or more times within
+        // the last 24 hours is isolated so the next boot starts without it.
+        // The user can restore it from the Crash Recovery card.
+        if (entry.pluginName && !quarantinedPlugins.includes(entry.pluginName)) {
+            const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+            const recentCrashes = crashHistory.filter(
+                c => c.pluginName === entry.pluginName && c.timestamp >= dayAgo
+            ).length;
+            if (recentCrashes >= 3) {
+                await this.quarantinePlugin(entry.pluginName);
+            }
+        }
     },
 
     async clearCrashHistory(): Promise<void> {
@@ -638,10 +663,28 @@ export const PluginHealth = {
         pluginStateChanges.unshift(entry);
         if (pluginStateChanges.length > 50) pluginStateChanges.pop();
         pluginChangesLoaded = true;
+
+        // Keep the current session's enabled list truthful for tools that
+        // diff "what changed since the last healthy session".
+        const set = new Set(currentSession.enabledPlugins);
+        if (enabled) set.add(pluginName);
+        else set.delete(pluginName);
+        currentSession.enabledPlugins = Array.from(set);
+
         try {
             await DataStore.set(DB_KEY_PLUGIN_CHANGES, pluginStateChanges);
         } catch (err) {
             console.warn("[PluginHealth] Failed to persist plugin change log:", err);
+        }
+        notify();
+    },
+
+    async clearPluginChanges(): Promise<void> {
+        pluginStateChanges = [];
+        try {
+            await DataStore.set(DB_KEY_PLUGIN_CHANGES, []);
+        } catch (err) {
+            console.warn("[PluginHealth] Failed to clear plugin change log:", err);
         }
         notify();
     }
@@ -651,4 +694,45 @@ export const PluginHealth = {
 // and consumed by external tools like the reporter without a static import cycle.
 if (typeof globalThis !== "undefined") {
     (globalThis as any).__pluginHealth = PluginHealth;
+}
+
+// ─── Global error capture ────────────────────────────────────────────────
+// Catches errors that none of the explicit wrappers (start/stop/flux) see:
+// async callbacks, event handlers, timers. Attribution is best-effort from
+// the stack, mirroring NetworkMonitor. Patterns are defined locally to keep
+// this module dependency-light (it runs early during boot).
+const GLOBAL_ERROR_PLUGIN_PATTERNS = [
+    /testcordplugins[/\\]([^/\\]+?)[/\\]/,
+    /equicordplugins[/\\]([^/\\]+?)[/\\]/,
+    /userplugins[/\\]([^/\\]+?)[/\\]/
+];
+let lastUnknownErrorAt = 0;
+
+function attributeGlobalError(source: string, error: unknown) {
+    try {
+        const stack = error instanceof Error ? (error.stack ?? "") : String(error ?? "");
+        let plugin = "Unknown source";
+        for (const pattern of GLOBAL_ERROR_PLUGIN_PATTERNS) {
+            const match = stack.match(pattern);
+            if (match) {
+                plugin = match[1];
+                break;
+            }
+        }
+        if (plugin === "Unknown source") {
+            // Discord's own code is noisy; keep unattributed errors but
+            // throttle them so they cannot flood the buffer.
+            const now = Date.now();
+            if (now - lastUnknownErrorAt < 5_000) return;
+            lastUnknownErrorAt = now;
+        }
+        PluginHealth.recordRuntimeError(plugin, source, error ?? new Error(source));
+    } catch {
+        // The capture hook itself must never throw.
+    }
+}
+
+if (typeof window !== "undefined") {
+    window.addEventListener("error", e => attributeGlobalError("window.onerror", e.error ?? e.message));
+    window.addEventListener("unhandledrejection", e => attributeGlobalError("unhandledrejection", e.reason));
 }

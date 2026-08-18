@@ -65,6 +65,12 @@ class DnsResolverEngine {
     private isDiagnosticRunning = false;
     private abortDiagnosticController: AbortController | null = null;
     private isInitialized = false;
+    /**
+     * Whether encrypted DNS is applied to the Electron session at all. Mirrors
+     * the Custom DNS toggle in the Privacy & Security panel; when false the
+     * app keeps using the system resolver.
+     */
+    private dnsEnabled = true;
 
     constructor() {
         this.loadSettings();
@@ -88,6 +94,10 @@ class DnsResolverEngine {
     }
 
     public applyToElectronSession() {
+        if (!this.dnsEnabled) {
+            this.addLog("info", "Encrypted DNS is disabled; the app is using the system resolver.");
+            return;
+        }
         try {
             const providers = this.getAllProviders();
             const primary = providers[this.selectedProviderName] || DNS_PROVIDERS["Cloudflare 1.1.1.1"];
@@ -127,6 +137,9 @@ class DnsResolverEngine {
                 if (data.customEndpoints) {
                     this.customEndpoints = data.customEndpoints;
                 }
+                if (typeof data.dnsEnabled === "boolean") {
+                    this.dnsEnabled = data.dnsEnabled;
+                }
             }
         } catch (e) {
             console.error("[Privacy] Failed to load DNS settings", e);
@@ -138,11 +151,48 @@ class DnsResolverEngine {
             mkdirSync(SETTINGS_DIR, { recursive: true });
             const data = {
                 selectedProviderName: this.selectedProviderName,
-                customEndpoints: this.customEndpoints
+                customEndpoints: this.customEndpoints,
+                dnsEnabled: this.dnsEnabled
             };
             writeFileSync(PRIVACY_SETTINGS_FILE, JSON.stringify(data, null, 4));
         } catch (e) {
             console.error("[Privacy] Failed to save DNS settings", e);
+        }
+    }
+
+    public isEnabled(): boolean {
+        return this.dnsEnabled;
+    }
+
+    /**
+     * Enable or disable encrypted DNS for the whole Electron session. Persists
+     * across restarts and reconfigures the host resolver immediately: enabling
+     * applies the selected provider, disabling falls back to the system
+     * resolver.
+     */
+    public setEnabled(enabled: boolean): boolean {
+        this.dnsEnabled = enabled;
+        this.saveSettings();
+        if (enabled) {
+            this.applyToElectronSession();
+        } else {
+            this.disableElectronSession();
+        }
+        return this.dnsEnabled;
+    }
+
+    private disableElectronSession() {
+        try {
+            if (typeof app.configureHostResolver === "function") {
+                // No secureDns* options — Electron goes back to the system resolver.
+                app.configureHostResolver({ enableBuiltInResolver: true });
+                this.addLog("info", "Encrypted DNS disabled; the app is using the system resolver.");
+            } else {
+                this.addLog("warn", "app.configureHostResolver is not supported in this Electron environment.");
+            }
+        } catch (e: any) {
+            console.error("[Privacy] Failed to disable DNS configuration on Electron session", e);
+            this.addLog("error", `Failed to disable DNS configuration on Electron session: ${e?.message || e}`);
         }
     }
 
@@ -219,7 +269,12 @@ class DnsResolverEngine {
         return -1;
     }
 
-    public async resolveHostname(hostname: string): Promise<string> {
+    /**
+     * Resolve a hostname over the encrypted pipeline. Returns null when the
+     * name cannot be resolved — never the provider's own fallback IP, which
+     * would misdirect requests and pollute the cache with wrong answers.
+     */
+    public async resolveHostname(hostname: string): Promise<string | null> {
         // Check LRU Cache
         const now = Date.now();
         const cached = this.cache.get(hostname);
@@ -245,21 +300,25 @@ class DnsResolverEngine {
         }
 
         if (!resolvedIp) {
-            // Secondary failover: Cloudflare fallback or direct IP fallback
+            // Secondary failover — pointless when the primary IS the secondary.
             const secondary = DNS_PROVIDERS["Cloudflare 1.1.1.1"];
-            try {
-                resolvedIp = await this.queryDoH(secondary.doh, hostname, 1500);
-                this.addLog("info", `Secondary DNS failover succeeded for ${hostname}: ${resolvedIp}`);
-            } catch {
-                resolvedIp = primary.fallback;
-                this.addLog("warn", `Secondary DNS query failed. Using IP fallback for ${hostname}: ${resolvedIp}`);
+            if (primary.doh !== secondary.doh) {
+                try {
+                    resolvedIp = await this.queryDoH(secondary.doh, hostname, 1500);
+                    this.addLog("info", `Secondary DNS failover succeeded for ${hostname}: ${resolvedIp}`);
+                } catch {
+                    this.addLog("warn", `Secondary DNS query failed for ${hostname}.`);
+                }
             }
         }
 
-        const finalIp = resolvedIp || primary.fallback;
-        // Cache result
-        this.addToCache(hostname, finalIp);
-        return finalIp;
+        if (!resolvedIp) {
+            this.addLog("warn", `Could not resolve ${hostname} over encrypted DNS; leaving it unresolved.`);
+            return null;
+        }
+
+        this.addToCache(hostname, resolvedIp);
+        return resolvedIp;
     }
 
     private async queryDoH(dohUrl: string, hostname: string, timeoutMs: number): Promise<string | null> {
@@ -542,9 +601,13 @@ class DnsResolverEngine {
             // Populate the resolver cache via the normal failover path so the cache row reflects the run.
             const testIp = await this.resolveHostname("discord.com");
             if (signal.aborted) return;
-            this.addLog("info", `Resolver cache target "discord.com" -> ${testIp}`);
+            if (testIp) {
+                this.addLog("info", `Resolver cache target "discord.com" -> ${testIp}`);
+            } else {
+                this.addLog("warn", "Resolver could not resolve the cache test target \"discord.com\".");
+            }
             this.addLog("info", `DNS cache status: ${this.cache.size}/${this.cacheMaxCapacity} entries stored`);
-            this.addLog("success", `Diagnostic run [${mode.toUpperCase()}] completed successfully.`);
+            this.addLog("success", `Diagnostic run [${mode.toUpperCase()}] completed.`);
         } catch (err: any) {
             if (!signal.aborted) {
                 this.addLog("error", `Diagnostic failed: ${err?.message || err}`);

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { assertSafeUrl } from "@main/utils/safeFetch";
 import { net } from "electron";
 
 type GofileServersResponse = {
@@ -179,7 +180,9 @@ export async function uploadFileCustomNative(
     responseType: string,
     urlPath: string[]
 ): Promise<string> {
-    if (!isHttpUrl(url)) throw new Error("Custom: invalid request URL");
+    await assertSafeUrl(url).catch(() => {
+        throw new Error("Custom: invalid request URL (https public hosts only)");
+    });
     if (!fileFormName?.trim()) throw new Error("Custom: invalid file form name");
 
     const formData = new FormData();

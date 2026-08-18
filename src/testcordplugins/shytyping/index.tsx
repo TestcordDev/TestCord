@@ -38,21 +38,24 @@ export default definePlugin({
             // This patch is intentionally different to the patch used in SilentTyping, so they can be compatible with each other
             find: '"TypingStore"',
             replacement: {
-                match: /(TYPING_START_LOCAL:)(\i)/,
-                replace: "$1$self.wrap($2)"
+                match: /(TYPING_START_LOCAL:?(?:function)?\s*\(?\s*(\i)\s*\)?\s*(?:=>)?\s*\{)/,
+                replace: "$1if(!$self.shouldStartTyping($2?.channelId))return;"
             }
         }
     ],
 
     wrap(startTyping: ({ channelId }: { channelId: string; }) => void) {
         return (e: { channelId: string; }) => {
-            return this.shouldStartTyping(e.channelId) && startTyping(e);
+            return this.shouldStartTyping(e?.channelId) && startTyping(e);
         };
     },
 
-    shouldStartTyping(channelId: string): boolean {
+    shouldStartTyping(channelId?: string): boolean {
+        if (!channelId) return true;
         if (settings.store.currentVC && SelectedChannelStore.getVoiceChannelId() === channelId) return true;
-        const threshold = Date.now() - (settings.store[ChannelStore.getChannel(channelId).isPrivate() ? "thresholdInDms" : "threshold"] * 1000);
+        const channel = ChannelStore.getChannel(channelId);
+        if (!channel) return true;
+        const threshold = Date.now() - (settings.store[channel.isPrivate() ? "thresholdInDms" : "threshold"] * 1000);
         // discord-types and the MessageStore types are so wrong and cursed
         const lastMessage = (MessageStore as any).getLastEditableMessage(channelId);
         if (lastMessage && lastMessage?.timestamp > threshold) return true;

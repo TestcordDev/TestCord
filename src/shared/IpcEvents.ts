@@ -64,6 +64,7 @@ export const enum IpcEvents {
     PRIVACY_GET_DATA = "TestCordPrivacyGetData",
     PRIVACY_TOGGLE_SHIELD = "TestCordPrivacyToggleShield",
     PRIVACY_SET_DNS_PROVIDER = "TestCordPrivacySetDnsProvider",
+    PRIVACY_SET_DNS_ENABLED = "TestCordPrivacySetDnsEnabled",
     PRIVACY_ADD_CUSTOM_DNS = "TestCordPrivacyAddCustomDns",
     PRIVACY_PING_LATENCIES = "TestCordPrivacyPingLatencies",
     PRIVACY_RUN_DIAGNOSTIC = "TestCordPrivacyRunDiagnostic",

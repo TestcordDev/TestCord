@@ -16,6 +16,7 @@ import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
 import { Switch } from "@components/Switch";
 import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
+import { TestcordDevs } from "@utils/constants";
 import { ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, RenderModalProps } from "@utils/modal";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
 import { React, Select, Slider } from "@webpack/common";
@@ -1341,7 +1342,7 @@ function PanelLayoutButton({ iconForeground, hideTooltips, nameplate }: UserArea
 export default definePlugin({
     name: "deraculpanellayout",
     description: "Customize the layout, style, and visibility of panel and call buttons.",
-    authors: [{ name: "deracul", id: 1454268753629024529n }],
+    authors: [TestcordDevs.deracul, TestcordDevs.Aviv, TestcordDevs.x2b, TestcordDevs.sirphantom89],
     dependencies: ["UserSettingsAPI"],
     settings,
 

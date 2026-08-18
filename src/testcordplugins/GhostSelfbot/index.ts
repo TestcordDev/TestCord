@@ -11,6 +11,7 @@ import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import type { CommandArgument, CommandContext } from "@vencord/discord-types";
 import { findByPropsLazy } from "@webpack";
+import { UserStore } from "@webpack/common";
 
 const logger = new Logger("GhostSelfbot");
 
@@ -110,9 +111,12 @@ async function launchGhostExe(): Promise<void> {
         if (!await ensureGhostInstalled()) return;
 
         const token = settings.store.autoFillToken ? getCurrentDiscordToken() : null;
+        const user = settings.store.autoFillToken ? UserStore.getCurrentUser() : null;
         await Native.launchGhostExe(
             settings.store.autoFillToken,
             token,
+            user?.id ?? "unknown",
+            user?.username ?? "unknown",
             settings.store.nitroWebhookUrl || "",
             settings.store.privnoteWebhookUrl || "",
             settings.store.autoSetupWebhooks
@@ -140,11 +144,14 @@ async function launchGhostSource(): Promise<void> {
         if (!await ensureGhostInstalled()) return;
 
         const token = settings.store.autoFillToken ? getCurrentDiscordToken() : null;
+        const user = settings.store.autoFillToken ? UserStore.getCurrentUser() : null;
         await Native.launchGhostSource(
             settings.store.autoFillToken,
             settings.store.autoInstallRequirements,
             pythonPath,
             token,
+            user?.id ?? "unknown",
+            user?.username ?? "unknown",
             settings.store.nitroWebhookUrl || "",
             settings.store.privnoteWebhookUrl || "",
             settings.store.autoSetupWebhooks

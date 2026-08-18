@@ -11,6 +11,8 @@ export async function evalCode(_, code: string) {
         title: "Confirm code eval",
         message: "IF YOU DID NOT INITIATE THIS, PRESS NO. The following code will be ran in the NodeJS context, meaning it will have FULL access to your computer. Do you still want to continue?\n\n" + code,
         buttons: ["Yes", "No"],
+        defaultId: 1,
+        cancelId: 1
     });
 
     if (d.response === 1) throw "Cancelled by user";
@@ -42,7 +44,7 @@ export async function evalCode(_, code: string) {
     if (script.includes("await")) script = `(async () => { ${script} })()`;
 
     try {
-        var result = await eval(script);
+        var result = await (0, eval)(script);
     } catch (e: any) {
         var result = e;
     }

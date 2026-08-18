@@ -13,6 +13,7 @@ import { MainSettingsIcon } from "@components/Icons";
 import { Paragraph } from "@components/Paragraph";
 import { SettingsTab, wrapTab } from "@components/settings/tabs/BaseTab";
 import { Switch } from "@components/Switch";
+import { Logger } from "@utils/Logger";
 import { Margins } from "@utils/margins";
 import { saveFile } from "@utils/web";
 import { Alerts, React, showToast, Toasts, useDrag, useDrop } from "@webpack/common";
@@ -23,13 +24,14 @@ import { openMergeModal } from "./MergeModal";
 import { openNameModal } from "./NameModal";
 import {
     ANIM_KEYS, ANIM_LABELS, applyPreset, deletePreset, duplicatePreset, exportAllPresets,
-    getAnim, getAnimMaster, getHideDuplicate, getRestoreDefault, hasPreset, listPresets, loadPresets,
-    Preset, renamePreset, reorderPresets, savePreset, setAnim, setAnimMaster, setHideDuplicate, setRestoreDefault
+    getAnim, getAnimMaster, getForceApplyDefault, getHideDuplicate, getRestoreDefault, hasPreset, listPresets, loadPresets,
+    Preset, renamePreset, reorderPresets, savePreset, setAnim, setAnimMaster, setForceApplyDefault, setHideDuplicate, setRestoreDefault
 } from "./presets";
 import { openSaveModal } from "./SaveModal";
 
 type DropIntent = "before" | "merge" | "after";
 const PRESET_DND_TYPE = "VC_PRESET";
+const logger = new Logger("Presets");
 
 interface PresetDragItem {
     name: string;
@@ -105,20 +107,23 @@ function PresetDragPreview({ preset, point, offset }: { preset: Preset | undefin
     );
 }
 
-function PresetRow({ preset, globalDefault, hideDuplicate, draggingName, dragOverName, dropIntent, setDraggingName, setDragOverName, setDropIntent, setDragPreviewPoint, setDragPreviewOffset, onChange }: { preset: Preset; globalDefault: boolean; hideDuplicate: boolean; draggingName: string | null; dragOverName: string | null; dropIntent: DropIntent | null; setDraggingName: (name: string | null) => void; setDragOverName: (name: string | null) => void; setDropIntent: (intent: DropIntent | null) => void; setDragPreviewPoint: (point: DragPreviewPoint | null) => void; setDragPreviewOffset: (offset: DragPreviewOffset) => void; onChange: () => void; }) {
+function PresetRow({ preset, globalDefault, forceDefault, hideDuplicate, draggingName, dragOverName, dropIntent, setDraggingName, setDragOverName, setDropIntent, setDragPreviewPoint, setDragPreviewOffset, onChange }: { preset: Preset; globalDefault: boolean; forceDefault: boolean; hideDuplicate: boolean; draggingName: string | null; dragOverName: string | null; dropIntent: DropIntent | null; setDraggingName: (name: string | null) => void; setDragOverName: (name: string | null) => void; setDropIntent: (intent: DropIntent | null) => void; setDragPreviewPoint: (point: DragPreviewPoint | null) => void; setDragPreviewOffset: (offset: DragPreviewOffset) => void; onChange: () => void; }) {
     const rowRef = React.useRef<HTMLDivElement>(null);
     const effectiveRestore = preset.restoreSettings ?? globalDefault;
+    const effectiveForce = preset.forceApply ?? forceDefault;
 
     const apply = () => {
         Alerts.show({
             title: `Apply "${preset.name}"`,
-            body: effectiveRestore
-                ? "This will set which plugins are enabled AND overwrite each plugin's settings with the preset's saved values."
-                : "This will set which plugins are enabled. Plugin settings are left as-is.",
+            body: effectiveForce
+                ? "This will make the preset the source of truth: every plugin it doesn't include gets disabled, and each included plugin's settings are overwritten with the preset's saved values."
+                : effectiveRestore
+                    ? "This will set which plugins are enabled AND overwrite each plugin's settings with the preset's saved values."
+                    : "This will set which plugins are enabled. Plugin settings are left as-is.",
             confirmText: "Apply",
             cancelText: "Cancel",
             onConfirm: async () => {
-                const { changed, missingThemes } = await applyPreset(preset.name, effectiveRestore);
+                const { changed, missingThemes } = await applyPreset(preset.name, effectiveRestore, effectiveForce);
                 if (missingThemes.length) {
                     showToast(`Skipped ${missingThemes.length} missing theme(s): ${missingThemes.join(", ")}`, Toasts.Type.FAILURE);
                 }
@@ -289,6 +294,7 @@ function PresetsTab() {
     }, [draggingName]);
 
     const globalDefault = getRestoreDefault();
+    const forceDefault = getForceApplyDefault();
     const hideDuplicate = getHideDuplicate();
     const animMaster = getAnimMaster();
 
@@ -298,9 +304,14 @@ function PresetsTab() {
     const onSave = () => openSaveModal("", (name, scope) => {
         const exists = hasPreset(name);
         const write = async () => {
-            await savePreset(name, Date.now(), scope);
-            forceUpdate();
-            showToast(`Saved preset "${name}".`, Toasts.Type.SUCCESS);
+            try {
+                await savePreset(name, Date.now(), scope);
+                forceUpdate();
+                showToast(`Saved preset "${name}".`, Toasts.Type.SUCCESS);
+            } catch (err) {
+                logger.error(`Failed to save preset "${name}"`, err);
+                showToast(`Failed to save preset "${name}".`, Toasts.Type.FAILURE);
+            }
         };
         if (exists) {
             Alerts.show({
@@ -338,6 +349,13 @@ function PresetsTab() {
                 onChange={v => { setRestoreDefault(v); forceUpdate(); }}
                 title="Default: restore plugin settings on apply (overwrites current)"
                 description="The default for presets set to 'Restore: Default'. When on, applying such a preset also overwrites each plugin's settings with its saved values. Per-preset 'Restore: On/Off' overrides this."
+            />
+
+            <FormSwitch
+                value={forceDefault}
+                onChange={v => { setForceApplyDefault(v); forceUpdate(); }}
+                title="Default: force apply presets (full overwrite)"
+                description="The default for presets set to 'Force: Default'. When on, applying such a preset disables every plugin the preset doesn't include and always overwrites plugin settings, making the preset the source of truth. Per-preset 'Force: On/Off' overrides this."
             />
 
             <FormSwitch
@@ -390,7 +408,7 @@ function PresetsTab() {
                     ? <Paragraph className={Margins.top16} style={{ opacity: 0.6 }}>No presets yet. Save your current loadout to create one.</Paragraph>
                     : (
                         <div className={`vc-presets-list ${Margins.top16}`}>
-                            {presets.map(p => <PresetRow key={p.name} preset={p} globalDefault={globalDefault} hideDuplicate={hideDuplicate} draggingName={draggingName} dragOverName={dragOverName} dropIntent={dropIntent} setDraggingName={setDraggingName} setDragOverName={setDragOverName} setDropIntent={setDropIntent} setDragPreviewPoint={setDragPreviewPoint} setDragPreviewOffset={setDragPreviewOffset} onChange={forceUpdate} />)}
+                            {presets.map(p => <PresetRow key={p.name} preset={p} globalDefault={globalDefault} forceDefault={forceDefault} hideDuplicate={hideDuplicate} draggingName={draggingName} dragOverName={dragOverName} dropIntent={dropIntent} setDraggingName={setDraggingName} setDragOverName={setDragOverName} setDropIntent={setDropIntent} setDragPreviewPoint={setDragPreviewPoint} setDragPreviewOffset={setDragPreviewOffset} onChange={forceUpdate} />)}
                             <PresetDragPreview preset={dragPreviewPreset} point={dragPreviewPoint} offset={dragPreviewOffset} />
                         </div>
                     )}

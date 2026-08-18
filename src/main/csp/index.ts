@@ -61,7 +61,7 @@ export const CspPolicies: PolicyMap = {
     "archive.org": ConnectSrc,
     "*.archive.org": ConnectSrc,
     "translate-pa.googleapis.com": ConnectSrc, // Google Translate API
-    "*.vencord.dev": ImageSrc, // VenCloud (api.vencord.dev) and Badges (badges.vencord.dev)
+    "*.vencord.dev": [...ImageAndCssSrc, ...ConnectSrc], // VenCloud (api.vencord.dev) and Badges (badges.vencord.dev)
     "manti.vendicated.dev": ImageSrc, // ReviewDB API
     "decor.fieryflames.dev": ConnectSrc, // Decor API
     "ugc.decor.fieryflames.dev": ImageSrc, // Decor CDN
@@ -72,8 +72,16 @@ export const CspPolicies: PolicyMap = {
 
     // Equicord & Spotify & CordCat APIs
     "badges.equicord.org": ImageAndCssSrc,
+    "badge.equicord.org": ImageAndCssSrc, // badge images + badges.json (BadgeAPI)
+    "obamabot.me": [...ConnectSrc, "img-src"], // third-party badge service (globalBadges)
+    "*.obamabot.me": [...ConnectSrc, "img-src"],
+    "themes.equicord.org": [...ImageAndCssSrc, ...ConnectSrc], // theme marketplace previews, CSS + API
+    "equicord.org": ImageSrc, // plugin card / settings icons
+    "cloud.equicord.org": ConnectSrc, // Equicord Cloud settings sync
     "spotify-lyrics-api-pi.vercel.app": ConnectSrc,
     "api.cord.cat": ConnectSrc,
+    "fonts.google.com": ConnectSrc, // Google Fonts catalog RPC (font browser plugins)
+    "timezone.creations.works": ConnectSrc, // timezone list
 
     // AI APIs — used by Testcord plugins (TestcordAI, ChatGPT, AutoCorrect, VoiceDictation, TriviaAI, etc.)
     "api.groq.com": ConnectSrc,
@@ -86,6 +94,121 @@ export const CspPolicies: PolicyMap = {
     // Tenor, used by TenorSearch plugin and some themes
     "*.tenor.com": ImageAndMediaSrc,
     "*.tenor.co": ImageAndMediaSrc,
+    "api.tenor.com": ConnectSrc,
+
+    // File hosters used by renderer-side upload paths (fileUpload, bigFileUpload, bypassUpload, BigFileUploadEnhanced)
+    "gofile.io": ConnectSrc,
+    "upload.gofile.io": ConnectSrc,
+    "catbox.moe": ConnectSrc,
+    "litterbox.catbox.moe": ConnectSrc,
+    "tmpfiles.org": ConnectSrc,
+    "temp.sh": ConnectSrc,
+    "pixeldrain.com": ConnectSrc,
+    "buzzheavier.com": ConnectSrc,
+    "w.buzzheavier.com": ConnectSrc,
+    "filebin.net": ConnectSrc,
+    "nest.rip": ConnectSrc,
+    "api.e-z.host": ConnectSrc,
+    "encrypting.host": ConnectSrc,
+    "pixelvault.co": ConnectSrc,
+    "discord.nfp.is": ConnectSrc,
+    "file.fast": ConnectSrc,
+    "embeds.video": [...ConnectSrc, "frame-src"],
+    "www.viewstl.com": [...ConnectSrc, "frame-src"],
+    "drive.google.com": [...ConnectSrc, "frame-src"],
+    "embed.tidal.com": [...ConnectSrc, "frame-src"],
+
+    // Plugin APIs fetched from the renderer
+    "aiapi.serversmp.xyz": ConnectSrc,
+    "api.anthropic.com": ConnectSrc,
+    "api.together.xyz": ConnectSrc,
+    "openrouter.ai": ConnectSrc,
+    "reidverse-ai.up.railway.app": ConnectSrc,
+    "integrate.api.nvidia.com": ConnectSrc,
+    "translate.googleapis.com": ConnectSrc,
+    "translate.google.com": ConnectSrc,
+    "api.dictionaryapi.dev": ConnectSrc,
+    "api.imgur.com": ConnectSrc,
+    "api.jsonbin.io": ConnectSrc,
+    "api.stats.fm": ConnectSrc,
+    "stats.fm": ConnectSrc,
+    "api.urbandictionary.com": ConnectSrc,
+    "www.urbandictionary.com": [...ConnectSrc, "img-src"],
+    "en.wikipedia.org": ConnectSrc,
+    "fr.wikipedia.org": ConnectSrc,
+    "assets.ppy.sh": ConnectSrc,
+    "free.freeipapi.com": ConnectSrc,
+    "ipwho.is": ConnectSrc,
+    "huskapi.nin0.dev": ConnectSrc,
+    "lrclib.net": ConnectSrc,
+    "nekos.best": ConnectSrc,
+    "openpgpjs.org": ConnectSrc,
+    "keys.openpgp.org": ConnectSrc,
+    "keyserver.ubuntu.com": ConnectSrc,
+    "pgp.mit.edu": ConnectSrc,
+    "fakeprofile.sampath.me": ConnectSrc,
+    "rdap.org": ConnectSrc,
+    "stackoverflow.com": ConnectSrc,
+    "www.reddit.com": ConnectSrc,
+    "store.line.me": ConnectSrc,
+    "api.spotify.com": ConnectSrc,
+    "open.spotify.com": ConnectSrc,
+    "api-v2.soundcloud.com": ConnectSrc,
+    "api.music.yandex.net": ConnectSrc,
+    "music.yandex.ru": ConnectSrc,
+    "api.mail.tm": ConnectSrc,
+    "api.purrbot.site": ConnectSrc,
+    "api.thecatapi.com": ConnectSrc,
+    "api.thedogapi.com": ConnectSrc,
+    "api.ipapi.is": ConnectSrc,
+    "cors.keiran0.workers.dev": ConnectSrc,
+    "corsproxy.io": ConnectSrc,
+    "tiktok-tts-aio.exampleuser.workers.dev": ConnectSrc,
+    "opencode.ai": ConnectSrc,
+    "devina.io": ConnectSrc,
+    "picard.musicbrainz.org": ConnectSrc,
+    "betterdiscord.app": CSPSrc,
+    "streaks.equicord.org": ConnectSrc,
+    "dc.songspotlight.nexpid.xyz": ConnectSrc,
+    "reviewdb.mantikafasi.dev": [...ConnectSrc, "img-src"],
+    "embed.sammcheese.net": ConnectSrc,
+    "dsa.discord.food": ConnectSrc,
+    "docs.discord.food": ConnectSrc,
+    "unpkg.com": ConnectSrc,
+    "canary.discord.com": [...ConnectSrc, "img-src"],
+    "disboard.org": ConnectSrc,
+    "discordhub.com": ConnectSrc,
+    "discordservers.com": ConnectSrc,
+    "top.gg": ConnectSrc,
+
+    // Image CDNs loaded by plugins
+    // Moebooru boards serve files/assets from separate CDN hosts than their API
+    "cdn.donmai.us": [...ConnectSrc, "img-src"],
+    "files.yande.re": [...ConnectSrc, "img-src"],
+    "assets.yande.re": [...ConnectSrc, "img-src"],
+    "files.konachan.com": [...ConnectSrc, "img-src"],
+    "assets.konachan.com": [...ConnectSrc, "img-src"],
+    "*.purrbot.site": [...ConnectSrc, "img-src"],
+    "cdn.ipwhois.io": ImageSrc, // ipwho.is country flag images
+    "*.betterdiscord.app": CSPSrc, // BD theme thumbnails/CDN
+    "camo.githubusercontent.com": ImageSrc,
+    "github.githubassets.com": ImageSrc,
+    "dearrow.ajay.app": ImageSrc,
+    "st.ayaka.one": ImageSrc,
+    "placehold.jp": ImageSrc,
+    "twemoji.maxcdn.com": ImageSrc,
+    "www.openstreetmap.org": ImageSrc,
+    "view.officeapps.live.com": ImageSrc,
+    "danbooru.donmai.us": [...ConnectSrc, "img-src"],
+    "safebooru.org": [...ConnectSrc, "img-src"],
+    "konachan.com": [...ConnectSrc, "img-src"],
+    "yande.re": [...ConnectSrc, "img-src"],
+    "tbib.org": [...ConnectSrc, "img-src"],
+    "xbooru.com": [...ConnectSrc, "img-src"],
+    "femboyfinder.firestreaker2.gq": [...ConnectSrc, "img-src"],
+
+    // Media
+    "www.myinstants.com": [...ConnectSrc, "media-src"],
 };
 
 const findHeader = (headers: PolicyMap, headerName: Lowercase<string>) => {
@@ -175,11 +298,18 @@ export function initCsp() {
             }
 
             // Inject CORS headers for AI API domains so plugins (VoiceDictation, ChatGPT, etc.)
-            // can fetch from the renderer without CORS errors
+            // can fetch from the renderer without CORS errors.
+            // Only inject when the server didn't set its own — assigning over an existing
+            // header under different casing yields duplicate values ("https://discord.com, *")
+            // which browsers reject outright
             if (CorsPassthroughDomains.some(d => details.url.startsWith(`https://${d}/`))) {
-                responseHeaders["Access-Control-Allow-Origin"] = ["*"];
-                responseHeaders["Access-Control-Allow-Headers"] = ["*"];
-                responseHeaders["Access-Control-Allow-Methods"] = ["GET, POST, PUT, DELETE, OPTIONS"];
+                const setIfMissing = (name: Lowercase<string>, value: string) => {
+                    if (!findHeader(responseHeaders, name))
+                        responseHeaders[name] = [value];
+                };
+                setIfMissing("access-control-allow-origin", "*");
+                setIfMissing("access-control-allow-headers", "*");
+                setIfMissing("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
             }
         }
 

@@ -13,10 +13,10 @@ import { React, TextInput } from "@webpack/common";
 import type { ScopeKey } from "./presets";
 
 const SCOPES: { key: ScopeKey; label: string; description: string; warn?: boolean; }[] = [
-    { key: "plugins", label: "Plugins", description: "Which plugins are enabled, plus each plugin's own settings." },
+    { key: "plugins", label: "Plugins", description: "Which plugins are enabled, plus each plugin's own settings. Plugins that keep their settings in the DataStore also need the DataStore scope below." },
     { key: "themes", label: "Enabled themes", description: "The list of enabled theme names. On apply, themes you don't have are skipped." },
     { key: "quickCss", label: "QuickCSS", description: "Your QuickCSS stylesheet text." },
-    { key: "dataStore", label: "DataStore", description: "Plugin databases and stored data. May be large or contain sensitive info.", warn: true },
+    { key: "dataStore", label: "DataStore", description: "Plugin databases and stored data, including settings of plugins that don't use the standard settings store. May be large or contain sensitive info.", warn: true },
 ];
 
 function SaveModal({ modalProps, initialName, onSave }: { modalProps: RenderModalProps; initialName: string; onSave: (name: string, scope: ScopeKey[]) => void | Promise<void>; }) {

@@ -633,12 +633,17 @@ const settings = definePluginSettings({
     },
     liveFix: {
         type: OptionType.BOOLEAN,
-        description: "Start a local WebSocket server (port 18963) for opencode to search webpack modules, read source code, and test patch patterns in real time.",
+        description: "Start a local HTTP server (port 18963) for opencode to search webpack modules, read source code, and test patch patterns in real time.",
         default: false,
         onChange(value) {
             if (value) startLiveFixServer();
             else stopLiveFixServer();
         }
+    },
+    liveFixRequireToken: {
+        type: OptionType.BOOLEAN,
+        description: "Require the per-session auth token on LiveFix requests. Leave this on unless your tooling cannot send it.",
+        default: true
     }
 });
 
@@ -1285,7 +1290,7 @@ function handleLiveFixRequest(req: LiveFixRequest): any {
 
             case "eval": {
                 if (!req.code) return { id, error: "Missing code" };
-                const result = eval(req.code);
+                const result = (0, eval)(req.code);
                 return { id, result: typeof result === "object" ? JSON.stringify(result, null, 2) : String(result) };
             }
 
@@ -1432,7 +1437,7 @@ async function startLiveFixServer() {
     if (liveFixInterval) return;
 
     try {
-        await NativeHelper.startLiveFixServer();
+        const token = await NativeHelper.startLiveFixServer();
 
         liveFixInterval = setInterval(async () => {
             let cmd: string | null = null;
@@ -1453,8 +1458,13 @@ async function startLiveFixServer() {
             }
         }, 100);
 
-        logger.info("LiveFix integration started — HTTP server on port 18963");
-        showToast("LiveFix server started on port 18963", Toasts.Type.SUCCESS);
+        const requireToken = settings.store.liveFixRequireToken !== false;
+        logger.info(requireToken
+            ? `LiveFix integration started — HTTP server on port 18963, auth token: ${token}`
+            : "LiveFix integration started — HTTP server on port 18963, auth token disabled");
+        showToast(requireToken
+            ? `LiveFix started on port 18963 (token ${token.slice(0, 8)}…, full token in console)`
+            : "LiveFix started on port 18963 — auth token disabled", Toasts.Type.SUCCESS);
     } catch (e) {
         logger.error("Failed to start LiveFix server:", e);
         showToast(`LiveFix failed: ${e}`, Toasts.Type.FAILURE);

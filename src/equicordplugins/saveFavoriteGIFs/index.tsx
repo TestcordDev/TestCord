@@ -134,7 +134,7 @@ export default definePlugin({
         }
     ],
     toolboxActions() {
-        const { showToolboxButton } = settings.use(["showToolboxButton"]);
+        const { showToolboxButton } = settings.store;
         if (!showToolboxButton) return null;
 
         return (

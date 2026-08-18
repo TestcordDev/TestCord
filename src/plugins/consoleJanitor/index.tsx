@@ -116,6 +116,13 @@ export default definePlugin({
     start() {
         logAllow.clear();
         this.settings.store.whitelistedLoggers?.split(";").map(x => x.trim()).forEach(logAllow.add.bind(logAllow));
+
+        const mediaPlay = HTMLMediaElement.prototype.play;
+        HTMLMediaElement.prototype.play = function (this: HTMLMediaElement, ...args: Parameters<typeof mediaPlay>) {
+            const result = mediaPlay.apply(this, args);
+            result?.catch(() => { });
+            return result;
+        };
     },
 
     Noop,
@@ -153,6 +160,13 @@ export default definePlugin({
             find: '"AppCrashedFatalReport: getLastCrash not supported."',
             replacement: {
                 match: /console\.log(?=\("AppCrashedFatalReport: getLastCrash not supported\."\))/,
+                replace: "$self.Noop"
+            }
+        },
+        {
+            find: "Unknown type for applicationId",
+            replacement: {
+                match: /new \i\.\i\("NowPlayingViewStore"\)\.error(?=\(`Unknown type for applicationId: \$\{typeof \i\}, value: \$\{\i\}`)/,
                 replace: "$self.Noop"
             }
         },

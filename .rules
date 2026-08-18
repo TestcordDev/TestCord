@@ -268,6 +268,7 @@ replace: "$self.exampleWrap({ children: $& })";
 
 - Discord API: `RestAPI.get/post/put/del({ url: Constants.Endpoints.X })`. Never raw `fetch("/api/v9/...")`.
 - Third-party: `fetch` only against endpoints allowlisted in `src/main/csp` or routed through `native.ts`. Set `AbortController`, abort in `stop()` or effect cleanup.
+- native.ts fetching a renderer-supplied URL: use `safeFetch` from `@main/utils/safeFetch` — https-only, optional `allowedHosts` (suffix match), private/loopback networks blocked, every redirect hop re-validated. Use `assertSafeUrl` first when the request itself must go through `net.fetch` (proxy support). Fixed hardcoded hosts can stay on plain `fetch`.
 - Never embed user-supplied URLs without `parseUrl` validation.
 
 ## Logging
@@ -489,7 +490,7 @@ LiveFix is an HTTP server on port `18963` inside TestcordHelper. It lets you ins
 
 ### Commands
 
-Send `POST http://127.0.0.1:18963` with `Content-Type: application/json`:
+Send `POST http://127.0.0.1:18963` with `Content-Type: application/json`. Auth required: pass the per-session token via `Authorization: Bearer <token>` header or a `"token"` body field. The token is regenerated on each server start and written to `/tmp/opencode/livefix/token` (Windows: `<drive>:\tmp\opencode\livefix\token`). Fetch it first: `TOKEN=$(cat /tmp/opencode/livefix/token)`. Requests with an `Origin`/`Referer` header or a mismatched `Host` are rejected (403), which blocks browsers and DNS rebinding. The token requirement can be disabled via TestcordHelper's `liveFixRequireToken` setting (default on); the Origin/Referer/Host checks always apply.
 
 | Action | Fields | Description |
 |--------|--------|-------------|
@@ -514,33 +515,33 @@ When user reports a crash (e.g. stream restart):
 
 1. **Dump the console** to see what errors preceded the crash:
    ```
-   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"consoleDump","limit":100}'
+   curl -X POST http://127.0.0.1:18963 -H "Authorization: Bearer $TOKEN" -d '{"id":"1","action":"consoleDump","limit":100}'
    ```
    Look for `AVError`, `NoiseCancellerError`, `INIT_ERROR`, `Krisp`, `CRASH`, `reload` entries.
 
 2. **Check patch health** for plugins that failed to apply:
    ```
-   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"patchHealth"}'
+   curl -X POST http://127.0.0.1:18963 -H "Authorization: Bearer $TOKEN" -d '{"id":"1","action":"patchHealth"}'
    ```
 
 3. **Check plugin timing** for startup failures:
    ```
-   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"pluginTimings"}'
+   curl -X POST http://127.0.0.1:18963 -H "Authorization: Bearer $TOKEN" -d '{"id":"1","action":"pluginTimings"}'
    ```
 
 4. **Search for error-related code** in webpack modules:
    ```
-   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"search","query":"NoiseCancellerError"}'
+   curl -X POST http://127.0.0.1:18963 -H "Authorization: Bearer $TOKEN" -d '{"id":"1","action":"search","query":"NoiseCancellerError"}'
    ```
 
 5. **Read matching modules** to understand the code:
    ```
-   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"readModule","moduleId":941426}'
+   curl -X POST http://127.0.0.1:18963 -H "Authorization: Bearer $TOKEN" -d '{"id":"1","action":"readModule","moduleId":941426}'
    ```
 
 6. **Eval quick checks**:
    ```
-   curl -X POST http://127.0.0.1:18963 -d '{"id":"1","action":"eval","code":"JSON.stringify(Object.keys(window).filter(k=>k.includes(\"Krisp\")||k.includes(\"krisp\")))"}'
+   curl -X POST http://127.0.0.1:18963 -H "Authorization: Bearer $TOKEN" -d '{"id":"1","action":"eval","code":"JSON.stringify(Object.keys(window).filter(k=>k.includes(\"Krisp\")||k.includes(\"krisp\")))"}'
    ```
 
 ### Console Capture

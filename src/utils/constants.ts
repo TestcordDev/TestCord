@@ -679,8 +679,8 @@ export const Devs = /* #__PURE__*/ Object.freeze({
         id: 383365021415243776n
     },
     paige: {
-         name: "paige",
-         id: 1375697625864601650n
+        name: "paige",
+        id: 1375697625864601650n
     },
     jax: {
         name: "jax",
@@ -1588,6 +1588,14 @@ export const TestcordDevs = /* #__PURE__*/ Object.freeze({
     Trigger: {
         name: "Trigger",
         id: 0n
+    },
+    Aviv: {
+        name: "Aviv",
+        id: 752564054593110016n
+    },
+    Su4o: {
+        name: "Su4o",
+        id: 776159687648608316n
     }
 } satisfies Record<string, Dev>);
 

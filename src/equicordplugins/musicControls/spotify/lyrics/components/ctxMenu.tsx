@@ -26,7 +26,7 @@ const DATASTORE_KEY = "vc-spotify-custom-song-delays";
 DataStore.get<Record<string, number>>(DATASTORE_KEY).then(saved => {
     if (saved) {
         Object.assign(customSongDelays, saved);
-        FluxDispatcher.dispatch({ type: "SPOTIFY_LYRICS_DELAYS_LOADED" });
+        FluxDispatcher?.dispatch?.({ type: "SPOTIFY_LYRICS_DELAYS_LOADED" });
     }
 });
 

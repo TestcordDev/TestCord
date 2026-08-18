@@ -88,11 +88,15 @@ function getActivityIcons(activities: Activity[] | null, user: User): React.Reac
 
     if (!isPluginEnabled(betterActivities.name)) return null;
 
-    return betterActivities.patchActivityList({
-        activities,
-        user,
-        hideTooltip: false
-    });
+    try {
+        return betterActivities.patchActivityList({
+            activities,
+            user,
+            hideTooltip: false
+        });
+    } catch {
+        return null;
+    }
 }
 
 function getAttachmentType(contentType = ""): AttachmentType {

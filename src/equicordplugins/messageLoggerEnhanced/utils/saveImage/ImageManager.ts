@@ -68,7 +68,9 @@ export async function downloadAttachment(attachemnt: LoggedAttachment): Promise<
     const { path, error } = await Native.downloadAttachment(attachemnt);
 
     if (error || !path) {
-        Flogger.error("Failed to download attachment", error, path);
+        if (error && !error.includes("dead or expired") && !error.includes("no longer available") && !error.includes("blocked by settings")) {
+            Flogger.warn("Failed to download attachment", error, path);
+        }
         return;
     }
 
@@ -87,16 +89,14 @@ export async function deleteImage(attachmentId: string): Promise<void> {
 
 async function downloadAttachmentWeb(attachemnt: LoggedAttachment, attempts = 0) {
     if (!attachemnt?.url || !attachemnt?.id || !attachemnt?.fileExtension) {
-        Flogger.error("Invalid attachment", attachemnt);
         return;
     }
 
     const res = await fetch(attachemnt.url);
     if (res.status !== 200) {
-        if (res.status === 404 || res.status === 403) return;
+        if (res.status === 404 || res.status === 403 || res.status === 410) return;
         attempts++;
-        if (attempts > 3) {
-            Flogger.warn(`Failed to get attachment ${attachemnt.id} for caching, error code ${res.status}`);
+        if (attempts > 2) {
             return;
         }
 

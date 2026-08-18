@@ -163,12 +163,27 @@ function normalizeChildren(children: ContextMenuProps["children"]): Array<ReactE
     return Array.isArray(children) ? children : [children];
 }
 
+function getPatchesForNavId(navId: string): Set<NavContextMenuPatchCallback> | undefined {
+    const direct = navPatches.get(navId);
+    if (navId === "message-actions" || navId === "message") {
+        const messagePatches = navPatches.get("message");
+        const messageActionPatches = navPatches.get("message-actions");
+        if (messagePatches && messageActionPatches) {
+            const combined = new Set(messagePatches);
+            for (const p of messageActionPatches) combined.add(p);
+            return combined;
+        }
+        return messagePatches ?? messageActionPatches ?? direct;
+    }
+    return direct;
+}
+
 function applyAllPatches(
     navId: string,
     sourceChildren: ContextMenuProps["children"],
     args: Array<any>
 ): Array<ReactElement<any> | null> {
-    const contextMenuPatches = navPatches.get(navId);
+    const contextMenuPatches = getPatchesForNavId(navId);
     const hasPatches = (contextMenuPatches?.size ?? 0) > 0 || globalPatches.size > 0;
 
     let children = hasPatches
@@ -185,13 +200,14 @@ function applyAllPatches(
 
     findCacheChildren = children;
     findCache = new Map();
+    const safeArgs = args && args.length > 0 && args[0] !== undefined ? args : [{}];
     try {
         if (contextMenuPatches?.size) {
             let i = 0;
             for (const patch of contextMenuPatches) {
                 const t0 = timed ? performance.now() : 0;
                 try {
-                    patch(children, ...args);
+                    patch(children, ...safeArgs);
                 } catch (err) {
                     ContextMenuLogger.error(`Patch for ${navId} errored,`, err);
                 }
@@ -208,7 +224,7 @@ function applyAllPatches(
             for (const patch of globalPatches) {
                 const t0 = timed ? performance.now() : 0;
                 try {
-                    patch(navId, children, ...args);
+                    patch(navId, children, ...safeArgs);
                 } catch (err) {
                     ContextMenuLogger.error("Global patch errored,", err);
                 }
@@ -258,7 +274,7 @@ export function _usePatchContextMenu(props: ContextMenuProps) {
     props.contextMenuAPIArguments ??= [];
     const args = props.contextMenuAPIArguments;
 
-    const contextMenuPatches = navPatches.get(props.navId);
+    const contextMenuPatches = getPatchesForNavId(props.navId);
     const hasPatches = (contextMenuPatches?.size ?? 0) > 0 || globalPatches.size > 0;
 
     React.useEffect(() => {

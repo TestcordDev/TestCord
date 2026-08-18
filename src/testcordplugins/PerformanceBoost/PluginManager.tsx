@@ -4,12 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/*
- * Esharq — تعطيل الإضافات مربوطٌ بتفعيل وضع الأداء (gameMode): عند تفعيله يُعطَّل كل غير
- * الأساسيّة عدا استثناءاتك ويُطلَب إعادة تشغيل ليُطبَّق كل شيء؛ وعند إطفائه تُستعاد الحالة
- * كاملةً. زرّ «الاستثناءات» يفتح نافذةً بتصميم Discord تعرض الإضافات المُفعّلة فقط. لا تُلمَس
- * إعدادات أيّ إضافة — يُبدَّل علم `enabled` فقط.
- */
+// Note: Auto-translated
 
 import { Button, TextButton } from "@components/Button";
 import { Paragraph } from "@components/Paragraph";
@@ -34,32 +29,30 @@ function promptRestart() {
 }
 
 /**
- * مُستمِع تغيّر مفتاح وضع الأداء (gameMode) — يُسجَّل تلقائياً عبر onChange في تعريف الإعداد،
- * فيعمل سواء من مفتاح الإعدادات أو زرّ الشريط العلوي (كلاهما يغيّر gameMode). أمّا الكشف
- * التلقائي عن الألعاب فلا يغيّر gameMode ⇒ لا يُعطّل الإضافات ولا يطلب إعادة تشغيل.
+ * Handler for gameMode setting changes — triggered automatically via onChange in setting definition.
  */
 export function handleGameModeChange(value: boolean) {
     if (value) {
-        // دخول: نحفظ لقطة ما كان مُفعّلاً ونعطّل غير المُستثنى. الحارس يمنع الدخول المزدوج.
+        // Entering performance mode: save snapshot of enabled plugins and disable non-excepted plugins.
         if (!settings.store.pluginSaved) {
             settings.store.pluginSaved = JSON.stringify(enterPerformanceMode(parseKeep(settings.store.pluginKeep)));
             promptRestart();
         }
     } else if (settings.store.pluginSaved) {
-        // خروج: نستعيد كل ما كان مُفعّلاً كما كان بالضبط.
+        // Exiting performance mode: restore previously enabled plugins.
         let saved: string[] = [];
-        try { saved = JSON.parse(settings.store.pluginSaved || "[]"); } catch { /* تجاهل */ }
+        try { saved = JSON.parse(settings.store.pluginSaved || "[]"); } catch { /* ignore */ }
         exitPerformanceMode(saved);
         settings.store.pluginSaved = "";
         promptRestart();
     }
 }
 
-/** قائمة الإضافات المُفعّلة فعلاً لدى المستخدم — حتى وإن كان الوضع مُفعّلاً (نضمّ اللقطة المحفوظة). */
+/** List of currently enabled plugins for the user, including saved snapshot if active. */
 function userEnabledPlugins(): string[] {
     const set = new Set(enabledTogglablePlugins());
     if (settings.store.pluginSaved) {
-        try { for (const n of JSON.parse(settings.store.pluginSaved || "[]")) set.add(n); } catch { /* تجاهل */ }
+        try { for (const n of JSON.parse(settings.store.pluginSaved || "[]")) set.add(n); } catch { /* ignore */ }
     }
     return [...set].sort((a, b) => a.localeCompare(b));
 }
@@ -85,7 +78,7 @@ function ExceptionsModal({ modalProps }: { modalProps: RenderModalProps; }) {
     const q = query.toLowerCase();
     const shown = enabled.filter(n => n.toLowerCase().includes(q));
 
-    // ملخّص: كم يبقى مُفعّلاً وكم سيُعطَّل من إضافات المستخدم المُفعّلة.
+    // Summary: count kept vs disabled plugins.
     const keptCount = enabled.filter(n => keep.has(n)).length;
     const disableCount = enabled.length - keptCount;
 
@@ -135,7 +128,7 @@ function ExceptionsModal({ modalProps }: { modalProps: RenderModalProps; }) {
     );
 }
 
-/** قسم الإعدادات: شرح الربط بوضع الأداء + زرّ الاستثناءات. يظهر ضمن إعدادات PerformanceBoost. */
+/** Settings component: explanation and exceptions modal button. */
 export function PluginManagerControls() {
     const { pluginKeep } = settings.use(["pluginKeep"]);
     const keepCount = parseKeep(pluginKeep).length;

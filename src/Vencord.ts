@@ -257,6 +257,57 @@ if (!IS_DEV) {
     });
 }
 
+function initNotificationSafeguard() {
+    if (typeof window === "undefined") return;
+
+    if (window.Notification && !(window.Notification as any)._safePatched) {
+        const OrigNotification = window.Notification;
+        const SafeNotification = function (title: string, options?: NotificationOptions) {
+            const safeTitle = typeof title === "string" ? title : (title == null ? "" : String(title));
+            const safeOptions = options ? { ...options } : {};
+            if ("body" in safeOptions) {
+                safeOptions.body = typeof safeOptions.body === "string" ? safeOptions.body : (safeOptions.body == null ? "" : String(safeOptions.body));
+            }
+            return new OrigNotification(safeTitle, safeOptions);
+        } as any;
+        SafeNotification.prototype = OrigNotification.prototype;
+        SafeNotification.permission = OrigNotification.permission;
+        SafeNotification.requestPermission = OrigNotification.requestPermission ? OrigNotification.requestPermission.bind(OrigNotification) : undefined;
+        SafeNotification._safePatched = true;
+        try {
+            window.Notification = SafeNotification;
+        } catch {}
+    }
+
+    const patchDiscordNative = () => {
+        try {
+            const dn = (window as any).DiscordNative;
+            if (dn?.notifications?.sendNotification && !dn.notifications._safePatched) {
+                const origSend = dn.notifications.sendNotification.bind(dn.notifications);
+                dn.notifications.sendNotification = function (opts: any, ...rest: any[]) {
+                    if (opts && typeof opts === "object") {
+                        if ("title" in opts && typeof opts.title !== "string") {
+                            opts.title = opts.title == null ? "" : String(opts.title);
+                        }
+                        if ("body" in opts && typeof opts.body !== "string") {
+                            opts.body = opts.body == null ? "" : String(opts.body);
+                        }
+                        if ("text" in opts && typeof opts.text !== "string") {
+                            opts.text = opts.text == null ? "" : String(opts.text);
+                        }
+                    }
+                    return origSend(opts, ...rest);
+                };
+                dn.notifications._safePatched = true;
+            }
+        } catch {}
+    };
+
+    patchDiscordNative();
+    setTimeout(patchDiscordNative, 500);
+}
+
+initNotificationSafeguard();
 initStyles();
 startAllPlugins(StartAt.Init);
 init();

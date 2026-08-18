@@ -8,6 +8,7 @@ import "./UIElements.css";
 
 import { ChatBarButtonMap } from "@api/ChatButtons";
 import { MessagePopoverButtonMap } from "@api/MessagePopover";
+import { PluginHealth } from "@api/PluginHealth";
 import { SettingsPluginUiElements, useSettings } from "@api/Settings";
 import { BaseText } from "@components/BaseText";
 import { Card } from "@components/Card";
@@ -66,6 +67,7 @@ function Section(props: {
                     onChange={v => {
                         settings[name] ??= {} as any;
                         settings[name].enabled = v;
+                        void PluginHealth.recordPluginChange(name, v);
                     }}
                 />
             </Paragraph>

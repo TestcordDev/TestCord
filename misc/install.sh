@@ -1,11 +1,14 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # Configuration
-INSTALLER_PATH="$HOME/.equilotl"
-GITHUB_URL="https://github.com/Equicord/Equilotl/releases/latest/download/EquilotlCli-Linux"
+INSTALLER_PATH="$HOME/.testcord"
+GITHUB_URL="https://github.com/TestcordDev/TestCord/releases/latest/download/Linux_Testcord_installer-rel_cli"
+RELEASE_API="https://api.github.com/repos/TestcordDev/TestCord/releases/tags/latest"
 PRIVILEGE_CMDS=("sudo" "doas")
 DEBUG=false
-LOG_FILE="$(dirname "$(realpath "$0")")/equicordinstalldebug.log"
+LOG_FILE="$(dirname "$(realpath "$0")")/testcordinstalldebug.log"
 
 # Colors for output
 RED='\033[0;31m'
@@ -16,7 +19,6 @@ NC='\033[0m' # No Color
 # Debug logging
 debug_log() {
     if $DEBUG; then
-        set -euo pipefail
         local timestamp
         timestamp=$(date +"%Y-%m-%d %T")
         echo -e "[$timestamp] $1" | tee -a "$LOG_FILE"
@@ -42,6 +44,23 @@ download_installer() {
     if ! curl -sSL "$GITHUB_URL" --output "$INSTALLER_PATH"; then
         error "Failed to download installer from GitHub"
     fi
+
+    echo -e "${YELLOW}Verifying installer checksum...${NC}"
+    local expected actual
+    expected=$(curl -s "$RELEASE_API" | awk -v asset="${GITHUB_URL##*/}" '
+        $0 ~ "\"name\": \"" asset "\"," { found = 1 }
+        found && /"digest": "sha256:/ { gsub(/.*"digest": "sha256:|",.*/, ""); print; exit }
+    ')
+    if [ -z "$expected" ]; then
+        rm -f "$INSTALLER_PATH"
+        error "Could not fetch the installer checksum from GitHub - not running an unverifiable binary"
+    fi
+    actual=$(sha256sum "$INSTALLER_PATH" | cut -d" " -f1)
+    if [ "$actual" != "$expected" ]; then
+        rm -f "$INSTALLER_PATH"
+        error "Installer checksum mismatch (expected $expected, got $actual) - the download may be corrupted"
+    fi
+
     chmod +x "$INSTALLER_PATH" || error "Failed to make installer executable"
 }
 
@@ -115,9 +134,9 @@ main() {
     debug_log "Installation completed successfully"
     echo -e "\n${GREEN}Installation completed successfully!${NC}"
     echo -e "\nCredits:"
-    echo "Original script forked from Vencord"
-    echo "Modified by PhoenixAceVFX for Equicord Updater"
-    echo "Rewrite by PhoenixAceVFX"
+    echo "Original script from Equicord, who forked from Vencord"
+    echo "Originally rewritten by PhoenixAceVFX"
+    echo "Modified by Su6o for Testcord"
 }
 
 # Pass arguments to main

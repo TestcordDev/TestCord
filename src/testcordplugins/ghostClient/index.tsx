@@ -24,7 +24,7 @@ const DS_KEY_MIC_DEVICE = "nightcord-ghost-mic-device-label";
 const DS_KEY_SELECTED = "nightcord-ghost-selected";
 
 const MI_TOKEN_CACHE_KEY = "nightcord-mi-token-cache";
-const TI_ACCOUNTS_KEY = "TokenImporter_accounts";
+const TI_ACCOUNTS_KEY = "DXTokenImporter_accounts"; // renamed from TokenImporter when the plugin became DXTokenImporter
 
 let ghostMicLabel: string = "default";
 

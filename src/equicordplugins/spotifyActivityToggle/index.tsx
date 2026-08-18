@@ -123,7 +123,7 @@ export default definePlugin({
     },
 
     toolboxActions() {
-        const { location } = settings.use(["location"]);
+        const { location } = settings.store;
 
         if (!spotifyId || location !== "TOOLBOX") return null;
 

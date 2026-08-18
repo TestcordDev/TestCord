@@ -5,6 +5,7 @@
  */
 
 import { RendererSettings } from "@main/settings";
+import { randomBytes } from "crypto";
 import { app, Notification } from "electron";
 import { createServer, Server } from "net";
 
@@ -15,8 +16,6 @@ let port = settings?.port || 3009;
 let host = settings?.host || "127.0.0.1";
 let allowUnauthedLocalConnections = settings?.allowUnauthedLocalConnections || false;
 let password: string = settings?.password || "";
-
-console.log(settings);
 
 function limitString(str, maxLength = 1999) {
     return str.length > maxLength ? str.slice(0, maxLength) : str;
@@ -30,7 +29,7 @@ app.on("browser-window-created", (_, win) => {
             silent: true
         }).show();
 
-        let authed = password === "";
+        let authed = false;
         if (allowUnauthedLocalConnections && ["127.0.0.1", "::1"].includes(socket.remoteAddress!)) authed = true;
 
         socket.on("data", data => {
@@ -77,13 +76,21 @@ export function startServer() {
     password = settingss?.password || "";
 
     if (!server.listening) {
+        let generated: string | null = null;
+        if (!password) {
+            generated = password = randomBytes(16).toString("hex");
+        }
+
         try {
             server.listen(port, host, () => {
                 new Notification({
                     title: "Socket: Server started",
-                    body: `Listening on port ${port}`,
+                    body: generated
+                        ? `Listening on ${host}:${port}. No password was set, so this session password was generated: ${generated}`
+                        : `Listening on ${host}:${port}`,
                     silent: true
                 }).show();
+                if (generated) console.log(`[Socket] Generated session password: ${generated}`);
             });
         }
         catch { }

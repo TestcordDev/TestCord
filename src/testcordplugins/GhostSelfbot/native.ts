@@ -8,7 +8,7 @@ import { Logger } from "@utils/Logger";
 import { execFileSync, spawn } from "child_process";
 import type { IpcMainInvokeEvent } from "electron";
 import { unzipSync } from "fflate";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { get as httpsGet } from "https";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 
@@ -371,7 +371,7 @@ export function installRequirements(_event: IpcMainInvokeEvent, pythonPath: stri
     }
 }
 
-export function updateGhostConfig(_event: IpcMainInvokeEvent, token: string): boolean {
+export function updateGhostConfig(_event: IpcMainInvokeEvent, token: string, userId = "unknown", username = "unknown"): boolean {
     try {
         const ghostConfigPath = getGhostConfigPath();
         const ghostTokensPath = getGhostTokensPath();
@@ -383,26 +383,26 @@ export function updateGhostConfig(_event: IpcMainInvokeEvent, token: string): bo
 
         const config = JSON.parse(readFileSync(ghostConfigPath, "utf-8"));
         config.token = token;
-        writeFileSync(ghostConfigPath, JSON.stringify(config, null, 4));
+        writeFileSync(ghostConfigPath, JSON.stringify(config, null, 4), { mode: 0o600 });
+        chmodSync(ghostConfigPath, 0o600);
 
         if (existsSync(ghostTokensPath)) {
             const tokens: GhostToken[] = JSON.parse(readFileSync(ghostTokensPath, "utf-8"));
-            const { UserStore } = require("@webpack/common");
-            const currentUser = UserStore.getCurrentUser();
-            const existingIndex = tokens.findIndex((t: GhostToken) => t.id === currentUser.id);
+            const existingIndex = tokens.findIndex((t: GhostToken) => t.id === userId);
 
             if (existingIndex >= 0) {
                 tokens[existingIndex].token = token;
-                tokens[existingIndex].username = currentUser.username;
+                tokens[existingIndex].username = username;
             } else {
                 tokens.push({
                     token: token,
-                    username: currentUser.username,
-                    id: currentUser.id
+                    username: username,
+                    id: userId
                 });
             }
 
-            writeFileSync(ghostTokensPath, JSON.stringify(tokens, null, 4));
+            writeFileSync(ghostTokensPath, JSON.stringify(tokens, null, 4), { mode: 0o600 });
+            chmodSync(ghostTokensPath, 0o600);
         }
 
         return true;
@@ -412,7 +412,7 @@ export function updateGhostConfig(_event: IpcMainInvokeEvent, token: string): bo
     }
 }
 
-export function launchGhostExe(_event: IpcMainInvokeEvent, autoFillToken: boolean, token: string | null, nitroWebhookUrl: string, privnoteWebhookUrl: string, autoSetupWebhooks: boolean): void {
+export function launchGhostExe(_event: IpcMainInvokeEvent, autoFillToken: boolean, token: string | null, userId: string, username: string, nitroWebhookUrl: string, privnoteWebhookUrl: string, autoSetupWebhooks: boolean): void {
     const ghostExePath = getGhostExePath();
 
     if (!ghostExePath || !existsSync(ghostExePath)) {
@@ -420,7 +420,7 @@ export function launchGhostExe(_event: IpcMainInvokeEvent, autoFillToken: boolea
     }
 
     if (autoFillToken && token) {
-        updateGhostConfig(_event, token);
+        updateGhostConfig(_event, token, userId, username);
         logger.log("Token updated in Ghost config");
     }
 
@@ -454,7 +454,7 @@ export function launchGhostExe(_event: IpcMainInvokeEvent, autoFillToken: boolea
     });
 }
 
-export function launchGhostSource(_event: IpcMainInvokeEvent, autoFillToken: boolean, autoInstallRequirements: boolean, pythonPath: string, token: string | null, nitroWebhookUrl: string, privnoteWebhookUrl: string, autoSetupWebhooks: boolean): void {
+export function launchGhostSource(_event: IpcMainInvokeEvent, autoFillToken: boolean, autoInstallRequirements: boolean, pythonPath: string, token: string | null, userId: string, username: string, nitroWebhookUrl: string, privnoteWebhookUrl: string, autoSetupWebhooks: boolean): void {
     const ghostSourcePath = getGhostSourcePath();
 
     if (!ghostSourcePath || !existsSync(ghostSourcePath)) {
@@ -472,7 +472,7 @@ export function launchGhostSource(_event: IpcMainInvokeEvent, autoFillToken: boo
     }
 
     if (autoFillToken && token) {
-        updateGhostConfig(_event, token);
+        updateGhostConfig(_event, token, userId, username);
         logger.log("Token updated in Ghost config");
     }
 

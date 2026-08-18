@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+// Note: Auto-translated
+
 import "./styles.css";
 
 import * as DataStore from "@api/DataStore";
@@ -28,16 +30,16 @@ const Native = IS_DISCORD_DESKTOP
     : null;
 
 let active = false;
-let ready = false; // يصبح true عند CONNECTION_OPEN (أو مهلة احتياطية) — لتجاهل بلاغ الألعاب عند الإقلاع
-let readyFallbackTimer: ReturnType<typeof setTimeout> | null = null; // مهلة احتياطية إن لم يصل CONNECTION_OPEN
-let manualOff = false; // المستخدم أوقفه يدوياً ⇒ يطغى على الكشف التلقائي حتى يُفعّله بنفسه
-let notifiedManualOff = false; // أُعلِم المستخدم مرة واحدة فقط أن التفعيل التلقائي مُعطَّل بسبب الإيقاف اليدوي
+let ready = false; // Becomes true on CONNECTION_OPEN (or fallback timeout) — ignores startup game reports
+let readyFallbackTimer: ReturnType<typeof setTimeout> | null = null; // Fallback timer if CONNECTION_OPEN is not received
+let manualOff = false; // User manually disabled it ⇒ overrides auto-detection until manually re-enabled
+let notifiedManualOff = false; // User notified once that auto-enable is suspended due to manual toggle
 const HW_ACK_KEY = "PerformanceBoost_hwRestartAcknowledged";
-const MANUAL_OFF_KEY = "PerformanceBoost_manualOff"; // يُحفَظ علَم الإيقاف اليدوي عبر إعادة التشغيل
+const MANUAL_OFF_KEY = "PerformanceBoost_manualOff"; // Persists manual off flag across restarts
 const buttonUpdaters = new Set<() => void>();
 const refreshButtons = () => buttonUpdaters.forEach(u => u());
 
-// يفتح الكشف الحيّ عن الألعاب (idempotent): يُستدعى من CONNECTION_OPEN أو من المهلة الاحتياطية.
+// Enables live game detection (idempotent): called from CONNECTION_OPEN or fallback timer.
 function markReady() {
     if (ready) return;
     ready = true;
@@ -47,7 +49,7 @@ function markReady() {
     }
 }
 
-// مفاتيح DataStore لحفظ القيم الأصلية
+// DataStore keys for storing original user setting values
 const ORIG_COMPACT_KEY = "PerformanceBoost_originalCompact";
 const ORIG_GIF_KEY = "PerformanceBoost_originalGif";
 
@@ -60,19 +62,19 @@ function applyCss() {
     const root = document.documentElement;
     root.classList.toggle("vc-perfboost-no-anim", settings.store.disableAnimations);
     root.classList.toggle("vc-perfboost-hide-activities", settings.store.hideActivities);
-    root.classList.add("vc-perfboost-active"); // تحسينات عرض خفيفة أثناء تفعيل الوضع
+    root.classList.add("vc-perfboost-active"); // Light rendering optimizations while active
 }
 function removeCss() {
     document.documentElement.classList.remove("vc-perfboost-no-anim", "vc-perfboost-hide-activities", "vc-perfboost-active");
 }
 
-// ── تحسينات وقت التشغيل (كلها لمرة واحدة عند التفعيل — بلا حلقات/مؤقّتات، فلا تُثقل ولا تُسرّب) ──
+// ── Runtime Optimizations (One-shot per activation, no loops/timers) ──
 const PASSIVE_EVENTS = ["wheel", "mousewheel", "touchstart", "touchmove", "touchend"];
 let originalAddEventListener: typeof EventTarget.prototype.addEventListener | null = null;
 let springs: { Globals?: { assign?: (o: Record<string, unknown>) => void; }; }[] = [];
 
-// تفريغ كاش عدد كبير من الـStores الثقيلة لتحرير الذاكرة (اختياري — قد يُعيد الجلب لاحقاً).
-// نستدعي clearCache فقط (كاش قابل لإعادة البناء) ولا نلمس clear لأنها قد تمسح بيانات حقيقية (كالمسوّدات).
+// Clear cache of heavy stores to free memory (optional — re-fetches lazily).
+// We only call clearCache (rebuildable cache) and do not touch clear to avoid wiping real user data (e.g. drafts).
 const CACHE_STORE_NAMES = [
     "MessageStore", "EmojiStore", "StickersStore", "UserProfileStore", "InviteStore",
     "ApplicationStore", "ExperimentStore", "QuestStore", "SoundboardStore", "SpellCheckStore",
@@ -88,17 +90,17 @@ function clearStoreCaches() {
             if (typeof store?.clearCache === "function") { store.clearCache(); n++; }
         } catch (e) { logger.warn(`clearCache ${name} failed`, e); }
     }
-    if (typeof (window as any).gc === "function") { try { (window as any).gc(); } catch { /* gc غير متاح */ } }
+    if (typeof (window as any).gc === "function") { try { (window as any).gc(); } catch { /* gc unavailable */ } }
     logger.info(`Cleared ${n} store caches`);
 }
 
 function applyRuntimeOpts() {
-    // تخطّي حركات Spring (قابل للعكس)
+    // Skip Spring animations (revertible)
     if (settings.store.skipSpringAnimations && springs.length === 0) {
         springs = findAll(m => typeof (m as any)?.Globals === "object" && typeof (m as any)?.Springs === "object") as typeof springs;
         for (const s of springs) s.Globals?.assign?.({ skipAnimation: true });
     }
-    // جعل مستمعي التمرير/اللمس passive — تمرير أنعم (قابل للعكس)
+    // Make scroll/touch listeners passive — smoother scrolling (revertible)
     if (settings.store.passiveListeners && !originalAddEventListener) {
         originalAddEventListener = EventTarget.prototype.addEventListener;
         const orig = originalAddEventListener;
@@ -110,8 +112,8 @@ function applyRuntimeOpts() {
             return orig.call(this, type, listener, options);
         } as typeof EventTarget.prototype.addEventListener;
     }
-    // صور كسولة + فكّ ترميز غير متزامن (لمرة واحدة، غير مؤذٍ). نتخطّى صور الدردشة:
-    // loading=lazy/decoding=async عليها يكسران التمرير التلقائي لأسفل المحادثة.
+    // Lazy images + async decoding (one-shot). Skip chat images:
+    // loading=lazy/decoding=async on chat images breaks auto-scroll to bottom.
     if (settings.store.lazyImages) {
         const isChatImage = (img: HTMLImageElement) =>
             img.closest('[class*="scrollerInner_"], [class*="messageListItem_"]') !== null;
@@ -124,7 +126,7 @@ function applyRuntimeOpts() {
     if (settings.store.clearStoreCaches) clearStoreCaches();
 }
 
-// عكس كل ما هو قابل للعكس — يمنع تسريب الرقعة على addEventListener.
+// Revert runtime opts — prevents addEventListener patch leaks.
 function removeRuntimeOpts() {
     for (const s of springs) s.Globals?.assign?.({ skipAnimation: false });
     springs = [];
@@ -134,7 +136,7 @@ function removeRuntimeOpts() {
     }
 }
 
-// ── تطبيق واستعادة الإعدادات التلقائية (Compact + GIF) ──
+// ── Apply & Restore User Settings (Compact + GIF) ──
 async function applyUserSettings() {
     try {
         const compactSetting = getUserSettingLazy("textAndImages", "messageDisplayCompact");
@@ -179,7 +181,7 @@ async function revertUserSettings() {
     } catch (e) { logger.warn("Failed to revert GIF autoplay", e); }
 }
 
-// ── أولوية العمليات والكاش ──
+// ── Process Priority & Cache ──
 async function setPriority(level: "belowNormal" | "normal") {
     if (!Native) { notice(t("تغيير الأولوية يتطلب نسخة سطح المكتب.", "Changing priority requires the desktop app."), "warning"); return; }
     try {
@@ -197,7 +199,7 @@ async function cleanCache() {
     } catch (e) { logger.error("cleanCache failed", e); }
 }
 
-// ── إعادة التشغيل لتسريع العتاد (مرة واحدة فقط) ──
+// ── Restart for Hardware Acceleration ──
 let restarting = false;
 async function doRestart() {
     if (restarting) return;
@@ -224,13 +226,12 @@ async function promptHardwareRestart() {
     );
 }
 
-// ── مراقب الحمل الاختياري (autoHighLoad — مُطفأ افتراضياً) ──
-// عيّنة CPU إجمالية كل 30 ثانية عبر getAppMetrics (بلا عمليات خارجية). عيّنتان متتاليتان
-// فوق الحدّ → تفعيل تلقائي؛ وعيّنتان متتاليتان دون 60% من الحدّ → إيقاف تلقائي، لكن فقط
-// إن كان التفعيل الأخير بسبب الحمل (لا نلمس ما فعّله المستخدم/كشف الألعاب).
+// ── Optional Load Monitor (autoHighLoad — disabled by default) ──
+// Samples total CPU usage every 30s via getAppMetrics (no external processes). 2 consecutive samples
+// over threshold -> auto-enable; 2 consecutive samples under 60% of threshold -> auto-disable (only if enabled by load monitor).
 let loadTimer: ReturnType<typeof setInterval> | null = null;
 let highStreak = 0, lowStreak = 0;
-let autoByLoad = false; // آخر تفعيل كان بسبب الحمل ⇒ يجوز لنا وحدنا عكسه تلقائياً
+let autoByLoad = false; // True if last activation was triggered by high load
 
 async function sampleLoad() {
     if (!Native || !settings.store.autoHighLoad) return;
@@ -254,8 +255,7 @@ async function sampleLoad() {
     } catch (e) { logger.warn("load sample failed", e); }
 }
 
-// المؤقّت يعمل طوال تفعيل الإضافة على سطح المكتب؛ sampleLoad يخرج فوراً (فحص boolean
-// واحد، بلا أي نداء native) ما دام الخيار مُطفأً — فيستجيب التبديل حيّاً بلا إعادة تشغيل.
+// Timer runs while plugin is active on desktop; sampleLoad exits immediately if option disabled.
 function startLoadMonitor() {
     if (loadTimer !== null || !Native) return;
     highStreak = 0; lowStreak = 0;
@@ -268,11 +268,11 @@ function stopLoadMonitor() {
     autoByLoad = false;
 }
 
-// ── التفعيل والإيقاف (كل شيء تلقائي) ──
+// ── Apply / Revert Performance Mode ──
 async function applyMode() {
     if (active) return;
     active = true;
-    notifiedManualOff = false; // أُعيد التفعيل ⇒ نسمح بإعلامٍ جديد لاحقاً إن أُوقف يدوياً مرة أخرى
+    notifiedManualOff = false; // Reset notification flag
     applyCss();
     applyRuntimeOpts();
     await applyUserSettings();
@@ -295,21 +295,21 @@ async function revertMode() {
 }
 
 function toggle() {
-    autoByLoad = false; // تدخّل يدوي ⇒ مراقب الحمل لا يملك عكس هذه الحالة تلقائياً
+    autoByLoad = false; // Manual toggle overrides load monitor
     if (active) {
         revertMode();
-        manualOff = true; // إيقاف يدوي ⇒ يطغى على الكشف التلقائي حتى تُفعّله بنفسك
+        manualOff = true; // Manual off overrides auto-detection
     } else {
         applyMode();
-        manualOff = false; // تفعيل يدوي ⇒ يُمحى العلَم ويستأنف الكشف التلقائي بعدها
+        manualOff = false; // Clear manual off flag
     }
     settings.store.gameMode = active;
     DataStore.set(MANUAL_OFF_KEY, manualOff);
 }
 
-// ── أيقونة البرق (تتغير ألوانها) ──
+// ── Bolt Icon ──
 function BoltIcon({ active: isActive }: { active: boolean; }) {
-    const color = isActive ? "#3ba55c" : "#ed4245"; // أخضر عند التفعيل، أحمر عند الإيقاف
+    const color = isActive ? "#3ba55c" : "#ed4245"; // Green when enabled, red when disabled
     return (
         <svg width={20} height={20} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="1">
             <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
@@ -342,14 +342,14 @@ export default definePlugin({
     headerBarButton: { icon: () => <BoltIcon active={active} />, render: PerfHeaderButton },
     flux: {
         CONNECTION_OPEN() {
-            // اكتمل الاتصال ⇒ نفتح الكشف الحيّ عن الألعاب (نكون قد تجاوزنا دفعة بلاغات الإقلاع).
+            // Connection complete ⇒ enable live game detection
             markReady();
         },
         RUNNING_GAMES_CHANGE({ games }: { games: { id: string; }[]; }) {
-            // !ready ⇒ نتجاهل بلاغ الألعاب عند الإقلاع.
+            // !ready ⇒ ignore startup game reports
             if (!settings.store.autoDetectGames || !ready) return;
 
-            // manualOff ⇒ المستخدم أوقفه يدوياً فنحترم قراره ولا نُعيد التفعيل، لكن نُعلمه مرة واحدة.
+            // manualOff ⇒ user manually turned off mode, respect decision
             if (manualOff) {
                 if (games?.length && !notifiedManualOff) {
                     notice(t("تم تعطيل التفعيل التلقائي لأنك أوقفت وضع الأداء يدوياً. أعد تفعيله من الزر أو الإعدادات.", "Auto-enable is disabled because you turned off Performance mode manually. Re-enable it from the button or settings."), "info");
@@ -363,21 +363,19 @@ export default definePlugin({
         }
     },
     async start() {
-        // نحترم اختيار المستخدم: نُحمِّل علَم الإيقاف اليدوي، ونستعيد حالته اليدوية المحفوظة فقط (gameMode)،
-        // ولا نُفعّل تلقائياً من كشف الألعاب عند الإقلاع. الكشف الحيّ يبقى عبر RUNNING_GAMES_CHANGE أثناء الجلسة.
+        // Load manual off flag and restore saved state if gameMode was enabled.
         manualOff = (await DataStore.get<boolean>(MANUAL_OFF_KEY)) ?? false;
         if (settings.store.gameMode) await applyMode();
-        else await revertUserSettings(); // مُعطَّل يبقى مُعطَّلاً + تنظيف أي إعداد عالق من جلسة سابقة
-        // نفتح الكشف الحيّ عند CONNECTION_OPEN (انظر flux أعلاه)، مع مهلة احتياطية 15ث إن لم يصل الحدث —
-        // فلا يُفعَّل الوضع تلقائياً عند فتح Discord ولعبة شغّالة.
+        else await revertUserSettings(); // Ensure settings revert if disabled
+        // Enable live detection on CONNECTION_OPEN with 15s fallback timer.
         readyFallbackTimer = setTimeout(markReady, 15000);
-        startLoadMonitor(); // مراقب الحمل الاختياري (لا يفعل شيئاً ما دام autoHighLoad مُطفأً)
+        startLoadMonitor();
     },
     stop() {
         stopLoadMonitor();
         revertMode();
-        removeRuntimeOpts(); // ضمان عكس رقعة addEventListener حتى لو لم يكن الوضع مفعّلاً (بلا تسريب)
-        // ننظّف المهلة الاحتياطية ونُعيد ضبط الحالة لإعادة تفعيل نظيفة لاحقاً.
+        removeRuntimeOpts(); // Ensure addEventListener patch is reverted
+        // Clean up timers and reset state
         if (readyFallbackTimer !== null) {
             clearTimeout(readyFallbackTimer);
             readyFallbackTimer = null;

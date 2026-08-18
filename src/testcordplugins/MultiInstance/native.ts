@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { app, BrowserWindow, nativeImage, session, shell } from "electron";
+import { THEMES_DIR } from "@main/utils/constants";
+import { ensureSafePath } from "@main/utils/ensureSafePath";
+import { app, BrowserWindow, nativeImage, net, session, shell } from "electron";
 import iconData from "file://../../../browser/icon.png?base64";
 import { join } from "path";
+import { pathToFileURL } from "url";
 
 export interface NativeResult {
     ok: boolean;
@@ -164,7 +167,19 @@ function isAllowedExternalUrl(url: string) {
     }
 }
 
-function removeBlockingHeaders(responseHeaders: Record<string, string[]> | undefined) {
+const CORS_PASSTHROUGH_DOMAINS = [
+    "api.groq.com",
+    "api.openai.com",
+    "badges.equicord.org",
+    "spotify-lyrics-api-pi.vercel.app",
+    "api.cord.cat",
+];
+
+function removeBlockingHeaders(
+    responseHeaders: Record<string, string[]> | undefined,
+    resourceType?: string,
+    url?: string
+) {
     const headers = { ...(responseHeaders ?? {}) };
 
     for (const key of Object.keys(headers)) {
@@ -180,15 +195,79 @@ function removeBlockingHeaders(responseHeaders: Record<string, string[]> | undef
         }
     }
 
+    if (resourceType === "stylesheet") {
+        let found = false;
+        for (const key of Object.keys(headers)) {
+            if (key.toLowerCase() === "content-type") {
+                headers[key] = ["text/css"];
+                found = true;
+            }
+        }
+        if (!found) {
+            headers["content-type"] = ["text/css"];
+        }
+    }
+
+    if (url && CORS_PASSTHROUGH_DOMAINS.some(d => url.startsWith(`https://${d}/`))) {
+        const hasOrigin = Object.keys(headers).some(k => k.toLowerCase() === "access-control-allow-origin");
+        if (!hasOrigin) {
+            headers["access-control-allow-origin"] = ["*"];
+            headers["access-control-allow-headers"] = ["*"];
+            headers["access-control-allow-methods"] = ["GET, POST, PUT, DELETE, OPTIONS"];
+        }
+    }
+
     return headers;
 }
 
+function handleCustomProtocol(request: { url: string; }, scheme: string) {
+    let url = decodeURI(request.url).slice(`${scheme}://`.length).replace(/\?v=\d+$/, "");
+
+    if (url.endsWith("/")) url = url.slice(0, -1);
+
+    if (url.startsWith("/themes/")) {
+        const theme = url.slice("/themes/".length);
+
+        const safeUrl = ensureSafePath(THEMES_DIR, theme);
+        if (!safeUrl) {
+            return new Response(null, {
+                status: 404
+            });
+        }
+
+        return net.fetch(pathToFileURL(safeUrl).toString());
+    }
+
+    switch (url) {
+        case "renderer.js.map":
+        case "preload.js.map":
+        case "patcher.js.map":
+        case "main.js.map":
+            return net.fetch(pathToFileURL(join(__dirname, url)).toString());
+        default:
+            return new Response(null, {
+                status: 404
+            });
+    }
+}
+
+function registerProtocols(ses: Electron.Session) {
+    if (!ses.protocol.isProtocolHandled("vencord")) {
+        ses.protocol.handle("vencord", req => handleCustomProtocol(req, "vencord"));
+    }
+    if (!ses.protocol.isProtocolHandled("equicord")) {
+        ses.protocol.handle("equicord", req => handleCustomProtocol(req, "equicord"));
+    }
+}
+
 function configureSession(partition: string, ses: Electron.Session) {
+    registerProtocols(ses);
+
     if (configuredSessions.has(partition)) return;
     configuredSessions.add(partition);
 
     ses.webRequest.onHeadersReceived((details, callback) => {
-        callback({ responseHeaders: removeBlockingHeaders(details.responseHeaders) });
+        callback({ responseHeaders: removeBlockingHeaders(details.responseHeaders, details.resourceType, details.url) });
     });
 
     ses.setPermissionRequestHandler((webContents, permission, callback, details) => {
@@ -419,7 +498,7 @@ export async function openInstance(
 
         webContents.setWindowOpenHandler(({ url }) => {
             if (isDiscordPopoutUrl(url)) {
-                return { action: isDiscordUrl(url) ? "allow" : "deny" };
+                return { action: "deny" };
             }
 
             if (isDiscordAttachmentUrl(url)) {

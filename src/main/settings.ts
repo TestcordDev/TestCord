@@ -48,7 +48,9 @@ ipcMain.handle(IpcEvents.SET_SETTINGS, (_, data: Settings, pathToNotify?: string
 ipcMain.handle(IpcEvents.GET_PRESETS, () => readSettings("presets", PRESETS_FILE));
 ipcMain.handle(IpcEvents.SET_PRESETS, (_, data: Record<string, any>) => {
     try {
-        writeFileSync(PRESETS_FILE, JSON.stringify(data, null, 4));
+        // A BigInt plugin setting would make JSON.stringify throw and silently drop
+        // the whole write; store it as its string form instead.
+        writeFileSync(PRESETS_FILE, JSON.stringify(data, (_, v) => typeof v === "bigint" ? v.toString() : v, 4));
     } catch (e) {
         console.error("Failed to write presets", e);
     }

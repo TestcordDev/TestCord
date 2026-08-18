@@ -13,7 +13,7 @@ import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, Mo
 import { React, showToast, TextArea, Toasts } from "@webpack/common";
 
 import { openExportModal } from "./ExportModal";
-import { getPreset, getRestoreDefault, setPresetLiveBackup, setPresetRestore, updatePresetRaw } from "./presets";
+import { getForceApplyDefault, getPreset, getRestoreDefault, setPresetForceApply, setPresetLiveBackup, setPresetRestore, stringifyPreset, updatePresetRaw } from "./presets";
 
 type LoadedPreset = NonNullable<ReturnType<typeof getPreset>>;
 
@@ -46,14 +46,14 @@ function InfoStat({ label, value, copyValue, mono }: { label: string; value: Rea
     );
 }
 
-function DevInfo({ preset, globalDefault }: { preset: LoadedPreset; globalDefault: boolean; }) {
+function DevInfo({ preset, globalDefault, globalForce }: { preset: LoadedPreset; globalDefault: boolean; globalForce: boolean; }) {
     const entries = Object.entries(preset.plugins);
     const enabled = entries.filter(([, p]) => p.enabled);
     const disabled = entries.length - enabled.length;
     const overridden = entries.reduce((acc, [, p]) => acc + Object.keys(p).filter(k => k !== "enabled").length, 0);
-    const json = JSON.stringify(preset);
-    const byteSize = new TextEncoder().encode(json).length;
+    const byteSize = new TextEncoder().encode(stringifyPreset(preset)).length;
     const effectiveRestore = preset.restoreSettings ?? globalDefault;
+    const effectiveForce = preset.forceApply ?? globalForce;
 
     return (
         <div className="vc-presets-stats">
@@ -72,25 +72,31 @@ function DevInfo({ preset, globalDefault }: { preset: LoadedPreset; globalDefaul
                     ? `Default → ${effectiveRestore ? "On" : "Off"}`
                     : preset.restoreSettings ? "On" : "Off"}
             />
+            <InfoStat
+                label="Force apply"
+                value={preset.forceApply === undefined
+                    ? `Default → ${effectiveForce ? "On" : "Off"}`
+                    : preset.forceApply ? "On" : "Off"}
+            />
         </div>
     );
 }
 
 function Summary({ preset }: { preset: LoadedPreset; }) {
-    const enabled = Object.entries(preset.plugins).filter(([, p]) => p.enabled);
+    const entries = Object.entries(preset.plugins);
     return (
         <div className="vc-presets-summary">
-            {enabled.length === 0
-                ? <Paragraph className="vc-presets-dim">No plugins enabled in this preset.</Paragraph>
-                : enabled.map(([pluginName, cfg]) => {
+            {entries.length === 0
+                ? <Paragraph className="vc-presets-dim">No plugins captured in this preset.</Paragraph>
+                : entries.map(([pluginName, cfg]) => {
                     const settingKeys = Object.keys(cfg).filter(k => k !== "enabled");
                     return (
                         <div key={pluginName} className="vc-presets-summary-plugin">
-                            <span className="vc-presets-summary-name">{pluginName}</span>
+                            <span className="vc-presets-summary-name">{pluginName}{cfg.enabled ? "" : " (disabled)"}</span>
                             {settingKeys.length > 0 && (
                                 <div className="vc-presets-summary-settings">
                                     {settingKeys.map(k => (
-                                        <div key={k}><span className="vc-presets-summary-key">{k}</span>: {JSON.stringify(cfg[k])}</div>
+                                        <div key={k}><span className="vc-presets-summary-key">{k}</span>: {stringifyPreset(cfg[k])}</div>
                                     ))}
                                 </div>
                             )}
@@ -105,7 +111,15 @@ function InfoModal({ modalProps, name, onChange }: { modalProps: RenderModalProp
     const [, force] = React.useReducer(x => x + 1, 0);
     const [tab, setTab] = React.useState<"info" | "settings" | "contents" | "json">("info");
     const preset = getPreset(name);
-    const [json, setJson] = React.useState(() => preset ? JSON.stringify(preset, null, 4) : "{}");
+    const [json, setJson] = React.useState(() => preset ? stringifyPreset(preset, 4) : "{}");
+    const [jsonDirty, setJsonDirty] = React.useState(false);
+
+    // Refresh the editor from the live preset every time the JSON tab is opened,
+    // so live-backup updates aren't clobbered by a stale copy. Unsaved edits win.
+    const showTab = (next: "info" | "settings" | "contents" | "json") => {
+        if (next === "json" && !jsonDirty && preset) setJson(stringifyPreset(preset, 4));
+        setTab(next);
+    };
 
     if (!preset) {
         return (
@@ -125,6 +139,7 @@ function InfoModal({ modalProps, name, onChange }: { modalProps: RenderModalProp
     }
 
     const globalDefault = getRestoreDefault();
+    const globalForce = getForceApplyDefault();
     const restoreState = preset.restoreSettings === undefined
         ? `Default (${globalDefault ? "on" : "off"})`
         : preset.restoreSettings ? "On" : "Off";
@@ -136,6 +151,17 @@ function InfoModal({ modalProps, name, onChange }: { modalProps: RenderModalProp
         force();
         onChange();
     };
+    const forceState = preset.forceApply === undefined
+        ? `Default (${globalForce ? "on" : "off"})`
+        : preset.forceApply ? "On" : "Off";
+    const cycleForce = () => {
+        const next = preset.forceApply === undefined ? true
+            : preset.forceApply === true ? false
+                : undefined;
+        setPresetForceApply(name, next);
+        force();
+        onChange();
+    };
     const toggleLive = (v: boolean) => {
         setPresetLiveBackup(name, v);
         force();
@@ -143,7 +169,7 @@ function InfoModal({ modalProps, name, onChange }: { modalProps: RenderModalProp
     };
 
     const copyJson = () => {
-        copyToClipboard(JSON.stringify(preset, null, 4));
+        copyToClipboard(stringifyPreset(preset, 4));
         showToast("Preset JSON copied.", Toasts.Type.SUCCESS);
     };
     const saveJson = () => {
@@ -165,13 +191,13 @@ function InfoModal({ modalProps, name, onChange }: { modalProps: RenderModalProp
             </ModalHeader>
             <ModalContent className="vc-presets-modal-content">
                 <div className="vc-presets-tabs">
-                    <button className={`vc-presets-tab ${tab === "info" ? "vc-presets-tab-active" : ""}`} onClick={() => setTab("info")}>Info</button>
-                    <button className={`vc-presets-tab ${tab === "settings" ? "vc-presets-tab-active" : ""}`} onClick={() => setTab("settings")}>Settings</button>
-                    <button className={`vc-presets-tab ${tab === "contents" ? "vc-presets-tab-active" : ""}`} onClick={() => setTab("contents")}>Contents</button>
-                    <button className={`vc-presets-tab ${tab === "json" ? "vc-presets-tab-active" : ""}`} onClick={() => setTab("json")}>JSON</button>
+                    <button className={`vc-presets-tab ${tab === "info" ? "vc-presets-tab-active" : ""}`} onClick={() => showTab("info")}>Info</button>
+                    <button className={`vc-presets-tab ${tab === "settings" ? "vc-presets-tab-active" : ""}`} onClick={() => showTab("settings")}>Settings</button>
+                    <button className={`vc-presets-tab ${tab === "contents" ? "vc-presets-tab-active" : ""}`} onClick={() => showTab("contents")}>Contents</button>
+                    <button className={`vc-presets-tab ${tab === "json" ? "vc-presets-tab-active" : ""}`} onClick={() => showTab("json")}>JSON</button>
                 </div>
 
-                {tab === "info" && <DevInfo preset={preset} globalDefault={globalDefault} />}
+                {tab === "info" && <DevInfo preset={preset} globalDefault={globalDefault} globalForce={globalForce} />}
 
                 {tab === "settings" && (
                     <div className="vc-presets-settings">
@@ -179,7 +205,7 @@ function InfoModal({ modalProps, name, onChange }: { modalProps: RenderModalProp
                             value={!!preset.liveBackup}
                             onChange={toggleLive}
                             title="Live backup"
-                            description="Auto-resnapshot this preset to your current config whenever a plugin is toggled or a setting changes."
+                            description="Auto-resnapshot this preset's plugins and plugin settings whenever a plugin is toggled or a setting changes. Themes, QuickCSS, and DataStore only update when you save over the preset."
                         />
                         <div className="vc-presets-setting-row">
                             <div className="vc-presets-setting-text">
@@ -187,6 +213,13 @@ function InfoModal({ modalProps, name, onChange }: { modalProps: RenderModalProp
                                 <Paragraph className="vc-presets-dim">Override the global default for this preset. Default follows the tab's toggle.</Paragraph>
                             </div>
                             <Button size="small" variant="secondary" onClick={cycleRestore}>{restoreState}</Button>
+                        </div>
+                        <div className="vc-presets-setting-row">
+                            <div className="vc-presets-setting-text">
+                                <Heading tag="h5">Force apply (full overwrite)</Heading>
+                                <Paragraph className="vc-presets-dim">Override the global default for this preset. When on, applying disables every plugin the preset doesn't include and always overwrites plugin settings.</Paragraph>
+                            </div>
+                            <Button size="small" variant="secondary" onClick={cycleForce}>{forceState}</Button>
                         </div>
                     </div>
                 )}
@@ -202,7 +235,7 @@ function InfoModal({ modalProps, name, onChange }: { modalProps: RenderModalProp
                         <TextArea
                             className="vc-presets-modal-textarea"
                             value={json}
-                            onChange={setJson}
+                            onChange={v => { setJson(v); setJsonDirty(true); }}
                             placeholder="{ … }"
                         />
                     </div>

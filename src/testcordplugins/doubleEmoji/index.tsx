@@ -14,7 +14,6 @@ export default definePlugin({
     tags: ["Emotes", "Nightcord", "Shortcuts"],
     authors: [{ name: "Nightcord", id: 0n }],
 
-
     start() {
         clickListener = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
