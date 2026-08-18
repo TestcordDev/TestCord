@@ -122,6 +122,17 @@ const settings = definePluginSettings({
         default: false,
         hidden: () => true,
     },
+    autoVerifyInterval: {
+        type: OptionType.SELECT,
+        description: "Periodically verify all saved tokens in the background and flag invalid ones. Set to Off to disable.",
+        options: [
+            { label: "Off", value: 0, default: true },
+            { label: "Every 6 hours", value: 6 },
+            { label: "Every 12 hours", value: 12 },
+            { label: "Every 24 hours", value: 24 },
+        ],
+        restartNeeded: true,
+    },
 });
 
 // Routes parsed tokens into the TokenLoginManager vault, mirroring the original
@@ -173,6 +184,8 @@ interface SavedAccount {
     /** epoch ms of the last conclusive check; absent = never verified */
     lastVerifiedAt?: number;
     lastStatus?: VerifyStatus;
+    /** manual ordering index; lower = higher in list when sort is "manual" */
+    sortOrder?: number;
 }
 
 function accountFromUser(u: CheckTokenUser, token: string): SavedAccount {
@@ -487,6 +500,14 @@ function CrossIcon() {
     return <svg width={12} height={12} viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 17.59 13.41 12 19 6.41z" /></svg>;
 }
 
+function EyeIcon() {
+    return <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5ZM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5Zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3Z" /></svg>;
+}
+
+function EyeOffIcon() {
+    return <svg width={14} height={14} viewBox="0 0 24 24" fill="currentColor"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7ZM2 4.27l2.28 2.28.46.46A11.8 11.8 0 0 0 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27ZM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2Zm4.31-.78 3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01Z" /></svg>;
+}
+
 function AccountAvatar({ id, avatar }: { id: string; avatar: string | null | undefined; }) {
     return (
         <img
@@ -550,11 +571,15 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
     const [copied, setCopied] = useState(false);
     const [accountSearch, setAccountSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState<"all" | "valid" | "invalid" | "unverified">("all");
-    const [sortMode, setSortMode] = useState<"name" | "recent" | "stale">("name");
+    const [sortMode, setSortMode] = useState<"manual" | "name" | "recent" | "stale">("manual");
+    const [revealedId, setRevealedId] = useState<string | null>(null);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkMode, setBulkMode] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
     const mountedRef = useRef(true);
     const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const detectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const revealTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const filteredAccounts = useMemo(() => {
         let list = accounts;
@@ -567,7 +592,8 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
             });
         }
         const sorted = [...list];
-        if (sortMode === "name") sorted.sort((a, b) => a.username.localeCompare(b.username));
+        if (sortMode === "manual") sorted.sort((a, b) => (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity));
+        else if (sortMode === "name") sorted.sort((a, b) => a.username.localeCompare(b.username));
         else if (sortMode === "recent") sorted.sort((a, b) => (b.lastVerifiedAt ?? 0) - (a.lastVerifiedAt ?? 0));
         else sorted.sort((a, b) => (a.lastVerifiedAt ?? Infinity) - (b.lastVerifiedAt ?? Infinity));
         return sorted;
@@ -594,6 +620,7 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
             mountedRef.current = false;
             if (detectTimer.current) clearTimeout(detectTimer.current);
             if (copiedTimer.current) clearTimeout(copiedTimer.current);
+            if (revealTimer.current) clearTimeout(revealTimer.current);
         };
     }, []);
 
@@ -601,6 +628,150 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
         const updated = accounts.filter(a => a.id !== id);
         setAccounts(updated);
         await saveAccounts(updated);
+    }
+
+    function revealToken(id: string) {
+        if (revealedId === id) {
+            setRevealedId(null);
+            if (revealTimer.current) { clearTimeout(revealTimer.current); revealTimer.current = null; }
+            return;
+        }
+        setRevealedId(id);
+        if (revealTimer.current) clearTimeout(revealTimer.current);
+        revealTimer.current = setTimeout(() => {
+            revealTimer.current = null;
+            if (mountedRef.current) setRevealedId(null);
+        }, 5000);
+    }
+
+    function toggleSelect(id: string) {
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    }
+
+    function selectAll() {
+        setSelectedIds(new Set(filteredAccounts.map(a => a.id)));
+    }
+
+    function selectNone() {
+        setSelectedIds(new Set());
+    }
+
+    async function bulkDelete() {
+        if (selectedIds.size === 0) return;
+        const updated = accounts.filter(a => !selectedIds.has(a.id));
+        setAccounts(updated);
+        await saveAccounts(updated);
+        setSelectedIds(new Set());
+        showToast(`Deleted ${selectedIds.size} account${selectedIds.size !== 1 ? "s" : ""}`, Toasts.Type.MESSAGE);
+    }
+
+    function bulkCopy() {
+        if (selectedIds.size === 0) return;
+        const tokens = accounts.filter(a => selectedIds.has(a.id) && !a.undecryptable).map(a => a.token).join("\n");
+        copyWithToast(tokens, `${selectedIds.size} token${selectedIds.size !== 1 ? "s" : ""} copied!`);
+    }
+
+    function bulkExport() {
+        if (selectedIds.size === 0) return;
+        const selected = accounts.filter(a => selectedIds.has(a.id) && !a.undecryptable);
+        if (!selected.length) {
+            showToast("No exportable accounts selected", Toasts.Type.FAILURE);
+            return;
+        }
+        openModal(props => (
+            <PassphraseModal
+                rootProps={props}
+                title="Export selected accounts"
+                confirmField
+                warnText={`Exporting ${selected.length} account${selected.length !== 1 ? "s" : ""} to an encrypted backup file.`}
+                onConfirm={async passphrase => {
+                    const json = JSON.stringify({ version: 1, exportedAt: Date.now(), accounts: selected });
+                    const res = await Native.exportVault(json, passphrase);
+                    if (!res.ok) return "Encryption failed, nothing was written";
+                    saveFile(new File([res.payload], "dxtokenimporter-backup.txt", { type: "text/plain" }));
+                    showToast(`Exported ${selected.length} account${selected.length !== 1 ? "s" : ""}`, Toasts.Type.SUCCESS);
+                    return null;
+                }}
+            />
+        ));
+    }
+
+    // Drag-and-drop reordering
+    const dragItem = useRef<string | null>(null);
+    const [dropIndicator, setDropIndicator] = useState<{ id: string; position: "above" | "below"; } | null>(null);
+
+    function handleDragStart(e: React.DragEvent, id: string) {
+        dragItem.current = id;
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", id);
+        // Make the dragged row slightly transparent
+        requestAnimationFrame(() => {
+            (e.target as HTMLElement).style.opacity = "0.4";
+        });
+    }
+
+    function handleDragOver(e: React.DragEvent, id: string) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (!dragItem.current || dragItem.current === id) {
+            setDropIndicator(null);
+            return;
+        }
+        // Determine if cursor is in the top or bottom half of the row
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const position = e.clientY < midY ? "above" : "below";
+        setDropIndicator(prev => {
+            if (prev?.id === id && prev?.position === position) return prev;
+            return { id, position };
+        });
+    }
+
+    function handleDragLeave(e: React.DragEvent) {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDropIndicator(null);
+        }
+    }
+
+    function handleDragEnd(e: React.DragEvent) {
+        (e.target as HTMLElement).style.opacity = "";
+        dragItem.current = null;
+        setDropIndicator(null);
+    }
+
+    async function handleDrop(e: React.DragEvent, targetId: string) {
+        e.preventDefault();
+        (e.target as HTMLElement).style.opacity = "";
+        const sourceId = dragItem.current;
+        const indicator = dropIndicator;
+        dragItem.current = null;
+        setDropIndicator(null);
+        if (!sourceId || sourceId === targetId || !indicator) return;
+
+        const reordered = [...accounts];
+        const srcIdx = reordered.findIndex(a => a.id === sourceId);
+        if (srcIdx === -1) return;
+
+        // Remove the source item
+        const [moved] = reordered.splice(srcIdx, 1);
+
+        // Find the target index in the array *after* removal
+        let dstIdx = reordered.findIndex(a => a.id === targetId);
+        if (dstIdx === -1) return;
+
+        // Insert above or below depending on where the cursor was
+        if (indicator.position === "below") dstIdx++;
+        reordered.splice(dstIdx, 0, moved);
+
+        // Stamp sortOrder on every account so the manual order persists
+        for (let i = 0; i < reordered.length; i++) reordered[i] = { ...reordered[i], sortOrder: i };
+        setAccounts(reordered);
+        await saveAccounts(reordered);
     }
 
     async function verifyAll() {
@@ -827,6 +998,7 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
                             <div className={cl("filter-select")}>
                                 <Select
                                     options={[
+                                        { label: "Sort: Manual", value: "manual" },
                                         { label: "Sort: Name", value: "name" },
                                         { label: "Sort: Recently verified", value: "recent" },
                                         { label: "Sort: Stale first", value: "stale" },
@@ -859,6 +1031,17 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
                                 {verifying ? "Verifying..." : "Verify all"}
                             </Button>
                         </div>
+                        {bulkMode && (
+                            <div className={cl("bulk-bar")}>
+                                <span className={cl("bulk-count")}>{selectedIds.size} selected</span>
+                                <Button size={Button.Sizes.MIN} color={Button.Colors.TRANSPARENT} onClick={selectAll}>All</Button>
+                                <Button size={Button.Sizes.MIN} color={Button.Colors.TRANSPARENT} onClick={selectNone}>None</Button>
+                                <Button size={Button.Sizes.MIN} color={Button.Colors.PRIMARY} onClick={bulkCopy} disabled={selectedIds.size === 0}>Copy tokens</Button>
+                                <Button size={Button.Sizes.MIN} color={Button.Colors.PRIMARY} onClick={bulkExport} disabled={selectedIds.size === 0}>Export</Button>
+                                <Button size={Button.Sizes.MIN} color={Button.Colors.RED} onClick={bulkDelete} disabled={selectedIds.size === 0}>Delete</Button>
+                                <Button size={Button.Sizes.MIN} color={Button.Colors.TRANSPARENT} onClick={() => { setBulkMode(false); selectNone(); }}>Done</Button>
+                            </div>
+                        )}
                         {!loaded ? <div className={cl("empty")} style={{ opacity: 0.5 }}>Loading accounts...</div>
                             : accounts.length === 0 ? <div className={cl("empty")}>No accounts — add tokens via the tab above.</div>
                                 : filteredAccounts.length === 0 ? <div className={cl("empty")}>No accounts match your search.</div>
@@ -869,8 +1052,37 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
                                                 : st === "error" || st === "rate_limited" ? "row-warn"
                                                     : st === "valid" ? "row-valid"
                                                         : isStale(a) ? "row-warn" : null;
+                                            const isSelected = selectedIds.has(a.id);
+                                            const isDraggable = sortMode === "manual" && !bulkMode;
+                                            const showDropAbove = dropIndicator?.id === a.id && dropIndicator.position === "above";
+                                            const showDropBelow = dropIndicator?.id === a.id && dropIndicator.position === "below";
                                             return (
-                                                <div key={a.id} className={cl("row", rowClass)}>
+                                                <div
+                                                    key={a.id}
+                                                    className={cl("row", rowClass, isSelected && "row-selected", showDropAbove && "row-drop-above", showDropBelow && "row-drop-below")}
+                                                    draggable={isDraggable}
+                                                    onDragStart={isDraggable ? e => handleDragStart(e, a.id) : undefined}
+                                                    onDragOver={isDraggable ? e => handleDragOver(e, a.id) : undefined}
+                                                    onDragLeave={isDraggable ? handleDragLeave : undefined}
+                                                    onDragEnd={isDraggable ? handleDragEnd : undefined}
+                                                    onDrop={isDraggable ? e => handleDrop(e, a.id) : undefined}
+                                                    onDoubleClick={() => {
+                                                        if (!bulkMode) {
+                                                            setBulkMode(true);
+                                                            setSelectedIds(new Set([a.id]));
+                                                        } else {
+                                                            toggleSelect(a.id);
+                                                        }
+                                                    }}
+                                                >
+                                                    {bulkMode && (
+                                                        <div
+                                                            className={cl("select-indicator", isSelected && "select-indicator-active")}
+                                                            onClick={e => { e.stopPropagation(); toggleSelect(a.id); }}
+                                                        >
+                                                            {isSelected && <CheckIcon />}
+                                                        </div>
+                                                    )}
                                                     {a.avatar
                                                         ? <AccountAvatar id={a.id} avatar={a.avatar} />
                                                         : <div className={cl("avatar-ph")}>{a.username?.[0]?.toUpperCase() ?? "?"}</div>}
@@ -892,14 +1104,19 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
                                                         </span>
                                                         {a.undecryptable
                                                             ? <span className={cl("token-hidden", "token-locked")} title="Token can't be decrypted on this machine">Locked</span>
-                                                            : <span
-                                                                className={cl("token-hidden", "token-copyable")}
-                                                                onClick={() => copyWithToast(a.token, "Token copied!")}
-                                                                title="Copy token"
-                                                            >•••••••••••••••••••••••••</span>}
+                                                            : revealedId === a.id
+                                                                ? <span className={cl("token-revealed")} onClick={() => copyWithToast(a.token, "Token copied!")} title="Click to copy">{a.token}</span>
+                                                                : <span
+                                                                    className={cl("token-hidden", "token-copyable")}
+                                                                    onClick={() => copyWithToast(a.token, "Token copied!")}
+                                                                    title="Copy token"
+                                                                >•••••••••••••••••••••••••</span>}
                                                     </div>
                                                     <div className={cl("row-actions")}>
                                                         <Button size={Button.Sizes.MIN} color={Button.Colors.BRAND} disabled={a.undecryptable} onClick={() => switchToAccount(a.token, a.id)}>Switch</Button>
+                                                        <Button size={Button.Sizes.MIN} color={Button.Colors.TRANSPARENT} aria-label="Reveal token" disabled={a.undecryptable} onClick={() => revealToken(a.id)}>
+                                                            {revealedId === a.id ? <EyeOffIcon /> : <EyeIcon />}
+                                                        </Button>
                                                         <Button size={Button.Sizes.MIN} color={Button.Colors.TRANSPARENT} aria-label="Copy token" disabled={a.undecryptable} onClick={() => copyWithToast(a.token, "Token copied!")}>
                                                             <CopyIcon />
                                                         </Button>
@@ -1416,6 +1633,7 @@ const ABOUT_KEYS: (keyof typeof settings.store)[] = [
     "importDestination",
     "encryptStoredTokens",
     "enableQuickSwitch",
+    "autoVerifyInterval",
     "enableLocalScan",
     "autoScanOnStartup",
     "patchTokenStore",
@@ -1581,6 +1799,23 @@ function DXTokenImporterSettingsPanel() {
                 value={store.enableQuickSwitch}
                 onChange={v => settings.store.enableQuickSwitch = v}
             />
+            <Forms.FormTitle tag="h5">Background auto-verify</Forms.FormTitle>
+            <Select
+                options={[
+                    { label: "Off", value: 0 },
+                    { label: "Every 6 hours", value: 6 },
+                    { label: "Every 12 hours", value: 12 },
+                    { label: "Every 24 hours", value: 24 },
+                ]}
+                serialize={String}
+                isSelected={(v: number) => v === (store.autoVerifyInterval as number)}
+                select={(v: number) => {
+                    settings.store.autoVerifyInterval = v;
+                }}
+            />
+            <Forms.FormText style={{ fontSize: 12, marginTop: 4, marginBottom: 12 }}>
+                Periodically verifies all saved tokens in the background and toasts if any are invalid. Takes effect after a reload.
+            </Forms.FormText>
             <FormSwitch
                 title="Enable local Discord scan (advanced)"
                 description={DANGEROUS_SETTING_BLURBS.enableLocalScan}
@@ -1801,6 +2036,73 @@ async function switchCommand(ctx: CommandCtx, query: string): Promise<void> {
     setTimeout(() => switchToAccount(target.token, target.id), 1000);
 }
 
+async function importTokenCommand(ctx: CommandCtx, token: string): Promise<void> {
+    if (!(await ensureUnlocked(ctx))) return;
+    if (!TOKEN_SHAPE.test(token)) {
+        sendBotMessage(ctx.channel.id, { content: "That doesn't look like a valid token format." });
+        return;
+    }
+    sendBotMessage(ctx.channel.id, { content: "Verifying token..." });
+    const { status, account } = await verifyToken(token);
+    if (!account) {
+        sendBotMessage(ctx.channel.id, { content: `Token is ${status === "rate_limited" ? "rate limited (try again later)" : status}.` });
+        return;
+    }
+    const existing = [...await getAccounts()];
+    const idx = existing.findIndex(a => a.id === account.id);
+    if (idx === -1) {
+        existing.push(account);
+    } else {
+        existing[idx] = account;
+    }
+    await saveAccounts(existing);
+    await patchTokenStore();
+    sendBotMessage(ctx.channel.id, { content: `Imported **${account.username}** (${account.id})${idx !== -1 ? " (token updated)" : ""}.` });
+}
+
+async function exportVaultCommand(ctx: CommandCtx): Promise<void> {
+    if (!(await ensureUnlocked(ctx))) return;
+    const accounts = (await getAccounts()).filter(a => !a.undecryptable);
+    if (!accounts.length) {
+        sendBotMessage(ctx.channel.id, { content: "No exportable accounts in the vault." });
+        return;
+    }
+    openModal(props => (
+        <PassphraseModal
+            rootProps={props}
+            title="Export encrypted backup"
+            confirmField
+            warnText="The backup file contains your tokens (encrypted with this passphrase). Anyone with the file AND the passphrase gets the accounts — store it accordingly."
+            onConfirm={async passphrase => {
+                const json = JSON.stringify({ version: 1, exportedAt: Date.now(), accounts });
+                const res = await Native.exportVault(json, passphrase);
+                if (!res.ok) return "Encryption failed, nothing was written";
+                saveFile(new File([res.payload], "dxtokenimporter-backup.txt", { type: "text/plain" }));
+                sendBotMessage(ctx.channel.id, { content: `Exported ${accounts.length} account${accounts.length !== 1 ? "s" : ""} to file.` });
+                return null;
+            }}
+        />
+    ));
+}
+
+async function removeAccountCommand(ctx: CommandCtx, query: string): Promise<void> {
+    if (!(await ensureUnlocked(ctx))) return;
+    const accounts = await getAccounts();
+    const matches = accounts.filter(a => a.username.toLowerCase().includes(query) || a.id === query);
+    if (matches.length === 0) {
+        sendBotMessage(ctx.channel.id, { content: "No saved account matches that name or id." });
+        return;
+    }
+    if (matches.length > 1) {
+        sendBotMessage(ctx.channel.id, { content: `Ambiguous match, be more specific:\n${matches.slice(0, 8).map(a => a.username).join("\n")}${matches.length > 8 ? "\n…" : ""}` });
+        return;
+    }
+    const target = matches[0];
+    const updated = accounts.filter(a => a.id !== target.id);
+    await saveAccounts(updated);
+    sendBotMessage(ctx.channel.id, { content: `Removed **${target.username}** (${target.id}) from saved accounts.` });
+}
+
 export default definePlugin({
     name: "DXTokenImporter",
     description: "Import and verify Discord tokens.",
@@ -1846,6 +2148,37 @@ export default definePlugin({
                     ],
                 },
                 {
+                    name: "import",
+                    description: "Import a single token directly",
+                    type: ApplicationCommandOptionType.SUB_COMMAND,
+                    options: [
+                        {
+                            name: "token",
+                            description: "The Discord token to import",
+                            type: ApplicationCommandOptionType.STRING,
+                            required: true,
+                        },
+                    ],
+                },
+                {
+                    name: "export",
+                    description: "Export the vault as an encrypted backup file",
+                    type: ApplicationCommandOptionType.SUB_COMMAND,
+                },
+                {
+                    name: "remove",
+                    description: "Remove a saved account (by username or user id)",
+                    type: ApplicationCommandOptionType.SUB_COMMAND,
+                    options: [
+                        {
+                            name: "account",
+                            description: "Username or user id",
+                            type: ApplicationCommandOptionType.STRING,
+                            required: true,
+                        },
+                    ],
+                },
+                {
                     name: "open",
                     description: "Open the account manager",
                     type: ApplicationCommandOptionType.SUB_COMMAND,
@@ -1878,11 +2211,33 @@ export default definePlugin({
                         switchCommand(ctx, query);
                         break;
                     }
+                    case "import": {
+                        const token = String(findOption(sub.options, "token", "") ?? "").trim();
+                        if (!token) {
+                            sendBotMessage(ctx.channel.id, { content: "Specify a token: `/dxtokens import token:<token>`" });
+                            return;
+                        }
+                        importTokenCommand(ctx, token);
+                        break;
+                    }
+                    case "export":
+                        requestSurface(() => exportVaultCommand(ctx));
+                        break;
+                    case "remove": {
+                        const account = String(findOption(sub.options, "account", "") ?? "").trim().toLowerCase();
+                        if (!account) {
+                            sendBotMessage(ctx.channel.id, { content: "Specify an account: `/dxtokens remove account:<username or id>`" });
+                            return;
+                        }
+                        removeAccountCommand(ctx, account);
+                        break;
+                    }
                 }
             },
         },
     ],
     _injectTimer: null as ReturnType<typeof setTimeout> | null,
+    _autoVerifyTimer: null as ReturnType<typeof setInterval> | null,
     _started: false,
     handleQuickSwitch(event: KeyboardEvent) {
         if (!event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
@@ -1902,7 +2257,9 @@ export default definePlugin({
             if (
                 settings.store.enableLocalScan
                 && settings.store.autoScanOnStartup
-                && window.DiscordNative?.process?.platform === "win32"
+                && (window.DiscordNative?.process?.platform === "win32"
+                    || window.DiscordNative?.process?.platform === "darwin"
+                    || window.DiscordNative?.process?.platform === "linux")
             ) {
                 const result = await importLocalTokens(existing, () => !this._started);
                 if (result === null || !this._started) return;
@@ -1924,6 +2281,20 @@ export default definePlugin({
         if (settings.store.patchTokenStore) {
             // Eagerly patch so future native saves include our accounts.
             patchTokenStore();
+        }
+        // Background auto-verify scheduler
+        const intervalHours = settings.store.autoVerifyInterval as number;
+        if (intervalHours > 0) {
+            const intervalMs = intervalHours * 60 * 60 * 1000;
+            this._autoVerifyTimer = setInterval(async () => {
+                if (!this._started) return;
+                try {
+                    const { invalid } = await verifyAllHeadless();
+                    if (invalid > 0) showToast(`Auto-verify: ${invalid} token${invalid !== 1 ? "s" : ""} invalid`, Toasts.Type.FAILURE);
+                } catch (e) {
+                    logger.debug("auto-verify failed", e);
+                }
+            }, intervalMs);
         }
     },
     async _injectAccounts() {
@@ -1960,6 +2331,10 @@ export default definePlugin({
         if (this._injectTimer) {
             clearTimeout(this._injectTimer);
             this._injectTimer = null;
+        }
+        if (this._autoVerifyTimer) {
+            clearInterval(this._autoVerifyTimer);
+            this._autoVerifyTimer = null;
         }
         document.removeEventListener("keydown", this.handleQuickSwitch);
         modalOpen = false;

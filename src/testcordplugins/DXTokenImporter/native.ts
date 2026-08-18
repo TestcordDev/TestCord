@@ -336,8 +336,6 @@ function decryptToken(encryptedBase64: string, masterKey: Buffer): string {
 }
 
 export async function findLocalTokens(): Promise<string[]> {
-    if (process.platform !== "win32") return [];
-
     // Exposed over IPC, so any renderer script can call it — make the user confirm.
     const confirm = await dialog.showMessageBox({
         title: "Import local Discord tokens",
@@ -350,6 +348,13 @@ export async function findLocalTokens(): Promise<string[]> {
     });
     if (confirm.response !== 1) return [];
 
+    if (process.platform === "win32") return findLocalTokensWindows();
+    if (process.platform === "darwin") return findLocalTokensUnix("darwin");
+    if (process.platform === "linux") return findLocalTokensUnix("linux");
+    return [];
+}
+
+function findLocalTokensWindows(): string[] {
     const apps = ["discord", "discordcanary", "discordptb", "discorddevelopment", "lightcord"];
     const scanDirs = [
         ["Local Storage", "leveldb"],
@@ -406,6 +411,54 @@ export async function findLocalTokens(): Promise<string[]> {
                     }
                 } catch { /* unreadable/locked leveldb file; skip */ }
             }
+        }
+    }
+    return Array.from(tokens);
+}
+
+// macOS and Linux: tokens may be stored unencrypted in leveldb files (plaintext
+// token strings) since the encryption layer varies by platform and key manager.
+// We scan for raw token patterns in the leveldb/session-storage files.
+function findLocalTokensUnix(platform: "darwin" | "linux"): string[] {
+    const home = process.env.HOME || "";
+    if (!home) return [];
+
+    const apps = ["discord", "discordcanary", "discordptb", "discorddevelopment", "lightcord"];
+    const scanDirs = [
+        ["Local Storage", "leveldb"],
+        ["Session Storage"]
+    ];
+
+    let basePaths: string[];
+    if (platform === "darwin") {
+        basePaths = apps.map(a => join(home, "Library", "Application Support", a));
+    } else {
+        // Linux: check both ~/.config and snap paths
+        basePaths = [
+            ...apps.map(a => join(home, ".config", a)),
+            ...apps.map(a => join(home, "snap", a, "current", ".config", a)),
+        ];
+    }
+
+    const tokenShape = new RegExp(TOKEN_REGEX_SOURCE, "g");
+    const tokens = new Set<string>();
+
+    for (const appPath of basePaths) {
+        for (const dir of scanDirs) {
+            const dirPath = join(appPath, ...dir);
+            if (!existsSync(dirPath)) continue;
+            try {
+                for (const file of readdirSync(dirPath)) {
+                    try {
+                        const content = readFileSync(join(dirPath, file), "latin1");
+                        tokenShape.lastIndex = 0;
+                        let m: RegExpExecArray | null;
+                        while ((m = tokenShape.exec(content)) !== null) {
+                            tokens.add(m[0]);
+                        }
+                    } catch { /* locked file; skip */ }
+                }
+            } catch { /* unreadable directory; skip */ }
         }
     }
     return Array.from(tokens);
