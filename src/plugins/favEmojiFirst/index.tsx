@@ -167,7 +167,8 @@ function isStoredEmojiRef(value: unknown): value is StoredEmojiRef {
 }
 
 function parseAliasMap(value: unknown): AliasMap {
-    if (!value || typeof value !== "object" || Array.isArray(value)) {
+    if (value == null) return {};
+    if (typeof value !== "object" || Array.isArray(value)) {
         logger.warn("Alias store was invalid and has been reset.");
         return {};
     }

@@ -203,7 +203,7 @@ export async function initFilters(): Promise<void> {
     if (settings.store.enableFmhyBlocklist) {
         const cached = await DataStore.get<{ domains: string[]; fetchedAt: number; }>(STORE_KEY_FMHY_CACHE);
         const fourDays = 4 * 24 * 60 * 60 * 1000;
-        if (!cached || !cached.domains.length || (Date.now() - cached.fetchedAt > fourDays)) {
+        if (!cached?.domains?.length || (Date.now() - cached.fetchedAt > fourDays)) {
             fetchFmhyBlocklist();
         }
     }
