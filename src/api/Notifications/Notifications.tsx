@@ -106,13 +106,25 @@ export async function requestPermission() {
     );
 }
 
+function toPlainNotificationString(val: any): string {
+    if (typeof val === "string") return val;
+    if (val == null) return "";
+    if (Array.isArray(val)) return val.map(toPlainNotificationString).join("");
+    if (typeof val === "object" && typeof val.toString === "function" && val.toString !== Object.prototype.toString) {
+        return val.toString();
+    }
+    return String(val);
+}
+
 export async function showNotification(data: NotificationData) {
     persistNotification(data);
 
     if (shouldBeNative() && await requestPermission()) {
-        const { title, body, icon, image, onClick = null, onClose = null } = data;
-        const n = new Notification(title, {
-            body,
+        const { title = "", body = "", icon, image, onClick = null, onClose = null } = data;
+        const safeTitle = toPlainNotificationString(title);
+        const safeBody = toPlainNotificationString(body);
+        const n = new Notification(safeTitle, {
+            body: safeBody,
             icon,
             // @ts-expect-error ts is drunk
             image
