@@ -6,6 +6,7 @@
 
 import * as DataStore from "@api/DataStore";
 import { CACHED_MESSAGES_MAX } from "@utils/cacheLimits";
+import { Logger } from "@utils/Logger";
 import { ChannelStore, Toasts } from "@webpack/common";
 import { DBSchema, IDBPDatabase, openDB } from "idb";
 
@@ -183,7 +184,6 @@ export async function getDateStortedMessagesByStatusIDB(newest: boolean, limit: 
     const cursor = await index.openCursor(IDBKeyRange.only(status), direction);
 
     if (!cursor) {
-        console.log("No messages found");
         return [];
     }
 
@@ -204,7 +204,6 @@ export async function getMessagesByChannelAndAfterTimestampIDB(channel_id: strin
     const cursor = await index.openCursor(IDBKeyRange.bound([channel_id, start], [channel_id, "\uffff"]));
 
     if (!cursor) {
-        console.log("No messages found in range");
         return [];
     }
 
@@ -291,7 +290,7 @@ export async function migrateDateTimestamps() {
 
         await DataStore.set(TIMESTAMP_MIGRATION_KEY, Date.now());
         if (migrated > 0)
-            console.log(`[MessageLoggerEnhanced] Migrated ${migrated} records with Date timestamps to ISO strings`);
+            new Logger("MessageLoggerEnhanced").log(`Migrated ${migrated} records with Date timestamps to ISO strings`);
     } catch (e) {
         console.error("[MessageLoggerEnhanced] Error during timestamp migration:", e);
     }

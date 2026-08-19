@@ -337,7 +337,7 @@ export default definePlugin({
 
         // only check for expired attachments if the message is not deleted
         {
-            find: "\"/ephemeral-attachments/\"",
+            find: "refreshed_urls",
             replacement: {
                 match: /\i\.attachments\.some\(\i\)\|\|\i\.embeds\.some/,
                 replace: "!arguments[0].deleted && $&"
@@ -371,12 +371,10 @@ export default definePlugin({
 
     coolReAddDeletedMessages: (messages: any[] & { extra?: any[]; }, payload: LoadMessagePayload) => {
         try {
-            console.log("[MessageLoggerEnhanced] coolReAddDeletedMessages called. messages:", messages, "payload:", payload);
             if (!Array.isArray(messages)) return messages;
 
             const validMessages = messages.filter(m => m && typeof m === "object");
             if (validMessages.length !== messages.length) {
-                console.log("[MessageLoggerEnhanced] Filtering non-object messages. Before:", messages.length, "After:", validMessages.length);
                 messages.length = 0;
                 messages.push(...validMessages);
             }

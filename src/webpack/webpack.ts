@@ -44,6 +44,20 @@ export let cache: WebpackRequire["c"];
 
 export const fluxStores: Record<string, FluxStore> = {};
 
+let cachedLibdiscoreExports: Record<string, any> | null = null;
+let libdiscoreInitAttempted = false;
+
+function initLibdiscoreCache() {
+    if (libdiscoreInitAttempted) return;
+    libdiscoreInitAttempted = true;
+    try {
+        const getLibdiscore = findByCode("libdiscoreWasm is not initialized");
+        cachedLibdiscoreExports = getLibdiscore();
+    } catch {
+        cachedLibdiscoreExports = null;
+    }
+}
+
 export type FilterFn = (mod: any) => boolean;
 
 export type PropsFilter = Array<string>;
@@ -528,28 +542,17 @@ export function findStore(name: StoreNameFilter) {
             }
         }
 
-        try {
-            const getLibdiscore = findByCode("libdiscoreWasm is not initialized");
-            const libdiscoreExports = getLibdiscore();
+        initLibdiscoreCache();
+        if (cachedLibdiscoreExports) {
+            for (const libdiscoreExportName in cachedLibdiscoreExports) {
+                if (!libdiscoreExportName.endsWith("Store")) continue;
 
-            for (const libdiscoreExportName in libdiscoreExports) {
-                if (!libdiscoreExportName.endsWith("Store")) {
-                    continue;
-                }
-
-                const storeName = libdiscoreExportName;
-                const store = libdiscoreExports[storeName];
-
-                if (storeName === name) {
-                    res = store;
-                }
-
-                if (fluxStores[storeName] == null) {
-                    fluxStores[storeName] = store;
-                }
+                const store = cachedLibdiscoreExports[libdiscoreExportName];
+                if (libdiscoreExportName === name) res = store;
+                if (fluxStores[libdiscoreExportName] == null)
+                    fluxStores[libdiscoreExportName] = store;
             }
-
-        } catch { }
+        }
 
         if (res == null) {
             res = find(filters.byStoreName(name), { isIndirect: true });

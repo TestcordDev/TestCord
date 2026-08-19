@@ -330,7 +330,7 @@ export default definePlugin({
             replacement: [
                 {
                     // Subscribes the Quest page sort/filter state to Questify rerenders.
-                    match: /(?<=\i\.useRef\(null\);)(?=return\(0,\i\.jsxs\)\("div")/,
+                    match: /(?<=;)(?=return \i\?\(0,\i\.\i\)\()(?=.{0,50}adCreativeIds:)/,
                     replace: "let questRerenderTrigger=$self.useQuestRerender();"
                 }
             ]
