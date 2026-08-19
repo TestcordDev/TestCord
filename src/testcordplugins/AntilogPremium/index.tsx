@@ -5,24 +5,13 @@
  */
 
 import { ApplicationCommandInputType, ApplicationCommandOptionType, sendBotMessage } from "@api/Commands";
+import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { addMessagePopoverButton as addButton, removeMessagePopoverButton as removeButton } from "@api/MessagePopover";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
-import type { MessageJSON } from "@vencord/discord-types";
-import { findByPropsLazy } from "@webpack";
-import { ChannelStore, Constants, FluxDispatcher, RestAPI, UserStore } from "@webpack/common";
-
-const REPLACEMENT_DELETE_TTL_MS = 10_000;
-
-const MessageActions = findByPropsLazy("deleteMessage", "_sendMessage");
-
-interface MessageCreatePayload {
-    message: MessageJSON;
-    optimistic: boolean;
-    type?: string;
-}
+import { ChannelStore, Constants, FluxDispatcher, Menu, RestAPI, showToast, Toasts, UserStore } from "@webpack/common";
 
 const settings = definePluginSettings({
     accentColor: {
@@ -30,20 +19,30 @@ const settings = definePluginSettings({
         description: "Accent color for the delete icon (hex code).",
         default: "#ed4245"
     },
+    mode: {
+        type: OptionType.SELECT,
+        description: "AntiLog deletion method.",
+        default: "ghostEdit",
+        options: [
+            { label: "Ghost Edit (Edit to placeholder then delete + purge locally)", value: "ghostEdit", default: true },
+            { label: "Direct Delete (Instant server delete + purge locally)", value: "direct" },
+            { label: "Nonce Overwrite (Send replacement with nonce then delete)", value: "nonce" },
+        ]
+    },
     replacementMessage: {
         type: OptionType.STRING,
-        description: "Text to replace deleted message with (hides it from message loggers).",
+        description: "Placeholder text to replace message with before deletion (for Ghost Edit / Nonce modes).",
         default: "ₓ"
     },
-    deleteDelay: {
+    delay: {
         type: OptionType.NUMBER,
-        description: "Delay in ms between delete and replacement send (for anti-logging).",
-        default: 50
+        description: "Delay in ms between edit/replacement and delete (recommended: 100-300).",
+        default: 150
     },
-    deleteReplacementMarker: {
+    purgeLocalLoggers: {
         type: OptionType.BOOLEAN,
-        description: "Delete the replacement marker after sending it instead of leaving it in chat.",
-        default: false
+        description: "Completely purge the message from your own local MessageLogger & MLE so it never shows in red.",
+        default: true
     },
     purgeInterval: {
         type: OptionType.NUMBER,
@@ -58,74 +57,130 @@ const settings = definePluginSettings({
         max: 999999
     }
 });
+
 const getAccentColor = () => settings.store.accentColor || "#ed4245";
+
 const TrashIcon = () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill={getAccentColor()}>
         <path d="M15 3.999V2H9V3.999H3V5.999H21V3.999H15Z" />
         <path d="M5 6.99902V18.999C5 20.101 5.897 20.999 7 20.999H17C18.103 20.999 19 20.101 19 18.999V6.99902H5ZM11 17H9V11H11V17ZM15 17H13V11H15V17Z" />
     </svg>
 );
-const pendingReplacementDeletes = new Map<string, ReturnType<typeof setTimeout>>();
 
-function queueReplacementDelete(nonce: string) {
-    const existingTimeout = pendingReplacementDeletes.get(nonce);
-    if (existingTimeout) clearTimeout(existingTimeout);
+async function purgeLocalMessage(channelId: string, messageId: string) {
+    if (!settings.store.purgeLocalLoggers) return;
 
-    const timeout = setTimeout(() => {
-        pendingReplacementDeletes.delete(nonce);
-    }, REPLACEMENT_DELETE_TTL_MS);
+    try {
+        // 1. Tell local MessageLogger to completely drop the message rather than marking it deleted in red
+        FluxDispatcher.dispatch({
+            type: "MESSAGE_DELETE",
+            channelId,
+            id: messageId,
+            mlDeleted: true
+        });
 
-    pendingReplacementDeletes.set(nonce, timeout);
-}
-
-function consumeReplacementDelete(nonce: string) {
-    const timeout = pendingReplacementDeletes.get(nonce);
-    if (!timeout) return false;
-
-    clearTimeout(timeout);
-    pendingReplacementDeletes.delete(nonce);
-    return true;
-}
-
-function handleMessageCreate({ message, optimistic, type }: MessageCreatePayload) {
-    if (!settings.store.deleteReplacementMarker || optimistic || type !== "MESSAGE_CREATE") return;
-    if (!message.nonce || !consumeReplacementDelete(message.nonce)) return;
-
-    setTimeout(() => {
-        void MessageActions.deleteMessage(message.channel_id, message.id);
-    }, settings.store.deleteDelay);
+        // 2. Also attempt to remove from MessageLoggerEnhanced IndexedDB if active
+        const mleDb = await import("../../equicordplugins/messageLoggerEnhanced/db").catch(() => null);
+        if (mleDb?.deleteMessageIDB) {
+            await mleDb.deleteMessageIDB(messageId).catch(() => {});
+        }
+    } catch {
+        // Ignore local purge failures
+    }
 }
 
 async function antiLogDelete(channelId: string, messageId: string): Promise<boolean> {
     try {
-        const { replacementMessage, deleteDelay, deleteReplacementMarker } = settings.store;
+        const { mode = "ghostEdit", replacementMessage = "ₓ", delay = 150 } = settings.store;
 
-        if (deleteReplacementMarker) {
-            queueReplacementDelete(messageId);
+        if (mode === "ghostEdit") {
+            // 1. Edit the message on the server first to replace content with placeholder
+            await RestAPI.patch({
+                url: Constants.Endpoints.MESSAGE(channelId, messageId),
+                body: { content: replacementMessage }
+            }).catch(() => {});
+
+            await sleep(delay);
+
+            // 2. Delete original message from Discord server
+            await RestAPI.del({
+                url: Constants.Endpoints.MESSAGE(channelId, messageId)
+            });
+        } else if (mode === "nonce") {
+            // 1. Send replacement message with nonce = messageId
+            const response = await RestAPI.post({
+                url: Constants.Endpoints.MESSAGES(channelId),
+                body: {
+                    content: replacementMessage,
+                    nonce: messageId,
+                    flags: 4096, // Silent message (suppress notifications)
+                    tts: false,
+                    mobile_network_type: "unknown"
+                }
+            });
+
+            await sleep(delay);
+
+            // 2. Delete original message
+            await RestAPI.del({
+                url: Constants.Endpoints.MESSAGE(channelId, messageId)
+            });
+
+            // 3. Delete replacement marker
+            if (response?.body?.id) {
+                await sleep(delay);
+                await RestAPI.del({
+                    url: Constants.Endpoints.MESSAGE(channelId, response.body.id)
+                }).catch(() => {});
+            }
+        } else {
+            // Direct delete mode
+            await RestAPI.del({
+                url: Constants.Endpoints.MESSAGE(channelId, messageId)
+            });
         }
 
-        await MessageActions.deleteMessage(channelId, messageId);
-        await sleep(deleteDelay);
-        await MessageActions._sendMessage(channelId, {
-            content: replacementMessage,
-            tts: false,
-            invalidEmojis: [],
-            validNonShortcutEmojis: []
-        }, { nonce: messageId });
+        // 3. Cleanly purge the message from your local MessageLogger / MLE so your client doesn't display it in red
+        await purgeLocalMessage(channelId, messageId);
+
         return true;
-    } catch (error) {
-        consumeReplacementDelete(messageId);
-        console.error("[AntilogPremium] Error:", error);
+    } catch (error: any) {
+        console.error("[AntilogPremium] Error during AntiLog deletion:", error);
+        showToast(
+            error?.body?.message ? `AntiLog Delete failed: ${error.body.message}` : "AntiLog Delete failed",
+            Toasts.Type.FAILURE
+        );
         return false;
     }
 }
+
+const messageContextMenuPatch: NavContextMenuPatchCallback = (children, { message }) => {
+    const currentUserId = UserStore.getCurrentUser()?.id;
+    if (!message || !currentUserId || message.author?.id !== currentUserId || message.deleted) return;
+
+    const group = findGroupChildrenByChildId("delete", children) ?? children;
+    group.push(
+        <Menu.MenuItem
+            id="tc-antilog-delete"
+            label={<span style={{ color: getAccentColor() }}>AntiLog Delete</span>}
+            action={() => void antiLogDelete(message.channel_id, message.id)}
+            icon={TrashIcon}
+        />
+    );
+};
+
 export default definePlugin({
     name: "AntilogPremium",
     description: "Delete messages while hiding them from message loggers. Combines best anti-logging methods. (its made to replace AntiLog, SilentDelete, and MLE's silent delete at once)",
     tags: ["Privacy", "Utility"],
     authors: [TestcordDevs.x2b],
-    dependencies: ["MessagePopoverAPI", "CommandsAPI"],
+    dependencies: ["MessagePopoverAPI", "CommandsAPI", "ContextMenuAPI"],
     settings,
+
+    contextMenus: {
+        "message": messageContextMenuPatch
+    },
+
     commands: [
         {
             name: "silentpurgeenhanced",
@@ -143,7 +198,11 @@ export default definePlugin({
                 const actualCount = Math.min(count, maxCount);
                 if (!actualCount || actualCount < 1) return;
                 const channelId = ctx.channel.id;
-                const currentUserId = UserStore.getCurrentUser().id;
+                const currentUserId = UserStore.getCurrentUser()?.id;
+                if (!currentUserId) {
+                    sendBotMessage(channelId, { content: "User state not ready. Please try again in a moment." });
+                    return;
+                }
                 (async () => {
                     try {
                         const userMessages: any[] = [];
@@ -184,23 +243,20 @@ export default definePlugin({
         }
     ],
     start() {
-        FluxDispatcher.subscribe("MESSAGE_CREATE", handleMessageCreate);
         addButton("AntilogPremium", msg => {
-            if (msg.author.id !== UserStore.getCurrentUser().id || msg.deleted) return null;
+            const currentUserId = UserStore.getCurrentUser()?.id;
+            if (!currentUserId || msg.author?.id !== currentUserId || msg.deleted) return null;
             return {
                 label: "AntiLog Delete",
                 icon: TrashIcon,
                 message: msg,
                 channel: ChannelStore.getChannel(msg.channel_id),
-                onClick: () => antiLogDelete(msg.channel_id, msg.id),
+                onClick: () => void antiLogDelete(msg.channel_id, msg.id),
                 dangerous: true
             };
         }, TrashIcon);
     },
     stop() {
-        FluxDispatcher.unsubscribe("MESSAGE_CREATE", handleMessageCreate);
-        pendingReplacementDeletes.forEach(timeout => clearTimeout(timeout));
-        pendingReplacementDeletes.clear();
         removeButton("AntilogPremium");
     }
 });

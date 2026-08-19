@@ -1,0 +1,343 @@
+/*
+ * Chrome-style tab strip.
+ *
+ * The Chrome look comes from three things:
+ *   1. tabs whose outer bottom corners curve *away* from the tab (concave),
+ *      so the active tab appears fused to the content area below it
+ *   2. only the active tab has a filled background; the rest are bare
+ *   3. thin vertical separators between inactive tabs, hidden around the active one
+ *
+ * The curve is an inline SVG per tab (.tc-chrometabs-shape) rather than CSS
+ * pseudo-elements, because concave corners can't be done with border-radius and
+ * the tab width is dynamic.
+ */
+
+.tc-chrometabs-container {
+    /* strip background = the "browser chrome" behind the tabs */
+    --tc-strip-bg: var(--background-base-lower, var(--background-tertiary));
+
+    /* active tab background must match the app content below it */
+    --tc-tab-active-bg: var(--background-base-low, var(--background-primary));
+    --tc-tab-hover-bg: var(--background-mod-subtle, rgb(255 255 255 / 4%));
+    --tc-tab-height: 34px;
+
+    display: flex;
+    align-items: flex-end;
+    box-sizing: border-box;
+    height: calc(var(--tc-tab-height) + 6px);
+    padding: 6px 8px 0;
+    background-color: var(--tc-strip-bg);
+
+    /* the strip sits in Discord's notice grid area, above the app content */
+    grid-area: notice;
+    z-index: 102;
+
+    /* let the window still be dragged by the strip background, but not the tabs */
+    -webkit-app-region: drag;
+}
+
+/* Discord shows notices in this same grid area; yield to them when one appears */
+[class*="notice"] + .tc-chrometabs-container {
+    z-index: 1;
+    height: var(--tc-tab-height);
+    overflow: hidden;
+}
+
+.tc-chrometabs-strip {
+    display: flex;
+    align-items: flex-end;
+    flex: 1;
+    min-width: 0;
+    height: var(--tc-tab-height);
+    overflow-x: auto;
+    overflow-y: hidden;
+
+    /* room for the tab shadow so it isn't clipped by the scroll box */
+    scrollbar-width: none;
+}
+
+.tc-chrometabs-strip::-webkit-scrollbar {
+    display: none;
+}
+
+/* #region tab */
+
+.tc-chrometabs-tab {
+    position: relative;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    width: var(--tc-tab-width, 200px);
+    min-width: 0;
+    height: var(--tc-tab-height);
+    padding: 0;
+
+    /* tabs overlap by 1px so adjacent curves meet cleanly, like Chrome */
+    margin-right: -1px;
+    background: none;
+    border: none;
+    cursor: default;
+    flex-shrink: 0;
+    -webkit-app-region: no-drag;
+}
+
+/* the curved tab body */
+.tc-chrometabs-shape {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    fill: transparent;
+    pointer-events: none;
+    transition: fill 0.12s ease;
+}
+
+.tc-chrometabs-tab:hover:not(.tc-chrometabs-tab-active) .tc-chrometabs-shape {
+    fill: var(--tc-tab-hover-bg);
+}
+
+.tc-chrometabs-tab-active .tc-chrometabs-shape {
+    fill: var(--tc-tab-active-bg);
+}
+
+/* the active tab must paint over its neighbours' separators and curves */
+.tc-chrometabs-tab-active {
+    z-index: 2;
+}
+
+.tc-chrometabs-tab-dragging {
+    z-index: 3;
+    opacity: 0.75;
+}
+
+/* #endregion */
+
+/* #region tab contents */
+
+.tc-chrometabs-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+
+    /* matches the SVG's 14px inset so text starts inside the curve */
+    padding: 0 8px 0 14px;
+    overflow: hidden;
+}
+
+.tc-chrometabs-favicon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.tc-chrometabs-favicon.tc-chrometabs-glyph {
+    border-radius: 0;
+    color: var(--text-muted);
+}
+
+.tc-chrometabs-favicon.tc-chrometabs-acronym {
+    background-color: var(--background-base-lowest, var(--background-secondary));
+    color: var(--text-default);
+    font-size: 8px;
+    text-align: center;
+}
+
+/* the #/voice glyph Discord renders next to a guild icon */
+.tc-chrometabs-channel-glyph {
+    display: flex;
+    align-items: center;
+    margin-right: -2px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.tc-chrometabs-channel-glyph [class*="iconContainer"] {
+    height: 16px;
+    margin: 0;
+    pointer-events: none;
+    transform: scale(0.8);
+}
+
+.tc-chrometabs-label {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--text-muted);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    flex: 1;
+    transition: color 0.12s ease;
+}
+
+.tc-chrometabs-tab-active .tc-chrometabs-label {
+    color: var(--text-default);
+}
+
+/* Chrome hides the label entirely once tabs get very narrow */
+.tc-chrometabs-tab {
+    container-type: inline-size;
+}
+
+@container (max-width: 88px) {
+    .tc-chrometabs-label,
+    .tc-chrometabs-channel-glyph {
+        display: none;
+    }
+
+    .tc-chrometabs-content {
+        justify-content: center;
+        padding: 0 6px;
+    }
+}
+
+/* #endregion */
+
+/* #region badge */
+
+.tc-chrometabs-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background-color: var(--brand-500, var(--brand-experiment));
+    color: var(--white-500, #fff);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.tc-chrometabs-badge.tc-chrometabs-mention {
+    background-color: var(--status-danger, #f23f42);
+}
+
+/* unread with no count: a plain dot, as Discord does in the channel list */
+.tc-chrometabs-badge.tc-chrometabs-dot {
+    min-width: 8px;
+    width: 8px;
+    height: 8px;
+    padding: 0;
+}
+
+/* #endregion */
+
+/* #region close button */
+
+.tc-chrometabs-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--interactive-normal, var(--text-muted));
+    cursor: pointer;
+    opacity: 0;
+    flex-shrink: 0;
+    transition: opacity 0.12s ease, background-color 0.12s ease;
+}
+
+/* Chrome only shows the X on hover, or on the active tab */
+.tc-chrometabs-tab:hover .tc-chrometabs-close,
+.tc-chrometabs-tab-active .tc-chrometabs-close {
+    opacity: 1;
+}
+
+.tc-chrometabs-close:hover {
+    background-color: var(--background-mod-strong, rgb(255 255 255 / 10%));
+    color: var(--interactive-hover, var(--text-default));
+}
+
+.tc-chrometabs-close:active {
+    background-color: var(--background-mod-stronger, rgb(255 255 255 / 16%));
+}
+
+/* narrow tabs drop the X so the favicon stays visible */
+@container (max-width: 66px) {
+    .tc-chrometabs-close {
+        display: none;
+    }
+}
+
+/* #endregion */
+
+/* #region separators */
+
+.tc-chrometabs-separator {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    width: 1px;
+    height: 16px;
+    background-color: var(--border-subtle, rgb(255 255 255 / 8%));
+    pointer-events: none;
+    transform: translateY(-50%);
+    transition: opacity 0.12s ease;
+}
+
+/* no separator beside the active tab, or on the last tab */
+.tc-chrometabs-tab-active .tc-chrometabs-separator,
+.tc-chrometabs-tab:last-of-type .tc-chrometabs-separator,
+.tc-chrometabs-tab:has(+ .tc-chrometabs-tab-active) .tc-chrometabs-separator,
+.tc-chrometabs-tab:hover .tc-chrometabs-separator {
+    opacity: 0;
+}
+
+/* #endregion */
+
+/* #region new tab button */
+
+.tc-chrometabs-new-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin: 0 0 3px 4px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--interactive-normal, var(--text-muted));
+    cursor: pointer;
+    flex-shrink: 0;
+    -webkit-app-region: no-drag;
+    transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.tc-chrometabs-new-tab:hover {
+    background-color: var(--tc-tab-hover-bg);
+    color: var(--interactive-hover, var(--text-default));
+}
+
+.tc-chrometabs-new-tab:active {
+    background-color: var(--background-mod-strong, rgb(255 255 255 / 10%));
+}
+
+/* #endregion */
+
+@media (prefers-reduced-motion: reduce) {
+    .tc-chrometabs-shape,
+    .tc-chrometabs-label,
+    .tc-chrometabs-close,
+    .tc-chrometabs-separator,
+    .tc-chrometabs-new-tab {
+        transition: none;
+    }
+}
