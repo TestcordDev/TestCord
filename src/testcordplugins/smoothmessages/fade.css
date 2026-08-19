@@ -18,13 +18,17 @@
 
 /* Only the newest row animates. Applying this to every list item meant a jump to present,
    a channel switch, or any scroll that remounted virtualized rows animated hundreds of
-   items at once, which is what made jump-to-present stutter and flash. */
-[--messageListItem]:last-child {
-    animation: vc-smoothmessages-fade-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+   items at once, which is what made jump-to-present stutter and flash.
+
+   Do not use :last-child here. The scroller keeps trailing nodes after the final message
+   row, so the newest row is never its parent's last child and the rule silently matched
+   nothing. Match the last messageListItem among its siblings instead. */
+[--messageListItem]:not(:has(~ [--messageListItem])) {
+    animation: vc-smoothmessages-fade-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-    [--messageListItem]:last-child {
+    [--messageListItem]:not(:has(~ [--messageListItem])) {
         animation: none;
     }
 }
