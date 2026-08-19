@@ -1,0 +1,122 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import { addContextMenuPatch, removeContextMenuPatch } from "@api/ContextMenu";
+import { FluxDispatcher, Menu, MessageActions, React, SortedGuildStore, Toasts, UserStore } from "@webpack/common";
+import { openLogModal } from "../components/LogsModal";
+import { deleteMessageIDB } from "../db";
+import { invalidateMessageCaches, settings } from "../index";
+import { addToXAndRemoveFromOpposite, removeFromX } from ".";
+const idFunctions = {
+    Folder: props => props?.folderId &&
+        SortedGuildStore?.getGuildFolders?.().find(f => f?.folderId === props.folderId)?.guildIds,
+    Server: props => props?.guild?.id,
+    User: props => props?.message?.author?.id || props?.user?.id,
+    Channel: props => props.message?.channel_id || props.channel?.id
+};
+function renderListOption(listType, IdType, props) {
+    const rawId = idFunctions[IdType](props);
+    if (!rawId)
+        return null;
+    const ids = Array.isArray(rawId) ? rawId : [rawId];
+    const isBlocked = ids.every(id => settings.store[listType].includes(id));
+    const oppositeListType = listType === "blacklistedIds" ? "whitelistedIds" : "blacklistedIds";
+    const isOppositeBlocked = ids.some(id => settings.store[oppositeListType].includes(id));
+    const list = listType === "blacklistedIds" ? "Blacklist" : "Whitelist";
+    const addToList = () => ids.forEach(id => addToXAndRemoveFromOpposite(listType, id));
+    const removeFromList = () => ids.forEach(id => removeFromX(listType, id));
+    return (<Menu.MenuItem id={`${listType}-${IdType}-${ids[0]}`} label={isOppositeBlocked
+            ? `Move ${IdType} to ${list}`
+            : isBlocked ? `Remove ${IdType} From ${list}` : `${list} ${IdType}`} action={isBlocked ? removeFromList : addToList}/>);
+}
+function renderOpenLogs(idType, props) {
+    const id = idFunctions[idType](props);
+    // TODO: rewrite logs modal to accept arrays
+    if (!id || Array.isArray(id))
+        return null;
+    return (<Menu.MenuItem id={`open-logs-for-${idType.toLowerCase()}`} label={`Open Logs For ${idType}`} action={() => openLogModal(`${idType.toLowerCase()}:${id}`)}/>);
+}
+export const contextMenuPath = (children, props) => {
+    if (!props)
+        return;
+    if (!children.some(child => child?.props?.id === "message-logger")) {
+        children.push(<Menu.MenuSeparator />, <Menu.MenuItem id="message-logger" label="Message Logger">
+
+                <Menu.MenuItem id="open-logs" label="Open Logs" action={() => openLogModal()}/>
+
+                {Object.keys(idFunctions).map(IdType => renderOpenLogs(IdType, props))}
+
+                <Menu.MenuSeparator />
+
+                {Object.keys(idFunctions).map(IdType => (<React.Fragment key={IdType}>
+                        {renderListOption("blacklistedIds", IdType, props)}
+                        {renderListOption("whitelistedIds", IdType, props)}
+                    </React.Fragment>))}
+
+                {props.navId === "message"
+                && (props.message?.deleted || props.message?.editHistory?.length > 0)
+                && (<>
+                            <Menu.MenuSeparator />
+                            <Menu.MenuItem id="remove-message" label={props.message?.deleted ? "Remove Message (Permanent)" : "Remove Message History (Permanent)"} color="danger" action={() => deleteMessageIDB(props.message.id)
+                        .then(() => {
+                        invalidateMessageCaches(props.message.channel_id, props.message.id);
+                        if (props.message.deleted) {
+                            FluxDispatcher.dispatch({
+                                type: "MESSAGE_DELETE",
+                                channelId: props.message.channel_id,
+                                id: props.message.id,
+                                mlDeleted: true
+                            });
+                        }
+                        else {
+                            props.message.editHistory = [];
+                            FluxDispatcher.dispatch({
+                                type: "MESSAGE_UPDATE",
+                                message: {
+                                    id: props.message.id,
+                                    channel_id: props.message.channel_id
+                                }
+                            });
+                        }
+                    }).catch(() => Toasts.show({
+                        type: Toasts.Type.FAILURE,
+                        message: "Failed to remove message",
+                        id: Toasts.genId()
+                    }))}/>
+                        </>)}
+
+                {settings.store.hideMessageFromMessageLoggers
+                && props.navId === "message"
+                && props.message?.author?.id === UserStore.getCurrentUser().id
+                && props.message?.deleted === false
+                && (<>
+                            <Menu.MenuSeparator />
+                            <Menu.MenuItem id="hide-from-message-loggers" label="Delete Message (Hide From Message Loggers)" color="danger" action={async () => {
+                        await MessageActions.deleteMessage(props.message.channel_id, props.message.id);
+                        MessageActions._sendMessage(props.message.channel_id, {
+                            "content": settings.store.hideMessageFromMessageLoggersDeletedMessage,
+                            "tts": false,
+                            "invalidEmojis": [],
+                            "validNonShortcutEmojis": []
+                        }, { nonce: props.message.id });
+                    }}/>
+                        </>)}
+            </Menu.MenuItem>);
+    }
+};
+export const setupContextMenuPatches = () => {
+    addContextMenuPatch("message", contextMenuPath);
+    addContextMenuPatch("channel-context", contextMenuPath);
+    addContextMenuPatch("user-context", contextMenuPath);
+    addContextMenuPatch("guild-context", contextMenuPath);
+    addContextMenuPatch("gdm-context", contextMenuPath);
+};
+export const removeContextMenuBindings = () => {
+    removeContextMenuPatch("message", contextMenuPath);
+    removeContextMenuPatch("channel-context", contextMenuPath);
+    removeContextMenuPatch("user-context", contextMenuPath);
+    removeContextMenuPatch("guild-context", contextMenuPath);
+    removeContextMenuPatch("gdm-context", contextMenuPath);
+};

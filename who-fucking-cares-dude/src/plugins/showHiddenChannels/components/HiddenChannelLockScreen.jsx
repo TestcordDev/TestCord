@@ -1,0 +1,303 @@
+/*
+ * Vencord, a modification for Discord's desktop app
+ * Copyright (c) 2022 Vendicated and contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+import { isPluginEnabled } from "@api/PluginManager";
+import { BaseText } from "@components/BaseText";
+import ErrorBoundary from "@components/ErrorBoundary";
+import PermissionsViewerPlugin from "@plugins/permissionsViewer";
+import openRolesAndUsersPermissionsModal from "@plugins/permissionsViewer/components/RolesAndUsersPermissions";
+import { sortPermissionOverwrites } from "@plugins/permissionsViewer/utils";
+import { getUniqueUsername } from "@utils/discord";
+import { classes } from "@utils/misc";
+import { formatDurationVerbose } from "@utils/text";
+import { findByPropsLazy, findComponentByCodeLazy, findCssClassesLazy } from "@webpack";
+import { EmojiStore, FluxDispatcher, GuildMemberStore, GuildRoleStore, GuildStore, Parser, PermissionsBits, PermissionStore, showToast, SnowflakeUtils, Timestamp, Toasts, Tooltip, useEffect, UserStore, useState } from "@webpack/common";
+import { cl, settings } from "..";
+const ChatScrollClasses = findCssClassesLazy("auto", "managedReactiveScroller", "customTheme");
+const TagComponent = findComponentByCodeLazy("#{intl::FORUM_TAG_A11Y_FILTER_BY_TAG}");
+let ChannelBeginHeader = () => null;
+export const setChannelBeginHeader = v => ChannelBeginHeader = v;
+const EmojiParser = findByPropsLazy("convertSurrogateToName");
+const EmojiUtils = findByPropsLazy("getURL", "getEmojiColors");
+const ChannelTypesToChannelNames = {
+    [0 /* ChannelTypes.GUILD_TEXT */]: "text",
+    [5 /* ChannelTypes.GUILD_ANNOUNCEMENT */]: "announcement",
+    [15 /* ChannelTypes.GUILD_FORUM */]: "forum",
+    [2 /* ChannelTypes.GUILD_VOICE */]: "voice",
+    [13 /* ChannelTypes.GUILD_STAGE_VOICE */]: "stage"
+};
+const SortOrderTypesToNames = {
+    [0 /* SortOrderTypes.LATEST_ACTIVITY */]: "Latest activity",
+    [1 /* SortOrderTypes.CREATION_DATE */]: "Creation date"
+};
+const ForumLayoutTypesToNames = {
+    [0 /* ForumLayoutTypes.DEFAULT */]: "Not set",
+    [1 /* ForumLayoutTypes.LIST */]: "List view",
+    [2 /* ForumLayoutTypes.GRID */]: "Gallery view"
+};
+const VideoQualityModesToNames = {
+    [1 /* VideoQualityModes.AUTO */]: "Automatic",
+    [2 /* VideoQualityModes.FULL */]: "720p"
+};
+function downloadChannelAccessExport(channel) {
+    const guild = GuildStore.getGuild(channel.guild_id);
+    if (!guild) {
+        showToast("Failed to export channel access: missing guild data.", Toasts.Type.FAILURE);
+        return;
+    }
+    const overwrites = Object.values(channel.permissionOverwrites ?? {});
+    const allowedUserIds = new Set();
+    const allowedRoleIds = new Set();
+    for (const overwrite of overwrites) {
+        if ((overwrite.allow & PermissionsBits.VIEW_CHANNEL) !== PermissionsBits.VIEW_CHANNEL)
+            continue;
+        if (overwrite.type === 1) {
+            allowedUserIds.add(overwrite.id);
+        }
+        else if (overwrite.type === 0 && overwrite.id !== guild.id) {
+            allowedRoleIds.add(overwrite.id);
+        }
+    }
+    const memberIds = GuildMemberStore.getMemberIds(guild.id);
+    const members = memberIds
+        .map(id => {
+        const member = GuildMemberStore.getMember(guild.id, id);
+        const user = UserStore.getUser(id);
+        return member && user ? { member, user } : null;
+    })
+        .filter((entry) => entry != null);
+    const serializeUser = (user, member) => ({
+        id: user.id,
+        username: user.username,
+        globalName: user.globalName ?? null,
+        displayName: getUniqueUsername(user),
+        nickname: member?.nick ?? null,
+        bot: user.bot ?? false
+    });
+    const serializeRole = (role) => ({
+        id: role.id,
+        name: role.name,
+        color: role.color,
+        colorString: role.colorString ?? null,
+        position: role.position
+    });
+    const directAllowedUsers = Array.from(allowedUserIds)
+        .map(userId => {
+        const member = GuildMemberStore.getMember(guild.id, userId);
+        const user = UserStore.getUser(userId);
+        if (!user)
+            return null;
+        return serializeUser(user, member ?? void 0);
+    })
+        .filter((entry) => entry != null);
+    const allowedRoles = Array.from(allowedRoleIds)
+        .map(roleId => {
+        const role = GuildRoleStore.getRole(guild.id, roleId);
+        if (!role)
+            return null;
+        return {
+            ...serializeRole(role),
+            members: members
+                .filter(({ member }) => member.roles.includes(roleId))
+                .map(({ member, user }) => serializeUser(user, member))
+        };
+    })
+        .filter((entry) => entry != null);
+    const effectiveAllowedUsersMap = new Map();
+    for (const user of directAllowedUsers) {
+        effectiveAllowedUsersMap.set(user.id, user);
+    }
+    for (const role of allowedRoles) {
+        for (const member of role.members) {
+            effectiveAllowedUsersMap.set(member.id, member);
+        }
+    }
+    const exportData = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        guild: {
+            id: guild.id,
+            name: guild.name
+        },
+        channel: {
+            id: channel.id,
+            name: channel.name,
+            type: channel.type
+        },
+        allowedUsers: Array.from(effectiveAllowedUsersMap.values()),
+        directAllowedUsers,
+        allowedRoles
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeChannelName = (channel.name || channel.id).replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || channel.id;
+    a.href = url;
+    a.download = `hidden-channel-access-${safeChannelName}-${channel.id}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Exported hidden channel access to JSON.", Toasts.Type.SUCCESS);
+}
+// Icon from the modal when clicking a message link you don't have access to view
+const HiddenChannelLogo = "/assets/433e3ec4319a9d11b0cbe39342614982.svg";
+function HiddenChannelLockScreen({ channel }) {
+    const { defaultAllowedUsersAndRolesDropdownState } = settings.use(["defaultAllowedUsersAndRolesDropdownState"]);
+    const [permissions, setPermissions] = useState([]);
+    const { type, topic, lastMessageId, defaultForumLayout, lastPinTimestamp, defaultAutoArchiveDuration, availableTags, id: channelId, rateLimitPerUser, defaultThreadRateLimitPerUser, defaultSortOrder, defaultReactionEmoji, bitrate, rtcRegion, videoQualityMode, permissionOverwrites, guild_id } = channel;
+    useEffect(() => {
+        const membersToFetch = new Set();
+        const guildOwnerId = GuildStore.getGuild(guild_id)?.ownerId;
+        if (guildOwnerId && !GuildMemberStore.getMember(guild_id, guildOwnerId))
+            membersToFetch.add(guildOwnerId);
+        Object.values(permissionOverwrites).forEach(({ type, id: userId }) => {
+            if (type === 1 && !GuildMemberStore.getMember(guild_id, userId)) {
+                membersToFetch.add(userId);
+            }
+        });
+        if (membersToFetch.size > 0) {
+            FluxDispatcher.dispatch({
+                type: "GUILD_MEMBERS_REQUEST",
+                guildIds: [guild_id],
+                userIds: Array.from(membersToFetch)
+            });
+        }
+        if (isPluginEnabled(PermissionsViewerPlugin.name)) {
+            setPermissions(sortPermissionOverwrites(Object.values(permissionOverwrites).map(overwrite => ({
+                type: overwrite.type,
+                id: overwrite.id,
+                overwriteAllow: overwrite.allow,
+                overwriteDeny: overwrite.deny
+            })), guild_id));
+        }
+    }, [channelId]);
+    return (<div className={classes(ChatScrollClasses.auto, ChatScrollClasses.customTheme, ChatScrollClasses.managedReactiveScroller)}>
+            <div className={cl("container")}>
+                <img className={cl("logo")} src={HiddenChannelLogo}/>
+
+                <div className={cl("heading-container")}>
+                    <BaseText size="xxl" weight="bold">This is a {!PermissionStore.can(PermissionsBits.VIEW_CHANNEL, channel) ? "hidden" : "locked"} {ChannelTypesToChannelNames[type]} channel</BaseText>
+                    {channel.isNSFW() &&
+            <Tooltip text="NSFW">
+                            {({ onMouseLeave, onMouseEnter }) => (<svg onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} className={cl("heading-nsfw-icon")} width="32" height="32" viewBox="0 0 48 48" aria-hidden={true} role="img">
+                                    <path fill="currentColor" d="M.7 43.05 24 2.85l23.3 40.2Zm23.55-6.25q.75 0 1.275-.525.525-.525.525-1.275 0-.75-.525-1.3t-1.275-.55q-.8 0-1.325.55-.525.55-.525 1.3t.55 1.275q.55.525 1.3.525Zm-1.85-6.1h3.65V19.4H22.4Z"/>
+                                </svg>)}
+                        </Tooltip>}
+                </div>
+
+                {(!channel.isGuildVoice() && !channel.isGuildStageVoice()) && (<BaseText size="lg">
+                        You can not see the {channel.isForumChannel() ? "posts" : "messages"} of this channel.
+                        {channel.isForumChannel() && topic && topic.length > 0 && " However you may see its guidelines:"}
+                    </BaseText>)}
+
+                {channel.isForumChannel() && topic && topic.length > 0 && (<div className={cl("topic-container")}>
+                        {Parser.parseTopic(topic, false, { channelId })}
+                    </div>)}
+
+                {lastMessageId &&
+            <BaseText size="md">
+                        Last {channel.isForumChannel() ? "post" : "message"} created:
+                        <Timestamp timestamp={new Date(SnowflakeUtils.extractTimestamp(lastMessageId))}/>
+                    </BaseText>}
+                {lastPinTimestamp &&
+            <BaseText size="md">
+                        Last message pin: <Timestamp timestamp={new Date(lastPinTimestamp)}/>
+                    </BaseText>}
+                {(rateLimitPerUser ?? 0) > 0 &&
+            <BaseText size="md">Slowmode: {formatDurationVerbose(rateLimitPerUser, "seconds")}</BaseText>}
+                {(defaultThreadRateLimitPerUser ?? 0) > 0 &&
+            <BaseText size="md">
+                        Default thread slowmode: {formatDurationVerbose(defaultThreadRateLimitPerUser, "seconds")}
+                    </BaseText>}
+                {((channel.isGuildVoice() || channel.isGuildStageVoice()) && bitrate != null) &&
+            <BaseText size="md">
+                        Bitrate: {bitrate} bits
+                    </BaseText>}
+                {rtcRegion !== undefined &&
+            <BaseText size="md">
+                        Region: {rtcRegion ?? "Automatic"}
+                    </BaseText>}
+                {(channel.isGuildVoice() || channel.isGuildStageVoice()) &&
+            <BaseText size="md">Video quality mode: {VideoQualityModesToNames[videoQualityMode ?? 1 /* VideoQualityModes.AUTO */]}</BaseText>}
+                {(defaultAutoArchiveDuration ?? 0) > 0 &&
+            <BaseText size="md">
+                        Default inactivity duration before archiving {channel.isForumChannel() ? "posts" : "threads"}:
+                        {" " + formatDurationVerbose(defaultAutoArchiveDuration, "minutes")}
+                    </BaseText>}
+                {defaultForumLayout != null &&
+            <BaseText size="md">
+                        Default layout: {ForumLayoutTypesToNames[defaultForumLayout]}
+                    </BaseText>}
+                {defaultSortOrder != null &&
+            <BaseText size="md">
+                        Default sort order: {SortOrderTypesToNames[defaultSortOrder]}
+                    </BaseText>}
+                {defaultReactionEmoji != null &&
+            <div className={cl("default-emoji-container")}>
+                        <BaseText size="md">Default reaction emoji:</BaseText>
+                        {Parser.defaultRules[defaultReactionEmoji.emojiName ? "emoji" : "customEmoji"].react({
+                    name: defaultReactionEmoji.emojiName
+                        ? EmojiParser.convertSurrogateToName(defaultReactionEmoji.emojiName)
+                        : EmojiStore.getCustomEmojiById(defaultReactionEmoji.emojiId)?.name ?? "",
+                    emojiId: defaultReactionEmoji.emojiId ?? void 0,
+                    surrogate: defaultReactionEmoji.emojiName ?? void 0,
+                    src: defaultReactionEmoji.emojiName
+                        ? EmojiUtils.getURL(defaultReactionEmoji.emojiName)
+                        : void 0
+                }, void 0, { key: 0 })}
+                    </div>}
+                {channel.hasFlag(16 /* ChannelFlags.REQUIRE_TAG */) &&
+            <BaseText size="md">Posts on this forum require a tag to be set.</BaseText>}
+                {availableTags && availableTags.length > 0 &&
+            <div className={cl("tags-container")}>
+                        <BaseText size="lg" weight="bold">Available tags:</BaseText>
+                        <div className={cl("tags")}>
+                            {availableTags.map(tag => <TagComponent tag={tag} key={tag.id}/>)}
+                        </div>
+                    </div>}
+                <div className={cl("allowed-users-and-roles-container")}>
+                    <div className={cl("allowed-users-and-roles-container-title")}>
+                        {isPluginEnabled(PermissionsViewerPlugin.name) && (<Tooltip text="Permission Details">
+                                {({ onMouseLeave, onMouseEnter }) => (<button onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} className={cl("allowed-users-and-roles-container-permdetails-btn")} onClick={() => openRolesAndUsersPermissionsModal(permissions, GuildStore.getGuild(channel.guild_id), channel.name)}>
+                                        <svg width="24" height="24" viewBox="0 0 24 24">
+                                            <path fill="currentColor" d="M7 12.001C7 10.8964 6.10457 10.001 5 10.001C3.89543 10.001 3 10.8964 3 12.001C3 13.1055 3.89543 14.001 5 14.001C6.10457 14.001 7 13.1055 7 12.001ZM14 12.001C14 10.8964 13.1046 10.001 12 10.001C10.8954 10.001 10 10.8964 10 12.001C10 13.1055 10.8954 14.001 12 14.001C13.1046 14.001 14 13.1055 14 12.001ZM19 10.001C20.1046 10.001 21 10.8964 21 12.001C21 13.1055 20.1046 14.001 19 14.001C17.8954 14.001 17 13.1055 17 12.001C17 10.8964 17.8954 10.001 19 10.001Z"/>
+                                        </svg>
+                                    </button>)}
+                            </Tooltip>)}
+                        <Tooltip text="Export Allowed Users and Roles as JSON">
+                            {({ onMouseLeave, onMouseEnter }) => (<button onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} className={cl("allowed-users-and-roles-container-export-btn")} onClick={() => downloadChannelAccessExport(channel)}>
+                                    <svg width="24" height="24" viewBox="0 0 24 24">
+                                        <path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v8.59l2.3-2.29a1 1 0 1 1 1.4 1.41l-4 3.99a1 1 0 0 1-1.4 0l-4-3.99a1 1 0 0 1 1.4-1.41L11 12.59V4a1 1 0 0 1 1-1Zm-7 14a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/>
+                                    </svg>
+                                </button>)}
+                        </Tooltip>
+                        <BaseText size="lg" weight="bold">Allowed users and roles:</BaseText>
+                        <Tooltip text={defaultAllowedUsersAndRolesDropdownState ? "Hide Allowed Users and Roles" : "View Allowed Users and Roles"}>
+                            {({ onMouseLeave, onMouseEnter }) => (<button onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} className={cl("allowed-users-and-roles-container-toggle-btn")} onClick={() => settings.store.defaultAllowedUsersAndRolesDropdownState = !defaultAllowedUsersAndRolesDropdownState}>
+                                    <svg width="24" height="24" viewBox="0 0 24 24" transform={defaultAllowedUsersAndRolesDropdownState ? "scale(1 -1)" : "scale(1 1)"}>
+                                        <path fill="currentColor" d="M16.59 8.59003L12 13.17L7.41 8.59003L6 10L12 16L18 10L16.59 8.59003Z"/>
+                                    </svg>
+                                </button>)}
+                        </Tooltip>
+                    </div>
+                    {defaultAllowedUsersAndRolesDropdownState && <ChannelBeginHeader channel={channel}/>}
+                </div>
+            </div>
+        </div>);
+}
+export default ErrorBoundary.wrap(HiddenChannelLockScreen);

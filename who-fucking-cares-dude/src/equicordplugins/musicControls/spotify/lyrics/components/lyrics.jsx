@@ -1,0 +1,61 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import { BaseText } from "@components/BaseText";
+import { TooltipContainer } from "@components/TooltipContainer";
+import { settings } from "@equicordplugins/musicControls/settings";
+import { SpotifyLrcStore } from "@equicordplugins/musicControls/spotify/lyrics/providers/store";
+import { SpotifyStore } from "@equicordplugins/musicControls/spotify/SpotifyStore";
+import { ContextMenuApi, openModal, React, useEffect, useState, useStateFromStores } from "@webpack/common";
+import { LyricsContextMenu } from "./ctxMenu";
+import { LyricsModal } from "./modal";
+import { cl, NoteSvg, useLyrics } from "./util";
+const prevCl = cl("prev");
+const nextCl = cl("next");
+const currentCl = cl("current");
+function LyricsDisplay({ scroll = true, style }) {
+    const { showMusicNoteOnNoLyrics } = settings.use(["showMusicNoteOnNoLyrics"]);
+    const { lyricsInfo, lyricRefs, currLrcIndex } = useLyrics({ scroll });
+    const currentLyrics = lyricsInfo?.lyricsVersions[lyricsInfo.useLyric] || null;
+    const makeClassName = (index) => {
+        if (currLrcIndex == null)
+            return prevCl;
+        const diff = index - currLrcIndex;
+        if (diff === 0)
+            return currentCl;
+        return diff > 0 ? nextCl : prevCl;
+    };
+    return (<div className="vc-spotify-lyrics" style={style} onClick={() => openModal(props => <LyricsModal props={props}/>)} onContextMenu={e => ContextMenuApi.openContextMenu(e, () => <LyricsContextMenu />)}>
+            <div className="vc-spotify-lyrics-inner">
+                {currentLyrics ? currentLyrics.map((line, i) => (<div ref={lyricRefs[i]} key={i}>
+                        <BaseText size={currLrcIndex === i ? "sm" : "xs"} className={makeClassName(i)}>
+                            {line.text || NoteSvg()}
+                        </BaseText>
+                    </div>)) : showMusicNoteOnNoLyrics ? (<TooltipContainer text="No synced lyrics found">
+                        <NoteSvg />
+                    </TooltipContainer>) : null}
+            </div>
+        </div>);
+}
+export function SpotifyLyrics({ scroll = true } = {}) {
+    SpotifyLrcStore.init();
+    const track = useStateFromStores([SpotifyStore], () => SpotifyStore.track, null, (prev, next) => (prev?.id ? prev.id === next?.id : prev?.name === next?.name));
+    const device = useStateFromStores([SpotifyStore], () => SpotifyStore.device, null, (prev, next) => prev?.id === next?.id);
+    const isPlaying = useStateFromStores([SpotifyStore], () => SpotifyStore.isPlaying);
+    const [shouldHide, setShouldHide] = useState(false);
+    useEffect(() => {
+        setShouldHide(false);
+        if (!isPlaying) {
+            const timeout = setTimeout(() => setShouldHide(true), 1000 * 60 * 5);
+            return () => clearTimeout(timeout);
+        }
+    }, [isPlaying]);
+    if (!track || !device?.is_active || shouldHide)
+        return null;
+    const exportTrackImageStyle = {
+        "--vc-spotify-track-image": `url(${track?.album?.image?.url || ""})`,
+    };
+    return <LyricsDisplay scroll={scroll} style={exportTrackImageStyle}/>;
+}

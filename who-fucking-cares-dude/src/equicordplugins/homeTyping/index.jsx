@@ -1,0 +1,42 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import "./styles.css";
+import { Devs } from "@utils/constants";
+import { classNameFactory } from "@utils/css";
+import definePlugin from "@utils/types";
+import { findComponentByCodeLazy } from "@webpack";
+import { PrivateChannelSortStore, TypingStore, UserStore, useStateFromStores } from "@webpack/common";
+const cl = classNameFactory("vc-home-typing-");
+const ThreeDots = findComponentByCodeLazy("Math.min(1,Math.max(", "dotRadius:");
+export default definePlugin({
+    name: "HomeTyping",
+    description: "Changes the home button to a typing indicator if someone in your dms is typing",
+    tags: ["Chat"],
+    authors: [Devs.Samwich],
+    TypingIcon() {
+        return <ThreeDots className={cl("dots")} dotRadius={3} themed={true}/>;
+    },
+    isTyping() {
+        return useStateFromStores([TypingStore], () => PrivateChannelSortStore.getPrivateChannelIds().some(id => Object.keys(TypingStore.getTypingUsers(id)).some(userId => userId !== UserStore.getCurrentUser().id)));
+    },
+    patches: [
+        {
+            find: ".BUTTON_HOME}",
+            replacement: [
+                {
+                    match: /(?<=BUTTON_HOME.{0,10}children:(?:\i(?:\.\i|\["[^"]*"\])*\()?)(\(0,\i.jsxs?\)\(\i,{}\))/,
+                    replace: "arguments[0].user == null ? null : (vcIsTyping ? $self.TypingIcon() : $1)"
+                },
+                // define isTyping earlier in the function so i dont bReAk ThE rUlEs Of HoOkS
+                {
+                    match: /if\(null==\i\)return null;/,
+                    replace: "let vcIsTyping = $self.isTyping();$&"
+                }
+            ],
+            group: true
+        }
+    ]
+});

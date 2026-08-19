@@ -1,0 +1,84 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2025 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import "./styles.css";
+import { EquicordDevs } from "@utils/constants";
+import { getIntlMessage, openUserProfile } from "@utils/discord";
+import definePlugin from "@utils/types";
+import { Button, React, RelationshipStore, TextInput, UserStore } from "@webpack/common";
+let lastSearch = "";
+let updateFunc = (v) => { };
+export default definePlugin({
+    name: "BetterBlockedUsers",
+    description: "Allows you to search in blocked users list and makes names selectable in settings.",
+    tags: ["Appearance", "Shortcuts"],
+    authors: [EquicordDevs.TheArmagan],
+    patches: [
+        {
+            find: '"],{numberOfBlockedUsers:',
+            group: true,
+            replacement: [
+                {
+                    match: /(?<=\(0,\i\.jsx\)\(\i,\{listType:(\i),numberOfUsers:\i\.length\}\),)/,
+                    replace: "$1==='blocked'?$self.renderSearchInput():null,"
+                },
+                {
+                    match: /(?<=\{userId:(\i).*?\.globalName.{0,25}\}\)\]\}\),)(\(.*?loading:\i\}\))/,
+                    replace: "$self.renderUser($1,$2)",
+                },
+                {
+                    match: /(?<=userIds:\i,listType:\i\}=(\i).{0,30}(\i)\.useState\(\d+\);)/,
+                    replace: "let [searchResults,setSearchResults]=$2.useState([]);$self.setUpdateFunc($1,setSearchResults);"
+                },
+                {
+                    match: /(?<=\i,children:)(\i)(?=\.slice)/,
+                    replace: "(searchResults.length?searchResults:$1)"
+                },
+            ]
+        }
+    ],
+    renderSearchInput() {
+        const [value, setValue] = React.useState(lastSearch);
+        React.useEffect(() => {
+            const searchResults = this.getFilteredUsers(lastSearch);
+            updateFunc(searchResults);
+        }, []);
+        return <div className="vc-bbu-search">
+            <TextInput placeholder="Search users..." style={{ width: "200px" }} onInput={e => {
+                const search = e.target.value.toLowerCase().trim();
+                setValue(search);
+                lastSearch = search;
+                const searchResults = this.getFilteredUsers(search);
+                updateFunc(searchResults);
+            }} value={value}/>
+        </div>;
+    },
+    renderUser(userId, rest) {
+        return (<div style={{ display: "flex", gap: "8px" }}>
+                <Button color={Button.Colors.PRIMARY} onClick={() => openUserProfile(userId)}>
+                    {getIntlMessage("SHOW_USER_PROFILE")}
+                </Button>
+                {rest}
+            </div>);
+    },
+    getSearchResults() {
+        return !!lastSearch;
+    },
+    setUpdateFunc(e, setResults) {
+        if (e.listType !== "blocked")
+            return;
+        updateFunc = setResults;
+        return true;
+    },
+    getFilteredUsers(search) {
+        search = search.toLowerCase();
+        return RelationshipStore.getBlockedIDs().filter(id => {
+            const user = UserStore.getUser(id);
+            if (!user)
+                return id === search;
+            return id === search || user?.username?.toLowerCase()?.includes(search) || user?.globalName?.toLowerCase()?.includes(search);
+        });
+    }
+});

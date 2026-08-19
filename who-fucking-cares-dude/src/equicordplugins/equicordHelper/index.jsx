@@ -1,0 +1,428 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2025 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import { sendBotMessage } from "@api/Commands";
+import { HeaderBarButton } from "@api/HeaderBar";
+import { addMessagePreSendListener, removeMessagePreSendListener } from "@api/MessageEvents";
+import { isPluginEnabled } from "@api/PluginManager";
+import { definePluginSettings, migratePluginToSettings, Settings } from "@api/Settings";
+import { ShieldIcon, WarningIcon } from "@components/Icons";
+import customRPC from "@plugins/customRPC";
+import { Devs, EQUICORD_GUILD_ID, EQUICORD_SUPPORT_CHANNEL_ID, EquicordDevs, SUPPORT_CHANNEL_IDS, VC_SUPPORT_CHANNEL_IDS } from "@utils/constants";
+import { isAnyPluginDev, isEquicordGuild } from "@utils/misc";
+import definePlugin from "@utils/types";
+import { findByCodeLazy } from "@webpack";
+import { Alerts, ApplicationCommandIndexStore, NavigationRouter, React, SafetyHubStore, SettingsRouter, UserGuildSettingsStore, UserStore, useStateFromStores, VoiceStateStore } from "@webpack/common";
+import { PluginButtons } from "./pluginButtons";
+import { PluginCards } from "./pluginCards";
+migratePluginToSettings(true, "EquicordHelper", "NoBulletPoints", "noBulletPoints");
+migratePluginToSettings(true, "EquicordHelper", "NoModalAnimation", "noModalAnimation");
+migratePluginToSettings(true, "EquicordHelper", "GuildTagSettings", "disableAdoptTagPrompt");
+let clicked = false;
+const fetchSafetyHub = findByCodeLazy("SAFETY_HUB_FETCH_START");
+const StandingConfig = {
+    [100 /* StandingState.ALL_GOOD */]: { label: "All good!", hoverColor: "var(--status-positive)", Icon: ShieldIcon },
+    [200 /* StandingState.LIMITED */]: { label: "Limited", hoverColor: "var(--status-warning)", Icon: WarningIcon },
+    [300 /* StandingState.VERY_LIMITED */]: { label: "Very limited", hoverColor: "var(--orange-345)", Icon: WarningIcon },
+    [400 /* StandingState.AT_RISK */]: { label: "At risk", hoverColor: "var(--status-danger)", Icon: WarningIcon },
+    [500 /* StandingState.SUSPENDED */]: { label: "Suspended", hoverColor: "var(--interactive-muted)", Icon: WarningIcon },
+};
+function StandingButton() {
+    const standing = useStateFromStores([SafetyHubStore], () => SafetyHubStore.getAccountStanding());
+    const isInitialized = useStateFromStores([SafetyHubStore], () => SafetyHubStore.isInitialized());
+    const [hovered, setHovered] = React.useState(false);
+    React.useEffect(() => {
+        if (!isInitialized)
+            fetchSafetyHub().catch(() => { });
+    }, [isInitialized]);
+    const config = StandingConfig[standing?.state] ?? StandingConfig[100 /* StandingState.ALL_GOOD */];
+    return (<div style={{ display: "contents" }} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+            <HeaderBarButton tooltip={config.label} position="bottom" icon={props => <config.Icon {...props} color={hovered ? config.hoverColor : "currentColor"}/>} onClick={() => SettingsRouter.openUserSettings("account_standing_panel")}/>
+        </div>);
+}
+const listener = async (channelId, msg) => {
+    if (!settings.store.noBulletPoints)
+        return;
+    msg.content = textProcessing(msg.content);
+};
+const settings = definePluginSettings({
+    noMirroredCamera: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Prevents the camera from being mirrored on your screen",
+        restartNeeded: true,
+        default: false,
+    },
+    removeActivitySection: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Removes the activity section above member list",
+        restartNeeded: true,
+        default: false,
+    },
+    showYourOwnActivityButtons: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Discord hides your own activity buttons for some reason",
+        restartNeeded: true,
+        default: false,
+    },
+    refreshSlashCommands: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Refreshes Slash Commands to show newly added commands without restarting your client.",
+        default: false,
+    },
+    forceRoleIcon: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Forces role icons to display next to messages in compact mode",
+        restartNeeded: true,
+        default: false
+    },
+    accountStandingButton: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Show an account standing button in the header bar",
+        restartNeeded: true,
+        default: false,
+    },
+    restoreFileDownloadButton: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Adds back the Download button at the top right corner of files",
+        restartNeeded: true,
+        default: false
+    },
+    noBulletPoints: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Stops you from typing markdown bullet points (stinky)",
+        restartNeeded: true,
+        default: false
+    },
+    noModalAnimation: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Remove the 300ms long animation when opening or closing modals",
+        restartNeeded: true,
+        default: false
+    },
+    disableAdoptTagPrompt: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Disable the prompt to adopt tags",
+        restartNeeded: true,
+        default: false,
+    },
+    jsonGateway: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Forces JSON on gateway reconnect",
+        restartNeeded: true,
+        default: false,
+    },
+    hideVoiceIndicatorForMutedChannels: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Hide voice indicator in server list when only active channels are muted",
+        restartNeeded: true,
+        default: false,
+    }
+});
+export default definePlugin({
+    name: "EquicordHelper",
+    description: "Used to provide support, fix discord caused crashes, and other misc features.",
+    tags: ["Appearance", "Commands", "Utility"],
+    dependencies: ["CommandsAPI", "HeaderBarAPI", "MessageAccessoriesAPI"],
+    authors: [
+        Devs.thororen,
+        EquicordDevs.nyx,
+        EquicordDevs.Naibuu,
+        EquicordDevs.keircn,
+        EquicordDevs.SerStars,
+        EquicordDevs.mart,
+        EquicordDevs.omaw,
+        Devs.Samwich,
+        Devs.AutumnVN,
+        EquicordDevs.auggeeo
+    ],
+    required: true,
+    settings,
+    headerBarButton: {
+        icon: ShieldIcon,
+        render: () => (settings.store.accountStandingButton ? <StandingButton /> : null),
+    },
+    patches: [
+        // Fixes Unknown Resolution/FPS Crashing
+        {
+            find: "Unknown resolution:",
+            replacement: [
+                {
+                    match: /throw Error\(`Unknown resolution: \$\{(\i)\}`\)/,
+                    replace: "return $1;"
+                },
+                {
+                    match: /throw Error\(`Unknown frame rate: \$\{(\i)\}`\)/,
+                    replace: "return $1;"
+                }
+            ]
+        },
+        // Fix a race condition
+        {
+            find: ".completeOperation(",
+            replacement: {
+                match: /(?<=this\.nextId\(\);)(\i\(\i\)),(.{0,200}reject:\i\}\))/,
+                replace: "$2,$1"
+            }
+        },
+        // Catch IndexedDB if it fails to open
+        {
+            find: "discarding speculative database",
+            replacement: {
+                match: /await \i\(\i\)(?=;.{0,15}this\.databases)/,
+                replace: "$&.catch(()=>null)"
+            }
+        },
+        // When focused on voice channel or group chat voice call
+        {
+            find: ".STATUS_WARNING_BACKGROUND})})",
+            predicate: () => settings.store.noMirroredCamera,
+            replacement: {
+                match: /mirror:\i/,
+                replace: "mirror:!1"
+            },
+        },
+        // Popout camera when not focused on voice channel
+        {
+            find: "this.handleReady})",
+            all: true,
+            predicate: () => settings.store.noMirroredCamera,
+            replacement: {
+                match: /(\[\i\.\i\]:)\i/,
+                replace: "$1!1"
+            },
+        },
+        // Overriding css on Preview Camera/Change Video Background popup
+        {
+            find: ".PREVIEW_CAMERA_MODAL,",
+            replacement: {
+                match: /className:\i.\i,(?=children:\()/,
+                replace: "$&style:{transform: \"scalex(1)\"},"
+            },
+            predicate: () => settings.store.noMirroredCamera
+        },
+        // Remove Activity Section above Member List
+        {
+            find: ".MEMBERLIST_CONTENT_FEED_TOGGLED,",
+            predicate: () => settings.store.removeActivitySection,
+            replacement: {
+                match: /null==\i\|\|0.{0,100}VIEW_CHANNEL\)&&/,
+                replace: "true||$&"
+            },
+        },
+        // Show your own activity buttons because discord removes them for who knows why
+        {
+            find: ".USER_PROFILE_ACTIVITY_BUTTONS),",
+            predicate: () => settings.store.showYourOwnActivityButtons && !isPluginEnabled(customRPC.name),
+            replacement: {
+                match: /.getId\(\)===\i.id/,
+                replace: "$& && false"
+            }
+        },
+        // Force Role Icon
+        {
+            find: "#{intl::GUILD_COMMUNICATION_DISABLED_ICON_TOOLTIP_BODY}",
+            predicate: () => settings.store.forceRoleIcon,
+            replacement: {
+                match: /(?<=\}\):null\].{0,150}\?2:)0(?=\})/,
+                replace: "1"
+            }
+        },
+        // Restore File Download Button
+        {
+            find: '"VISUAL_PLACEHOLDER":',
+            predicate: () => settings.store.restoreFileDownloadButton,
+            replacement: {
+                match: /(\.downloadUrl,showDownload:)\i/,
+                replace: "$1!0"
+            }
+        },
+        // Removes Modal Animation
+        {
+            find: "DURATION_IN:",
+            predicate: () => settings.store.noModalAnimation,
+            replacement: {
+                match: /300,/,
+                replace: "0,",
+            }
+        },
+        // Removes Modal Animation
+        {
+            find: '="ABOVE"',
+            predicate: () => settings.store.noModalAnimation,
+            replacement: {
+                match: /\?\?300/,
+                replace: "??0",
+            }
+        },
+        // Removes Modal Animation
+        {
+            find: ".SWITCH_THUMB_BACKGROUND_SELECTED_DEFAULT)",
+            predicate: () => settings.store.noModalAnimation,
+            replacement: {
+                match: /200:300/g,
+                replace: "0:0",
+            },
+        },
+        {
+            find: "GuildTagAvailableCoachmark",
+            replacement: {
+                match: /return.{0,200}GUILD_TAG_COACHMARK_ASSET/g,
+                replace: "return null;$&"
+            },
+            predicate: () => settings.store.disableAdoptTagPrompt
+        },
+        {
+            find: "JSONEncoding",
+            replacement: {
+                match: /void 0!==\i\?\i:/,
+                replace: ""
+            },
+            predicate: () => settings.store.jsonGateway
+        },
+        {
+            find: ".USE_OSX_NATIVE_TRAFFIC_LIGHTS",
+            replacement: {
+                match: /case \i\.\i\.WINDOWS:/,
+                replace: 'case "WEB":'
+            },
+            predicate: () => Settings.winNativeTitleBar,
+        },
+        {
+            find: '"refresh-title-bar-small"',
+            replacement: [
+                {
+                    match: /\i===\i\.PlatformTypes\.WINDOWS/g,
+                    replace: "false"
+                },
+                {
+                    match: /\i===\i\.PlatformTypes\.WEB/g,
+                    replace: "true"
+                }
+            ],
+            predicate: () => Settings.winNativeTitleBar,
+        },
+        {
+            find: "DirectMessage: getSpringConfigs()",
+            replacement: [
+                {
+                    match: /("data-drop-hovering".{0,100}selected:(?:\i|!0),upperBadge:)(\i)(?=,lowerBadge:\i)/g,
+                    replace: "$1$self.hasUnmutedVoiceChannel(arguments[0]?.guild?.id)?$2:null"
+                },
+                {
+                    match: /return (\i)\.type===\i\.\i\.GUILD_VOICE/,
+                    replace: "$&&&!$self.isChannelMuted($1?.guildId,$1?.id)"
+                },
+                {
+                    match: /\.afkChannelId\?\[\].{0,50}.filter\((\i)=>\i\.type===\i\.\i\.VOICE/,
+                    replace: "$&&&!$self.isChannelMuted($1?.guildId,$1?.channelId)"
+                },
+                {
+                    match: /\.getAllApplicationStreams\(\).filter\((\i)=>\i\.guildId===\i/,
+                    replace: "$&&&!$self.isChannelMuted($1?.guildId,$1?.channelId)"
+                },
+                {
+                    match: /\.getEmbeddedActivitiesForGuild\((\i)\)(?=.flatMap\(\i=>)/,
+                    replace: "$&.filter(e=>!$self.isChannelMuted($1?.guildId,e?.channelId))"
+                }
+            ],
+            predicate: () => settings.store.hideVoiceIndicatorForMutedChannels,
+        },
+        // Add opening profile functionality to some connections
+        {
+            find: "getPlatformUserUrl:",
+            replacement: [
+                {
+                    match: /name:("(?:Xbox|Epic Games)").{0,180}enabled:!0/g,
+                    replace: "$&,getPlatformUserUrl:e=>$self.getPlatformUrl($1, e)"
+                }
+            ]
+        },
+    ],
+    renderMessageAccessory(props) {
+        if (!isEquicordGuild(props.message.channel_id))
+            return null;
+        return (<>
+                <PluginButtons message={props.message}/>
+                <PluginCards message={props.message}/>
+            </>);
+    },
+    flux: {
+        async CHANNEL_SELECT({ channelId }) {
+            const isSupportChannel = SUPPORT_CHANNEL_IDS.includes(channelId);
+            if (!isSupportChannel)
+                return;
+            const selfId = UserStore.getCurrentUser()?.id;
+            if (!selfId || isAnyPluginDev(selfId))
+                return;
+            if (VC_SUPPORT_CHANNEL_IDS.includes(channelId) && !clicked) {
+                return Alerts.show({
+                    title: "Vencord Support Channel Warning",
+                    body: "Before asking for help. Check updates and if this issue is actually caused by Equicord!",
+                    confirmText: "Equicord Support",
+                    onConfirm() {
+                        NavigationRouter.transitionTo(`/channels/${EQUICORD_GUILD_ID}/${EQUICORD_SUPPORT_CHANNEL_ID}`);
+                    },
+                    cancelText: "Okay continue",
+                    onCancel() {
+                        clicked = true;
+                    },
+                });
+            }
+        },
+    },
+    commands: [
+        {
+            name: "refresh-commands",
+            description: "Refresh Slash Commands",
+            inputType: 0 /* ApplicationCommandInputType.BUILT_IN */,
+            predicate: () => settings.store.refreshSlashCommands,
+            execute: async (opts, ctx) => {
+                try {
+                    ApplicationCommandIndexStore.indices = {};
+                    sendBotMessage(ctx.channel.id, { content: "Slash Commands refreshed successfully." });
+                }
+                catch (e) {
+                    console.error("[refreshSlashCommands] Failed to refresh commands:", e);
+                    sendBotMessage(ctx.channel.id, { content: "Failed to refresh commands. Check console for details." });
+                }
+            }
+        }
+    ],
+    start() {
+        if (settings.store.noBulletPoints) {
+            addMessagePreSendListener(listener);
+        }
+    },
+    stop() {
+        if (settings.store.noBulletPoints) {
+            removeMessagePreSendListener(listener);
+        }
+    },
+    isChannelMuted(guildId, channelId) {
+        const currentUserVoiceState = VoiceStateStore.getVoiceStateForUser(UserStore.getCurrentUser()?.id);
+        if (currentUserVoiceState?.channelId === channelId)
+            return false;
+        return UserGuildSettingsStore.isChannelMuted(guildId, channelId);
+    },
+    hasUnmutedVoiceChannel(guildId) {
+        const voiceStates = VoiceStateStore.getVoiceStates(guildId);
+        const currentUserVoiceState = VoiceStateStore.getVoiceStateForUser(UserStore.getCurrentUser()?.id);
+        return Object.values(voiceStates ?? {}).some(voiceState => voiceState?.channelId === currentUserVoiceState?.channelId ||
+            !UserGuildSettingsStore.isChannelMuted(guildId, voiceState?.channelId));
+    },
+    getPlatformUrl(platform, args) {
+        switch (platform) {
+            case "Xbox":
+                return `https://www.xbox.com/play/user/${encodeURIComponent(args.name)}`;
+            case "Epic Games":
+                return `https://store.epicgames.com/u/${encodeURIComponent(args.id)}`;
+            default:
+                return null;
+        }
+    }
+});
+function textProcessing(text) {
+    return text.replace(/(^|\n)(\s*)([*+-])\s+/g, "$1$2\\$3 ");
+}

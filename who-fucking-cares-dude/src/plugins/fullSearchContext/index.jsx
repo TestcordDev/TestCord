@@ -1,0 +1,84 @@
+/*
+ * Vencord, a modification for Discord's desktop app
+ * Copyright (c) 2023 Vendicated and contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+import { findGroupChildrenByChildId } from "@api/ContextMenu";
+import { migratePluginSettings } from "@api/Settings";
+import { getUserSettingLazy } from "@api/UserSettings";
+import { copyToClipboard } from "@utils/clipboard";
+import { Devs } from "@utils/constants";
+import { getIntlMessage } from "@utils/discord";
+import definePlugin from "@utils/types";
+import { findByCodeLazy } from "@webpack";
+import { ChannelStore, ContextMenuApi, Menu, UserStore } from "@webpack/common";
+const DeveloperMode = getUserSettingLazy("appearance", "developerMode");
+const useMessageMenu = findByCodeLazy(".MESSAGE,commandTargetId:");
+function MessageMenu({ message, channel, onHeightUpdate }) {
+    const canReport = message.author &&
+        !(message.author.id === UserStore.getCurrentUser().id || message.author.system);
+    return useMessageMenu({
+        navId: "message",
+        ariaLabel: getIntlMessage("MESSAGE_UTILITIES_A11Y_LABEL"),
+        message,
+        channel,
+        canReport,
+        onHeightUpdate,
+        onClose: () => ContextMenuApi.closeContextMenu(),
+        textSelection: "",
+        favoriteableType: null,
+        favoriteableId: null,
+        favoriteableName: null,
+        itemHref: void 0,
+        itemSrc: void 0,
+        itemSafeSrc: void 0,
+        itemTextContent: void 0,
+        isFullSearchContextMenu: true
+    });
+}
+const contextMenuPatch = (children, props) => {
+    const authorId = props?.message?.author?.id;
+    if (props?.isFullSearchContextMenu == null || !authorId)
+        return;
+    if (!DeveloperMode?.getSetting())
+        return;
+    const group = findGroupChildrenByChildId("devmode-copy-id", children, true);
+    group?.push(<Menu.MenuItem id="devmode-copy-id-author" label={getIntlMessage("COPY_ID_AUTHOR")} action={() => copyToClipboard(authorId)}/>);
+};
+migratePluginSettings("FullSearchContext", "SearchReply");
+export default definePlugin({
+    name: "FullSearchContext",
+    description: "Makes the message context menu in message search results have all options you'd expect",
+    tags: ["Utility"],
+    authors: [Devs.Ven, Devs.Aria],
+    patches: [{
+            find: "Listbox navigator was given an unhandled action",
+            replacement: {
+                match: /this(?=\.handleContextMenu\(\i,\i\))/,
+                replace: "$self"
+            }
+        }],
+    handleContextMenu(event, message) {
+        const channel = ChannelStore.getChannel(message.channel_id);
+        if (!channel)
+            return;
+        event.stopPropagation();
+        ContextMenuApi.openContextMenu(event, contextMenuProps => <MessageMenu message={message} channel={channel} onHeightUpdate={contextMenuProps.onHeightUpdate}/>);
+    },
+    contextMenus: {
+        "message": contextMenuPatch,
+        "message-actions": contextMenuPatch
+    }
+});

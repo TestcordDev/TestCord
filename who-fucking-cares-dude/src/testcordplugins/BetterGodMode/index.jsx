@@ -1,0 +1,86 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2025 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import { EquicordDevs, TestcordDevs } from "@utils/constants";
+import definePlugin from "@utils/types";
+import { Forms, GuildStore, Menu, PermissionStore, React } from "@webpack/common";
+// Constants for Permission bitmasks
+const ADMINISTRATOR_PERMISSION = 8n;
+const BooleanFns = [
+    "can",
+    "canAccessMemberSafetyPage",
+    "canAccessGuildSettings",
+    "canBasicChannel",
+    "canImpersonateRole",
+    "canManageUser",
+    "canWithPartialContext",
+    "isRoleHigher"
+];
+const BigIntFns = [
+    "computeBasicPermissions",
+    "computePermissions",
+    "getGuildPermissions",
+    "getChannelPermissions"
+];
+const NeedsToBePatchedFns = [...BooleanFns, ...BigIntFns];
+let OriginalFns = {};
+const godModeEnabledGuilds = new Set();
+function getGuildIdFromArgs(args) {
+    for (const arg of args) {
+        if (typeof arg === "string" && GuildStore.getGuild(arg))
+            return arg;
+        if (arg?.guild_id && GuildStore.getGuild(arg.guild_id))
+            return arg.guild_id;
+        if (arg?.guildId && GuildStore.getGuild(arg.guildId))
+            return arg.guildId;
+        if (arg?.id && GuildStore.getGuild(arg.id))
+            return arg.id;
+    }
+    return null;
+}
+const ContextMenuPatch = (children, { guild }) => {
+    children.push(<Menu.MenuSeparator />, <Menu.MenuCheckboxItem id="bgm-toggle-god-mode" label="God Mode" checked={godModeEnabledGuilds.has(guild.id)} action={() => {
+            if (godModeEnabledGuilds.has(guild.id))
+                godModeEnabledGuilds.delete(guild.id);
+            else
+                godModeEnabledGuilds.add(guild.id);
+        }}/>);
+};
+export default definePlugin({
+    name: "BetterGodMode [Risky]",
+    description: "Get all permissions on any guild (client-side)",
+    authors: [EquicordDevs.TheArmagan, TestcordDevs.sirphantom89],
+    settingsAboutComponent: () => (<Forms.FormText className="plugin-warning">
+            Usage of this plugin might get detected by Discord. Use this plugin at your own risk!
+        </Forms.FormText>),
+    start: () => {
+        NeedsToBePatchedFns.forEach(fnName => {
+            if (typeof PermissionStore[fnName] !== "function")
+                return;
+            OriginalFns[fnName] = PermissionStore[fnName];
+            PermissionStore[fnName] = function (...args) {
+                const guildId = getGuildIdFromArgs(args);
+                if (guildId && godModeEnabledGuilds.has(guildId)) {
+                    // Return the correct data type based on the function name
+                    if (BigIntFns.includes(fnName)) {
+                        return ADMINISTRATOR_PERMISSION;
+                    }
+                    return true;
+                }
+                return OriginalFns[fnName].apply(this, args);
+            };
+        });
+    },
+    stop: () => {
+        godModeEnabledGuilds.clear();
+        for (const fnName in OriginalFns) {
+            PermissionStore[fnName] = OriginalFns[fnName];
+        }
+        OriginalFns = {};
+    },
+    contextMenus: {
+        "guild-context": ContextMenuPatch,
+    }
+});

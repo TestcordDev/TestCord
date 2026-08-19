@@ -1,0 +1,165 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2025 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import { findCssClassesLazy } from "@webpack";
+import { MessageStore, useEffect, UserStore, useState, useStateFromStores } from "@webpack/common";
+import { cl, settings } from ".";
+import { IconGhost } from "./IconGhost";
+function isChannelExempted(channel) {
+    const exemptList = settings.store.exemptedChannels
+        .split(",")
+        .map(id => id.trim())
+        .filter(id => id.length > 0);
+    const isGroupDmsExempted = settings.store.ignoreGroupDms && channel.isGroupDM();
+    return exemptList.includes(channel.id) || isGroupDmsExempted;
+}
+const countedChannels = new Set();
+// track channels that were manually cleared and the message ID at time of clear
+const clearedChannels = new Map();
+// listeners for when a channel is cleared or un-cleared (thororen is this allowed lolz)
+const clearedChannelListeners = new Set();
+let _booCount = 0;
+const listeners = new Set();
+export function getBooCount() {
+    return _booCount;
+}
+export function setBooCount(n) {
+    _booCount = n;
+    for (const l of listeners)
+        l(_booCount);
+}
+export function onBooCountChange(cb) {
+    listeners.add(cb);
+    return () => {
+        listeners.delete(cb);
+    };
+}
+export function onClearedChannelChange(cb) {
+    clearedChannelListeners.add(cb);
+    return () => {
+        clearedChannelListeners.delete(cb);
+    };
+}
+export function getGhostedChannels() {
+    return Array.from(countedChannels);
+}
+export function clearChannelFromGhost(channelId) {
+    if (!countedChannels.has(channelId)) {
+        return;
+    }
+    countedChannels.delete(channelId);
+    setBooCount(getBooCount() - 1);
+    // so we can detect new messages from the other person
+    const lastMessage = MessageStore.getMessages(channelId)?.last();
+    if (lastMessage) {
+        clearedChannels.set(channelId, lastMessage.id);
+    }
+    // notify all listeners that this channel was cleared
+    for (const listener of clearedChannelListeners) {
+        listener(channelId);
+    }
+}
+export function isChannelCleared(channelId) {
+    return clearedChannels.has(channelId);
+}
+const ChannelWrapperStyles = findCssClassesLazy("muted", "wrapper");
+export function Boo({ channel }) {
+    const { id } = channel;
+    const currentUserId = useStateFromStores([UserStore], () => UserStore.getCurrentUser()?.id);
+    const lastMessage = useStateFromStores([MessageStore], () => MessageStore.getMessages(id)?.last());
+    const [state, setState] = useState({
+        isCurrentUser: null,
+        containsQuestionMark: false,
+        isDataProcessed: false,
+    });
+    const [isCleared, setIsCleared] = useState(false);
+    const lastMessageTimestampMs = lastMessage ? new Date(lastMessage.timestamp).getTime() : 0;
+    const isInactive = !!lastMessage && settings.store.maxInactiveTimeMs > 0 && Number.isFinite(lastMessageTimestampMs) && Date.now() - lastMessageTimestampMs > settings.store.maxInactiveTimeMs;
+    useEffect(() => {
+        if (!lastMessage || !currentUserId)
+            return;
+        const lastIsCurrentUser = lastMessage.author.id === currentUserId;
+        const containsQuestionMark = !lastIsCurrentUser && lastMessage.content.includes("?");
+        setState({
+            isCurrentUser: lastIsCurrentUser,
+            containsQuestionMark,
+            isDataProcessed: true,
+        });
+    }, [lastMessage, currentUserId]);
+    // track if this channel was manually cleared
+    useEffect(() => {
+        setIsCleared(clearedChannels.has(id));
+        // subscribe to cleared channel changes for instant visual updates
+        const unsubscribe = onClearedChannelChange(clearedChannelId => {
+            if (clearedChannelId === id) {
+                // check current state: if it's still in clearedChannels, it was cleared; otherwise un-cleared
+                setIsCleared(clearedChannels.has(id));
+            }
+        });
+        return unsubscribe;
+    }, [id, lastMessage?.id]);
+    useEffect(() => {
+        if (!state.isDataProcessed)
+            return;
+        const isExempted = isChannelExempted(channel);
+        let wasManuallyCleared = clearedChannels.has(id);
+        // if manually cleared, check if there's a NEW message from the other person
+        if (wasManuallyCleared && !state.isCurrentUser) {
+            const clearedAtMessageId = clearedChannels.get(id);
+            const currentLastMessageId = lastMessage?.id;
+            // if it's the same message, stay cleared (don't re-ghost)
+            if (clearedAtMessageId === currentLastMessageId) {
+                return;
+            }
+            // if there's a NEW message from the OTHER person, remove from cleared state
+            // so it can be re-ghosted
+            if (currentLastMessageId !== clearedAtMessageId) {
+                clearedChannels.delete(id);
+                wasManuallyCleared = false; // update the flag since we deleted it
+                // notify listeners that this channel is no longer cleared (new message)
+                for (const listener of clearedChannelListeners) {
+                    listener(id);
+                }
+            }
+        }
+        // if the current user responded, clear all tracking
+        if (state.isCurrentUser) {
+            if (countedChannels.has(id)) {
+                countedChannels.delete(id);
+                setBooCount(getBooCount() - 1);
+            }
+            if (clearedChannels.has(id)) {
+                clearedChannels.delete(id);
+            }
+            return;
+        }
+        // if exempted or bot (if setting enabled), remove from ghost tracking
+        if (isExempted || (settings.store.ignoreBots && lastMessage?.author.bot) || isInactive) {
+            if (countedChannels.has(id)) {
+                countedChannels.delete(id);
+                setBooCount(getBooCount() - 1);
+            }
+            return;
+        }
+        // if manually cleared, don't add back to ghost count
+        if (wasManuallyCleared) {
+            return;
+        }
+        // normal ghosting logic: last message is from other person
+        if (!state.isCurrentUser) {
+            if (!countedChannels.has(id)) {
+                countedChannels.add(id);
+                setBooCount(getBooCount() + 1);
+            }
+        }
+    }, [state.isCurrentUser, state.isDataProcessed, id, lastMessage?.id, isInactive]);
+    if (!state.isDataProcessed || !currentUserId || !lastMessage || state.isCurrentUser || isChannelExempted(channel) || isCleared || (settings.store.ignoreBots && lastMessage.author.bot) || isInactive)
+        return null;
+    if (!settings.store.showDmIcons)
+        return null;
+    return (<div className={cl("icon", ChannelWrapperStyles.wrapper)}>
+            <IconGhost fill={state.containsQuestionMark ? "#ff8000" : "currentColor"}/>
+        </div>);
+}

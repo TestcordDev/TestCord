@@ -1,0 +1,281 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import { definePluginSettings } from "@api/Settings";
+import { TestcordDevs } from "@utils/constants";
+import definePlugin from "@utils/types";
+import { ColorPicker, React } from "@webpack/common";
+const STYLE_ID = "smooth-typing-style";
+const CARET_ID = "smooth-typing-caret";
+let caretEl = null;
+let rafId = null;
+let tracking = false;
+const settings = definePluginSettings({
+    smoothCaret: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Enable smooth caret (cursor) animation",
+        default: true,
+        onChange() { applySettings(); }
+    },
+    smoothChars: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Enable smooth character fade-in while typing",
+        default: true,
+        onChange() { applySettings(); }
+    },
+    caretSpeed: {
+        type: 1 /* OptionType.NUMBER */,
+        description: "Caret transition speed (ms) — lower = faster",
+        default: 80,
+        onChange() { applySettings(); }
+    },
+    fadeSpeed: {
+        type: 1 /* OptionType.NUMBER */,
+        description: "Character fade-in speed (ms) — lower = faster",
+        default: 80,
+        onChange() { applySettings(); }
+    },
+    caretColor: {
+        type: 6 /* OptionType.COMPONENT */,
+        description: "Caret color",
+        default: 0xffffff,
+        component: () => (<ColorPicker color={settings.store.caretColor} onChange={(color) => {
+                settings.store.caretColor = color;
+                applySettings();
+            }} showEyeDropper={true}/>)
+    },
+    smoothScrollbar: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Enable smooth scrollbar in the text area",
+        default: true,
+        onChange() { applySettings(); }
+    },
+    scrollbarColor: {
+        type: 0 /* OptionType.STRING */,
+        description: "Scrollbar color",
+        default: "#3b3b3b",
+        onChange() { applySettings(); }
+    }
+});
+function getCaretColor() {
+    const color = settings.store.caretColor;
+    if (!color)
+        return "var(--text-normal, #fff)";
+    return `#${color.toString(16).padStart(6, "0")}`;
+}
+function injectCSS() {
+    removeCSS();
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    const { fadeSpeed, smoothChars, smoothScrollbar, scrollbarColor } = settings.store;
+    style.textContent = `
+        /* Hide original caret. caret-color inherits, so setting it on the editor covers the
+           whole subtree; the previous "[class*=...] *" put a universal-key selector in the
+           bucket that gets retested against every element on every style recalc. */
+        [class*="slateTextArea"] {
+            caret-color: transparent !important;
+        }
+${smoothChars ? `
+        /* Smooth char fade-in */
+        [class*="slateTextArea"] span[data-slate-string="true"] {
+            animation: smoothCharIn ${fadeSpeed}ms ease-out both;
+        }` : ""}
+
+        @keyframes smoothCharIn {
+            from {
+                opacity: 0.6;
+                filter: blur(0.4px);
+            }
+            to {
+                opacity: 1;
+                filter: blur(0px);
+            }
+        }
+
+        /* Custom caret */
+        #${CARET_ID} {
+            position: fixed;
+            width: 2px;
+            border-radius: 2px;
+            background: ${getCaretColor()};
+            pointer-events: none;
+            z-index: 9999;
+            animation: caretBlink 1s step-end infinite;
+            transition: left var(--caret-speed, 80ms) cubic-bezier(0.2, 0, 0, 1),
+                        top var(--caret-speed, 80ms) cubic-bezier(0.2, 0, 0, 1),
+                        height var(--caret-speed, 80ms) ease,
+                        background 300ms ease;
+        }
+
+        @keyframes caretBlink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0; }
+        }
+
+        ${smoothScrollbar ? `
+        /* Smooth Scrollbar */
+        [class*="slateTextArea"] {
+            overflow-y: auto;
+            scroll-behavior: smooth;
+            scrollbar-width: thin;
+            scrollbar-color: ${scrollbarColor} transparent;
+        }
+
+        [class*="slateTextArea"]::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        [class*="slateTextArea"]::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        [class*="slateTextArea"]::-webkit-scrollbar-thumb {
+            background: ${scrollbarColor};
+            border-radius: 4px;
+            transition: background 200ms ease;
+        }
+
+        [class*="slateTextArea"]::-webkit-scrollbar-thumb:hover {
+            background: ${scrollbarColor}cc;
+        }
+        ` : ""}
+    `;
+    document.head.appendChild(style);
+}
+function removeCSS() {
+    document.getElementById(STYLE_ID)?.remove();
+}
+function createCaret() {
+    removeCaret();
+    caretEl = document.createElement("div");
+    caretEl.id = CARET_ID;
+    document.body.appendChild(caretEl);
+}
+function removeCaret() {
+    document.getElementById(CARET_ID)?.remove();
+    caretEl = null;
+}
+function updateCaretPosition() {
+    if (!caretEl)
+        return;
+    // Check that the focus is within the chat input
+    const focused = document.activeElement;
+    const isInChat = focused?.closest("[class*='slateTextArea']") ||
+        focused?.closest("[class*='textArea']");
+    if (!isInChat) {
+        caretEl.style.display = "none";
+        return;
+    }
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0)
+        return;
+    const range = sel.getRangeAt(0).cloneRange();
+    range.collapse(true);
+    const rect = range.getBoundingClientRect();
+    if (!rect || (rect.width === 0 && rect.height === 0))
+        return;
+    const node = sel.anchorNode;
+    if (!node)
+        return;
+    const parent = node.parentElement?.closest("[class*='slateTextArea']");
+    if (!parent) {
+        caretEl.style.display = "none";
+        return;
+    }
+    caretEl.style.display = "block";
+    caretEl.style.left = `${rect.left}px`;
+    caretEl.style.top = `${rect.top}px`;
+    caretEl.style.height = `${rect.height || 20}px`;
+}
+function isChatInputFocused() {
+    const focused = document.activeElement;
+    return !!(focused?.closest("[class*='slateTextArea']") || focused?.closest("[class*='textArea']"));
+}
+// The caret only moves when the selection, layout or focus changes, and every one of
+// those fires an event. A permanent rAF loop re-ran getSelection + getBoundingClientRect
+// 60 times a second while the chat box was focused, forcing a synchronous layout on every
+// frame — that was the typing lag. Now each event schedules at most one coalesced update.
+function scheduleCaretUpdate() {
+    if (!tracking || rafId !== null)
+        return;
+    rafId = requestAnimationFrame(() => {
+        rafId = null;
+        if (!tracking)
+            return;
+        if (isChatInputFocused())
+            updateCaretPosition();
+        else if (caretEl)
+            caretEl.style.display = "none";
+    });
+}
+function onFocusChange() {
+    if (!tracking)
+        return;
+    if (isChatInputFocused())
+        scheduleCaretUpdate();
+    else if (caretEl)
+        caretEl.style.display = "none";
+}
+function startTracking() {
+    stopTracking();
+    tracking = true;
+    document.addEventListener("selectionchange", scheduleCaretUpdate);
+    document.addEventListener("keydown", resetBlinkOnKey);
+    document.addEventListener("focusin", onFocusChange);
+    document.addEventListener("focusout", onFocusChange);
+    window.addEventListener("resize", scheduleCaretUpdate);
+    window.addEventListener("scroll", scheduleCaretUpdate, true);
+    scheduleCaretUpdate();
+}
+function stopTracking() {
+    tracking = false;
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+    document.removeEventListener("selectionchange", scheduleCaretUpdate);
+    document.removeEventListener("keydown", resetBlinkOnKey);
+    document.removeEventListener("focusin", onFocusChange);
+    document.removeEventListener("focusout", onFocusChange);
+    window.removeEventListener("resize", scheduleCaretUpdate);
+    window.removeEventListener("scroll", scheduleCaretUpdate, true);
+}
+function resetBlinkOnKey() {
+    if (!caretEl)
+        return;
+    caretEl.style.animation = "none";
+    void caretEl.offsetHeight;
+    caretEl.style.animation = "";
+}
+function applySettings() {
+    const { smoothCaret, caretSpeed } = settings.store;
+    document.documentElement.style.setProperty("--caret-speed", `${caretSpeed}ms`);
+    injectCSS();
+    if (smoothCaret) {
+        createCaret();
+        startTracking();
+    }
+    else {
+        removeCaret();
+        stopTracking();
+    }
+}
+function cleanup() {
+    removeCSS();
+    removeCaret();
+    stopTracking();
+}
+export default definePlugin({
+    name: "TypingSettings",
+    description: "Smooth caret movement, character animation, change color cursor typing.",
+    authors: [TestcordDevs.SirPhantom89],
+    settings,
+    start() {
+        applySettings();
+    },
+    stop() {
+        cleanup();
+    }
+});

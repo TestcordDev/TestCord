@@ -1,0 +1,175 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import { Logger } from "@utils/Logger";
+import { sleep } from "@utils/misc";
+import { canonicalizeMatch } from "@utils/patches";
+import * as Webpack from "@webpack";
+import { wreq } from "@webpack";
+import pLimit from "p-limit";
+async function fetchChunkText(id) {
+    return Promise.race([
+        fetch(wreq.p + wreq.u(id)).then(r => r.text()),
+        sleep(20_000).then(() => { throw new Error(`Timed out fetching chunk ${String(id)}`); })
+    ]);
+}
+function getWebpackChunkMap() {
+    const sym = Symbol();
+    let chunksMap;
+    Object.defineProperty(Object.prototype, sym, {
+        get() {
+            chunksMap = this;
+            return "";
+        },
+        configurable: true
+    });
+    wreq.u(sym);
+    delete Object.prototype[sym];
+    return chunksMap;
+}
+export async function loadLazyChunks() {
+    const LazyChunkLoaderLogger = new Logger("LazyChunkLoader");
+    const queue = pLimit(50);
+    try {
+        LazyChunkLoaderLogger.log("Loading all chunks...");
+        const validChunks = new Set();
+        const invalidChunks = new Set();
+        const deferredRequires = new Set();
+        const { promise: chunksSearchingDone, resolve: chunksSearchingResolve } = Promise.withResolvers();
+        // True if resolved, false otherwise
+        const chunksSearchPromises = [];
+        // This regex loads all language packs which makes webpack finds testing extremely slow, so for now, we prioritize using the one which doesnt include those
+        const CompleteLazyChunkRegex = canonicalizeMatch(/(?:(?:Promise\.all\(\[)?((?:\i\.e\("?[^)]+?"?\),?)+?)(?:\]\))?)\.then\(\i(?:\.\i)?\.bind\(\i,"?([^)]+?)"?(?:,[^)]+?)?\)\)/g);
+        const PartialLazyChunkRegex = canonicalizeMatch(/(?:(?:Promise\.all\(\[)?((?:\i\.e\("?[^)]+?"?\),?)+?)(?:\]\))?)\.then\(\i\.bind\(\i,"?([^)]+?)"?\)\)/g);
+        let foundCssDebuggingLoad = false;
+        async function searchAndLoadLazyChunks(factoryCode) {
+            // Workaround to avoid loading the CSS debugging chunk which turns the app pink
+            // const hasCssDebuggingLoad = foundCssDebuggingLoad ? false : (foundCssDebuggingLoad = factoryCode.includes(".cssDebuggingEnabled&&"));
+            // Disabled for now since this causes lots of chunks concatenated into the same module get marked as invalid, and thus not loaded.
+            const hasCssDebuggingLoad = foundCssDebuggingLoad = false;
+            const lazyChunks = factoryCode.matchAll(hasCssDebuggingLoad ? CompleteLazyChunkRegex : PartialLazyChunkRegex);
+            const validChunkGroups = new Set();
+            const shouldForceDefer = false;
+            await Promise.all(Array.from(lazyChunks).map(async ([, rawChunkIds, entryPoint]) => {
+                const chunkIds = rawChunkIds
+                    ?.matchAll(Webpack.ChunkIdsRegex)
+                    .map(m => {
+                    const numChunkId = Number(m[1]);
+                    return Number.isNaN(numChunkId) ? m[1] : String(numChunkId);
+                })
+                    .toArray()
+                    ?? [];
+                if (chunkIds.length === 0) {
+                    return;
+                }
+                let invalidChunkGroup = false;
+                for (const id of chunkIds) {
+                    if (hasCssDebuggingLoad) {
+                        if (chunkIds.length > 1) {
+                            throw new Error("Found multiple chunks in factory that loads the CSS debugging chunk");
+                        }
+                        invalidChunks.add(id);
+                        invalidChunkGroup = true;
+                        break;
+                    }
+                    if (wreq.u(id) == null || wreq.u(id) === "undefined.js")
+                        continue;
+                    const isWorkerAsset = await queue(() => fetchChunkText(id)
+                        .then(t => /importScripts\(|self\.postMessage/.test(t)));
+                    if (isWorkerAsset) {
+                        invalidChunks.add(id);
+                        invalidChunkGroup = true;
+                        continue;
+                    }
+                    validChunks.add(id);
+                }
+                if (!invalidChunkGroup) {
+                    const numEntryPoint = Number(entryPoint);
+                    validChunkGroups.add([chunkIds, Number.isNaN(numEntryPoint) ? entryPoint : String(numEntryPoint)]);
+                }
+            }));
+            // Loads all found valid chunk groups
+            await Promise.all(Array.from(validChunkGroups)
+                .map(([chunkIds]) => Promise.all(chunkIds.map(id => wreq.e(id)))));
+            // Requires the entry points for all valid chunk groups
+            for (const [, entryPoint] of validChunkGroups) {
+                try {
+                    if (shouldForceDefer) {
+                        deferredRequires.add(entryPoint);
+                        continue;
+                    }
+                    if (wreq.m[entryPoint])
+                        wreq(entryPoint);
+                }
+                catch (err) {
+                    if (err instanceof TypeError && err.message.includes("reading 'nativeModules'")) {
+                        continue;
+                    }
+                    console.error(err);
+                }
+            }
+            // setImmediate to only check if all chunks were loaded after this function resolves
+            // We check if all chunks were loaded every time a factory is loaded
+            // If we are still looking for chunks in the other factories, the array will have that factory's chunk search promise not resolved
+            // But, if all chunk search promises are resolved, this means we found every lazy chunk loaded by Discord code and manually loaded them
+            setTimeout(() => {
+                let allResolved = true;
+                for (let i = 0; i < chunksSearchPromises.length; i++) {
+                    const isResolved = chunksSearchPromises[i]();
+                    if (isResolved) {
+                        // Remove finished promises to avoid having to iterate through a huge array everytime
+                        chunksSearchPromises.splice(i--, 1);
+                    }
+                    else {
+                        allResolved = false;
+                    }
+                }
+                if (allResolved)
+                    chunksSearchingResolve();
+            }, 0);
+        }
+        function factoryListener(factory) {
+            let isResolved = false;
+            searchAndLoadLazyChunks(String(factory))
+                .then(() => isResolved = true)
+                .catch(() => isResolved = true);
+            chunksSearchPromises.push(() => isResolved);
+        }
+        Webpack.factoryListeners.add(factoryListener);
+        for (const moduleId in wreq.m) {
+            factoryListener(wreq.m[moduleId]);
+        }
+        await chunksSearchingDone;
+        Webpack.factoryListeners.delete(factoryListener);
+        // Require deferred entry points
+        for (const deferredRequire of deferredRequires) {
+            wreq(deferredRequire);
+        }
+        // All chunks Discord has mapped to asset files, even if they are not used anymore
+        const chunksMap = getWebpackChunkMap();
+        if (!chunksMap)
+            throw new Error("Failed to get chunk map");
+        const allChunks = Object.keys(chunksMap);
+        if (allChunks.length === 0)
+            throw new Error("Failed to get all chunks");
+        // Chunks which our regex could not catch to load
+        // It will always contain WebWorker assets, and also currently contains some language packs which are loaded differently
+        const chunksLeft = allChunks.filter(id => {
+            return !(validChunks.has(id) || invalidChunks.has(id));
+        });
+        await Promise.all(chunksLeft.map(async (id) => queue(async () => {
+            const isWorkerAsset = await fetchChunkText(id)
+                .then(t => /importScripts\(|self\.postMessage/.test(t));
+            // Loads the chunk. Currently this only happens with the language packs which are loaded differently
+            if (!isWorkerAsset) {
+                await wreq.e(id);
+            }
+        })));
+        LazyChunkLoaderLogger.log("Finished loading all chunks!");
+    }
+    catch (e) {
+        LazyChunkLoaderLogger.log("A fatal error occurred:", e);
+    }
+}

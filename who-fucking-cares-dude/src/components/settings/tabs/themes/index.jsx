@@ -1,0 +1,450 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import "./styles.css";
+import { Settings, useSettings } from "@api/Settings";
+import { Divider } from "@components/Divider";
+import { Heading } from "@components/Heading";
+import { Link } from "@components/Link";
+import { Paragraph } from "@components/Paragraph";
+import { SettingsTab, wrapTab } from "@components/settings/tabs/BaseTab";
+import { getThemeInfo } from "@main/themes";
+import { classNameFactory } from "@utils/css";
+import { copyWithToast } from "@utils/discord";
+import { Margins } from "@utils/margins";
+import { classes } from "@utils/misc";
+import { getStylusWebStoreUrl } from "@utils/web";
+import { openModal, React, Select, showToast, TextInput, Toasts, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { CodeViewerModal } from "./CodeViewerModal";
+import { OnlineThemesSection } from "./OnlineThemes";
+import { QuickActionsSection } from "./QuickActions";
+import { SnippetMarketplaceSection } from "./SnippetMarketplace";
+import { ThemeCard } from "./ThemeCard";
+import { ThemeMarketplaceSection } from "./ThemeMarketplace";
+const cl = classNameFactory("vc-settings-theme-");
+var ThemeFilter;
+(function (ThemeFilter) {
+    ThemeFilter["All"] = "all";
+    ThemeFilter["Online"] = "online";
+    ThemeFilter["Local"] = "local";
+    ThemeFilter["Enabled"] = "enabled";
+    ThemeFilter["Disabled"] = "disabled";
+})(ThemeFilter || (ThemeFilter = {}));
+const filterOptions = [
+    { label: "Show All", value: ThemeFilter.All },
+    { label: "Online Themes", value: ThemeFilter.Online },
+    { label: "Local Themes", value: ThemeFilter.Local },
+    { label: "Enabled", value: ThemeFilter.Enabled },
+    { label: "Disabled", value: ThemeFilter.Disabled }
+];
+function inferThemeActivationMode(css) {
+    let text = css.replace(/^\uFEFF/, "");
+    while (true) {
+        const trimmed = text.trimStart();
+        if (trimmed !== text)
+            text = trimmed;
+        const comment = /^\/\*[\s\S]*?\*\/\s*/.exec(text);
+        if (!comment)
+            break;
+        text = text.slice(comment[0].length);
+    }
+    const match = /^@(light|dark)\b/i.exec(text);
+    return match?.[1].toLowerCase();
+}
+function inferAndStoreThemeActivationMode(themeId, css) {
+    const activationMode = Settings.themeActivationModes?.[themeId] ?? inferThemeActivationMode(css);
+    if (!activationMode || themeId in (Settings.themeActivationModes ?? {}))
+        return;
+    Settings.themeActivationModes = {
+        ...(Settings.themeActivationModes ?? {}),
+        [themeId]: activationMode,
+    };
+}
+function openCodeViewer(title, code, editable, onSave) {
+    openModal(modalProps => (<CodeViewerModal modalProps={modalProps} title={`${title} - Code`} code={code} editable={editable} onSave={onSave}/>));
+}
+function ThemesTab() {
+    const settings = useSettings(["themeLinks", "enabledThemeLinks", "enabledThemes", "enableOnlineThemes", "pinnedThemes", "themeActivationModes.*", "hideThemeMarketplace", "hideSnippetMarketplace"]);
+    const fileInputRef = useRef(null);
+    const [currentThemeLink, setCurrentThemeLink] = useState("");
+    const [themeLinkValid, setThemeLinkValid] = useState(false);
+    const [userThemes, setUserThemes] = useState(null);
+    const [onlineThemes, setOnlineThemes] = useState(null);
+    const [themeNames, setThemeNames] = useState(() => {
+        return settings.themeNames ?? {};
+    });
+    const [searchQuery, setSearchQuery] = useState("");
+    const [filter, setFilter] = useState(ThemeFilter.All);
+    useEffect(() => {
+        void updateThemes();
+    }, []);
+    useEffect(() => {
+        void refreshOnlineThemes();
+    }, [settings.themeLinks?.join(",")]);
+    async function updateThemes() {
+        await Promise.allSettled([refreshLocalThemes(), refreshOnlineThemes()]);
+    }
+    async function refreshLocalThemes() {
+        const themes = await VencordNative.themes.getThemesList();
+        setUserThemes(themes);
+    }
+    function onLocalThemeChange(fileName, value) {
+        if (value) {
+            if (settings.enabledThemes.includes(fileName))
+                return;
+            settings.enabledThemes = [...settings.enabledThemes, fileName];
+        }
+        else {
+            settings.enabledThemes = settings.enabledThemes.filter(f => f !== fileName);
+        }
+    }
+    async function doUploadThemes(files) {
+        const uploads = Array.from(files, file => {
+            const { name } = file;
+            if (!name.endsWith(".css"))
+                return;
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    VencordNative.themes.uploadTheme(name, reader.result)
+                        .then(resolve)
+                        .catch(reject);
+                };
+                reader.readAsText(file);
+            });
+        });
+        await Promise.all(uploads);
+        refreshLocalThemes();
+    }
+    async function onFileUpload(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        if (!e.currentTarget?.files?.length)
+            return;
+        await doUploadThemes(e.currentTarget.files);
+    }
+    function useDropFile(refreshThemes) {
+        useEffect(() => {
+            const onDragOver = (e) => {
+                if (!e.dataTransfer?.items.length)
+                    return;
+                if (!Array.from(e.dataTransfer.items).some(item => item.kind === "file" && item.getAsFile()?.name.endsWith(".css")))
+                    return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+            };
+            const onDrop = async (e) => {
+                e.preventDefault();
+                if (!e.dataTransfer?.files.length)
+                    return;
+                await doUploadThemes(Array.from(e.dataTransfer.files).filter(file => file.name.endsWith(".css")));
+                refreshThemes();
+            };
+            window.addEventListener("dragover", onDragOver);
+            window.addEventListener("drop", onDrop);
+            return () => {
+                window.removeEventListener("dragover", onDragOver);
+                window.removeEventListener("drop", onDrop);
+            };
+        }, []);
+    }
+    function addThemeLink(link) {
+        if (!themeLinkValid)
+            return;
+        if (settings.themeLinks.includes(link))
+            return;
+        settings.themeLinks = [...settings.themeLinks, link];
+        setCurrentThemeLink("");
+        refreshOnlineThemes();
+    }
+    // This condition is compile time so conditional hook is okay
+    if (IS_WEB)
+        useDropFile(refreshLocalThemes);
+    async function refreshOnlineThemes() {
+        const themes = await Promise.all(settings.themeLinks.map(async (link) => {
+            try {
+                const res = await fetch(link);
+                if (!res.ok)
+                    throw new Error(`Failed to fetch ${link}`);
+                const css = await res.text();
+                inferAndStoreThemeActivationMode(link, css);
+                return { ...getThemeInfo(css, link), link };
+            }
+            catch {
+                return null;
+            }
+        }));
+        setOnlineThemes(themes.filter(theme => theme !== null));
+    }
+    function onThemeLinkEnabledChange(link, enabled) {
+        if (enabled) {
+            if (settings.enabledThemeLinks.includes(link))
+                return;
+            settings.enabledThemeLinks = [...settings.enabledThemeLinks, link];
+        }
+        else {
+            settings.enabledThemeLinks = settings.enabledThemeLinks.filter(f => f !== link);
+        }
+    }
+    function clearThemeState(themeId) {
+        settings.pinnedThemes = settings.pinnedThemes.filter(f => f !== themeId);
+        settings.enabledThemes = settings.enabledThemes.filter(f => f !== themeId);
+        settings.enabledThemeLinks = settings.enabledThemeLinks.filter(f => f !== themeId);
+        settings.themeNames = Object.fromEntries(Object.entries(settings.themeNames).filter(([key]) => key !== themeId));
+        const themeActivationModes = { ...(settings.themeActivationModes ?? {}) };
+        delete themeActivationModes[themeId];
+        settings.themeActivationModes = themeActivationModes;
+    }
+    function deleteThemeLink(link) {
+        settings.themeLinks = settings.themeLinks.filter(f => f !== link);
+        clearThemeState(link);
+        refreshOnlineThemes();
+    }
+    function setThemeActivationMode(themeId, mode) {
+        const themeActivationModes = { ...(settings.themeActivationModes ?? {}) };
+        if (mode === "always") {
+            delete themeActivationModes[themeId];
+        }
+        else {
+            themeActivationModes[themeId] = mode;
+        }
+        settings.themeActivationModes = themeActivationModes;
+    }
+    function togglePinTheme(themeId) {
+        if (settings.pinnedThemes.includes(themeId)) {
+            settings.pinnedThemes = settings.pinnedThemes.filter(f => f !== themeId);
+        }
+        else {
+            settings.pinnedThemes = [...settings.pinnedThemes, themeId];
+        }
+    }
+    async function refreshOnlineTheme(link) {
+        try {
+            const res = await fetch(link);
+            if (!res.ok)
+                throw new Error(`Failed to fetch ${link}`);
+            const css = await res.text();
+            inferAndStoreThemeActivationMode(link, css);
+            const updatedTheme = { ...getThemeInfo(css, link), link };
+            setOnlineThemes(prev => prev?.map(t => t.link === link ? updatedTheme : t) ?? null);
+            showToast("Theme refreshed!", Toasts.Type.SUCCESS);
+        }
+        catch {
+            showToast("Failed to refresh theme", Toasts.Type.FAILURE);
+        }
+    }
+    async function downloadTheme(link, name) {
+        try {
+            const res = await fetch(link);
+            if (!res.ok)
+                throw new Error(`Failed to fetch ${link}`);
+            const css = await res.text();
+            const fileName = name.replace(/[^a-z0-9]/gi, "-") + ".css";
+            if (IS_DISCORD_DESKTOP) {
+                DiscordNative.fileManager.saveWithDialog(new TextEncoder().encode(css), fileName);
+            }
+            else {
+                const blob = new Blob([css], { type: "text/css" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        }
+        catch {
+            showToast("Failed to download theme", Toasts.Type.FAILURE);
+        }
+    }
+    async function viewLocalThemeCode(fileName, displayName) {
+        try {
+            const content = await VencordNative.themes.getThemeData(fileName);
+            openCodeViewer(displayName, content ?? "", true, async (newCode) => {
+                await VencordNative.themes.uploadTheme(fileName, newCode);
+                await refreshLocalThemes();
+            });
+        }
+        catch {
+            showToast("Failed to load theme code", Toasts.Type.FAILURE);
+        }
+    }
+    async function viewOnlineThemeCode(link, displayName) {
+        try {
+            const res = await fetch(link);
+            if (!res.ok)
+                throw new Error(`Failed to fetch ${link}`);
+            const css = await res.text();
+            openCodeViewer(displayName, css, false);
+        }
+        catch {
+            showToast("Failed to load theme code", Toasts.Type.FAILURE);
+        }
+    }
+    const allThemes = useMemo(() => {
+        const themes = [];
+        for (const theme of onlineThemes ?? []) {
+            const customName = themeNames[theme.link] ?? null;
+            themes.push({
+                type: "online",
+                name: customName ?? theme.name ?? theme.fileName,
+                enabled: settings.enabledThemeLinks.includes(theme.link),
+                header: { ...theme, customName },
+                link: theme.link,
+                activationMode: settings.themeActivationModes?.[theme.link] ?? "always",
+            });
+        }
+        for (const header of userThemes ?? []) {
+            const name = header.name ?? header.fileName;
+            themes.push({
+                type: "local",
+                name,
+                enabled: settings.enabledThemes.includes(header.fileName),
+                header,
+                activationMode: settings.themeActivationModes?.[header.fileName] ?? "always",
+            });
+        }
+        return themes;
+    }, [onlineThemes, userThemes, themeNames, settings.enabledThemeLinks, settings.enabledThemes, settings.themeActivationModes]);
+    const filteredThemes = useMemo(() => {
+        let themes = allThemes;
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            themes = themes.filter(t => t.name.toLowerCase().includes(query));
+        }
+        switch (filter) {
+            case ThemeFilter.Online:
+                themes = themes.filter(t => t.type === "online");
+                break;
+            case ThemeFilter.Local:
+                themes = themes.filter(t => t.type === "local");
+                break;
+            case ThemeFilter.Enabled:
+                themes = themes.filter(t => t.enabled);
+                break;
+            case ThemeFilter.Disabled:
+                themes = themes.filter(t => !t.enabled);
+                break;
+        }
+        const getThemeId = (t) => t.type === "online" ? t.link : t.header.fileName;
+        themes.sort((a, b) => {
+            const aId = getThemeId(a);
+            const bId = getThemeId(b);
+            const aPinIndex = settings.pinnedThemes.indexOf(aId);
+            const bPinIndex = settings.pinnedThemes.indexOf(bId);
+            const aIsPinned = aPinIndex !== -1;
+            const bIsPinned = bPinIndex !== -1;
+            if (aIsPinned && !bIsPinned)
+                return -1;
+            if (!aIsPinned && bIsPinned)
+                return 1;
+            if (aIsPinned && bIsPinned)
+                return aPinIndex - bPinIndex;
+            return 0;
+        });
+        return themes;
+    }, [allThemes, searchQuery, filter, settings.pinnedThemes]);
+    const localCount = allThemes.filter(t => t.type === "local").length;
+    const onlineCount = allThemes.filter(t => t.type === "online").length;
+    const enabledCount = allThemes.filter(t => t.enabled).length;
+    return (<SettingsTab>
+            <Heading className={Margins.top16}>Theme Management</Heading>
+            <Paragraph className={Margins.bottom16}>
+                Customize Discord's appearance with themes. Add local .css files or load themes directly from URLs. Themes with a cog wheel icon have customizable settings you can modify.
+            </Paragraph>
+
+            <Heading>Quick Actions</Heading>
+            <Paragraph className={Margins.bottom16}>
+                Shortcuts for managing your themes. Open your themes folder to add new themes, use QuickCSS for quick style tweaks, or reload themes after making changes.
+            </Paragraph>
+
+            <QuickActionsSection fileInputRef={fileInputRef} onFileUpload={onFileUpload} refreshLocalThemes={refreshLocalThemes}/>
+
+            <Divider className={Margins.top20}/>
+
+            <OnlineThemesSection enableOnlineThemes={settings.enableOnlineThemes ?? true} setEnableOnlineThemes={value => {
+            settings.enableOnlineThemes = value;
+            if (!value) {
+                settings.enabledThemeLinks = [];
+            }
+        }} currentThemeLink={currentThemeLink} setCurrentThemeLink={setCurrentThemeLink} themeLinkValid={themeLinkValid} setThemeLinkValid={setThemeLinkValid} addThemeLink={addThemeLink}/>
+
+            <Heading className={Margins.top20}>Installed Themes</Heading>
+            <Paragraph className={Margins.bottom8}>
+                Manage your themes here. Local themes load from your themes folder, online themes from URLs. Themes with a cog wheel icon have customizable settings.
+            </Paragraph>
+            <Paragraph color="text-subtle" className={Margins.bottom16}>
+                {allThemes.length} theme{allThemes.length !== 1 ? "s" : ""} installed ({localCount} local, {onlineCount} online) · {enabledCount} enabled
+            </Paragraph>
+
+            <div className={cl("filter-row")}>
+                <TextInput placeholder="Search for a theme..." value={searchQuery} onChange={setSearchQuery}/>
+                <div>
+                    {Select ? (<Select options={filterOptions} select={setFilter} isSelected={v => v === filter} serialize={v => v}/>) : (<select className="vc-settings-theme-filter-select" value={filter} onChange={e => setFilter(e.target.value)} style={{
+                background: "var(--background-secondary, #1e1f22)",
+                color: "var(--text-normal, #dbdee1)",
+                border: "1px solid var(--background-modifier-accent, #35363c)",
+                borderRadius: "6px",
+                padding: "6px 12px",
+                fontSize: "13px",
+                outline: "none"
+            }}>
+                            {filterOptions.map(opt => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
+                        </select>)}
+                </div>
+            </div>
+
+            {userThemes === null ? (<Paragraph color="text-muted" className={Margins.top16}>Loading themes...</Paragraph>) : filteredThemes.length === 0 ? (<Paragraph color="text-muted" className={Margins.top16}>
+                    {allThemes.length === 0
+                ? "No themes installed yet. Add theme files to your themes folder or add an online theme above to get started."
+                : "No themes match your search or filter criteria."}
+                </Paragraph>) : (<div className={classes(cl("grid"), Margins.top16)}>
+                    {filteredThemes.map(theme => {
+                if (theme.type === "online") {
+                    const onlineTheme = theme.header;
+                    const onlineThemesDisabled = !(settings.enableOnlineThemes ?? true);
+                    return (<ThemeCard key={onlineTheme.link} theme={onlineTheme} enabled={theme.enabled} onChange={enabled => onThemeLinkEnabledChange(onlineTheme.link, enabled)} onDelete={() => {
+                            onThemeLinkEnabledChange(onlineTheme.link, false);
+                            deleteThemeLink(onlineTheme.link);
+                        }} showDeleteButton disabled={onlineThemesDisabled} onPin={() => togglePinTheme(onlineTheme.link)} isPinned={settings.pinnedThemes.includes(onlineTheme.link)} themeLink={onlineTheme.link} onCopyUrl={() => copyWithToast(onlineTheme.link, "Theme URL copied!")} onRefresh={() => refreshOnlineTheme(onlineTheme.link)} onDownload={() => downloadTheme(onlineTheme.link, onlineTheme.name ?? "theme")} onViewCode={() => viewOnlineThemeCode(onlineTheme.link, theme.name)} isLocal={false} activationMode={theme.activationMode} onActivationModeChange={mode => setThemeActivationMode(onlineTheme.link, mode)} onEditName={newName => {
+                            const updatedNames = { ...themeNames, [onlineTheme.link]: newName };
+                            setThemeNames(updatedNames);
+                            settings.themeNames = {
+                                ...settings.themeNames,
+                                [onlineTheme.link]: newName,
+                            };
+                        }}/>);
+                }
+                const localTheme = theme.header;
+                return (<ThemeCard key={localTheme.fileName} enabled={theme.enabled} onChange={enabled => onLocalThemeChange(localTheme.fileName, enabled)} onDelete={async () => {
+                        onLocalThemeChange(localTheme.fileName, false);
+                        clearThemeState(localTheme.fileName);
+                        await VencordNative.themes.deleteTheme(localTheme.fileName);
+                        refreshLocalThemes();
+                    }} showDeleteButton onPin={() => togglePinTheme(localTheme.fileName)} isPinned={settings.pinnedThemes.includes(localTheme.fileName)} onRefresh={refreshLocalThemes} onViewCode={() => viewLocalThemeCode(localTheme.fileName, theme.name)} isLocal theme={localTheme} activationMode={theme.activationMode} onActivationModeChange={mode => setThemeActivationMode(localTheme.fileName, mode)}/>);
+            })}
+                </div>)}
+
+            <Divider className={Margins.top20}/>
+
+            <SnippetMarketplaceSection />
+
+            <ThemeMarketplaceSection />
+        </SettingsTab>);
+}
+function UserscriptThemesTab() {
+    return (<SettingsTab>
+            <Heading className={Margins.top16}>Themes Not Supported</Heading>
+            <Paragraph className={Margins.bottom8}>
+                Themes are not available on the Userscript version.
+            </Paragraph>
+            <Paragraph color="text-subtle">
+                You can install themes using the <Link href={getStylusWebStoreUrl()}>Stylus extension</Link> instead.
+            </Paragraph>
+        </SettingsTab>);
+}
+export default IS_USERSCRIPT
+    ? wrapTab(UserscriptThemesTab, "Themes")
+    : wrapTab(ThemesTab, "Themes");

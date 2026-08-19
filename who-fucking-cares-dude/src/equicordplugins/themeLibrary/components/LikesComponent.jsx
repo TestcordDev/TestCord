@@ -1,0 +1,76 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import * as DataStore from "@api/DataStore";
+import { Button } from "@components/Button";
+import { Margins } from "@components/margins";
+import { isAuthorized } from "@equicordplugins/themeLibrary/utils/auth";
+import { LikeIcon } from "@equicordplugins/themeLibrary/utils/Icons";
+import { useEffect, useRef, useState } from "@webpack/common";
+import { logger, themeRequest } from "./ThemeTab";
+export const LikesComponent = ({ themeId, likedThemes: initialLikedThemes }) => {
+    const [likesCount, setLikesCount] = useState(0);
+    const [likedThemes, setLikedThemes] = useState(initialLikedThemes);
+    const debounce = useRef(false);
+    useEffect(() => {
+        const likes = getThemeLikes(themeId);
+        setLikesCount(likes);
+    }, [likedThemes, themeId]);
+    function getThemeLikes(themeId) {
+        const themeLike = likedThemes?.likes.find(like => like.themeId === themeId);
+        return themeLike ? themeLike.likes : 0;
+    }
+    const handleLikeClick = async (themeId) => {
+        if (!isAuthorized())
+            return;
+        const theme = likedThemes?.likes.find(like => like.themeId === themeId);
+        const hasLiked = theme?.hasLiked ?? false;
+        const endpoint = hasLiked ? "/likes/remove" : "/likes/add";
+        const token = await DataStore.get("ThemeLibrary_uniqueToken");
+        // doing this so the delay is not visible to the user
+        if (debounce.current)
+            return;
+        setLikesCount(likesCount + (hasLiked ? -1 : 1));
+        debounce.current = true;
+        try {
+            const response = await themeRequest(endpoint, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    themeId: themeId,
+                }),
+            });
+            if (!response.ok)
+                return logger.error("Couldnt update likes, response not ok");
+            const fetchLikes = async () => {
+                try {
+                    const token = await DataStore.get("ThemeLibrary_uniqueToken");
+                    const response = await themeRequest("/likes/get", {
+                        headers: {
+                            "Authorization": `Bearer ${token}`,
+                        },
+                    });
+                    const data = await response.json();
+                    setLikedThemes(data);
+                }
+                catch (err) {
+                    logger.error(err);
+                }
+            };
+            fetchLikes();
+        }
+        catch (err) {
+            logger.error(err);
+        }
+        debounce.current = false;
+    };
+    const hasLiked = likedThemes?.likes.some(like => like.themeId === themeId && like?.hasLiked === true) ?? false;
+    return (<Button onClick={() => handleLikeClick(themeId)} variant="secondary" size="medium" disabled={themeId === "preview"} className={Margins.right8}>
+            {LikeIcon(hasLiked || themeId === "preview")} {themeId === "preview" ? 143 : likesCount}
+        </Button>);
+};

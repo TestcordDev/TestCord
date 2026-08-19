@@ -1,0 +1,259 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import { definePluginSettings, Settings } from "@api/Settings";
+import { Button } from "@components/Button";
+import ErrorBoundary from "@components/ErrorBoundary";
+import { Alerts, useState } from "@webpack/common";
+import { clearLogs, Native } from ".";
+import { ImageCacheDir, LogsDir } from "./components/FolderSelectInput";
+import { openLogModal } from "./components/LogsModal";
+import { blockedExts } from "./list";
+import { DEFAULT_IMAGE_CACHE_DIR } from "./utils/constants";
+import { exportLogs, importLogs } from "./utils/settingsUtils";
+function ImportLogsButton() {
+    const [loading, setLoading] = useState(false);
+    return (<Button disabled={loading} onClick={async () => {
+            setLoading(true);
+            try {
+                await importLogs();
+            }
+            finally {
+                setLoading(false);
+            }
+        }}>
+            {loading ? "Importing..." : "Import Logs"}
+        </Button>);
+}
+function ExportLogsButton() {
+    const [loading, setLoading] = useState(false);
+    return (<Button disabled={loading} onClick={async () => {
+            setLoading(true);
+            try {
+                await exportLogs();
+            }
+            finally {
+                setLoading(false);
+            }
+        }}>
+            {loading ? "Exporting..." : "Export Logs"}
+        </Button>);
+}
+export const settings = definePluginSettings({
+    saveMessages: {
+        default: true,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Whether to save the deleted and edited messages.",
+    },
+    saveImages: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Save deleted attachments.",
+        default: false
+    },
+    sortNewest: {
+        default: true,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Sort logs by newest.",
+    },
+    cacheMessagesFromServers: {
+        default: false,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Usually message logger only logs from whitelisted ids and dms, enabling this would mean it would log messages from all servers as well. Note that this may cause the cache to exceed its limit, resulting in some messages being missed. If you are in a lot of servers, this may significantly increase the chances of messages being logged, which can result in a large message record and the inclusion of irrelevant messages.",
+    },
+    ignoreBots: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Whether to ignore messages by bots",
+        default: false,
+        onChange() {
+            // we will be handling the ignoreBots now (enabled or not) so the original messageLogger shouldnt
+            Settings.plugins.MessageLogger.ignoreBots = false;
+        }
+    },
+    ignoreWebhooks: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Whether to ignore messages by webhooks",
+        default: false,
+    },
+    ignoreSelf: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Whether to ignore messages by yourself",
+        default: false,
+        onChange() {
+            Settings.plugins.MessageLogger.ignoreSelf = false;
+        }
+    },
+    ignoreMutedGuilds: {
+        default: false,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Messages in muted guilds will not be logged. Whitelisted users/channels in muted guilds will still be logged."
+    },
+    ignoreMutedCategories: {
+        default: false,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Messages in channels belonging to muted categories will not be logged. Whitelisted users/channels in muted guilds will still be logged."
+    },
+    ignoreMutedChannels: {
+        default: false,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Messages in muted channels will not be logged. Whitelisted users/channels in muted guilds will still be logged."
+    },
+    alwaysLogDirectMessages: {
+        default: true,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Always log DMs",
+    },
+    alwaysLogCurrentChannel: {
+        default: true,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Always log current selected channel. Blacklisted channels/users will still be ignored.",
+    },
+    permanentlyRemoveLogByDefault: {
+        default: false,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Vencord's base MessageLogger remove log button wiil delete logs permanently",
+    },
+    hideMessageFromMessageLoggers: {
+        default: false,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "When enabled, a context menu button will be added to messages to allow you to delete messages without them being logged by other loggers. Might not be safe, use at your own risk."
+    },
+    ShowLogsButton: {
+        default: true,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Toggle to whenever show the toolbox or not",
+        restartNeeded: true,
+    },
+    ShowWhereMessageIsFrom: {
+        default: false,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Show message channel/author name and server name",
+    },
+    messagesToDisplayAtOnceInLogs: {
+        default: 100,
+        type: 1 /* OptionType.NUMBER */,
+        description: "Number of messages to display at once in logs & number of messages to load when loading more messages in logs.",
+    },
+    hideMessageFromMessageLoggersDeletedMessage: {
+        default: "redacted eh",
+        type: 0 /* OptionType.STRING */,
+        description: "The message content to replace the message with when using the hide message from message loggers feature.",
+    },
+    messageLimit: {
+        default: 200,
+        type: 1 /* OptionType.NUMBER */,
+        description: "Maximum number of messages to save. Older messages are deleted when the limit is reached. 0 means there is no limit"
+    },
+    attachmentSizeLimitInMegabytes: {
+        default: 12,
+        type: 1 /* OptionType.NUMBER */,
+        description: "Maximum size of an attachment in megabytes to save. Attachments larger than this size will not be saved."
+    },
+    attachmentFileExtensions: {
+        default: "png,jpg,jpeg,gif,webp,mp4,webm,mp3,ogg,wav",
+        type: 0 /* OptionType.STRING */,
+        description: "Comma separated list of file extensions to save. Attachments with file extensions not in this list will not be saved.",
+        onChange: (value) => {
+            let processedValue = "";
+            if (value) {
+                const exts = value.split(",").map(ext => ext.trim().toLowerCase());
+                const invalid = exts.filter(ext => blockedExts.includes(ext));
+                if (invalid.length > 0) {
+                    console.warn("Rejected invalid file extensions:", invalid);
+                    processedValue = exts.filter(ext => !blockedExts.includes(ext)).join(",");
+                }
+                else {
+                    processedValue = exts.join(",");
+                }
+            }
+            Native.updateAllowedExtensions(processedValue).catch((err) => {
+                console.error("Failed to sync attachment extensions natively:", err);
+            });
+            return processedValue;
+        }
+    },
+    cacheLimit: {
+        default: 1000,
+        type: 1 /* OptionType.NUMBER */,
+        description: "Maximum number of messages to store in the cache. Older messages are deleted when the limit is reached. This helps reduce memory usage and improve performance. 0 means there is no limit",
+    },
+    timeBasedCleanupMinutes: {
+        default: 0,
+        type: 1 /* OptionType.NUMBER */,
+        description: "Automatically remove messages from servers that are older than this many minutes. Set to 0 to disable time-based cleanup.",
+    },
+    preserveCurrentChannel: {
+        default: true,
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "When enabled, messages in your currently selected channel are not affected by time-based cleanup.",
+    },
+    whitelistedIds: {
+        default: "",
+        type: 0 /* OptionType.STRING */,
+        description: "Whitelisted server, channel, or user IDs."
+    },
+    blacklistedIds: {
+        default: "",
+        type: 0 /* OptionType.STRING */,
+        description: "Blacklisted server, channel, or user IDs."
+    },
+    imageCacheDir: {
+        type: 6 /* OptionType.COMPONENT */,
+        description: "Select saved images directory",
+        component: ErrorBoundary.wrap(ImageCacheDir)
+    },
+    logsDir: {
+        type: 6 /* OptionType.COMPONENT */,
+        description: "Select logs directory",
+        component: ErrorBoundary.wrap(LogsDir)
+    },
+    importLogs: {
+        type: 6 /* OptionType.COMPONENT */,
+        description: "Import Logs From File",
+        component: ImportLogsButton
+    },
+    exportLogs: {
+        type: 6 /* OptionType.COMPONENT */,
+        description: "Export Logs From IndexedDB",
+        component: ExportLogsButton
+    },
+    clearLogsOnRestart: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Clear logs when Discord restarts.",
+        default: false,
+        restartNeeded: true,
+    },
+    openLogs: {
+        type: 6 /* OptionType.COMPONENT */,
+        description: "Open Logs",
+        component: () => <Button onClick={() => openLogModal()}>
+                Open Logs
+            </Button>
+    },
+    openImageCacheFolder: {
+        type: 6 /* OptionType.COMPONENT */,
+        description: "Opens the image cache directory",
+        component: () => <Button disabled={IS_WEB
+                || settings.store.imageCacheDir == null
+                || settings.store.imageCacheDir === DEFAULT_IMAGE_CACHE_DIR} onClick={() => Native.showItemInFolder()}>
+                Open Image Cache Folder
+            </Button>
+    },
+    clearLogs: {
+        type: 6 /* OptionType.COMPONENT */,
+        description: "Clear Logs",
+        component: () => <Button variant="dangerPrimary" onClick={() => Alerts.show({
+                title: "Clear Logs",
+                body: "Are you sure you want to clear all logs?",
+                confirmVariant: "critical-primary",
+                confirmText: "Clear",
+                cancelText: "Cancel",
+                onConfirm: async () => {
+                    await clearLogs();
+                },
+            })}>
+                Clear Logs
+            </Button>
+    },
+});

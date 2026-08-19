@@ -1,0 +1,294 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2025 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import "./styles.css";
+import * as DataStore from "@api/DataStore";
+import { definePluginSettings, migratePluginSetting } from "@api/Settings";
+import ErrorBoundary from "@components/ErrorBoundary";
+import { Devs, EquicordDevs } from "@utils/constants";
+import definePlugin from "@utils/types";
+import { findByPropsLazy, findCssClassesLazy } from "@webpack";
+import { Button, ChannelStore, Menu, openModal, showToast, Toasts, Tooltip, useEffect, UserStore, useState } from "@webpack/common";
+import { deleteTimezone, getTimezone, loadDatabaseTimezones, setUserDatabaseTimezone } from "./database";
+import { SetTimezoneModal } from "./TimezoneModal";
+export let timezones = {};
+export const DATASTORE_KEY = "vencord-timezones";
+export function resolveUserTimezone(userId) {
+    const localTimezone = timezones[userId];
+    const shouldUseDatabase = settings.store.useDatabase &&
+        (settings.store.preferDatabaseOverLocal || !localTimezone);
+    if (shouldUseDatabase) {
+        return getTimezone(userId) ?? localTimezone;
+    }
+    return localTimezone;
+}
+export function getSystemTimezone() {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+const classes = findCssClassesLazy("timestamp", "compact", "contentOnly");
+const locale = findByPropsLazy("getLocale");
+export const settings = definePluginSettings({
+    showOwnTimezone: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Show your own timezone in profiles and message headers",
+        default: true
+    },
+    twentyFourHourFormat: {
+        type: 3 /* OptionType.BOOLEAN */,
+        displayName: "24h Time",
+        description: "Show time in 24h format",
+        default: false
+    },
+    showTimezoneInfo: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Show timezone info next to time",
+        default: true
+    },
+    showMessageHeaderTime: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Show time in message headers",
+        default: true
+    },
+    recipientTimezoneInDms: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "In DMs, show the recipient's timezone on your messages",
+        default: false
+    },
+    showProfileTime: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Show time in profiles",
+        default: true
+    },
+    useDatabase: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Enable database for getting user timezones",
+        default: true
+    },
+    preferDatabaseOverLocal: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Prefer database over local storage for timezones",
+        default: true
+    },
+    showLocalTimezone: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Show Local Timezone instead of just local",
+        default: false,
+    },
+    databaseUrl: {
+        type: 0 /* OptionType.STRING */,
+        description: "Database URL for timezone storage",
+        default: "https://timezone.creations.works"
+    },
+    setDatabaseTimezone: {
+        description: "Set your timezone on the database",
+        type: 6 /* OptionType.COMPONENT */,
+        component: () => (<Button onClick={() => {
+                openModal(modalProps => <SetTimezoneModal userId={UserStore.getCurrentUser().id} modalProps={modalProps} database={true}/>);
+            }}>
+                Set Timezone on Database
+            </Button>)
+    },
+    resetDatabaseTimezone: {
+        description: "Reset your timezone on the database",
+        type: 6 /* OptionType.COMPONENT */,
+        component: () => (<Button color={Button.Colors.RED} onClick={async () => {
+                try {
+                    await setUserDatabaseTimezone(UserStore.getCurrentUser().id, null);
+                    await deleteTimezone();
+                }
+                catch (error) {
+                    console.error("Error resetting database timezone:", error);
+                    showToast("Failed to reset database timezone", Toasts.Type.FAILURE);
+                }
+            }}>
+                Reset Database Timezone
+            </Button>)
+    },
+    askedTimezone: {
+        type: 3 /* OptionType.BOOLEAN */,
+        description: "Whether the user has been asked to set their timezone",
+        hidden: true,
+        default: false
+    }
+});
+function getTime(timezone, timestamp, props = {}) {
+    const date = new Date(timestamp);
+    const formatter = new Intl.DateTimeFormat(locale.getLocale() ?? "en-US", {
+        hour12: !settings.store.twentyFourHourFormat,
+        timeZone: timezone,
+        ...props
+    });
+    return formatter.format(date);
+}
+function getTimezoneAbbreviation(timezone, timestamp) {
+    const date = new Date(timestamp);
+    const formatter = new Intl.DateTimeFormat(locale.getLocale() ?? "en-US", {
+        timeZone: timezone,
+        timeZoneName: "short"
+    });
+    const parts = formatter.formatToParts(date);
+    const timeZonePart = parts.find(part => part.type === "timeZoneName");
+    return timeZonePart ? timeZonePart.value : "";
+}
+const TimestampComponent = ErrorBoundary.wrap(({ userId, timestamp, type }) => {
+    const [currentTime, setCurrentTime] = useState(timestamp || Date.now());
+    const [timezone, setTimezone] = useState(null);
+    useEffect(() => {
+        setTimezone(resolveUserTimezone(userId));
+    }, [userId, settings.store.useDatabase, settings.store.preferDatabaseOverLocal]);
+    useEffect(() => {
+        if (type !== "profile")
+            return;
+        setCurrentTime(Date.now());
+        const now = new Date();
+        const delay = (60 - now.getSeconds()) * 1000 + 1000 - now.getMilliseconds();
+        const timer = setTimeout(() => {
+            setCurrentTime(Date.now());
+        }, delay);
+        const interval = setInterval(() => {
+            setCurrentTime(Date.now());
+        }, 60000);
+        return () => {
+            clearTimeout(timer);
+            clearInterval(interval);
+        };
+    }, [type]);
+    if (!timezone)
+        return null;
+    const shortTime = getTime(timezone, currentTime, { hour: "numeric", minute: "numeric" });
+    let displayTime = shortTime;
+    let isLocal = false;
+    if (settings.store.showTimezoneInfo) {
+        const userTimezone = getSystemTimezone();
+        isLocal = timezone === userTimezone && !settings.store.showLocalTimezone;
+        if (isLocal) {
+            displayTime = "local";
+        }
+        else {
+            const timezoneInfo = getTimezoneAbbreviation(timezone, currentTime);
+            const tz = timezoneInfo || timezone;
+            const hideLocalTime = isLocal && type === "message";
+            displayTime = hideLocalTime ? tz : `${shortTime} ${tz}`;
+        }
+    }
+    const longTime = getTime(timezone, currentTime, {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "numeric",
+        minute: "numeric"
+    });
+    const tooltipText = isLocal ? `${longTime} (Your local timezone)` : longTime;
+    return (<Tooltip position="top" delay={750} allowOverflow={false} spacing={8} hideOnClick={true} tooltipClassName="timezone-tooltip" text={tooltipText}>
+            {toolTipProps => (<span {...toolTipProps} className={`${type === "message" ? `timezone-message-item ${classes.timestamp}` : "timezone-profile-item"}${isLocal ? " timezone-local-text" : ""}`}>
+                    {type === "message" ? `(${displayTime})` : displayTime}
+                </span>)}
+        </Tooltip>);
+}, { noop: true });
+const userContextMenuPatch = (children, { user }) => {
+    if (user?.id == null)
+        return;
+    const setTimezoneItem = (<Menu.MenuItem label="Set Local Timezone" id="set-timezone" action={() => openModal(modalProps => <SetTimezoneModal userId={user.id} modalProps={modalProps}/>)}/>);
+    children.push(<Menu.MenuSeparator />, setTimezoneItem);
+};
+migratePluginSetting("Timezones", "showOwnTimezone", "Show Own Timezone");
+migratePluginSetting("Timezones", "twentyFourHourFormat", "24h Time");
+export default definePlugin({
+    name: "Timezones",
+    authors: [Devs.Aria, EquicordDevs.creations],
+    description: "Shows the local time of users in profiles and message headers",
+    tags: ["Appearance", "Chat", "Utility"],
+    contextMenus: {
+        "user-context": userContextMenuPatch
+    },
+    patches: [
+        // stolen from ViewIcons
+        {
+            find: '"--custom-cutout-radius":',
+            replacement: {
+                match: /(?<=backgroundImage.+?children:)!\i.{0,100}className:\i\.\i\}\)/,
+                replace: "[$self.renderProfileTimezone(arguments[0]),$&]",
+                noWarn: true
+            }
+        },
+        {
+            find: "#{intl::GUILD_COMMUNICATION_DISABLED_ICON_TOOLTIP_BODY}",
+            replacement: {
+                // thanks https://github.com/Syncxv/vc-timezones/pull/4
+                match: /(?<=isVisibleOnlyOnHover.+?)id:.{0,15},timestamp.{1,50}}\),/,
+                replace: "$&$self.renderMessageTimezone(arguments[0]),"
+            }
+        }
+    ],
+    toolboxActions: {
+        "Set Database Timezone": () => {
+            openModal(modalProps => <SetTimezoneModal userId={UserStore.getCurrentUser().id} modalProps={modalProps} database={true}/>);
+        },
+        "Refresh Database Timezones": async () => {
+            try {
+                const good = await loadDatabaseTimezones();
+                if (good) {
+                    showToast("Timezones refreshed successfully!", Toasts.Type.SUCCESS);
+                }
+                else {
+                    showToast("Timezones Failed to refresh!", Toasts.Type.FAILURE);
+                }
+            }
+            catch (error) {
+                console.error("Failed to refresh timezone:", error);
+                showToast("Failed to refresh timezones.", Toasts.Type.FAILURE);
+            }
+        }
+    },
+    async start() {
+        timezones = await DataStore.get(DATASTORE_KEY) || {};
+        if (settings.store.useDatabase) {
+            await loadDatabaseTimezones();
+            if (!settings.store.askedTimezone) {
+                showToast("", Toasts.Type.MESSAGE, {
+                    duration: 10000,
+                    component: (<Button color={Button.Colors.GREEN} onClick={() => {
+                            openModal(modalProps => <SetTimezoneModal userId={UserStore.getCurrentUser().id} modalProps={modalProps} database={true}/>);
+                        }}>
+                                Want to save your timezone to the database? Click here to set it.
+                            </Button>),
+                    position: Toasts.Position.BOTTOM
+                });
+                settings.store.askedTimezone = true;
+            }
+        }
+    },
+    settings,
+    getTime,
+    renderProfileTimezone: props => {
+        if (!settings.store.showProfileTime || !props?.bannerSrc)
+            return null;
+        const match = /\/banners\/(\d+)\//.exec(props.bannerSrc);
+        const userId = match?.[1];
+        if (!userId)
+            return null;
+        if (userId === UserStore.getCurrentUser().id && !settings.store.showOwnTimezone)
+            return null;
+        return <TimestampComponent userId={userId} type="profile"/>;
+    },
+    renderMessageTimezone: (props) => {
+        const { showMessageHeaderTime, recipientTimezoneInDms, showOwnTimezone } = settings.store;
+        if (!showMessageHeaderTime || !props?.message)
+            return null;
+        let userId = props.message.author.id;
+        if (userId === UserStore.getCurrentUser().id) {
+            const channel = ChannelStore.getChannel(props.message.channel_id);
+            const recipientId = channel?.isDM() ? channel.getRecipientId() : null;
+            if (recipientTimezoneInDms && recipientId) {
+                userId = recipientId;
+            }
+            else if (!showOwnTimezone) {
+                return null;
+            }
+        }
+        return <TimestampComponent userId={userId} timestamp={props.message.timestamp.toISOString()} type="message"/>;
+    }
+});

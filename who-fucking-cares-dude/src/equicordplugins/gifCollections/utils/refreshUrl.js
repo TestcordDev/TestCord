@@ -1,0 +1,43 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+import { RestAPI } from "@webpack/common";
+import { logger } from "./misc";
+export function isCdnUrlExpired(url) {
+    if (!url?.startsWith("https://cdn.discordapp.com")
+        && !url?.startsWith("https://media.discordapp.net")
+        && !url?.startsWith("https://images-ext-1.discordapp.net")
+        && !url?.startsWith("https://images-ext-2.discordapp.net"))
+        return false;
+    try {
+        const ex = new URL(url).searchParams.get("ex");
+        if (!ex)
+            return false;
+        return parseInt(ex, 16) * 1000 < Date.now();
+    }
+    catch (e) {
+        logger.warn("Failed to parse CDN URL expiry", e);
+        return false;
+    }
+}
+export async function batchRefreshAttachmentUrls(urls) {
+    try {
+        const response = await RestAPI.post({
+            url: "/attachments/refresh-urls",
+            body: { attachment_urls: urls }
+        });
+        if (!response.ok)
+            return {};
+        const map = {};
+        for (const { original, refreshed } of response.body.refreshed_urls) {
+            map[original] = refreshed;
+        }
+        return map;
+    }
+    catch (e) {
+        logger.warn("Failed to refresh attachment URLs", e);
+        return {};
+    }
+}
