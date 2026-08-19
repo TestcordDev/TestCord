@@ -131,6 +131,10 @@ export const TestcordDevelopers = Object.freeze({
     Aviv: {
         name: "Aviv",
         id: 752564054593110016n
+    },
+    reid: {
+        name: "reid",
+        id: 1069127117247361085n
     }
 } satisfies Record<string, TestcordAdmin>);
 
