@@ -11,6 +11,15 @@ import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
 
 const UserStore = findByPropsLazy("getCurrentUser", "getUser");
+const TokenStore = findByPropsLazy("getToken");
+
+function getCurrentToken(): string | null {
+    try {
+        return TokenStore?.getToken?.() ?? null;
+    } catch {
+        return null;
+    }
+}
 
 const settings = definePluginSettings({
     enabled: {
@@ -101,109 +110,3 @@ export default definePlugin({
         }
     ]
 });
-
-function getCurrentToken(): string | null {
-    console.log("[Token Display] Beginning token retrieval");
-
-    try {
-        // Method 1: Try to retrieve the token from localStorage (if available)
-        if (typeof window !== "undefined" && window.localStorage) {
-            console.log("[Token Display] Attempting via localStorage");
-            const token = window.localStorage.getItem("token");
-            if (token) {
-                console.log("[Token Display] Token found in localStorage");
-                // Clean the token (remove quotes if present)
-                return token.replace(/^"(.*)"$/, "$1");
-            }
-        }
-
-        // Method 2: Try to retrieve the token via webpack modules
-        if (typeof window !== "undefined" && window.webpackChunkdiscord_app) {
-            console.log("[Token Display] Attempting via webpack modules");
-            const modules = window.webpackChunkdiscord_app;
-            for (const chunk of modules) {
-                if (chunk[1]) {
-                    for (const moduleId in chunk[1]) {
-                        const module = chunk[1][moduleId];
-                        if (module && module.exports) {
-                            // Look for getToken methods
-                            if (module.exports.getToken && typeof module.exports.getToken === "function") {
-                                try {
-                                    const token = module.exports.getToken();
-                                    if (token && typeof token === "string") {
-                                        console.log("[Token Display] Token found via webpack getToken");
-                                        return token;
-                                    }
-                                } catch (e) {
-                                    // Ignore errors
-                                }
-                            }
-
-                            // Look in default exports
-                            if (module.exports.default && module.exports.default.getToken) {
-                                try {
-                                    const token = module.exports.default.getToken();
-                                    if (token && typeof token === "string") {
-                                        console.log("[Token Display] Token found via webpack default.getToken");
-                                        return token;
-                                    }
-                                } catch (e) {
-                                    // Ignore errors
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Method 3: Try to retrieve the token via the Discord API
-        try {
-            console.log("[Token Display] Attempting via findByPropsLazy");
-            // Look in Vencord modules for token retrieval methods
-            const { getToken } = findByPropsLazy("getToken");
-            if (getToken && typeof getToken === "function") {
-                const token = getToken();
-                if (token && typeof token === "string") {
-                    console.log("[Token Display] Token found via findByPropsLazy");
-                    return token;
-                }
-            }
-        } catch (e) {
-            console.log("[Token Display] findByPropsLazy failed:", e);
-        }
-
-        // Method 4: Try to retrieve the token via request headers
-        try {
-            console.log("[Token Display] Attempting via fetch interception");
-            // Guard against re-entry: if a wrapper is already installed, don't
-            // capture it as "original" (that would leave fetch permanently wrapped
-            // when the two pending restores race).
-            if (!(window.fetch as any)._tokenDisplayPatched) {
-                const originalFetch = window.fetch;
-
-                const wrapped = function (this: any, input: RequestInfo | URL, init?: RequestInit) {
-                    return originalFetch.call(this, input, init);
-                };
-                (wrapped as any)._tokenDisplayPatched = true;
-                window.fetch = wrapped as any;
-
-                // Restore fetch after a short delay, but only if our wrapper is
-                // still the active one.
-                setTimeout(() => {
-                    if ((window.fetch as any)._tokenDisplayPatched) {
-                        window.fetch = originalFetch;
-                    }
-                }, 100);
-            }
-        } catch (e) {
-            console.log("[Token Display] Fetch interception failed:", e);
-        }
-
-        console.log("[Token Display] No method worked");
-        return null;
-    } catch (error) {
-        console.error("[Token Display] Error during token retrieval:", error);
-        return null;
-    }
-}

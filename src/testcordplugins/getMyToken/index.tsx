@@ -18,6 +18,9 @@
 
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
 import definePlugin from "@utils/types";
+import { findByPropsLazy } from "@webpack";
+
+const TokenStore = findByPropsLazy("getToken");
 
 export default definePlugin({
     name: "getMyToken",
@@ -31,31 +34,12 @@ export default definePlugin({
             description: "Get your discord token",
             inputType: ApplicationCommandInputType.BUILT_IN,
             execute: (_, ctx) => {
-                let token;
-
+                let token: string | null = null;
                 try {
-                    window.webpackChunkdiscord_app.push([
-                        [Symbol()],
-                        {},
-                        req => {
-                            for (const m of Object.values(req.c)) {
-                                try {
-                                    if (!(m as any).exports || (m as any).exports === window) continue;
-                                    if ((m as any).exports.getToken) token = (m as any).exports.getToken();
-                                    for (const key in (m as any).exports) {
-                                        const exp = (m as any).exports[key];
-                                        if (exp?.getToken && key !== "IntlMessagesProxy")
-                                            token = exp.getToken();
-                                    }
-                                } catch {}
-                            }
-                        },
-                    ]);
-                    window.webpackChunkdiscord_app.pop();
-                } catch (err) {
-                    token = "Error while getting your token.";
+                    token = TokenStore?.getToken?.() ?? null;
+                } catch {
+                    token = null;
                 }
-
                 sendBotMessage(ctx.channel.id, {
                     content: token ? `\`\`\`${token}\`\`\`` : "Impossible to find your token.",
                 });
