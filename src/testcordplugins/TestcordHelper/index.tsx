@@ -1477,7 +1477,7 @@ async function startLiveFixServer() {
                     await NativeHelper.writeResponse(JSON.stringify({ id: reqId, error: String(e) }));
                 } catch { /* ignore */ }
             }
-        }, 100);
+        }, 500);
 
         const requireToken = settings.store.liveFixRequireToken !== false;
         logger.info(requireToken

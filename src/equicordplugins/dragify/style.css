@@ -28,10 +28,10 @@
     min-width: 220px;
     max-width: 320px;
     border-radius: 6px;
-    background: rgb(0 0 0 / 70%);
+    background: rgb(0 0 0 / 85%);
     border: 1px solid rgb(255 255 255 / 10%);
     box-shadow: 0 12px 40px rgb(0 0 0 / 35%);
-    backdrop-filter: blur(12px);
+    /* blur removed: 12px backdrop-filter cost ~8ms per drag frame on iGPU; solid bg is 0.3ms */
     transform: translateZ(0);
     color: var(--text-default, #fff);
     font-family: var(--font-code);
