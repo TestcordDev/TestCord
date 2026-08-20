@@ -185,20 +185,25 @@ export class BadgeSpooferEngine {
     }
 
     private buildSuperProps(launchSig: string, heartbeatSession: string): string {
+        const globalEnv = (typeof window !== "undefined" && (window as any).GLOBAL_ENV) || {};
+        const releaseChannel = globalEnv.RELEASE_CHANNEL || "stable";
+        const clientVersion = globalEnv.VERSION || CLIENT_VERSION;
+        const clientBuildNumber = Number(globalEnv.BUILD_NUMBER) || CLIENT_BUILD_NUMBER;
+
         const props = {
             os: "Windows",
             browser: "Discord Client",
-            release_channel: "stable",
-            client_version: CLIENT_VERSION,
+            release_channel: releaseChannel,
+            client_version: clientVersion,
             os_version: OS_VERSION,
             os_arch: "x64",
             app_arch: "x64",
-            system_locale: "en-US",
+            system_locale: typeof navigator !== "undefined" ? navigator.language : "en-US",
             has_client_mods: false,
-            browser_user_agent: USER_AGENT,
+            browser_user_agent: typeof navigator !== "undefined" ? navigator.userAgent : USER_AGENT,
             browser_version: "42.7.1",
             os_sdk_version: "26200",
-            client_build_number: CLIENT_BUILD_NUMBER,
+            client_build_number: clientBuildNumber,
             native_build_number: NATIVE_BUILD_NUMBER,
             client_event_source: null,
             client_app_state: "focused",
@@ -318,7 +323,7 @@ export class BadgeSpooferEngine {
         const now = Date.now();
         const maxDuration = Math.max(playDurationMs, streamDurationMs);
         const startTime = Math.max(0, now - maxDuration);
-        const numFrames = streamDurationMs > 0 ? Math.max(100, Math.floor((streamDurationMs / 1000) * 30)) : 0;
+        const numFrames = streamDurationMs > 0 ? Math.max(100, Math.floor((streamDurationMs / 1000) * 60)) : 0;
 
         const events: any[] = [];
 
@@ -332,7 +337,7 @@ export class BadgeSpooferEngine {
             this.buildLaunchEvent(game, session, getSeq(), fingerprint)
         );
 
-        // 3. If streaming hours are included, emit video_stream_started
+        // 3. If streaming hours are included, emit video_stream_started with broadcast properties
         if (streamDurationMs > 0 && mediaSessionId && rtcConnectionId) {
             events.push({
                 type: "video_stream_started",
@@ -347,8 +352,12 @@ export class BadgeSpooferEngine {
                     activity: game.name,
                     application_id: game.id,
                     is_owner: true,
-                    max_viewers: 2,
+                    max_viewers: 3,
                     num_viewers: 2,
+                    desktop_capturer_type: "screen",
+                    app_hardware_acceleration_enabled: true,
+                    hardware_enabled: true,
+                    soundshare_session: crypto.randomUUID(),
                     sender_user_id: userId ?? null,
                     client_send_timestamp: startTime + 100
                 }
@@ -360,8 +369,11 @@ export class BadgeSpooferEngine {
             this.buildHeartbeatEvent(game, playDurationMs, gameSessionId, false, true, session, getSeq(), now, rtcConnectionId, mediaSessionId)
         );
 
-        // 5. If streaming hours are included, emit video_stream_ended
+        // 5. If streaming hours are included, emit video_stream_ended with complete realistic WebRTC stream metrics
         if (streamDurationMs > 0 && mediaSessionId && rtcConnectionId) {
+            const bytesSent = Math.floor(streamDurationMs * 562.5); // ~4.5 Mbps stream
+            const packetsSent = Math.floor((streamDurationMs / 1000) * 350);
+
             events.push({
                 type: "video_stream_ended",
                 properties: {
@@ -373,12 +385,30 @@ export class BadgeSpooferEngine {
                     duration: streamDurationMs,
                     duration_streamed_ms: streamDurationMs,
                     num_frames: numFrames,
+                    resolution_width: 1920,
+                    resolution_height: 1080,
+                    fps: 60,
+                    target_fps: 60,
+                    min_fps: 58,
+                    max_fps: 60,
+                    codec: "H264",
+                    audio_codec: "opus",
+                    audio_bitrate: 128000,
+                    video_bitrate: 4500000,
+                    bytes_sent: bytesSent,
+                    packets_sent: packetsSent,
+                    packets_lost: 0,
                     channel_type: 2,
                     context: "stream",
-                    max_viewers: 2,
+                    max_viewers: 3,
+                    num_viewers: 2,
+                    average_viewers: 2.2,
                     reason: "user_ended",
                     activity: game.name,
                     application_id: game.id,
+                    desktop_capturer_type: "screen",
+                    app_hardware_acceleration_enabled: true,
+                    hardware_enabled: true,
                     sender_user_id: userId ?? null,
                     client_send_timestamp: now
                 }
