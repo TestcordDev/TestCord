@@ -12,7 +12,7 @@ import { classNameFactory } from "@utils/css";
 import { getCurrentChannel, getIntlMessage } from "@utils/discord";
 import definePlugin from "@utils/types";
 import { Channel, Message, User } from "@vencord/discord-types";
-import { ChannelStore, GuildStore, PermissionsBits, SelectedChannelStore, UserStore } from "@webpack/common";
+import { ChannelStore, GuildMemberStore, GuildRoleStore, GuildStore, PermissionsBits, SelectedChannelStore, UserStore, useStateFromStores } from "@webpack/common";
 
 import { computePermissions, Tag, tags } from "./consts";
 import { settings } from "./settings";
@@ -20,8 +20,9 @@ import { TagSettings } from "./types";
 
 const cl = classNameFactory("vc-mut-");
 
-const permCache = new Map<string, bigint>();
+const permCache = new Map<string, { perms: bigint; at: number; }>();
 const MAX_CACHE = 500;
+const CACHE_TTL_MS = 30_000;
 
 function cacheKey(userId: string, guildId: string): string {
     return `${userId}:${guildId}`;
@@ -94,12 +95,17 @@ export default definePlugin({
         return SelectedChannelStore.getChannelId();
     },
     renderNicknameIcon(props) {
-        const tagId = this.getTag({
-            user: UserStore.getUser(props.userId),
-            channel: getCurrentChannel(),
-            channelId: this.getChannelId(),
-            isChat: false
-        });
+        const channelId = this.getChannelId();
+        const tagId = useStateFromStores(
+            [GuildStore, GuildMemberStore, GuildRoleStore, ChannelStore, UserStore, SelectedChannelStore],
+            () => this.getTag({
+                user: UserStore.getUser(props.userId),
+                channel: getCurrentChannel(),
+                channelId,
+                isChat: false
+            }),
+            [props.userId, channelId]
+        );
 
         return tagId && <Tag
             type={tagId}
@@ -108,12 +114,18 @@ export default definePlugin({
 
     },
     renderMessageDecoration(props) {
-        const tagId = this.getTag({
-            message: props.message,
-            user: props.message.author,
-            channelId: props.message.channel_id,
-            isChat: true
-        });
+        const channelId = props.message.channel_id;
+        const userId = props.message.author?.id;
+        const tagId = useStateFromStores(
+            [GuildStore, GuildMemberStore, GuildRoleStore, ChannelStore, UserStore],
+            () => this.getTag({
+                message: props.message,
+                user: userId ? UserStore.getUser(userId) ?? props.message.author : props.message.author,
+                channelId,
+                isChat: true
+            }),
+            [userId, channelId]
+        );
 
         return tagId && <Tag
             useRemSizes={true}
@@ -123,12 +135,17 @@ export default definePlugin({
         </Tag>;
     },
     renderMemberListDecorator(props) {
-        const tagId = this.getTag({
-            user: props.user,
-            channel: getCurrentChannel(),
-            channelId: this.getChannelId(),
-            isChat: false
-        });
+        const channelId = this.getChannelId();
+        const tagId = useStateFromStores(
+            [GuildStore, GuildMemberStore, GuildRoleStore, ChannelStore, UserStore, SelectedChannelStore],
+            () => this.getTag({
+                user: props.user,
+                channel: getCurrentChannel(),
+                channelId,
+                isChat: false
+            }),
+            [props.user.id, channelId]
+        );
 
         return tagId && <Tag
             type={tagId}
@@ -200,13 +217,14 @@ export default definePlugin({
         if (!guild) return 0n;
         const key = cacheKey(user.id, guild.id);
         const cached = permCache.get(key);
-        if (cached !== undefined) return cached;
+        const now = Date.now();
+        if (cached !== undefined && now - cached.at < CACHE_TTL_MS) return cached.perms;
         const perms = computePermissions({ user, context: guild, overwrites: channel.permissionOverwrites });
         if (permCache.size >= MAX_CACHE) {
             const first = permCache.keys().next().value;
             if (first !== undefined) permCache.delete(first);
         }
-        permCache.set(key, perms);
+        permCache.set(key, { perms, at: now });
         return perms;
     },
 });
