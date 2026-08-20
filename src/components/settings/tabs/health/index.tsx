@@ -851,7 +851,15 @@ function SessionHistoryPanel() {
                 <Button
                     size="small"
                     variant="link"
-                    onClick={() => { void PluginHealth.clearHistory(); }}
+                    onClick={async () => {
+                        await PluginHealth.clearHistory();
+                        Toasts.show({
+                            id: Toasts.genId(),
+                            type: Toasts.Type.SUCCESS,
+                            message: "Session history cleared. Stability badges and install score reset to 100.",
+                            options: { position: Toasts.Position.TOP }
+                        });
+                    }}
                 >
                     Clear history
                 </Button>
@@ -1317,16 +1325,23 @@ function HealthTab() {
         const dayAgo = Date.now() - 86_400_000;
         const crashesDay = PluginHealth.getCrashHistory().filter(c => c.timestamp >= dayAgo).length;
         let unstable = 0, flaky = 0;
+        const unstablePlugins: string[] = [];
+        const flakyPlugins: string[] = [];
         for (const name of enabledSet) {
             const { badge } = PluginHealth.getStability(name);
-            if (badge === "unstable") unstable++;
-            else if (badge === "flaky") flaky++;
+            if (badge === "unstable") {
+                unstable++;
+                unstablePlugins.push(name);
+            } else if (badge === "flaky") {
+                flaky++;
+                flakyPlugins.push(name);
+            }
         }
         const score = Math.max(0, Math.min(100,
             100 - unstable * 8 - flaky * 3 - quarantined * 10 - Math.min(crashesDay * 5, 25)
         ));
         const rating = score >= 90 ? "healthy" : score >= 70 ? "fair" : score >= 40 ? "degraded" : "poor";
-        return { score, rating, unstable, flaky, quarantined, crashesDay };
+        return { score, rating, unstable, flaky, quarantined, crashesDay, unstablePlugins, flakyPlugins };
     }, [tick, enabledSet]);
 
     // Startup timeline from PluginManager's per-plugin start measurements.
@@ -1539,6 +1554,14 @@ function HealthTab() {
                                 <span className="vc-plugin-health-score-formula">
                                     100 − 8/unstable − 3/flaky − 10/quarantined − 5/recent crash (max 25)
                                 </span>
+                                {(installHealth.unstablePlugins.length > 0 || installHealth.flakyPlugins.length > 0) && (
+                                    <span style={{ marginTop: "0.25rem", color: "var(--text-muted)", display: "block" }}>
+                                        Past session issues: {[
+                                            ...installHealth.unstablePlugins.map(p => `${p} (unstable)`),
+                                            ...installHealth.flakyPlugins.map(p => `${p} (flaky)`)
+                                        ].join(", ")}
+                                    </span>
+                                )}
                             </div>
                         </div>
                         <UptimeClock />
@@ -1625,6 +1648,29 @@ function HealthTab() {
                             <Paragraph>
                                 No patch failures or runtime errors have been recorded this session.
                             </Paragraph>
+                            {(installHealth.unstablePlugins.length > 0 || installHealth.flakyPlugins.length > 0) && (
+                                <div style={{ marginTop: "0.75rem", paddingTop: "0.75rem", borderTop: "1px solid rgba(255, 255, 255, 0.1)" }}>
+                                    <Paragraph color="text-subtle">
+                                        Install score is {installHealth.score}/100 because {installHealth.unstablePlugins.length + installHealth.flakyPlugins.length} enabled plugin(s) ({[...installHealth.unstablePlugins, ...installHealth.flakyPlugins].join(", ")}) had errors in past sessions.
+                                    </Paragraph>
+                                    <Button
+                                        size="small"
+                                        variant="secondary"
+                                        className={Margins.top8}
+                                        onClick={async () => {
+                                            await PluginHealth.clearHistory();
+                                            Toasts.show({
+                                                id: Toasts.genId(),
+                                                type: Toasts.Type.SUCCESS,
+                                                message: "Session history cleared. Install score reset to 100.",
+                                                options: { position: Toasts.Position.TOP }
+                                            });
+                                        }}
+                                    >
+                                        Reset session history
+                                    </Button>
+                                </div>
+                            )}
                         </Card>
                     ) : (
                         <>

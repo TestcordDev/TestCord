@@ -276,15 +276,15 @@ function computeStability(plugin: string): StabilityScore {
 
     // Include the current session too, but only if the plugin is in
     // enabledPlugins (otherwise "seen" is not meaningful).
-    const sessions = [...history, currentSession];
+    const sessions = [...history.filter(s => s.id !== currentSession.id), currentSession];
     for (const session of sessions) {
-        const counts = session.plugins[plugin];
+        const counts = session.plugins?.[plugin];
         // A plugin counts as "seen" this session if it was registered as
         // enabled OR if it recorded any counts. The latter matters at boot:
         // webpack patch failures fire during patching, before
         // `registerEnabledPlugins` runs, so the plugin may not yet be in
         // `enabledPlugins` even though it clearly ran this session.
-        const seen = session.enabledPlugins.includes(plugin) || counts != null;
+        const seen = session.enabledPlugins?.includes(plugin) || counts != null;
         if (!seen) continue;
         sessionsSeen++;
         if (counts && (counts.patchFailures > 0 || counts.runtimeErrors > 0)) {
