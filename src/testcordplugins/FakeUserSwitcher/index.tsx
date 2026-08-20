@@ -615,7 +615,7 @@ function startSwitcherDropdownObserver() {
             switcherDropdownCheckQueued = false;
             switcherDropdownOpen = readSwitcherDropdownOpen();
         });
-    }, 500);
+    }, 1000);
 }
 
 function stopSwitcherDropdownObserver() {

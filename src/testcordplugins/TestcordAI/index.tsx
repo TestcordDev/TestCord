@@ -891,7 +891,7 @@ export default definePlugin({
             this._debounceTimer = debounceTimer;
         };
 
-        this._observer = setInterval(scheduleInject, 1000);
+        this._observer = setInterval(scheduleInject, 2000);
         const ric = (cb: () => void) => (typeof requestIdleCallback === "function" ? requestIdleCallback(cb, { timeout: 2000 }) : setTimeout(cb, 100));
         ric(inject);
     },
