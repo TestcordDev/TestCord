@@ -92,7 +92,7 @@
     color: var(--interactive-normal);
     border-bottom: 2px solid transparent;
     cursor: pointer;
-    transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+    transition: none;
     border-radius: 4px 4px 0 0;
 }
 
@@ -130,7 +130,7 @@
     gap: var(--gt-gap);
     padding: 8px 12px;
     border-radius: var(--gt-radius-sm);
-    transition: background 0.1s ease;
+    transition: none;
 }
 
 .gt-row + .gt-row {
@@ -224,7 +224,7 @@
     background: transparent;
     border-radius: var(--gt-radius-sm);
     cursor: default;
-    transition: background 0.1s ease, transform 0.05s ease;
+    transition: none;
 }
 
 .gt-role-row:hover {
@@ -301,12 +301,12 @@
     color: var(--text-muted) !important;
     cursor: pointer;
     border-radius: var(--gt-radius-sm);
-    transition: background 0.1s ease, color 0.1s ease;
+    transition: none;
 }
 
 .gt-channel-cat-header span:first-child {
     color: var(--text-muted) !important;
-    transition: color 0.1s ease;
+    transition: none;
 }
 
 .guild-toolkit-modal .gt-channel-cat-header:hover {
@@ -327,7 +327,7 @@
     background: transparent;
     border-radius: var(--gt-radius-sm);
     cursor: default;
-    transition: background 0.1s ease;
+    transition: none;
 }
 
 .gt-channel-row.gt-has-type {
@@ -391,7 +391,7 @@
     background: transparent;
     border-radius: var(--gt-radius-sm);
     cursor: default;
-    transition: background 0.1s ease;
+    transition: none;
 }
 
 .gt-member-row:hover {
@@ -448,7 +448,7 @@
     background: var(--gt-row-bg);
     border-radius: var(--gt-radius-sm);
     cursor: pointer;
-    transition: background 0.1s ease, transform 0.05s ease;
+    transition: none;
 }
 
 .gt-emoji:hover {
@@ -490,7 +490,7 @@
     background: var(--gt-row-bg);
     border-radius: var(--gt-radius-sm);
     cursor: pointer;
-    transition: background 0.1s ease, transform 0.05s ease;
+    transition: none;
 }
 
 .gt-sticker:hover {
@@ -603,7 +603,7 @@
     background: transparent;
     border-radius: var(--gt-radius-sm);
     cursor: default;
-    transition: background 0.1s ease;
+    transition: none;
 }
 
 .gt-webhook-row:hover {
@@ -653,7 +653,7 @@
 
 /* Mode toggle button custom states */
 .gt-target-toggle .gt-mode-btn {
-    transition: background-color 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+    transition: none;
     position: relative !important;
 }
 
@@ -834,7 +834,7 @@
     font-size: 14px !important;
     font-family: inherit !important;
     line-height: 34px !important;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease !important;
+    transition: none !important;
 }
 
 .guild-toolkit-modal input.gt-input.gt-search {
@@ -894,7 +894,7 @@
 /* Clickable role dots styling */
 .gt-role-dot.clickable {
     cursor: pointer;
-    transition: transform 0.15s ease;
+    transition: none;
 }
 
 .gt-role-dot.clickable:hover {
@@ -922,7 +922,7 @@
     display: flex;
     flex-direction: column;
     border-radius: var(--gt-radius-sm);
-    transition: background-color 0.2s ease;
+    transition: none;
 }
 
 .gt-role-item-wrap.active {
@@ -931,7 +931,7 @@
 
 .gt-role-copy-btn {
     opacity: 0;
-    transition: opacity 0.15s ease;
+    transition: none;
 }
 
 .gt-role-row:hover .gt-role-copy-btn {

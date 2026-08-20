@@ -39,30 +39,64 @@ let root: Root | null = null;
 let element: HTMLDivElement | null = null;
 let madeComponent = false;
 
+const replyCache = new Map<string, { at: number; replies: Message[]; }>();
+const REPLY_CACHE_TTL = 5000;
+const REPLY_CACHE_MAX = 200;
+
 function findReplies(message: Message) {
-    const messages: Array<Message & {
-        deleted?: boolean;
-    }> = [...MessageStore.getMessages(message.channel_id)?._array ?? []].filter(m => !m.deleted).sort((a, b) => {
-        return a.timestamp.toString().localeCompare(b.timestamp.toString());
-    }); // Need to deep copy Message array when sorting
+    const cached = replyCache.get(message.id);
+    const now = Date.now();
+    if (cached && now - cached.at < REPLY_CACHE_TTL) return cached.replies;
+
+    const store = MessageStore.getMessages(message.channel_id);
+    const arr: any[] = (store as any)?._array ?? (store as any)?.toArray?.() ?? [];
+    // No copy+sort: _array is already sorted by timestamp ascending in MessageStore
     const found: Message[] = [];
-    for (const other of messages) {
-        if (other.timestamp.toString().localeCompare(message.timestamp.toString()) <= 0) continue;
+    let foundRef: Message | undefined;
+    for (let i = 0; i < arr.length; i++) {
+        const other: any = arr[i];
+        if (other.deleted) continue;
+        if (other.id === message.id) continue;
+        // _array is sorted, so we can skip via id compare (snowflake order ≈ time order) without string localeCompare
+        if (other.id < message.id) continue;
         if (other.messageReference?.message_id === message.id) {
             found.push(other);
+            continue;
         }
         if (settings.store.includePings) {
             if (other.content?.includes(`<@${message.author.id}>`)) {
                 found.push(other);
+                continue;
             }
         }
-        if (settings.store.includeAuthor) {
-            if (messages.find(m => m.id === other.messageReference?.message_id)?.author.id === message.author.id) {
+        if (settings.store.includeAuthor && other.messageReference?.message_id) {
+            if (!foundRef || foundRef.id !== other.messageReference.message_id) {
+                foundRef = arr.find((m: any) => m.id === other.messageReference.message_id);
+            }
+            if (foundRef?.author?.id === message.author.id) {
                 found.push(other);
             }
         }
     }
+    if (replyCache.size >= REPLY_CACHE_MAX) {
+        const first = replyCache.keys().next().value;
+        if (first) replyCache.delete(first);
+    }
+    replyCache.set(message.id, { at: now, replies: found });
     return found;
+}
+
+function hasReplies(message: Message): boolean {
+    const store = MessageStore.getMessages(message.channel_id) as any;
+    const arr: any[] = store?._array ?? store?.toArray?.() ?? [];
+    for (let i = 0; i < arr.length; i++) {
+        const other = arr[i];
+        if (other.deleted || other.id <= message.id) continue;
+        if (other.messageReference?.message_id === message.id) return true;
+        if (settings.store.includePings && other.content?.includes(`<@${message.author.id}>`)) return true;
+        // includeAuthor is rarer and needs extra lookup, skip for hasReplies fast path
+    }
+    return false;
 }
 
 const settings = definePluginSettings({
@@ -97,14 +131,14 @@ export default definePlugin({
         icon: FindReplyIcon,
         render(message) {
             if (!message.id) return null;
-            const replies = findReplies(message);
-            if (settings.store.hideButtonIfNoReply && !replies.length) return null;
+            if (settings.store.hideButtonIfNoReply && !hasReplies(message)) return null;
             return {
                 label: "Jump to Reply",
                 icon: FindReplyIcon,
                 message,
                 channel: ChannelStore.getChannel(message.channel_id),
                 onClick: async () => {
+                    const replies = findReplies(message);
                     if (replies.length) {
                         const channelId = replies[0].channel_id;
                         const messageId = replies[0].id;
