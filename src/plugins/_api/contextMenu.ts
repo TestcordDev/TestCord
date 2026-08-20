@@ -43,7 +43,7 @@ export default definePlugin({
 
     patches: [
         {
-            find: "Menu API only allows Items",
+            find: "navId:",
             all: true,
             noWarn: true,
             replacement: [
