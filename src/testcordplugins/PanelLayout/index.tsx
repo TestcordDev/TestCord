@@ -272,12 +272,9 @@ function updateDomAttributes() {
     }
 }
 
-let domObserver: MutationObserver | null = null;
 function startObserver() {
-    if (observer || domObserver) return;
-    // Use MutationObserver on the panel container instead of 1s poll
-    const panelEl = document.querySelector(S.panelContainer) || document.body;
-    domObserver = new MutationObserver(() => {
+    if (observer) return;
+    observer = setInterval(() => {
         if (updateQueued) return;
         updateQueued = true;
         updateFrame = requestAnimationFrame(() => {
@@ -285,8 +282,7 @@ function startObserver() {
             updateFrame = 0;
             updateDomAttributes();
         });
-    });
-    domObserver.observe(panelEl, { childList: true, subtree: true, attributes: true, attributeFilter: ["aria-label", "class"] });
+    }, 1000);
     updateDomAttributes();
 }
 
@@ -294,10 +290,6 @@ function stopObserver() {
     if (observer) {
         clearInterval(observer);
         observer = null;
-    }
-    if (domObserver) {
-        domObserver.disconnect();
-        domObserver = null;
     }
     if (updateFrame) {
         cancelAnimationFrame(updateFrame);
