@@ -100,4 +100,8 @@ export function registerPrivacyIpcHandlers() {
         trafficGuard.incrementCounter(key, amount);
         return trafficGuard.getCounters();
     });
+
+    ipcMain.handle(IpcEvents.PRIVACY_POST_SCIENCE_EVENTS, async (_, payload: any, token?: string, cookie?: string, superProps?: string) => {
+        return await trafficGuard.postScienceEvents(payload, token, cookie, superProps);
+    });
 }

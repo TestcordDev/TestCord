@@ -79,4 +79,5 @@ export const enum IpcEvents {
     PRIVACY_SECURITY_ALERT = "TestCordPrivacySecurityAlert",
     PRIVACY_SET_MAX_LOGS = "TestCordPrivacySetMaxLogs",
     PRIVACY_CLEAR_ALLOWED_LOGS = "TestCordPrivacyClearAllowedLogs",
+    PRIVACY_POST_SCIENCE_EVENTS = "TestCordPrivacyPostScienceEvents",
 }

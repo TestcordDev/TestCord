@@ -127,6 +127,8 @@ export default {
         setHostRule: (host: string, rule: "allow" | "block") => invoke<Record<string, "allow" | "block">>(IpcEvents.PRIVACY_SET_HOST_RULE, host, rule),
         clearHostRule: (host: string) => invoke<Record<string, "allow" | "block">>(IpcEvents.PRIVACY_CLEAR_HOST_RULE, host),
         acknowledgeAlerts: () => invoke<any[]>(IpcEvents.PRIVACY_ACK_ALERTS),
+        postScienceEvents: (payload: any, token?: string, cookie?: string, superProps?: string) =>
+            invoke<{ status: number; body?: any; error?: string }>(IpcEvents.PRIVACY_POST_SCIENCE_EVENTS, payload, token, cookie, superProps),
         onSecurityAlert: (cb: (alert: any) => void) => {
             const listener = (_: unknown, alert: any) => cb(alert);
             ipcRenderer.on(IpcEvents.PRIVACY_SECURITY_ALERT, listener);

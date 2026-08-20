@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { app, BrowserWindow, session } from "electron";
+import { app, BrowserWindow, net, session } from "electron";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 
@@ -241,6 +241,15 @@ class TrafficGuardEngine {
             status: "Plugin Controlled",
             endpoints: ["api.github.com", "translate-pa.googleapis.com", "manti.vendicated.dev", "decor.fieryflames.dev"],
             description: "External theme & third-party plugin integrations",
+            count: 0,
+            blockedCount: 0
+        },
+        {
+            id: "badge_spoofer",
+            title: "Badge Spoofer (/api/v9/science)",
+            status: "Permitted",
+            endpoints: ["discord.com/api/v9/science?source=badge_spoofer", "badge_spoofer"],
+            description: "Permits spoofed playtime and game-launch telemetry for profile badge progression without being blocked by Science / Analytics shields",
             count: 0,
             blockedCount: 0
         }
@@ -523,6 +532,15 @@ class TrafficGuardEngine {
             // shields already claimed.
             const path = new URL(url).pathname.toLowerCase();
             const isDiscordApi = isFirstParty(host) && path.includes("/api/");
+            const isBadgeSpoofer = isDiscordApi && (url.includes("source=badge_spoofer") || url.includes("badge_spoofer=true") || url.includes("badge_spoofer=1"));
+
+            // Badge Spoofer: Explicitly permit spoofed playtime & game telemetry payloads through without telemetry shield blocking
+            if (isBadgeSpoofer) {
+                this.trackOutboundRoute(url, false);
+                this.logAllowedEvent(url, details.method, details.resourceType);
+                return callback({ cancel: false });
+            }
+
             const isScienceTrack = isDiscordApi && (path.includes("/science") || path.includes("/track"));
             const isMetrics = isDiscordApi && path.includes("/metrics");
             const isSentry = url.includes("sentry.io");
@@ -763,6 +781,46 @@ class TrafficGuardEngine {
 
     public clearLogs() {
         this.logs = [];
+    }
+
+    public async postScienceEvents(payload: any, token?: string, cookie?: string, superProps?: string): Promise<{ status: number; body?: any; error?: string }> {
+        return new Promise(resolve => {
+            try {
+                const bodyStr = JSON.stringify(payload);
+                const req = net.request({
+                    method: "POST",
+                    protocol: "https:",
+                    hostname: "discord.com",
+                    path: "/api/v9/science?source=badge_spoofer"
+                });
+
+                req.setHeader("content-type", "application/json");
+                req.setHeader("accept", "*/*");
+                if (token) req.setHeader("authorization", token);
+                if (cookie) req.setHeader("cookie", cookie);
+                if (superProps) req.setHeader("x-super-properties", superProps);
+                req.setHeader("x-badge-spoofer", "1");
+
+                req.on("response", res => {
+                    let resData = "";
+                    res.on("data", chunk => resData += chunk.toString());
+                    res.on("end", () => {
+                        this.trackOutboundRoute("https://discord.com/api/v9/science?source=badge_spoofer", false);
+                        this.logAllowedEvent("https://discord.com/api/v9/science?source=badge_spoofer", "POST", "xhr");
+                        resolve({ status: res.statusCode, body: resData });
+                    });
+                });
+
+                req.on("error", err => {
+                    resolve({ status: 0, error: err.message });
+                });
+
+                req.write(bodyStr);
+                req.end();
+            } catch (err: any) {
+                resolve({ status: 0, error: err.message || String(err) });
+            }
+        });
     }
 }
 
