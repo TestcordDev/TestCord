@@ -203,6 +203,7 @@ function push<T>(list: T[], value: T) {
 }
 
 function bumpSessionCounter(plugin: string, kind: "patchFailures" | "runtimeErrors") {
+    if (!plugin || plugin === "Unknown source") return;
     const existing = currentSession.plugins[plugin] ??= { patchFailures: 0, runtimeErrors: 0 };
     existing[kind]++;
     currentSession.endedAt = Date.now();
@@ -743,9 +744,31 @@ const GLOBAL_ERROR_PLUGIN_PATTERNS = [
 ];
 let lastUnknownErrorAt = 0;
 
+const IGNORED_GLOBAL_ERROR_PATTERNS = [
+    /ResizeObserver loop completed with undelivered notifications/i,
+    /ResizeObserver loop limit exceeded/i,
+    /The play\(\) request was interrupted/i,
+    /AbortError/i,
+    /^Script error\.?$/i,
+    /HTTPResponseError:.*\[429\]/i,
+    /Failed to fetch/i,
+    /NetworkError/i,
+    /Load failed/i,
+    /Sentry successfully disabled/i
+];
+
+function isIgnoredGlobalError(message: string, stack: string): boolean {
+    const combined = `${message}\n${stack}`;
+    return IGNORED_GLOBAL_ERROR_PATTERNS.some(pattern => pattern.test(combined));
+}
+
 function attributeGlobalError(source: string, error: unknown) {
     try {
+        const message = error instanceof Error ? error.message : String(error ?? "");
         const stack = error instanceof Error ? (error.stack ?? "") : String(error ?? "");
+
+        if (isIgnoredGlobalError(message, stack)) return;
+
         let plugin = "Unknown source";
         for (const pattern of GLOBAL_ERROR_PLUGIN_PATTERNS) {
             const match = stack.match(pattern);

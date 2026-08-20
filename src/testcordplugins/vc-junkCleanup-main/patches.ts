@@ -287,10 +287,10 @@ const Patches: Record<string, ConfigurablePatchDefinition> = {
     questsActiveNow: {
         description: "Hide the Quest promotions in the Active Now sidebar",
         patches: {
-            find: "NOW_PLAYING_CARD_HOVERED,{",
+            find: '"QuestActivityPanelItem"',
             replacement: {
-                match: /(quest:)\i}\)/,
-                replace: "$1null})"
+                match: /(let\{party:\i,onUserContextMenu:\i,onChannelContextMenu:\i,quest:)(\i)(,hasStaffQuestActivityPanelOverride:\i\}=\i,)/,
+                replace: "$1_unusedQuest$3$2=null,"
             }
         }
     },
