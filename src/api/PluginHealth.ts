@@ -203,6 +203,7 @@ function push<T>(list: T[], value: T) {
 }
 
 function bumpSessionCounter(plugin: string, kind: "patchFailures" | "runtimeErrors") {
+    if (!plugin || plugin === "Unknown source") return;
     const existing = currentSession.plugins[plugin] ??= { patchFailures: 0, runtimeErrors: 0 };
     existing[kind]++;
     currentSession.endedAt = Date.now();
@@ -275,15 +276,15 @@ function computeStability(plugin: string): StabilityScore {
 
     // Include the current session too, but only if the plugin is in
     // enabledPlugins (otherwise "seen" is not meaningful).
-    const sessions = [...history, currentSession];
+    const sessions = [...history.filter(s => s.id !== currentSession.id), currentSession];
     for (const session of sessions) {
-        const counts = session.plugins[plugin];
+        const counts = session.plugins?.[plugin];
         // A plugin counts as "seen" this session if it was registered as
         // enabled OR if it recorded any counts. The latter matters at boot:
         // webpack patch failures fire during patching, before
         // `registerEnabledPlugins` runs, so the plugin may not yet be in
         // `enabledPlugins` even though it clearly ran this session.
-        const seen = session.enabledPlugins.includes(plugin) || counts != null;
+        const seen = session.enabledPlugins?.includes(plugin) || counts != null;
         if (!seen) continue;
         sessionsSeen++;
         if (counts && (counts.patchFailures > 0 || counts.runtimeErrors > 0)) {
@@ -743,9 +744,31 @@ const GLOBAL_ERROR_PLUGIN_PATTERNS = [
 ];
 let lastUnknownErrorAt = 0;
 
+const IGNORED_GLOBAL_ERROR_PATTERNS = [
+    /ResizeObserver loop completed with undelivered notifications/i,
+    /ResizeObserver loop limit exceeded/i,
+    /The play\(\) request was interrupted/i,
+    /AbortError/i,
+    /^Script error\.?$/i,
+    /HTTPResponseError:.*\[429\]/i,
+    /Failed to fetch/i,
+    /NetworkError/i,
+    /Load failed/i,
+    /Sentry successfully disabled/i
+];
+
+function isIgnoredGlobalError(message: string, stack: string): boolean {
+    const combined = `${message}\n${stack}`;
+    return IGNORED_GLOBAL_ERROR_PATTERNS.some(pattern => pattern.test(combined));
+}
+
 function attributeGlobalError(source: string, error: unknown) {
     try {
+        const message = error instanceof Error ? error.message : String(error ?? "");
         const stack = error instanceof Error ? (error.stack ?? "") : String(error ?? "");
+
+        if (isIgnoredGlobalError(message, stack)) return;
+
         let plugin = "Unknown source";
         for (const pattern of GLOBAL_ERROR_PLUGIN_PATTERNS) {
             const match = stack.match(pattern);

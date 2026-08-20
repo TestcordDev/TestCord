@@ -451,6 +451,16 @@ export function PrivacySecurityPanel() {
             description: "Used only by the matching enabled plugin or a manual action. Destinations vary by plugin.",
             count: 0,
             blockedCount: 0
+        },
+        {
+            id: "badge_spoofer",
+            title: "Badge Spoofer (/api/v9/science)",
+            status: "Permitted",
+            statusType: "active",
+            endpoints: ["discord.com/api/v9/science?source=badge_spoofer", "badge_spoofer"],
+            description: "Permits spoofed playtime and game-launch telemetry for profile badge progression without being blocked by Science / Analytics shields.",
+            count: 0,
+            blockedCount: 0
         }
     ]);
 

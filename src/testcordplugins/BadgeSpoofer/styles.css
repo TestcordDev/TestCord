@@ -1,0 +1,73 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+.tc-badge-spoofer-logs {
+    background: #111214;
+    padding: 10px 14px;
+    border-radius: 6px;
+    height: 140px;
+    overflow-y: auto;
+    font-family: var(--font-code, "Consolas", "Courier New", monospace);
+    font-size: 12.5px;
+    line-height: 1.5;
+    border: 1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.08));
+    color: #dbdee1;
+}
+
+.tc-badge-spoofer-logs::-webkit-scrollbar {
+    width: 6px;
+}
+
+.tc-badge-spoofer-logs::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.tc-badge-spoofer-logs::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+.tc-badge-spoofer-logs::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.tc-badge-spoofer-log-line {
+    display: flex;
+    gap: 10px;
+    word-break: break-word;
+    margin-bottom: 3px;
+    align-items: flex-start;
+}
+
+.tc-badge-spoofer-log-time {
+    color: #85c0f9;
+    font-weight: 500;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.tc-badge-spoofer-log-msg {
+    color: #f2f3f5;
+    flex-grow: 1;
+}
+
+.tc-badge-spoofer-log-msg.info {
+    color: #dbdee1;
+}
+
+.tc-badge-spoofer-log-msg.success {
+    color: #57f287;
+    font-weight: 600;
+}
+
+.tc-badge-spoofer-log-msg.warn {
+    color: #fee75c;
+}
+
+.tc-badge-spoofer-log-msg.error {
+    color: #ed4245;
+    font-weight: 600;
+}
