@@ -8,14 +8,14 @@
     border-radius: var(--radius-sm, 8px);
     font-family: var(--font-primary);
     text-align: start;
-    transition: 0ms;
+    transition: 50ms ease-in;
     transition-property: background-color, color, border-color, opacity;
     background: var(--control-secondary-background-default);
     color: var(--text-default);
     white-space: nowrap;
 
     &:hover {
-        transition: 0ms;
+        transition: .15s ease-out;
     }
 
     &:disabled {
@@ -215,33 +215,4 @@
 
 .vc-text-btn-link {
     color: var(--text-link);
-}
-
-/* ——— Testcord universal hover instant (servers/channels/members/modals/messages/buttons) ——— */
-/* 796 hover + 465 transition in vencord-css-core cause perceptible lag on every hover/drag/modal.
-   Force instant hover for the areas user reported: guilds, member list, channel list, layers/modals, messages, buttons. */
-[class*="guilds"] [class*="listItem"],
-[class*="members"] [class*="member"],
-[class*="sidebar"] [class*="containerDefault"],
-[class*="layer"] ,
-[class*="modal"] ,
-[class*="message"] ,
-[class*="scroller"] {
-    transition-duration: 0ms !important;
-    animation-duration: 0ms !important;
-}
-[class*="guilds"] [class*="listItem"]:hover,
-[class*="members"] [class*="memberInner"]:hover,
-[class*="sidebar"] [class*="containerDefault"]:hover,
-[class*="layer"]:hover,
-[class*="modal"]:hover,
-[class*="message"]:hover,
-[class*="scroller"]:hover {
-    transition: none !important;
-}
-/* message hover bg + button hover bg instant */
-[class*="messageListItem"]:hover,
-[class*="message"]:hover {
-    transition: none !important;
-    animation: none !important;
 }

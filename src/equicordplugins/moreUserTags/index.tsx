@@ -12,7 +12,7 @@ import { classNameFactory } from "@utils/css";
 import { getCurrentChannel, getIntlMessage } from "@utils/discord";
 import definePlugin from "@utils/types";
 import { Channel, Message, User } from "@vencord/discord-types";
-import { ChannelStore, GuildMemberStore, GuildRoleStore, GuildStore, PermissionsBits, SelectedChannelStore, UserStore, useStateFromStores } from "@webpack/common";
+import { ChannelStore, GuildStore, PermissionsBits, SelectedChannelStore, UserStore } from "@webpack/common";
 
 import { computePermissions, Tag, tags } from "./consts";
 import { settings } from "./settings";
@@ -22,7 +22,7 @@ const cl = classNameFactory("vc-mut-");
 
 const permCache = new Map<string, { perms: bigint; at: number; }>();
 const MAX_CACHE = 500;
-const CACHE_TTL_MS = 30_000;
+const CACHE_TTL_MS = 10_000;
 
 function cacheKey(userId: string, guildId: string): string {
     return `${userId}:${guildId}`;
@@ -95,17 +95,12 @@ export default definePlugin({
         return SelectedChannelStore.getChannelId();
     },
     renderNicknameIcon(props) {
-        const channelId = this.getChannelId();
-        const tagId = useStateFromStores(
-            [GuildStore, GuildMemberStore, GuildRoleStore, ChannelStore, UserStore, SelectedChannelStore],
-            () => this.getTag({
-                user: UserStore.getUser(props.userId),
-                channel: getCurrentChannel(),
-                channelId,
-                isChat: false
-            }),
-            [props.userId, channelId]
-        );
+        const tagId = this.getTag({
+            user: UserStore.getUser(props.userId),
+            channel: getCurrentChannel(),
+            channelId: this.getChannelId(),
+            isChat: false
+        });
 
         return tagId && <Tag
             type={tagId}
@@ -114,18 +109,12 @@ export default definePlugin({
 
     },
     renderMessageDecoration(props) {
-        const channelId = props.message.channel_id;
-        const userId = props.message.author?.id;
-        const tagId = useStateFromStores(
-            [GuildStore, GuildMemberStore, GuildRoleStore, ChannelStore, UserStore],
-            () => this.getTag({
-                message: props.message,
-                user: userId ? UserStore.getUser(userId) ?? props.message.author : props.message.author,
-                channelId,
-                isChat: true
-            }),
-            [userId, channelId]
-        );
+        const tagId = this.getTag({
+            message: props.message,
+            user: props.message.author,
+            channelId: props.message.channel_id,
+            isChat: true
+        });
 
         return tagId && <Tag
             useRemSizes={true}
@@ -135,17 +124,12 @@ export default definePlugin({
         </Tag>;
     },
     renderMemberListDecorator(props) {
-        const channelId = this.getChannelId();
-        const tagId = useStateFromStores(
-            [GuildStore, GuildMemberStore, GuildRoleStore, ChannelStore, UserStore, SelectedChannelStore],
-            () => this.getTag({
-                user: props.user,
-                channel: getCurrentChannel(),
-                channelId,
-                isChat: false
-            }),
-            [props.user.id, channelId]
-        );
+        const tagId = this.getTag({
+            user: props.user,
+            channel: getCurrentChannel(),
+            channelId: this.getChannelId(),
+            isChat: false
+        });
 
         return tagId && <Tag
             type={tagId}
