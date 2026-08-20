@@ -139,8 +139,9 @@ export default definePlugin({
         setStyleClassNames(slideStyle, { messageListItem: messageClasses.messageListItem });
         applyStyle();
 
+        const chatContainer = document.querySelector('[class*="scrollerInner"]') || document.querySelector('[data-list-id="chat-messages"]') || document.body;
         observer = new MutationObserver(handleMutations);
-        observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(chatContainer, { childList: true, subtree: true });
     },
 
     stop() {

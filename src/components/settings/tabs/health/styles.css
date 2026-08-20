@@ -178,6 +178,7 @@
 
 .vc-health-stats-grid {
     display: grid;
+
     /* Five stat cards — always one row so the last card doesn't wrap below. */
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 0.75rem;
@@ -202,6 +203,7 @@
     font-size: 1.25rem;
     font-weight: 700;
     color: var(--header-primary, #f2f3f5);
+
     /* Values update constantly — keep them on exactly one line with stable
        digit widths so the cards never grow/shrink and jiggle the row. */
     white-space: nowrap;

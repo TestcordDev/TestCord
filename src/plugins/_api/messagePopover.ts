@@ -51,7 +51,7 @@ export default definePlugin({
                 {
                     match: /\{togglePopout:\i,.+?message:(\i)\}\)\]\}\):null,.*?\(?\(0,\i\.jsx\)\((\i),\{label:/,
                     replace: (_, message, buttonComponent) => {
-                        const i = _.indexOf('):null,') + 7;
+                        const i = _.indexOf("):null,") + 7;
                         return _.slice(0, i) + `Vencord.Api.MessagePopover._buildPopoverElements(Vencord.Api.MessagePopover._captureToolbarButton(${buttonComponent}),${message}),` + _.slice(i);
                     }
                 },
@@ -59,7 +59,7 @@ export default definePlugin({
                 {
                     noWarn: true,
                     match: /\{togglePopout:\i,.+?message:(\i)\}\)\]\}\):null,(?!Vencord\.Api\.MessagePopover)/,
-                    replace: `$&Vencord.Api.MessagePopover._buildPopoverElements(null,$1),`
+                    replace: "$&Vencord.Api.MessagePopover._buildPopoverElements(null,$1),"
                 },
                 // Fallback 1: PTB/Stable - simpler react button with togglePopout (no Fragment)
                 {
