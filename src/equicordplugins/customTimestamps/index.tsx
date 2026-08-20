@@ -13,11 +13,38 @@ import { Link } from "@components/Link";
 import { Paragraph } from "@components/Paragraph";
 import { Devs, EquicordDevs } from "@utils/constants";
 import { Margins } from "@utils/margins";
-import { useForceUpdater } from "@utils/react";
 import definePlugin, { OptionType } from "@utils/types";
-import { moment, TextInput, useEffect, useState } from "@webpack/common";
+import { moment, TextInput, useEffect, useReducer, useState } from "@webpack/common";
 
 import { DemoMessageContainer, timeFormats } from "./utils";
+
+// ── Global 1s ticker: 1 interval for all timestamps instead of N per-message intervals ──
+const tickListeners = new Set<() => void>();
+let tickInterval: ReturnType<typeof setInterval> | null = null;
+function ensureTicker() {
+    if (tickInterval !== null) return;
+    tickInterval = setInterval(() => {
+        for (const cb of tickListeners) try { cb(); } catch { }
+    }, 1000);
+}
+function subscribeTick(cb: () => void) {
+    tickListeners.add(cb);
+    ensureTicker();
+    return () => {
+        tickListeners.delete(cb);
+        if (tickListeners.size === 0 && tickInterval !== null) {
+            clearInterval(tickInterval);
+            tickInterval = null;
+        }
+    };
+}
+function useGlobalTick(enabled: boolean) {
+    const [, forceUpdate] = useReducer(x => x + 1, 0);
+    useEffect(() => {
+        if (!enabled) return;
+        return subscribeTick(forceUpdate);
+    }, [enabled]);
+}
 
 type TimeFormat = {
     name: string;
@@ -174,7 +201,6 @@ export default definePlugin({
     ],
 
     renderTimestamp: (date: Date, type: "cozy" | "compact" | "tooltip" | "ariaLabel") => {
-        const forceUpdater = useForceUpdater();
         let formatTemplate: string;
 
         switch (type) {
@@ -191,12 +217,8 @@ export default definePlugin({
                 formatTemplate = settings.store.formats?.ariaLabelFormat || timeFormats.ariaLabelFormat.default;
         }
 
-        useEffect(() => {
-            if (formatTemplate.includes("calendar") || formatTemplate.includes("relative")) {
-                const interval = setInterval(forceUpdater, 1000);
-                return () => clearInterval(interval);
-            }
-        }, []);
+        const needsTick = formatTemplate.includes("calendar") || formatTemplate.includes("relative");
+        useGlobalTick(needsTick);
 
         return format(date, formatTemplate);
     }

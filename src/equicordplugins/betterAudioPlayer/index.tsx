@@ -125,11 +125,20 @@ function Visualizer({ playerRef, src }: { playerRef: React.RefObject<HTMLAudioEl
         if (!audio || !canvas) return () => { };
 
         let cancelled = false;
+        // Track previous blob so src changes revoke old URL even if init never completed
+        const prevBlob = blobUrlRef.current;
+        blobUrlRef.current = null;
 
         const init = async () => {
             const blobUrl = await fetchAudioBlob(src).catch(() => null);
-            if (cancelled || !blobUrl) return;
+            if (cancelled) {
+                if (blobUrl) URL.revokeObjectURL(blobUrl);
+                return;
+            }
+            if (!blobUrl) return;
 
+            // revoke previous blob on src change
+            if (prevBlob) try { URL.revokeObjectURL(prevBlob); } catch { }
             blobUrlRef.current = blobUrl;
 
             const wasPlaying = !audio.paused;
@@ -137,10 +146,20 @@ function Visualizer({ playerRef, src }: { playerRef: React.RefObject<HTMLAudioEl
             audio.src = blobUrl;
             audio.currentTime = currentTime;
 
-            const audioCtx = new AudioContext();
+            let audioCtx: AudioContext | null = null;
+            try {
+                audioCtx = new AudioContext();
+            } catch { return; }
+            if (cancelled) { try { audioCtx.close(); } catch { } if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; } return; }
             const analyser = audioCtx.createAnalyser();
             analyser.fftSize = 2048;
-            const source = audioCtx.createMediaElementSource(audio);
+            let source: MediaElementAudioSourceNode | null = null;
+            try {
+                source = audioCtx.createMediaElementSource(audio);
+            } catch {
+                try { audioCtx.close(); } catch { }
+                return;
+            }
             source.connect(analyser);
             analyser.connect(audioCtx.destination);
             audioCtxRef.current = audioCtx;
@@ -199,16 +218,20 @@ function Visualizer({ playerRef, src }: { playerRef: React.RefObject<HTMLAudioEl
             audio.removeEventListener("play", onPlay);
             audio.removeEventListener("pause", onPause);
             cancelAnimationFrame(animFrameRef.current);
-            audioCtxRef.current?.close();
-            audioCtxRef.current = null;
+            if (audioCtxRef.current) {
+                try { audioCtxRef.current.close(); } catch { }
+                audioCtxRef.current = null;
+            }
             analyserRef.current = null;
             setupDoneRef.current = false;
             if (blobUrlRef.current) {
-                URL.revokeObjectURL(blobUrlRef.current);
+                try { URL.revokeObjectURL(blobUrlRef.current); } catch { }
                 blobUrlRef.current = null;
+            } else if (prevBlob) {
+                try { URL.revokeObjectURL(prevBlob); } catch { }
             }
         };
-    }, [playerRef]);
+    }, [playerRef, src]);
 
     React.useEffect(() => {
         const canvas = canvasRef.current;

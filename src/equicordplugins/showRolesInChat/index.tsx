@@ -55,7 +55,9 @@ function getHighestRole(guildId: string, userId: string, excludedRoles?: string[
         }
         return null;
     }
-    const role = GuildRoleStore.getSortedRoles(guildId).find(r => roles.includes(r.id) && !excludedRoles?.includes(r.id));
+    const roleSet = new Set(roles);
+    const excludedSet = excludedRoles?.length ? new Set(excludedRoles) : null;
+    const role = GuildRoleStore.getSortedRoles(guildId).find(r => roleSet.has(r.id) && !excludedSet?.has(r.id));
     const result = role ? { roleId: role.id, name: role.name, colorString: role.colorString ?? null } : null;
     roleCache.set(key, result);
     if (roleCache.size > MAX_ROLE_CACHE) {

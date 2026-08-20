@@ -28,6 +28,10 @@ export interface GroupData {
     inviteLink?: string;
 }
 
+const MAX_USERS_PER_GROUP = 500;
+const MAX_GROUPS = 100;
+const MAX_TOTAL_USERS = 5000;
+
 export class Data {
     declare usersCollection: Record<string, GroupData>;
     declare _storageAutoSaveProtocol_interval;
@@ -81,19 +85,39 @@ export class Data {
         const target = this.usersCollection;
         const processedGuilds = new Set<string>();
 
+        // enforce group cap
+        if (Object.keys(target).length > MAX_GROUPS) {
+            const keys = Object.keys(target);
+            for (let i = 0; i < keys.length - MAX_GROUPS; i++) delete target[keys[i]];
+        }
+
         for (const { user, source, extra } of array) {
             if (!user || user.bot) {
                 continue;
             }
 
             const groupKey = source?.id ?? "dm";
-            const group = (target[groupKey] ||= {
-                name: source?.name || "dm",
-                id: source?.id ?? "dm",
-                users: {},
-                inviteLink: undefined
-            });
+            let group = target[groupKey];
+            if (!group) {
+                if (Object.keys(target).length >= MAX_GROUPS) continue;
+                group = (target[groupKey] = {
+                    name: source?.name || "dm",
+                    id: source?.id ?? "dm",
+                    users: {},
+                    inviteLink: undefined
+                });
+            }
             const usersField = group.users;
+            if (!usersField[user.id] && Object.keys(usersField).length >= MAX_USERS_PER_GROUP) {
+                // LRU: evict oldest (first key)
+                const oldest = Object.keys(usersField)[0];
+                if (oldest) delete usersField[oldest];
+            }
+            // global cap check
+            let total = 0;
+            for (const g of Object.values(target)) total += Object.keys(g.users).length;
+            if (total >= MAX_TOTAL_USERS && !usersField[user.id]) continue;
+
             const previouExtra = usersField[user.id]?.extra ?? {};
             const { id, username } = user;
 
@@ -169,9 +193,10 @@ export class Data {
     }
 
     storageAutoSaveProtocol() {
+        // 5min instead of 3min to reduce GC pressure from JSON.stringify of large collection
         this._storageAutoSaveProtocol_interval = setInterval(
             this.updateStorage.bind(this),
-            60_000 * 3
+            60_000 * 5
         );
     }
 }

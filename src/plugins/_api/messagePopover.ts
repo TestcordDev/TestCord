@@ -46,12 +46,20 @@ export default definePlugin({
         {
             find: "#{intl::MESSAGE_UTILITIES_A11Y_LABEL}",
             replacement: [
-                // Primary: Canary build pattern
-                // Matches the react button with togglePopout inside a Fragment wrapper
+                // Primary: New Discord Canary - togglePopout and message are in the same
+                // nE component call, followed by a np toolbar button with {label:
                 {
-                    match: /(?<=\]\}\)),(.{0,40}togglePopout:.+?\}\))\]\}\):null,(?<=\((\i),\{label:.+?:null,(\i)\?\(0,\i\.jsxs?\)\(\i\.Fragment.+?message:(\i).+?)/,
-                    replace: (_, ReactButton, ButtonComponent, showReactButton, message) => "" +
-                        `]}):null,Vencord.Api.MessagePopover._buildPopoverElements(Vencord.Api.MessagePopover._captureToolbarButton(${ButtonComponent}),${message}),${showReactButton}?${ReactButton}:null,`
+                    match: /\{togglePopout:\i,.+?message:(\i)\}\)\]\}\):null,.*?\(?\(0,\i\.jsx\)\((\i),\{label:/,
+                    replace: (_, message, buttonComponent) => {
+                        const i = _.indexOf('):null,') + 7;
+                        return _.slice(0, i) + `Vencord.Api.MessagePopover._buildPopoverElements(Vencord.Api.MessagePopover._captureToolbarButton(${buttonComponent}),${message}),` + _.slice(i);
+                    }
+                },
+                // Fallback: New Discord Canary - match togglePopout component, inject without button capture
+                {
+                    noWarn: true,
+                    match: /\{togglePopout:\i,.+?message:(\i)\}\)\]\}\):null,(?!Vencord\.Api\.MessagePopover)/,
+                    replace: `$&Vencord.Api.MessagePopover._buildPopoverElements(null,$1),`
                 },
                 // Fallback 1: PTB/Stable - simpler react button with togglePopout (no Fragment)
                 {

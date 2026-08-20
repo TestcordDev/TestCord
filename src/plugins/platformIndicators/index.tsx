@@ -88,14 +88,24 @@ const PlatformIcon = ({ platform, status, small, style }: { platform: any; statu
     return <Icon color={useStatusFillColor(status)} tooltip={tooltip} small={small} style={style} />;
 };
 
+let lastSessionsRef: object | null = null;
+let lastOwnStatus: Record<string, string> | null = null;
+// Only sync own status when sessions actually change — not per-message.
+// Called from OwnStatusSync which only mounts for own-user rows (1-2 instances vs 50).
 function useEnsureOwnStatus(user: User) {
-// Member list rows are recycled across users as you scroll, so this instance can go from
-    // rendering someone else to rendering you. Gating the hook on that made the hook count
-    // flip and tore down the row mid-render.
     const isOwnUser = user?.id === AuthenticationStore.getId();
     const sessions = useStateFromStores([SessionsStore], () => SessionsStore.getSessions());
 
     if (!isOwnUser || typeof sessions !== "object") return;
+    // sessions object identity changes on every SessionStore update, but contents often same —
+    // reuse last computed ownStatus to avoid sort+reduce+mutation churn
+    if (sessions === lastSessionsRef && lastOwnStatus) {
+        const { clientStatuses } = PresenceStore.getState();
+        if (clientStatuses[UserStore.getCurrentUser()?.id] !== lastOwnStatus)
+            clientStatuses[UserStore.getCurrentUser().id] = lastOwnStatus;
+        return;
+    }
+
     const sortedSessions = Object.values(sessions).sort(({ status: a }, { status: b }) => {
         if (a === b) return 0;
         if (a === "online") return 1;
@@ -105,14 +115,16 @@ function useEnsureOwnStatus(user: User) {
         return 0;
     });
 
-    const ownStatus = Object.values(sortedSessions).reduce((acc, curr) => {
+    const ownStatus: Record<string, string> = {};
+    for (const curr of sortedSessions) {
         if (curr.clientInfo.client !== "unknown")
-            acc[curr.clientInfo.client] = curr.status;
-        return acc;
-    }, {});
+            ownStatus[curr.clientInfo.client] = curr.status;
+    }
 
-    const { clientStatuses } = PresenceStore.getState();
-    clientStatuses[UserStore.getCurrentUser().id] = ownStatus;
+    lastSessionsRef = sessions;
+    lastOwnStatus = ownStatus;
+    const currentId = UserStore.getCurrentUser()?.id;
+    if (currentId) PresenceStore.getState().clientStatuses[currentId] = ownStatus;
 }
 
 interface PlatformIndicatorProps {

@@ -42,6 +42,7 @@ const processedPayloads = new WeakSet<any>();
 // them, so they grew for every logged message the client rendered. Same cap, same setting.
 const mergedMessageCache = new LimitedMap<string, LoggedMessageJSON>();
 const mergedEditTimestamps = new LimitedMap<string, number>();
+const lastChannelFetch = new Map<string, number>();
 
 const cacheThing = findByPropsLazy("commit", "getOrCreate");
 
@@ -428,9 +429,21 @@ export default definePlugin({
             const collection = MessageStore.getMessages(channelId);
             if (!collection?.hasFetched) return;
 
-            // Discord skips refetching already-loaded channels, so the LOAD_MESSAGES_SUCCESS getter
-            // never runs for them and messages deleted while away never reappear. Force a fetch
-            // without focus so it goes through the patched dispatch path that re-adds them.
+            // Throttle: at most one refetch per channel per 30s, and only if we actually have
+            // deleted/edited logs for that channel (avoid spamming API on every tab switch).
+            const now = Date.now();
+            const last = lastChannelFetch.get(channelId) ?? 0;
+            if (now - last < 30_000) return;
+            // only fetch if cache has any logged msg for channel
+            let hasLogged = false;
+            try {
+                for (const v of idb.cachedMessages.values()) {
+                    if ((v as any).channel_id === channelId && ((v as any).deleted || (v as any).editHistory?.length)) { hasLogged = true; break; }
+                }
+            } catch { hasLogged = true; }
+            if (!hasLogged) return;
+            lastChannelFetch.set(channelId, now);
+
             MessageActions.fetchMessages({ channelId, limit: 50 });
         },
     },

@@ -144,23 +144,42 @@ export const settings = definePluginSettings({
     }
 });
 
+const formatterCache = new Map<string, Intl.DateTimeFormat>();
+const MAX_FORMATTER_CACHE = 100;
+function getCachedFormatter(timezone: string, optsKey: string, localeStr: string, hour12: boolean, props: Intl.DateTimeFormatOptions) {
+    const key = `${localeStr}|${timezone}|${hour12 ? 1 : 0}|${optsKey}`;
+    let f = formatterCache.get(key);
+    if (f) return f;
+    f = new Intl.DateTimeFormat(localeStr, { hour12, timeZone: timezone, ...props });
+    if (formatterCache.size >= MAX_FORMATTER_CACHE) {
+        const first = formatterCache.keys().next().value;
+        if (first) formatterCache.delete(first);
+    }
+    formatterCache.set(key, f);
+    return f;
+}
 function getTime(timezone: string, timestamp: string | number, props: Intl.DateTimeFormatOptions = {}) {
     const date = new Date(timestamp);
-    const formatter = new Intl.DateTimeFormat(locale.getLocale() ?? "en-US", {
-        hour12: !settings.store.twentyFourHourFormat,
-        timeZone: timezone,
-        ...props
-    });
-    return formatter.format(date);
+    const localeStr = locale.getLocale() ?? "en-US";
+    const hour12 = !settings.store.twentyFourHourFormat;
+    const optsKey = JSON.stringify(props);
+    return getCachedFormatter(timezone, optsKey, localeStr, hour12, props).format(date);
 }
 
 function getTimezoneAbbreviation(timezone: string, timestamp: string | number) {
     const date = new Date(timestamp);
-    const formatter = new Intl.DateTimeFormat(locale.getLocale() ?? "en-US", {
-        timeZone: timezone,
-        timeZoneName: "short"
-    });
-    const parts = formatter.formatToParts(date);
+    const localeStr = locale.getLocale() ?? "en-US";
+    const key = `${localeStr}|${timezone}|abbr`;
+    let f = formatterCache.get(key);
+    if (!f) {
+        f = new Intl.DateTimeFormat(localeStr, { timeZone: timezone, timeZoneName: "short" });
+        if (formatterCache.size >= MAX_FORMATTER_CACHE) {
+            const first = formatterCache.keys().next().value;
+            if (first) formatterCache.delete(first);
+        }
+        formatterCache.set(key, f);
+    }
+    const parts = f.formatToParts(date);
     const timeZonePart = parts.find(part => part.type === "timeZoneName");
     return timeZonePart ? timeZonePart.value : "";
 }
