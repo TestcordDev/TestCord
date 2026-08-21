@@ -11,12 +11,39 @@ import { ColorPicker, React } from "@webpack/common";
 
 const STYLE_ID = "smooth-typing-style";
 const CARET_ID = "smooth-typing-caret";
+const SMOOTH_STYLE_ID = "vc-smoothtype";
+const SMOOTH_CARET_ID = "vc-smoothtype-caret";
 
 let caretEl: HTMLDivElement | null = null;
 let rafId: number | null = null;
 let tracking = false;
 
 const settings = definePluginSettings({
+    smoothTyping: {
+        type: OptionType.BOOLEAN,
+        description: "Smooth typing caret (the full SmoothType implementation). When on, all other caret settings below are ignored",
+        default: true,
+        restartNeeded: false,
+        onChange() { applySettings(); }
+    },
+    transitionDelay: {
+        type: OptionType.NUMBER,
+        description: "Smooth typing: transition delay (ms)",
+        default: 75,
+        onChange() { applySmoothCSS(); }
+    },
+    animationType: {
+        type: OptionType.SELECT,
+        description: "Smooth typing: animation type",
+        options: [
+            { label: "Ease", value: "ease", default: true },
+            { label: "Linear", value: "linear" },
+            { label: "Ease-in", value: "ease-in" },
+            { label: "Ease-out", value: "ease-out" },
+            { label: "Ease-in-out", value: "ease-in-out" }
+        ],
+        onChange() { applySmoothCSS(); }
+    },
     smoothCaret: {
         type: OptionType.BOOLEAN,
         description: "Enable smooth caret (cursor) animation",
@@ -63,6 +90,7 @@ const settings = definePluginSettings({
                 onChange={(color: any) => {
                     settings.store.caretColor = color;
                     applySettings();
+                    applySmoothCSS();
                 }}
                 showEyeDropper={true}
             />
@@ -92,7 +120,7 @@ function injectCSS() {
     removeCSS();
     const style = document.createElement("style");
     style.id = STYLE_ID;
-    const { fadeSpeed, smoothChars, smoothScrollbar, scrollbarColor } = settings.store;
+    const { fadeSpeed, smoothChars, smoothScrollbar, scrollbarColor, smoothTyping } = settings.store;
 
     style.textContent = `
         /* Hide original caret. caret-color inherits, so setting it on the editor covers the
@@ -117,7 +145,7 @@ ${smoothChars ? `
                 filter: blur(0px);
             }
         }
-
+${smoothTyping ? "" : `
         /* Custom caret */
         #${CARET_ID} {
             position: fixed;
@@ -137,7 +165,7 @@ ${smoothChars ? `
             0%, 100% { opacity: 1; }
             50%       { opacity: 0; }
         }
-
+`}
         ${smoothScrollbar ? `
         /* Smooth Scrollbar */
         [class*="slateTextArea"] {
@@ -279,13 +307,234 @@ function resetBlinkOnKey() {
     caretEl.style.animation = "";
 }
 
+/* -------------------------------------------------------------------------- */
+/*                          SmoothType (verbatim port)                        */
+/* -------------------------------------------------------------------------- */
+
+function toHex(n: number) {
+    return `#${n.toString(16).padStart(6, "0")}`;
+}
+
+function buildSmoothCSS(): string {
+    const color = toHex(settings.store.caretColor ?? 0xffffff);
+    const ms = settings.store.transitionDelay ?? 60;
+    const easing = settings.store.animationType ?? "ease";
+    return `
+@keyframes vc-blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+}
+#${SMOOTH_CARET_ID}.is-blinking {
+    animation: vc-blink 1s ease-in-out infinite;
+}
+#${SMOOTH_CARET_ID} {
+    position: fixed;
+    top: 0; left: 0;
+    transform: translate3d(0, 0, 0);
+    width: 2px;
+    border-radius: 2px;
+    background: ${color};
+    pointer-events: none;
+    z-index: 99999;
+    display: none;
+    will-change: transform, height;
+    transition: transform ${ms}ms ${easing}, height ${ms}ms ${easing};
+}
+[data-slate-editor] { caret-color: transparent !important; }
+`;
+}
+
+function getSmoothCaret(): HTMLDivElement {
+    let el = document.getElementById(SMOOTH_CARET_ID) as HTMLDivElement | null;
+    if (!el) {
+        el = document.createElement("div");
+        el.id = SMOOTH_CARET_ID;
+        document.body.appendChild(el);
+    }
+    return el;
+}
+
+let blinkTimer: ReturnType<typeof setTimeout> | null = null;
+
+function startBlink() { getSmoothCaret().classList.add("is-blinking"); }
+
+function stopBlink() {
+    getSmoothCaret().classList.remove("is-blinking");
+    if (blinkTimer) clearTimeout(blinkTimer);
+    blinkTimer = setTimeout(startBlink, 1000);
+}
+
+function applyCaretPosition() {
+    const el = getSmoothCaret();
+    if (!document.activeElement?.closest("[data-slate-editor]")) {
+        el.style.display = "none"; return;
+    }
+    const sel = window.getSelection();
+    if (!sel?.rangeCount) { el.style.display = "none"; return; }
+    const range = sel.getRangeAt(0).cloneRange();
+    range.collapse(false);
+    const rects = range.getClientRects();
+    let rect: DOMRect | null = rects.length > 0 ? rects[rects.length - 1] : null;
+    if (!rect || rect.height === 0) {
+        const node = range.startContainer;
+        const parent = (node.nodeType === Node.TEXT_NODE ? node.parentElement : node) as HTMLElement | null;
+        if (parent) rect = parent.getBoundingClientRect();
+    }
+    if (!rect || rect.height === 0) { el.style.display = "none"; return; }
+    const newTransform = `translate3d(${rect.right}px, ${rect.top}px, 0)`;
+    if (el.style.transform !== newTransform) {
+        if (el.style.display !== "none") stopBlink();
+    }
+    el.style.display = "block";
+    el.style.transform = newTransform;
+    el.style.height = rect.height + "px";
+}
+
+let observer: MutationObserver | null = null;
+let scanQueued = false;
+let scanFrame: number | null = null;
+let caretQueued = false;
+let caretFrame: number | null = null;
+
+let observedEditor: Element | null = null;
+
+function hideSmoothCaret() {
+    const el = document.getElementById(SMOOTH_CARET_ID) as HTMLDivElement | null;
+    if (el) el.style.display = "none";
+}
+
+function scheduleApplyCaretPosition() {
+    if (!document.activeElement?.closest("[data-slate-editor]")) {
+        hideSmoothCaret();
+        return;
+    }
+    if (caretQueued) return;
+
+    caretQueued = true;
+    caretFrame = requestAnimationFrame(() => {
+        caretFrame = null;
+        caretQueued = false;
+        applyCaretPosition();
+    });
+}
+
+// The caret moves on selection changes (typing, arrows, clicks), which the direct
+// listeners already handle synchronously. The observer only needs to catch the rarer
+// case where the editor reflows without a selection change (line wrap, input growth).
+// Observing the focused editor element instead of document.body means Discord's constant
+// body-subtree churn (typing indicators, message list, popouts) never wakes it, which is
+// what caused the typing lag spikes.
+function observeEditor() {
+    const editor = document.activeElement?.closest("[data-slate-editor]") ?? null;
+    if (editor === observedEditor) return;
+    observer?.disconnect();
+    observedEditor = editor;
+    if (editor) observer?.observe(editor, { childList: true, subtree: true, characterData: true });
+}
+
+function startObserver() {
+    observer = new MutationObserver(() => {
+        if (scanQueued) return;
+        scanQueued = true;
+        scanFrame = requestAnimationFrame(() => {
+            scanFrame = null;
+            scanQueued = false;
+            if (observer) applyCaretPosition();
+        });
+    });
+}
+
+function stopObserver() {
+    observer?.disconnect();
+    observer = null;
+    observedEditor = null;
+    if (scanFrame !== null) {
+        cancelAnimationFrame(scanFrame);
+        scanFrame = null;
+    }
+    if (caretFrame !== null) {
+        cancelAnimationFrame(caretFrame);
+        caretFrame = null;
+    }
+    scanQueued = false;
+    caretQueued = false;
+}
+
+const smoothHandlers = {
+    sel: () => scheduleApplyCaretPosition(),
+    focus: () => { observeEditor(); scheduleApplyCaretPosition(); },
+    blur: () => { observeEditor(); hideSmoothCaret(); },
+    key: () => scheduleApplyCaretPosition(),
+    click: (e: MouseEvent) => {
+        if (!(e.target instanceof Element) || !e.target.closest("[data-slate-editor]")) {
+            hideSmoothCaret();
+            return;
+        }
+        observeEditor();
+        scheduleApplyCaretPosition();
+    },
+};
+
+function startListeners() {
+    document.addEventListener("selectionchange", smoothHandlers.sel);
+    document.addEventListener("focusin", smoothHandlers.focus);
+    document.addEventListener("focusout", smoothHandlers.blur);
+    document.addEventListener("keyup", smoothHandlers.key, true);
+    document.addEventListener("click", smoothHandlers.click, true);
+}
+
+function stopListeners() {
+    document.removeEventListener("selectionchange", smoothHandlers.sel);
+    document.removeEventListener("focusin", smoothHandlers.focus);
+    document.removeEventListener("focusout", smoothHandlers.blur);
+    document.removeEventListener("keyup", smoothHandlers.key, true);
+    document.removeEventListener("click", smoothHandlers.click, true);
+}
+
+function applySmoothCSS() {
+    document.getElementById(SMOOTH_STYLE_ID)?.remove();
+    const s = document.createElement("style");
+    s.id = SMOOTH_STYLE_ID;
+    s.textContent = buildSmoothCSS();
+    document.head.appendChild(s);
+}
+
+function removeSmoothCSS() {
+    document.getElementById(SMOOTH_STYLE_ID)?.remove();
+}
+
+function startSmoothTyping() {
+    applySmoothCSS();
+    getSmoothCaret();
+    startObserver();
+    startListeners();
+}
+
+function stopSmoothTyping() {
+    stopObserver();
+    stopListeners();
+    removeSmoothCSS();
+    if (blinkTimer) clearTimeout(blinkTimer);
+    document.getElementById(SMOOTH_CARET_ID)?.remove();
+}
+
 function applySettings() {
-    const { smoothCaret, caretSpeed, caretEasing } = settings.store;
+    const { smoothCaret, caretSpeed, caretEasing, smoothTyping } = settings.store;
 
     document.documentElement.style.setProperty("--caret-speed", `${caretSpeed}ms`);
     document.documentElement.style.setProperty("--caret-easing", caretEasing ?? "ease");
 
     injectCSS();
+
+    if (smoothTyping) {
+        // SmoothType owns the caret completely; the legacy caret path stays off.
+        removeCaret();
+        stopTracking();
+        startSmoothTyping();
+        return;
+    }
+
+    stopSmoothTyping();
 
     if (smoothCaret) {
         createCaret();
@@ -300,6 +549,7 @@ function cleanup() {
     removeCSS();
     removeCaret();
     stopTracking();
+    stopSmoothTyping();
 }
 
 export default definePlugin({
