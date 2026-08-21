@@ -27,8 +27,9 @@ export const settings = definePluginSettings({
         type: OptionType.SELECT,
         description: "Where the tab strip sits",
         options: [
-            { label: "Top", value: "top", default: true },
-            { label: "Bottom", value: "bottom" }
+            { label: "In the title bar (like Discord's upcoming tabs)", value: "titlebar", default: true },
+            { label: "Top, above the app", value: "top" },
+            { label: "Bottom, below the app", value: "bottom" }
         ],
         restartNeeded: true
     },

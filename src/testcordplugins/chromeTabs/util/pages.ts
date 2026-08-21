@@ -48,18 +48,24 @@ export function getSyntheticPage(channelId: string | null | undefined): Syntheti
  *
  * Ordering matters: `/channels/@me/activity` must be tested before `/channels/@me`.
  */
-export function getSyntheticPageIdForPath(pathname: string): string | undefined {
-    if (pathname === "/channels/@me/activity") return "__activity__";
-    if (pathname === "/channels/@me") return "__friends__";
-
-    if (pathname.includes("quest-home")) return "__quests__";
-    if (pathname.includes("/message-requests")) return "__message-requests__";
-    if (pathname.includes("/discovery")) return "__discovery__";
-    if (pathname.includes("/library")) return "__library__";
-    if (pathname.includes("/icymi")) return "__icymi__";
-    if (pathname.includes("/shop")) return "__shop__";
+const PATH_ROUTES: [prefix: string, id: string][] = [
+    ["/channels/@me/activity", "__activity__"],
+    ["/channels/@me", "__friends__"],
+    ["/quest-home", "__quests__"],
+    ["/message-requests", "__message-requests__"],
+    ["/discovery", "__discovery__"],
+    ["/library", "__library__"],
+    ["/icymi", "__icymi__"],
+    ["/shop", "__shop__"],
     // `/store` is Nitro; checked after `/shop` since neither contains the other
-    if (pathname.includes("/store")) return "__nitro__";
+    ["/store", "__nitro__"]
+];
+
+export function getSyntheticPageIdForPath(pathname: string): string | undefined {
+    for (const [prefix, id] of PATH_ROUTES) {
+        // exact match or a subpath — never a coincidental substring
+        if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return id;
+    }
 
     return undefined;
 }

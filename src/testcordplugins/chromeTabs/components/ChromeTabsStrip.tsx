@@ -21,6 +21,11 @@ const cl = classNameFactory("tc-chrometabs-");
 /** Width reserved for the "+" button so tabs never overlap it */
 const NEW_TAB_BUTTON_WIDTH = 34;
 
+/** Below this width tabs drop their label (kept in sync with style.css) */
+export const NARROW_TAB_WIDTH = 88;
+/** Below this width tabs also drop the close button */
+export const TINY_TAB_WIDTH = 66;
+
 function matchesKeybind(e: KeyboardEvent) {
     const mod = e.ctrlKey || e.metaKey;
     if (!mod) return null;
@@ -32,12 +37,17 @@ function matchesKeybind(e: KeyboardEvent) {
     if (key === "tab") return e.shiftKey ? "prev" as const : "next" as const;
 
     const digit = Number.parseInt(e.key, 10);
-    if (!e.shiftKey && digit >= 1 && digit <= 9) return { jump: digit - 1 };
+    if (!e.shiftKey && digit >= 1 && digit <= 9) return { jump: digit };
 
     return null;
 }
 
-export function ChromeTabsStrip(props: TabTarget) {
+export interface ChromeTabsStripProps extends TabTarget {
+    /** compact styling for mounting inside Discord's title bar */
+    titleBar?: boolean;
+}
+
+export function ChromeTabsStrip({ guildId, channelId, titleBar }: ChromeTabsStripProps) {
     const forceUpdate = useForceUpdater();
     const [userId, setUserId] = useState("");
 
@@ -53,8 +63,8 @@ export function ChromeTabsStrip(props: TabTarget) {
     const isFullscreen = useStateFromStores([ChannelRTCStore], () => ChannelRTCStore.isFullscreenInContext() ?? false);
 
     // keep the newest navigation target around without re-running effects on every change
-    const targetRef = useRef(props);
-    targetRef.current = props;
+    const targetRef = useRef({ guildId, channelId });
+    targetRef.current = { guildId, channelId };
 
     // re-render whenever the tab store changes
     useEffect(() => subscribe(forceUpdate), [forceUpdate]);
@@ -118,14 +128,18 @@ export function ChromeTabsStrip(props: TabTarget) {
         const onKeyDown = (e: KeyboardEvent) => {
             const target = e.target as HTMLElement | null;
             if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
+            // Discord uses role="textbox" on some editable surfaces (quick switcher, chat bar variants)
+            if (target?.closest?.('[role="textbox"], select, [contenteditable="true"]')) return;
 
             const action = matchesKeybind(e);
             if (!action) return;
 
             if (typeof action === "object") {
-                if (getTabs()[action.jump]) {
+                // like Chrome: Ctrl+9 always jumps to the last tab
+                const index = action.jump === 9 ? getTabs().length - 1 : action.jump - 1;
+                if (getTabs()[index]) {
                     e.preventDefault();
-                    activateTabByIndex(action.jump);
+                    activateTabByIndex(index);
                 }
                 return;
             }
@@ -173,7 +187,7 @@ export function ChromeTabsStrip(props: TabTarget) {
 
     return (
         <div
-            className={cl("container")}
+            className={classes(cl("container"), titleBar && cl("container-titlebar"))}
             onContextMenu={e => ContextMenuApi.openContextMenu(e, () => (
                 <StripContextMenu onNewTab={openNewTab} />
             ))}
@@ -192,6 +206,9 @@ export function ChromeTabsStrip(props: TabTarget) {
                         isActive={tab.id === activeId}
                         canClose={tabCount > 1}
                         isDragging={dragIndex === index}
+                        isBeforeActive={tabs[index + 1]?.id === activeId}
+                        narrow={tabWidth < NARROW_TAB_WIDTH}
+                        tiny={tabWidth < TINY_TAB_WIDTH}
                         onDragStart={handleDragStart}
                         onDragEnter={handleDragEnter}
                         onDragEnd={handleDragEnd}
