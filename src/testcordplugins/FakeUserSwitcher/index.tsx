@@ -669,10 +669,7 @@ function patchStore() {
             }
         }
         const u = originalGetUser!.call(this, userId);
-        if (!isActive()) {
-            if (u && isCurrentUser(userId)) return wrapUser(u);
-            return u;
-        }
+        if (!isActive()) return u;
         if (!u) return u;
         if (!isCurrentUser(userId)) return u;
         return wrapUser(u);
@@ -683,10 +680,7 @@ function patchStore() {
         if (isGettingUsers || (settings.store.patchInternalAccountSwitcher && isAccountSwitcherCall())) {
             return u;
         }
-        if (!isActive()) {
-            if (u) return wrapUser(u);
-            return u;
-        }
+        if (!isActive()) return u;
         return wrapUser(u);
     };
 
