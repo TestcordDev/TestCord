@@ -161,7 +161,11 @@ export default definePlugin({
     settings,
     headerBarButton: {
         icon: ShieldIcon,
-        render: () => (settings.store.accountStandingButton ? <StandingButton /> : null),
+        // SafetyHubStore resolves asynchronously via waitForStore; the header bar can
+        // render before that. Mounting StandingButton while it's still undefined throws
+        // inside the first useStateFromStores and the button stays gone for the session,
+        // so gate the mount here instead — a later header re-render picks it up.
+        render: () => (settings.store.accountStandingButton && SafetyHubStore ? <StandingButton /> : null),
     },
     patches: [
         // Fixes Unknown Resolution/FPS Crashing
