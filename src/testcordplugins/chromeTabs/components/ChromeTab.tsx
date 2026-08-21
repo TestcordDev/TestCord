@@ -9,7 +9,7 @@ import { classNameFactory } from "@utils/css";
 import { getGuildAcronym, getUniqueUsername } from "@utils/discord";
 import { classes } from "@utils/misc";
 import { Channel, Guild, User } from "@vencord/discord-types";
-import { ActiveJoinedThreadsStore, Avatar, ChannelStore, ContextMenuApi, GuildStore, memo, PresenceStore, ReadStateStore, Tooltip, useCallback, UserStore, useStateFromStores } from "@webpack/common";
+import { ActiveJoinedThreadsStore, Avatar, ChannelStore, ContextMenuApi, GuildStore, PresenceStore, ReadStateStore, Tooltip, useCallback, UserStore, useStateFromStores } from "@webpack/common";
 
 import { ChannelTypeIcon, CircleQuestionIcon, CloseIcon, UsersIcon } from "../util/icons";
 import { getSyntheticPage } from "../util/pages";
@@ -208,7 +208,7 @@ export interface ChromeTabProps {
     onDragEnd: () => void;
 }
 
-export const ChromeTab = memo(function ChromeTab({
+export function ChromeTab({
     tab,
     index,
     isActive,
@@ -294,4 +294,4 @@ export const ChromeTab = memo(function ChromeTab({
             <div className={cl("separator")} />
         </div>
     );
-});
+}
