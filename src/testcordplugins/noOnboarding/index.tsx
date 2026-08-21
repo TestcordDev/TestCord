@@ -38,10 +38,15 @@ export default definePlugin({
             // calls a series of hooks. Injecting an early-return right after the opening
             // brace runs before any hook, so it's rules-of-hooks safe: when you're already
             // a member, render nothing instead of the onboarding flow.
+            //
+            // Rendering null alone leaves the parent gate mounted (it still sees the
+            // onboarding condition as true), which shows as a black screen — so we also
+            // kick off the bypass here, which clears the impersonation state the parent
+            // gate reads and lets the real channel view take over.
             find: "getOnboardingPromptsForOnboarding(t)),",
             replacement: {
                 match: /function ec\(e\)\{/,
-                replace: "function ec(e){if($self.shouldSkip(e.guildId))return null;"
+                replace: "function ec(e){if($self.shouldSkip(e.guildId)){$self.autoBypass(e.guildId);return null;}"
             }
         }
     ],
@@ -57,13 +62,30 @@ export default definePlugin({
 
     _gj: null as ((e: any) => void) | null,
 
+    // Guilds we've already auto-bypassed from the render patch, so re-renders
+    // of the (otherwise nulled) onboarding component don't spam the API.
+    _autoBypassed: new Set<string>(),
+
+    autoBypass(guildId: string) {
+        if (!guildId || this._autoBypassed.has(guildId)) return;
+        this._autoBypassed.add(guildId);
+        // Drop the NEW_MEMBER impersonation entry immediately so the parent
+        // render gate goes false and the channel view mounts instead of the
+        // now-nulled onboarding page (which would otherwise show as black).
+        FluxDispatcher.dispatch({ type: "IMPERSONATE_STOP", guildId });
+        this.bypassOnboard(guildId);
+    },
+
     handleGuildJoin(e: any) {
         // Ignore lurker/preview joins: the user isn't a member yet, so
         // GET /onboarding 404s ("Unknown Guild") and an uncaught rejection
         // can break the subsequent real join. Only bypass on a real join.
         if (e?.lurker) return;
         const guildId = e?.guildId;
-        if (guildId) this.bypassOnboard(guildId);
+        if (guildId) {
+            this._autoBypassed.add(guildId);
+            this.bypassOnboard(guildId);
+        }
     },
 
     start() {
