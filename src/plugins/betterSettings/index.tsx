@@ -112,7 +112,7 @@ export default definePlugin({
                 { // Lazy-load contents
                     match: /createPromise:\(\)=>([^:}]*?),webpackId:"?\d+"?,name:(?!="CollectiblesShop")"[^"]+"/g,
                     replace: "$&,_:$1",
-                    predicate: () => settings.store.eagerLoad
+                    predicate: () => settings.store.eagerLoad && false // disabled: eagerly loading all settings chunks causes modal lag with many plugins
                 }
             ]
         },
@@ -162,7 +162,7 @@ export default definePlugin({
                 match: /(?=handleOpenSettingsContextMenu=.{0,100}?null!=\i&&.{0,100}?(await [^};]*?\)\)))/,
                 replace: "_vencordBetterSettingsEagerLoad=(async ()=>$1)();"
             },
-            predicate: () => settings.store.eagerLoad
+            predicate: () => settings.store.eagerLoad && false // disabled: eager TOC load fights with lazy panels on big setups
         },
         { // Settings cog context menu
             find: "#{intl::USER_SETTINGS_ACTIONS_MENU_LABEL}",
