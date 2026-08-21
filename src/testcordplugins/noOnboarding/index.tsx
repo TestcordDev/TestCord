@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { Devs, EquicordDevs } from "@utils/constants";
 import { definePluginSettings } from "@api/Settings";
+import { Devs, EquicordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { FluxDispatcher, GuildMemberStore, RestAPI, UserStore } from "@webpack/common";
 
