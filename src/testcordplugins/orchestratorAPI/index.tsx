@@ -6,6 +6,7 @@
 
 import { globalPatches, navPatches } from "@api/ContextMenu";
 import { isPluginEnabled, plugins as Plugins } from "@api/PluginManager";
+import { RuntimeInterposition, RuntimeInterpositionPriority } from "@api/RuntimeInterposition";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
@@ -26,6 +27,11 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Batch rapid MESSAGE_CREATE events per-channel: only dispatch the latest message from each channel within a 100ms window. Drastically cuts React re-render storms in busy channels. Safe because intermediate messages settle into the store anyway via bulk fetch.",
         default: false,
+    },
+    presenceCoalesce: {
+        type: OptionType.BOOLEAN,
+        description: "Throttle PRESENCE_UPDATES storms: first event dispatches instantly, further bursts within 150ms collapse into one dispatch of the latest payload. Big servers spam hundreds of these per minute and each one re-renders the member list.",
+        default: true,
     },
     contextMenuHardening: {
         type: OptionType.BOOLEAN,
@@ -77,6 +83,63 @@ function maybeCoalesce(actionType: string, event: any): boolean {
     };
     pendingCoalesce.set(channelId, entry);
     return false;
+}
+
+// Dispatch-level PRESENCE_UPDATES throttle. Stores register via dispatch (not
+// subscribe), so throttling at the fan level never protected the member list from
+// re-render storms. Holding the payload here means both stores AND plugin handlers
+// see a reduced rate. Leading edge passes instantly; trailing fires with the newest
+// payload so final per-user state stays exact.
+const PRESENCE_COALESCE_MS = 150;
+let presenceHoldTimer: ReturnType<typeof setTimeout> | null = null;
+let heldPresenceEvent: any = null;
+let disposePresenceDispatchHook: (() => void) | null = null;
+type DispatchFn = (payload: any) => Promise<void>;
+let origPresenceDispatch: DispatchFn | null = null;
+
+function startPresenceThrottle() {
+    if (disposePresenceDispatchHook || typeof RuntimeInterposition === "undefined") return;
+    try {
+        disposePresenceDispatchHook = RuntimeInterposition.register({
+            owner: "OrchestratorAPI",
+            hook: "fluxDispatch",
+            priority: RuntimeInterpositionPriority.BEHAVIOR,
+            wrap: next => {
+                origPresenceDispatch = next as unknown as DispatchFn;
+                return (payload: any): Promise<void> => {
+                    if (!settings.store.presenceCoalesce || payload?.type !== "PRESENCE_UPDATES") {
+                        return origPresenceDispatch!(payload);
+                    }
+                    if (presenceHoldTimer === null) {
+                        // leading edge: pass through now, open hold window
+                        presenceHoldTimer = setTimeout(() => {
+                            presenceHoldTimer = null;
+                            const held = heldPresenceEvent;
+                            heldPresenceEvent = null;
+                            if (held && origPresenceDispatch) void origPresenceDispatch(held);
+                        }, PRESENCE_COALESCE_MS);
+                        return origPresenceDispatch!(payload);
+                    }
+                    heldPresenceEvent = payload;
+                    return Promise.resolve();
+                };
+            }
+        });
+    } catch (e) {
+        logger.error("Failed to install presence throttle,", e);
+        disposePresenceDispatchHook = null;
+    }
+}
+
+function stopPresenceThrottle() {
+    if (presenceHoldTimer !== null) {
+        clearTimeout(presenceHoldTimer);
+        presenceHoldTimer = null;
+    }
+    heldPresenceEvent = null;
+    disposePresenceDispatchHook?.();
+    disposePresenceDispatchHook = null;
+    origPresenceDispatch = null;
 }
 
 function clearAllCoalesce() {
@@ -321,12 +384,25 @@ export default definePlugin({
         } catch (e) {
             logger.error("Failed to start ContextMenuHardening,", e);
         }
+        try {
+            if (settings.store.presenceCoalesce) startPresenceThrottle();
+        } catch (e) {
+            logger.error("Failed to start presence throttle,", e);
+        }
         if (settings.store.messageCoalesce) {
             logger.info("MESSAGE_CREATE coalescing active (window:", COALESCE_MS, "ms)");
+        }
+        if (settings.store.presenceCoalesce) {
+            logger.info("PRESENCE_UPDATES throttling active (window:", PRESENCE_COALESCE_MS, "ms)");
         }
     },
 
     stop() {
+        try {
+            stopPresenceThrottle();
+        } catch (e) {
+            logger.error("Failed to stop presence throttle,", e);
+        }
         try {
             stopContextMenuHardening();
         } catch (e) {
