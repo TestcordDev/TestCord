@@ -96,12 +96,15 @@ const applyFont = async (fontFamily: string) => {
         }
 
         loadFontStyle(createGoogleFontUrl(fontFamily, ":wght@300;400;500;600;700"));
+        // :root instead of *: custom properties inherit, so this renders identically
+        // without forcing style recalc against every element on each DOM mutation.
+        // A universal * selector here was a major source of global hover lag.
         styleElement.textContent = `
-            * {
-                --font-primary: '${fontFamily}', sans-serif !important;
-                --font-display: '${fontFamily}', sans-serif !important;
-                --font-headline: '${fontFamily}', sans-serif !important;
-                ${settings.store.applyOnCodeBlocks ? "--font-code: '${fontFamily}', monospace !important;" : ""}
+            :root {
+                --font-primary: '${fontFamily}', sans-serif;
+                --font-display: '${fontFamily}', sans-serif;
+                --font-headline: '${fontFamily}', sans-serif;
+                ${settings.store.applyOnCodeBlocks ? "--font-code: '" + fontFamily + "', monospace;" : ""}
             }
         `;
     } catch (err) {

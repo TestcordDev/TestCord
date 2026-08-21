@@ -655,7 +655,7 @@ const settings = definePluginSettings({
     liveFix: {
         type: OptionType.BOOLEAN,
         description: "Start a local HTTP server (port 18963) for opencode to search webpack modules, read source code, and test patch patterns in real time.",
-        default: true,
+        default: false,
         onChange(value) {
             if (value) startLiveFixServer();
             else stopLiveFixServer();
