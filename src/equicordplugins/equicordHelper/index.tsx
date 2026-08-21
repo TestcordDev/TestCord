@@ -39,8 +39,8 @@ const StandingConfig: Record<number, { label: string; hoverColor: string; Icon: 
 };
 
 function StandingButton() {
-    const standing = useStateFromStores([SafetyHubStore], () => SafetyHubStore.getAccountStanding());
-    const isInitialized = useStateFromStores([SafetyHubStore], () => SafetyHubStore.isInitialized());
+    const standing = useStateFromStores([SafetyHubStore], () => SafetyHubStore.getAccountStanding?.());
+    const isInitialized = useStateFromStores([SafetyHubStore], () => SafetyHubStore.isInitialized?.() ?? false);
     const [hovered, setHovered] = React.useState(false);
 
     React.useEffect(() => {
