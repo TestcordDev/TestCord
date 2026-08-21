@@ -156,7 +156,9 @@ const settings = definePluginSettings({
     domThrottle: {
         type: OptionType.BOOLEAN,
         description: "Defer non-critical visual updates (activity, subText, botText, clan tags) via MutationObserver. The delayed visibility toggle can cause layout shifts with Discord's latest scroller, so off by default.",
-        default: false
+        default: false,
+        hidden: true,
+        disabled: true,
     },
     domThrottleDelay: {
         type: OptionType.SLIDER,
@@ -164,7 +166,9 @@ const settings = definePluginSettings({
         markers: [25, 50, 100, 150, 250, 500],
         default: 100,
         stickToMarkers: false,
-        restartNeeded: true
+        restartNeeded: true,
+        hidden: true,
+        disabled: true,
     },
     disableSpringAnimations: {
         type: OptionType.BOOLEAN,
@@ -232,7 +236,9 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Skip the unnecessary flushSync inside Discord's tooltip module. Smoother tooltip transitions.",
         default: false,
-        restartNeeded: true
+        restartNeeded: true,
+        hidden: true,
+        disabled: true,
     },
     optimizeEmojiCache: {
         type: OptionType.BOOLEAN,
@@ -298,7 +304,9 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Coalesce ResizeObserver callbacks via requestAnimationFrame. Can interfere with Discord's virtualized chat measurement after client updates, so it is off by default.",
         default: false,
-        restartNeeded: true
+        restartNeeded: true,
+        hidden: true,
+        disabled: true,
     },
     reduceMotion: {
         type: OptionType.BOOLEAN,
@@ -349,7 +357,9 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Consolidate multiple MutationObservers into a single shared observer with priority dispatch. Batching all mutations at rAF can cause late layout that Discord's scroller doesn't expect — off by default.",
         default: false,
-        restartNeeded: true
+        restartNeeded: true,
+        hidden: true,
+        disabled: true,
     },
     suppressReactionAnimations: {
         type: OptionType.BOOLEAN,
@@ -583,13 +593,17 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Add contain:content on major scroll containers to force GPU compositing layers. Reduces CPU-side paint work on scroll.",
         default: false,
-        restartNeeded: true
+        restartNeeded: true,
+        hidden: true,
+        disabled: true,
     },
     suppressIdleCallback: {
         type: OptionType.BOOLEAN,
         description: "Replace requestIdleCallback with a faster MessageChannel-based scheduler. Reduces idle callback latency for deferred work.",
         default: false,
-        restartNeeded: true
+        restartNeeded: true,
+        hidden: true,
+        disabled: true,
     },
 
     // --- Extended console suppression ---
@@ -1038,8 +1052,10 @@ export default definePlugin({
 
     patches: [
         {
+            // Disabled: measured via LoAF profiling. Rewriting flushSync to async
+            // setState delays tooltip mounting, which users perceive as laggy tooltips.
             find: "this.state.shouldShowTooltip!==",
-            predicate: () => settings.store.optimizeTooltips,
+            predicate: () => false,
             replacement: [
                 {
                     match: /\i\.flushSync\(\(\)=>\{this\.setState\(\{shouldShowTooltip:(\i)\}\)\}\)/,
@@ -1202,8 +1218,7 @@ export default definePlugin({
         if (settings.store.verboseLogging) logger.info("Starting optimizer suite");
 
         if (
-            settings.store.domThrottle
-            || settings.store.pauseOffscreenMedia
+            settings.store.pauseOffscreenMedia
             || settings.store.freezeGifsUntilHover && settings.store.gifFreezeMethod !== "css"
             || settings.store.lazyEmbedImages
             || settings.store.lazyIframes
@@ -1216,7 +1231,6 @@ export default definePlugin({
         ) {
             try { this.installConsolidatedObserver(); } catch (e) { logger.warn("installConsolidatedObserver failed", e); }
         }
-        try { if (settings.store.domThrottle) this.installDomThrottle(); } catch (e) { logger.warn("installDomThrottle failed", e); }
         try { if (settings.store.fastNetwork || settings.store.networkCache || settings.store.forceLowImageQuality) this.installNetworkLayer(); } catch (e) { logger.warn("installNetworkLayer failed", e); }
         try { if (settings.store.disableSpringAnimations) this.installSpringSkip(); } catch (e) { logger.warn("installSpringSkip failed", e); }
         try { if (settings.store.memoryManagement) this.installMemoryManager(); } catch (e) { logger.warn("installMemoryManager failed", e); }
@@ -1233,12 +1247,10 @@ export default definePlugin({
         try { if (settings.store.suppressConsoleTimers) this.installConsoleTimerBlocker(); } catch (e) { logger.warn("installConsoleTimerBlocker failed", e); }
         try { if (settings.store.killHoverTransitions) this.installHoverTransitionKiller(); } catch (e) { logger.warn("installHoverTransitionKiller failed", e); }
         try { if (settings.store.preconnectDiscordCdn) this.installPreconnect(); } catch (e) { logger.warn("installPreconnect failed", e); }
-        try { if (settings.store.forceCompositingLayers) this.installCompositingLayers(); } catch (e) { logger.warn("installCompositingLayers failed", e); }
         try { if (settings.store.freezeAnimatedAvatars) this.installAnimatedAvatarOptimizer(); } catch (e) { logger.warn("installAnimatedAvatarOptimizer failed", e); }
         try { if (settings.store.reduceAvatarQuality) this.installAvatarQualityReducer(); } catch (e) { logger.warn("installAvatarQualityReducer failed", e); }
         try { if (settings.store.animationFrameReduction) this.installRafReduction(); } catch (e) { logger.warn("installRafReduction failed", e); }
         try { if (settings.store.forcePassiveListeners) this.installPassiveListeners(); } catch (e) { logger.warn("installPassiveListeners failed", e); }
-        try { if (settings.store.throttleResizeObservers) this.installResizeObserverThrottle(); } catch (e) { logger.warn("installResizeObserverThrottle failed", e); }
         try { if (settings.store.limitMessageCache) this.installMessageCacheTrimmer(); } catch (e) { logger.warn("installMessageCacheTrimmer failed", e); }
         try { if (settings.store.limitConcurrentRequests) this.installConcurrentRequestLimiter(); } catch (e) { logger.warn("installConcurrentRequestLimiter failed", e); }
         try { if (settings.store.suppressConsoleWarn) this.installConsoleWarnSuppression(); } catch (e) { logger.warn("installConsoleWarnSuppression failed", e); }
@@ -1246,7 +1258,6 @@ export default definePlugin({
         try { if (settings.store.suppressConsoleCount) this.installConsoleCountSuppression(); } catch (e) { logger.warn("installConsoleCountSuppression failed", e); }
         try { if (settings.store.suppressConsoleAssert) this.installConsoleAssertSuppression(); } catch (e) { logger.warn("installConsoleAssertSuppression failed", e); }
         try { if (settings.store.suppressConsoleDir) this.installConsoleDirSuppression(); } catch (e) { logger.warn("installConsoleDirSuppression failed", e); }
-        try { if (settings.store.suppressIdleCallback) this.installIdleCallbackOptimizer(); } catch (e) { logger.warn("installIdleCallbackOptimizer failed", e); }
         try { if (settings.store.disableDragAndDrop) this.installDragAndDropSuppression(); } catch (e) { logger.warn("installDragAndDropSuppression failed", e); }
         try { if (settings.store.disableSpellcheck) this.installSpellcheckOpt(); } catch (e) { logger.warn("installSpellcheckOpt failed", e); }
         try { if (settings.store.throttleFluxDispatches) this.installFluxThrottle(); } catch (e) { logger.warn("installFluxThrottle failed", e); }
@@ -1342,7 +1353,9 @@ export default definePlugin({
         if (typeof MutationObserver === "undefined") return;
 
         const callbacks = this.observerCallbacks;
-        const throttle = settings.store.throttleMutationObservers;
+        // Measured: rAF-batched mutation delivery defers layout Discord's scroller
+        // expects synchronously, producing late layout and hover lag.
+        const throttle: boolean = false;
         // A MutationRecord holds strong refs to target/addedNodes/removedNodes.
         // requestAnimationFrame is starved while the window is hidden or occluded,
         // so an unbounded queue pins every mutated node - including detached
