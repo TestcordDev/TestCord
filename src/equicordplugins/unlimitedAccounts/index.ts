@@ -18,7 +18,7 @@
 
 import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
-import definePlugin, { OptionType } from "@utils/types";
+import definePlugin, { OptionType, StartAt } from "@utils/types";
 
 const settings = definePluginSettings({
     maxAccounts: {
@@ -35,8 +35,11 @@ export default definePlugin({
     tags: ["Utility"],
     authors: [Devs.thororen],
     settings,
+    startAt: StartAt.Init,
     patches: [
         {
+            // MultiAccountStore boots eagerly, before the webpack patcher can hook it,
+            // so this one is best-effort: it caps the persisted list on CONNECTION_OPEN.
             find: "pushSyncToken:null}),",
             replacement: [
                 {
@@ -46,6 +49,22 @@ export default definePlugin({
                 {
                     match: /(\i.splice\()5/,
                     replace: "$1$self.getMaxAccounts()",
+                },
+            ]
+        },
+        {
+            // Switch accounts modal gates the add-account button behind its own
+            // hardcoded length>=5 check and shows a max accounts error toast.
+            // Unlike the store, this chunk loads lazily so the patch applies reliably.
+            find: "MULTI_ACCOUNT_SWITCH_LANDING",
+            replacement: [
+                {
+                    match: /(\i\.length)>=5\?(\i)\(!0\)/,
+                    replace: "$1>=$self.getMaxAccounts()?$2(!0)",
+                },
+                {
+                    match: /(\i\.length)<5&&(\i)\(!1\)/,
+                    replace: "$1<$self.getMaxAccounts()&&$2(!1)",
                 },
             ]
         },

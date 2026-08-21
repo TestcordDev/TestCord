@@ -17,14 +17,25 @@
 */
 
 import { Devs, EquicordDevs } from "@utils/constants";
-import definePlugin from "@utils/types";
+import { definePluginSettings } from "@api/Settings";
+import definePlugin, { OptionType } from "@utils/types";
 import { FluxDispatcher, GuildMemberStore, RestAPI, UserStore } from "@webpack/common";
+
+const settings = definePluginSettings({
+    randomAnswers: {
+        description: "Select a random option for every prompt instead of always the last one, mimicking manual clicks so strict servers verify the join",
+        default: true,
+        type: OptionType.BOOLEAN,
+        restartNeeded: false,
+    },
+});
 
 export default definePlugin({
     name: "NoOnboarding",
     description: "Bypasses Discord's onboarding process for quicker server entry.",
     tags: ["Privacy", "Utility"],
     authors: [EquicordDevs.omaw, Devs.Glitch],
+    settings,
 
     patches: [
         {
@@ -86,13 +97,21 @@ export default definePlugin({
                 const prompts_seen = {};
                 const responses_seen = {};
                 const responses: string[] = [];
+                const random = settings.store.randomAnswers;
 
                 for (const prompt of data.prompts) {
                     const options = prompt.options || [];
                     if (!options.length) continue;
                     prompts_seen[prompt.id] = now;
                     for (const opt of options) responses_seen[opt.id] = now;
-                    if (prompt.required) responses.push(options[options.length - 1].id);
+                    // Random mode answers every prompt once (required or not) so the
+                    // payload looks like real engagement; legacy mode only answers
+                    // required prompts, always with the last option.
+                    if (!prompt.required && !random) continue;
+                    const idx = random
+                        ? Math.floor(Math.random() * options.length)
+                        : options.length - 1;
+                    responses.push(options[idx].id);
                 }
 
                 return RestAPI.post({
