@@ -814,6 +814,18 @@ export default definePlugin({
         this.trackedMessages.set(message.id, trackedMessage);
         this.messageCache.set(message.id, message);
 
+        // Cap caches to prevent unbounded growth (leak)
+        const MAX_TRACKED = 500;
+        if (this.trackedMessages.size > MAX_TRACKED) {
+            const oldest = this.trackedMessages.keys().next().value;
+            if (oldest !== undefined) {
+                const old = this.trackedMessages.get(oldest);
+                if (old?.timeoutId) clearTimeout(old.timeoutId);
+                this.trackedMessages.delete(oldest);
+                this.messageCache.delete(oldest);
+            }
+        }
+
         // Save immediately
         this.saveTrackedMessages();
     },

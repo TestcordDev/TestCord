@@ -1109,7 +1109,7 @@ function startVoiceWatcher() {
         if (curr && !prev) onVoiceJoin(curr);
         else if (!curr && prev) onVoiceLeave(prev);
         else { onVoiceLeave(prev); onVoiceJoin(curr); }
-    }, 2000);
+    }, 5000);
 }
 
 function stopVoiceWatcher() {
@@ -1205,7 +1205,7 @@ function startInvisibleWatcher() {
             if (!isManualStop && pluginActive) startAllRotators();
             Toasts.show({ message: "Status visible - Rotators resumed", type: Toasts.Type.SUCCESS, id: Toasts.genId() });
         }
-    }, 3000);
+    }, 10000);
 }
 
 function stopInvisibleWatcher() {
