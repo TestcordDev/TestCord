@@ -1,0 +1,48 @@
+.vc-optimizer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.vc-optimizer-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vc-optimizer-restart-notice {
+    margin-top: 12px;
+}
+
+.vc-optimizer-restart-notice .vc-notice-icon-wrapper {
+    align-items: center;
+}
+
+.vc-optimizer-search {
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+
+.vc-optimizer-search-input {
+    height: 40px;
+}
+
+.vc-optimizer-category {
+    margin-bottom: 20px;
+}
+
+.vc-optimizer-category-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--background-secondary);
+}
+
+.vc-optimizer-no-results {
+    margin-top: 8px;
+}

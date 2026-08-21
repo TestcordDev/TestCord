@@ -182,21 +182,18 @@
     color: var(--text-default);
 }
 
-/* Chrome hides the label entirely once tabs get very narrow */
-.tc-chrometabs-tab {
-    container-type: inline-size;
+/* Chrome hides the label entirely once tabs get very narrow.
+   The width classes are computed in the strip (single source of truth) instead
+   of container queries — per-tab size containment makes every resize re-run
+   layout for all tabs. */
+.tc-chrometabs-tab-narrow .tc-chrometabs-label,
+.tc-chrometabs-tab-narrow .tc-chrometabs-channel-glyph {
+    display: none;
 }
 
-@container (max-width: 88px) {
-    .tc-chrometabs-label,
-    .tc-chrometabs-channel-glyph {
-        display: none;
-    }
-
-    .tc-chrometabs-content {
-        justify-content: center;
-        padding: 0 6px;
-    }
+.tc-chrometabs-tab-narrow .tc-chrometabs-content {
+    justify-content: center;
+    padding: 0 6px;
 }
 
 /* #endregion */
@@ -269,10 +266,8 @@
 }
 
 /* narrow tabs drop the X so the favicon stays visible */
-@container (max-width: 66px) {
-    .tc-chrometabs-close {
-        display: none;
-    }
+.tc-chrometabs-tab-tiny .tc-chrometabs-close {
+    display: none;
 }
 
 /* #endregion */
@@ -291,10 +286,12 @@
     transition: opacity 0.12s ease;
 }
 
-/* no separator beside the active tab, or on the last tab */
+/* no separator beside the active tab, or on the last tab.
+   `tab-before-active` is set from JS — a :has() sibling selector here would
+   force expensive style recalculation across all tabs on every hover change. */
 .tc-chrometabs-tab-active .tc-chrometabs-separator,
 .tc-chrometabs-tab:last-of-type .tc-chrometabs-separator,
-.tc-chrometabs-tab:has(+ .tc-chrometabs-tab-active) .tc-chrometabs-separator,
+.tc-chrometabs-tab-before-active .tc-chrometabs-separator,
 .tc-chrometabs-tab:hover .tc-chrometabs-separator {
     opacity: 0;
 }
@@ -328,6 +325,72 @@
 
 .tc-chrometabs-new-tab:active {
     background-color: var(--background-mod-strong, rgb(255 255 255 / 10%));
+}
+
+/* #endregion */
+
+/* #region title bar mode */
+
+/*
+ * Compact variant mounted inside Discord's title bar, matching the upcoming
+ * native tabs: flat rounded rectangles with a gap between them, subtle hover,
+ * slightly brighter active tab. The fused Chrome curve is dropped entirely.
+ */
+.tc-chrometabs-container.tc-chrometabs-container-titlebar {
+    --tc-tab-height: 28px;
+
+    position: static;
+    align-items: center;
+    height: var(--custom-app-top-bar-height, 36px);
+    padding: 0 2px;
+    background: none;
+    grid-area: auto;
+
+    /* don't let a wide strip shove the window controls around */
+    max-width: 50vw;
+}
+
+.tc-chrometabs-container-titlebar .tc-chrometabs-strip {
+    align-items: center;
+    gap: 4px;
+}
+
+/* the fused-curve SVG only makes sense against a strip background */
+.tc-chrometabs-container-titlebar .tc-chrometabs-shape {
+    display: none;
+}
+
+.tc-chrometabs-container-titlebar .tc-chrometabs-tab {
+    height: var(--tc-tab-height);
+    margin-right: 0; /* the strip's flex gap handles spacing here */
+    border-radius: 8px;
+    background-color: transparent;
+    transition: background-color 0.12s ease;
+}
+
+.tc-chrometabs-container-titlebar .tc-chrometabs-tab:hover:not(.tc-chrometabs-tab-active) {
+    background-color: var(--background-mod-subtle, rgb(255 255 255 / 4%));
+}
+
+.tc-chrometabs-container-titlebar .tc-chrometabs-tab-active {
+    background-color: var(--background-mod-strong, rgb(255 255 255 / 8%));
+}
+
+.tc-chrometabs-container-titlebar .tc-chrometabs-content {
+    padding: 0 6px 0 8px;
+    gap: 6px;
+}
+
+/* separators are a Chrome-look detail; upcoming native tabs use spacing instead */
+.tc-chrometabs-container-titlebar .tc-chrometabs-separator {
+    display: none;
+}
+
+.tc-chrometabs-container-titlebar .tc-chrometabs-new-tab {
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    border-radius: 8px;
 }
 
 /* #endregion */

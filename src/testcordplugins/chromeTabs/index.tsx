@@ -56,12 +56,24 @@ export default definePlugin({
     },
 
     patches: [
-        // mount the tab strip alongside the app view
+        // mount the tab strip alongside the app view (top/bottom modes)
         {
             find: '"AppView"',
+            predicate: () => settings.store.tabBarPosition !== "titlebar",
             replacement: {
                 match: /"div",{(?=.{0,80}(\i\?\.params))/,
                 replace: "$self.render,{currentTarget:$1,"
+            }
+        },
+        // mount the tab strip inside Discord's main title bar, right before the
+        // window controls — matching Discord's upcoming native tabs layout:
+        // [trailing buttons] [our tabs] [+] [min/max/close]
+        {
+            find: '"data-window-chrome"',
+            predicate: () => settings.store.tabBarPosition === "titlebar",
+            replacement: {
+                match: /(\i)&&\(0,\i\.jsx\)\(\i,\{windowKey:\i,showDivider:null!=\i\}\)/,
+                replace: "$self.renderTitleBarTabs(),$&"
             }
         },
         // ctrl+click an inbox mention to open it in a new tab
@@ -105,6 +117,8 @@ export default definePlugin({
         currentTarget: { guildId: string; channelId: string; };
         children: JSX.Element;
     }) {
+        if (settings.store.tabBarPosition === "titlebar") return children;
+
         const strip = (
             <ErrorBoundary noop>
                 <ChromeTabsStrip
@@ -117,6 +131,15 @@ export default definePlugin({
         return settings.store.tabBarPosition === "bottom"
             ? <>{children}{strip}</>
             : <>{strip}{children}</>;
+    },
+
+    /** Injected into the title bar by the data-window-chrome patch */
+    renderTitleBarTabs() {
+        return (
+            <ErrorBoundary noop>
+                <ChromeTabsStrip guildId="@me" channelId="__friends__" titleBar />
+            </ErrorBoundary>
+        );
     },
 
     /** Ctrl+click handler shared by the inbox and search patches */

@@ -12,7 +12,7 @@ import {
 useState
 } from "@webpack/common";
 
-import { deleteUserNotes as deletePluginNote, saveUserNotes as savePluginNote, usersNotes as userNotesPluginMap } from "../../userNotes/data";
+import { deleteUserNotes as deletePluginNote, saveUserNotes as savePluginNote, usersNotes as userNotesPluginMap } from "../data";
 
 const NotesStore = createStore("UserNotesData", "UserNotesStore");
 const DiscordNoteStore = findByPropsLazy("getNote", "notes") ?? findByPropsLazy("getNote");

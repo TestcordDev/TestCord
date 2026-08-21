@@ -9,9 +9,9 @@ import { classNameFactory } from "@utils/css";
 import { getGuildAcronym, getUniqueUsername } from "@utils/discord";
 import { classes } from "@utils/misc";
 import { Channel, Guild, User } from "@vencord/discord-types";
-import { ActiveJoinedThreadsStore, Avatar, ChannelStore, ContextMenuApi, GuildStore, PresenceStore, ReadStateStore, Tooltip, useCallback, useMemo, UserStore, useStateFromStores } from "@webpack/common";
+import { ActiveJoinedThreadsStore, Avatar, ChannelStore, ContextMenuApi, GuildStore, PresenceStore, ReadStateStore, Tooltip, useCallback, UserStore, useStateFromStores } from "@webpack/common";
 
-import { ChannelTypeIcon, CircleQuestionIcon, CloseIcon } from "../util/icons";
+import { ChannelTypeIcon, CircleQuestionIcon, CloseIcon, UsersIcon } from "../util/icons";
 import { getSyntheticPage } from "../util/pages";
 import { settings } from "../util/settings";
 import { activateTab, closeTab, getTabs } from "../util/store";
@@ -44,22 +44,31 @@ function GuildIcon({ guild }: { guild: Guild; }) {
         );
     }
 
+    // animated guild icons are stored as .gif; asking the CDN for .png serves a stale static frame
+    const ext = guild.icon.startsWith("a_") ? ".gif" : ".png";
+
     return (
         <img
             className={cl("favicon")}
-            src={`https://${window.GLOBAL_ENV.CDN_HOST}/icons/${guild.id}/${guild.icon}.png?size=32`}
+            src={`https://${window.GLOBAL_ENV.CDN_HOST}/icons/${guild.id}/${guild.icon}${ext}?size=32`}
             alt=""
         />
     );
 }
 
 function GroupIcon({ channel }: { channel: Channel; }) {
+    if (!channel.icon) {
+        return (
+            <div className={cl("favicon", "glyph")}>
+                <UsersIcon size={16} />
+            </div>
+        );
+    }
+
     return (
         <img
             className={cl("favicon")}
-            src={channel.icon
-                ? `https://${window.GLOBAL_ENV.CDN_HOST}/channel-icons/${channel.id}/${channel.icon}.png?size=32`
-                : "https://discord.com/assets/c6851bd0b03f1cca5a8c1e720ea6ea17.png"}
+            src={`https://${window.GLOBAL_ENV.CDN_HOST}/channel-icons/${channel.id}/${channel.icon}.png?size=32`}
             alt=""
         />
     );
@@ -80,7 +89,13 @@ function UnreadBadge({ channelId }: { channelId: string; }) {
                 mentionCount: ReadStateStore.getMentionCount(channelId),
                 unreadCount: ReadStateStore.getUnreadCount(channelId) || newThreads
             };
-        }
+        },
+        [channelId],
+        // ReadStateStore emits constantly while messages stream in; without this
+        // equality check every tab badge re-renders on every single event.
+        (a, b) => a.hasUnread === b.hasUnread
+            && a.mentionCount === b.mentionCount
+            && a.unreadCount === b.unreadCount
     );
 
     const { count, hasMention, shouldShow } = getUnreadBadgeState(state);
@@ -105,15 +120,16 @@ function TabLabel({ tab }: { tab: Tab; }) {
     const recipients = channel?.recipients;
     const dmRecipientId = recipients?.length === 1 ? recipients[0] : undefined;
 
-    const status = useStateFromStores(
+    // single subscription: PresenceStore emits constantly (every presence
+    // change of every user), so one selector instead of two halves that work
+    const { status, isMobile } = useStateFromStores(
         [PresenceStore],
-        () => dmRecipientId ? PresenceStore.getStatus(dmRecipientId) : undefined,
-        [dmRecipientId]
-    );
-    const isMobile = useStateFromStores(
-        [PresenceStore],
-        () => dmRecipientId ? PresenceStore.isMobileOnline(dmRecipientId) : false,
-        [dmRecipientId]
+        () => ({
+            status: dmRecipientId ? PresenceStore.getStatus(dmRecipientId) : undefined,
+            isMobile: dmRecipientId ? PresenceStore.isMobileOnline(dmRecipientId) : false
+        }),
+        [dmRecipientId],
+        (a, b) => a.status === b.status && a.isMobile === b.isMobile
     );
 
     const page = getSyntheticPage(tab.channelId);
@@ -182,6 +198,11 @@ export interface ChromeTabProps {
     canClose: boolean;
     /** true while this tab is the one being dragged */
     isDragging: boolean;
+    /** true when the tab to the right of this one is active (hides the separator) */
+    isBeforeActive?: boolean;
+    /** strip-wide width class flags, computed once in the strip */
+    narrow?: boolean;
+    tiny?: boolean;
     onDragStart: (index: number) => void;
     onDragEnter: (index: number) => void;
     onDragEnd: () => void;
@@ -193,13 +214,17 @@ export function ChromeTab({
     isActive,
     canClose,
     isDragging,
+    isBeforeActive,
+    narrow,
+    tiny,
     onDragStart,
     onDragEnter,
     onDragEnd
 }: ChromeTabProps) {
     const { showUnreadBadges } = settings.use(["showUnreadBadges"]);
 
-    const tooltipText = useMemo(() => {
+    // cheap string building; useMemo would go stale on channel/guild renames anyway
+    const tooltipText = (() => {
         const page = getSyntheticPage(tab.channelId);
         if (page) return page.label;
 
@@ -207,7 +232,7 @@ export function ChromeTab({
         const guild = GuildStore.getGuild(tab.guildId);
         if (guild && channel) return `#${channel.name} — ${guild.name}`;
         return channel?.name ?? "Unknown Channel";
-    }, [tab.channelId, tab.guildId]);
+    })();
 
     const handleAuxClick = useCallback((e: React.MouseEvent) => {
         if (e.button === 1 && canClose) {
@@ -226,7 +251,10 @@ export function ChromeTab({
             className={classes(
                 cl("tab"),
                 isActive && cl("tab-active"),
-                isDragging && cl("tab-dragging")
+                isDragging && cl("tab-dragging"),
+                isBeforeActive && cl("tab-before-active"),
+                narrow && cl("tab-narrow"),
+                tiny && cl("tab-tiny")
             )}
             role="tab"
             aria-selected={isActive}

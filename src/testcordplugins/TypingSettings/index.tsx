@@ -35,6 +35,18 @@ const settings = definePluginSettings({
         default: 80,
         onChange() { applySettings(); }
     },
+    caretEasing: {
+        type: OptionType.SELECT,
+        description: "Caret transition easing",
+        options: [
+            { label: "Ease", value: "ease", default: true },
+            { label: "Linear", value: "linear" },
+            { label: "Ease-in", value: "ease-in" },
+            { label: "Ease-out", value: "ease-out" },
+            { label: "Ease-in-out", value: "ease-in-out" }
+        ],
+        onChange() { applySettings(); }
+    },
     fadeSpeed: {
         type: OptionType.NUMBER,
         description: "Character fade-in speed (ms) — lower = faster",
@@ -115,9 +127,9 @@ ${smoothChars ? `
             pointer-events: none;
             z-index: 9999;
             animation: caretBlink 1s step-end infinite;
-            transition: left var(--caret-speed, 80ms) cubic-bezier(0.2, 0, 0, 1),
-                        top var(--caret-speed, 80ms) cubic-bezier(0.2, 0, 0, 1),
-                        height var(--caret-speed, 80ms) ease,
+            transition: left var(--caret-speed, 80ms) var(--caret-easing, ease),
+                        top var(--caret-speed, 80ms) var(--caret-easing, ease),
+                        height var(--caret-speed, 80ms) var(--caret-easing, ease),
                         background 300ms ease;
         }
 
@@ -268,9 +280,10 @@ function resetBlinkOnKey() {
 }
 
 function applySettings() {
-    const { smoothCaret, caretSpeed } = settings.store;
+    const { smoothCaret, caretSpeed, caretEasing } = settings.store;
 
     document.documentElement.style.setProperty("--caret-speed", `${caretSpeed}ms`);
+    document.documentElement.style.setProperty("--caret-easing", caretEasing ?? "ease");
 
     injectCSS();
 

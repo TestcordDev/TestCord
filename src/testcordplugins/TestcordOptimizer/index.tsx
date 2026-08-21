@@ -6,10 +6,13 @@
 
 import { RuntimeInteractions, RuntimeInterposition, RuntimeInterpositionPriority } from "@api/RuntimeInterposition";
 import { definePluginSettings, SettingsStore } from "@api/Settings";
+import { CogWheel } from "@components/Icons";
+import SettingsPlugin from "@plugins/_core/settings";
 import { resetCacheLimits } from "@utils/cacheLimits";
 import { TestcordDevs } from "@utils/constants";
 import { classNameToSelector } from "@utils/css";
 import { Logger } from "@utils/Logger";
+import { removeFromArray } from "@utils/misc";
 import { escapeRegExp } from "@utils/text";
 import definePlugin, { OptionType } from "@utils/types";
 import { filters, find, findAll, findByPropsLazy, proxyLazyWebpack } from "@webpack";
@@ -152,7 +155,9 @@ function avatarClosestSelector(): string {
     return orSel(AvatarClasses.avatar, MemberClasses.member);
 }
 
-const settings = definePluginSettings({
+export const OPTIMIZER_SETTINGS_ENTRY_KEY = "TestcordOptimizerTab";
+
+export const settings = definePluginSettings({
     domThrottle: {
         type: OptionType.BOOLEAN,
         description: "Defer non-critical visual updates (activity, subText, botText, clan tags) via MutationObserver. The delayed visibility toggle can cause layout shifts with Discord's latest scroller, so off by default.",
@@ -1217,6 +1222,15 @@ export default definePlugin({
     start() {
         if (settings.store.verboseLogging) logger.info("Starting optimizer suite");
 
+        if (!SettingsPlugin.customEntries.some(entry => entry.key === OPTIMIZER_SETTINGS_ENTRY_KEY)) {
+            SettingsPlugin.customEntries.push({
+                key: OPTIMIZER_SETTINGS_ENTRY_KEY,
+                title: "Optimizer",
+                Component: require("./OptimizerTab").default,
+                Icon: CogWheel,
+            });
+        }
+
         if (
             settings.store.pauseOffscreenMedia
             || settings.store.freezeGifsUntilHover && settings.store.gifFreezeMethod !== "css"
@@ -1286,6 +1300,8 @@ export default definePlugin({
 
     stop() {
         if (settings.store.verboseLogging) logger.info("Stopping, restoring originals");
+
+        removeFromArray(SettingsPlugin.customEntries, entry => entry.key === OPTIMIZER_SETTINGS_ENTRY_KEY);
 
         this.teardownConsolidatedObserver();
         this.teardownDomThrottle();

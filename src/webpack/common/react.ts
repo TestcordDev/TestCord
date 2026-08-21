@@ -26,6 +26,7 @@ export let useMemo: typeof React.useMemo;
 export let useRef: typeof React.useRef;
 export let useReducer: typeof React.useReducer;
 export let useCallback: typeof React.useCallback;
+export let memo: typeof React.memo;
 
 export const ReactDOM: typeof import("react-dom") = findByPropsLazy("createPortal");
 // 299 is an error code used in createRoot and createPortal
@@ -33,5 +34,5 @@ export const createRoot: typeof import("react-dom/client").createRoot = findByCo
 
 waitFor(["createElement", "useEffect"], m => {
     React = m;
-    ({ useEffect, useState, useLayoutEffect, useMemo, useRef, useReducer, useCallback } = React);
+    ({ useEffect, useState, useLayoutEffect, useMemo, useRef, useReducer, useCallback, memo } = React);
 });

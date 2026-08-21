@@ -20,8 +20,16 @@ let tabs: Tab[] = [];
 let activeId = -1;
 /** most-recently-used order, so closing a tab returns you somewhere sensible */
 let activationHistory: number[] = [];
-/** closed tabs, newest last, for Reopen Closed Tab */
-const closedTabs: Tab[] = [];
+
+/** Chrome keeps around 25 closed tabs; past that the oldest falls off */
+const MAX_CLOSED_TABS = 25;
+
+/** closed tabs, newest last, with their position so Reopen puts them back where they were */
+interface ClosedTabEntry {
+    tab: Tab;
+    index: number;
+}
+const closedTabs: ClosedTabEntry[] = [];
 
 let nextId = 0;
 let currentUserId: string | undefined;
@@ -36,16 +44,39 @@ export function subscribe(listener: () => void): () => void {
     return () => listeners.delete(listener);
 }
 
-function emit(persist = true) {
-    for (const listener of listeners) {
-        try {
-            listener();
-        } catch (error) {
-            logger.error("Listener threw", error);
-        }
-    }
+/**
+ * Notifications are coalesced into one microtask: bursts of mutations
+ * (drag-reorder swaps, activate + follow-up navigation) collapse into a
+ * single listener pass instead of one synchronous re-render each.
+ */
+let emitScheduled = false;
 
-    if (persist) void saveTabs();
+function emit(persist = true) {
+    if (persist) scheduleSave();
+    if (emitScheduled) return;
+    emitScheduled = true;
+
+    queueMicrotask(() => {
+        emitScheduled = false;
+        for (const listener of listeners) {
+            try {
+                listener();
+            } catch (error) {
+                logger.error("Listener threw", error);
+            }
+        }
+    });
+}
+
+/**
+ * Persistence is debounced: bursts of mutations (drag-reorder, rapid closes)
+ * collapse into a single DataStore write instead of one per change.
+ */
+let saveTimeout: ReturnType<typeof setTimeout> | undefined;
+
+function scheduleSave() {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(() => void saveTabs(), 400);
 }
 
 export function getTabs(): readonly Tab[] {
@@ -62,6 +93,11 @@ export function getActiveTab(): Tab | undefined {
 
 export function hasClosedTabs(): boolean {
     return closedTabs.length > 0;
+}
+
+function recordClosedTab(tab: Tab, index: number) {
+    closedTabs.push({ tab, index });
+    if (closedTabs.length > MAX_CLOSED_TABS) closedTabs.shift();
 }
 
 function normalizeGuildId(guildId: string | null | undefined): string {
@@ -100,7 +136,11 @@ export function endSelfNavigation() {
 
 // #region mutations
 
-export function createTab(target: TabTarget, activate = true, messageId?: string): Tab {
+/**
+ * Single insertion point for new tabs, so every path (create, create-after,
+ * reopen) emits and persists exactly once.
+ */
+function insertTabAt(index: number, target: TabTarget, activate = true, messageId?: string): Tab {
     const tab: Tab = {
         id: nextId++,
         guildId: normalizeGuildId(target.guildId),
@@ -108,7 +148,9 @@ export function createTab(target: TabTarget, activate = true, messageId?: string
         messageId
     };
 
-    tabs = [...tabs, tab];
+    const next = [...tabs];
+    next.splice(Math.max(0, Math.min(index, tabs.length)), 0, tab);
+    tabs = next;
 
     if (activate) activateTab(tab.id);
     else emit();
@@ -116,22 +158,13 @@ export function createTab(target: TabTarget, activate = true, messageId?: string
     return tab;
 }
 
+export function createTab(target: TabTarget, activate = true, messageId?: string): Tab {
+    return insertTabAt(tabs.length, target, activate, messageId);
+}
+
 /** Inserts a tab directly after `afterId`, the way Chrome opens child tabs */
 export function createTabAfter(afterId: number, target: TabTarget, activate = true, messageId?: string): Tab {
-    const tab = createTab(target, false, messageId);
-    const from = tabs.findIndex(t => t.id === tab.id);
-    const to = tabs.findIndex(t => t.id === afterId) + 1;
-
-    if (from !== -1 && to > 0 && to !== from) {
-        const next = [...tabs];
-        next.splice(to, 0, next.splice(from, 1)[0]);
-        tabs = next;
-    }
-
-    if (activate) activateTab(tab.id);
-    else emit();
-
-    return tab;
+    return insertTabAt(tabs.findIndex(tab => tab.id === afterId) + 1, target, activate, messageId);
 }
 
 export function closeTab(id: number) {
@@ -143,7 +176,7 @@ export function closeTab(id: number) {
 
     const [closed] = tabs.splice(index, 1);
     tabs = [...tabs];
-    closedTabs.push(closed);
+    recordClosedTab(closed, index);
     activationHistory = activationHistory.filter(historyId => historyId !== id);
 
     if (id !== activeId) {
@@ -164,7 +197,9 @@ export function closeOtherTabs(id: number) {
     const keep = tabs.find(tab => tab.id === id);
     if (!keep) return;
 
-    closedTabs.push(...tabs.filter(tab => tab.id !== id));
+    tabs.forEach((tab, index) => {
+        if (tab.id !== id) recordClosedTab(tab, index);
+    });
     tabs = [keep];
     activationHistory = [id];
 
@@ -177,7 +212,7 @@ export function closeTabsToTheRight(id: number) {
     if (index === -1 || index === tabs.length - 1) return;
 
     const removed = tabs.slice(index + 1);
-    closedTabs.push(...removed);
+    removed.forEach((tab, i) => recordClosedTab(tab, index + 1 + i));
     tabs = tabs.slice(0, index + 1);
 
     const removedIds = new Set(removed.map(tab => tab.id));
@@ -192,7 +227,7 @@ export function closeTabsToTheLeft(id: number) {
     if (index <= 0) return;
 
     const removed = tabs.slice(0, index);
-    closedTabs.push(...removed);
+    removed.forEach((tab, i) => recordClosedTab(tab, i));
     tabs = tabs.slice(index);
 
     const removedIds = new Set(removed.map(tab => tab.id));
@@ -203,10 +238,11 @@ export function closeTabsToTheLeft(id: number) {
 }
 
 export function reopenClosedTab() {
-    const tab = closedTabs.pop();
-    if (!tab) return;
+    const entry = closedTabs.pop();
+    if (!entry) return;
 
-    createTab(tab, true, tab.messageId);
+    // put the tab back where it was closed, clamped to the current strip size
+    insertTabAt(entry.index, entry.tab, true, entry.tab.messageId);
 }
 
 export function moveTab(fromIndex: number, toIndex: number) {
