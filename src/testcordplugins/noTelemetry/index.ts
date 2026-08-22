@@ -26,13 +26,20 @@ const settings = definePluginSettings({
         default: true,
         restartNeeded: true,
     },
+    blockSentry: {
+        description: "Stop Discord's Sentry crash reporting entirely. Every captured event serializes huge state blobs on the main thread; with a repeating error loop active this alone froze the client for seconds at a time.",
+        type: OptionType.BOOLEAN,
+        default: true,
+        restartNeeded: true,
+    },
 });
 
 export default definePlugin({
     name: "NoTelemetry",
-    description: "Blocks additional Discord telemetry beyond the built-in NoTrack plugin: experiment exposure reporting, call diagnostics, and remote debug logging.",
+    description: "Blocks additional Discord telemetry beyond the built-in NoTrack plugin: experiment exposure reporting, call diagnostics, remote debug logging, and Sentry crash reporting.",
     tags: ["Privacy"],
     authors: [{ name: "Sharp", id: 0n }],
+    enabledByDefault: true,
     settings,
 
     patches: [
@@ -63,6 +70,18 @@ export default definePlugin({
             replacement: {
                 match: /submit\(\i\)\{/,
                 replace: "submit(){return;",
+            },
+            noWarn: true,
+        },
+        // Neutralize Sentry by blanking the DSN so the SDK never boots. The SDK
+        // instruments setTimeout and dispatch globally; with the repeating frozen-array
+        // TypeError active, each throw triggered a multi-hundred-ms capture+serialize.
+        {
+            find: "Sentry.init",
+            predicate: () => settings.store.blockSentry,
+            replacement: {
+                match: /Sentry\.init\(\{([^}]*?)dsn:[^,}]*/,
+                replace: 'Sentry.init({$1dsn:""',
             },
             noWarn: true,
         },
