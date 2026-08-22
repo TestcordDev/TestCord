@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { definePluginSettings } from "@api/Settings";
+import { definePluginSettings, SettingsStore } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { ColorPicker, React } from "@webpack/common";
@@ -116,11 +116,27 @@ function getCaretColor() {
     return `#${color.toString(16).padStart(6, "0")}`;
 }
 
+// One-time migration from the deleted SmoothType plugin: pull its tuned values into
+// the smooth typing keys and drop its leftover store entry so this only runs once.
+const legacySmoothType = (SettingsStore.plain.plugins as Record<string, any>).SmoothType;
+if (legacySmoothType) {
+    if (typeof legacySmoothType.caretColor === "number") settings.store.caretColor = legacySmoothType.caretColor;
+    if (typeof legacySmoothType.transitionDelay === "number") settings.store.transitionDelay = legacySmoothType.transitionDelay;
+    if (typeof legacySmoothType.animationType === "string") settings.store.animationType = legacySmoothType.animationType;
+    delete (SettingsStore.plain.plugins as Record<string, any>).SmoothType;
+    SettingsStore.markAsChanged();
+}
+
 function injectCSS() {
     removeCSS();
+    // SmoothType owns everything visual while enabled; the legacy stylesheet
+    // (char fade, scrollbar, legacy caret) must stay out of the cascade or its
+    // rules fight the smooth caret's color/opacity/width.
+    if (settings.store.smoothTyping) return;
+
     const style = document.createElement("style");
     style.id = STYLE_ID;
-    const { fadeSpeed, smoothChars, smoothScrollbar, scrollbarColor, smoothTyping } = settings.store;
+    const { fadeSpeed, smoothChars, smoothScrollbar, scrollbarColor } = settings.store;
 
     style.textContent = `
         /* Hide original caret. caret-color inherits, so setting it on the editor covers the
@@ -145,7 +161,6 @@ ${smoothChars ? `
                 filter: blur(0px);
             }
         }
-${smoothTyping ? "" : `
         /* Custom caret */
         #${CARET_ID} {
             position: fixed;
@@ -165,7 +180,7 @@ ${smoothTyping ? "" : `
             0%, 100% { opacity: 1; }
             50%       { opacity: 0; }
         }
-`}
+
         ${smoothScrollbar ? `
         /* Smooth Scrollbar */
         [class*="slateTextArea"] {
@@ -530,6 +545,7 @@ function applySettings() {
         // SmoothType owns the caret completely; the legacy caret path stays off.
         removeCaret();
         stopTracking();
+        stopSmoothTyping();
         startSmoothTyping();
         return;
     }
