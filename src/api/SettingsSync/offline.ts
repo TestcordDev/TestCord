@@ -156,39 +156,61 @@ export async function exportSettings({ syncDataStore = true, type = "all", minif
         if (hasSettings || hasCss) parts.push(`,${nl}`);
         let dsStarted = false;
         try {
-            if (forceDataStore) {
-                parts.push(`${ind}"dataStore"${col}[${nl}`);
-                dsStarted = true;
-                const keys = await DataStore.keys();
-                const CHUNK = 200;
-                for (let i = 0; i < keys.length; i += CHUNK) {
-                    const chunk = keys.slice(i, i + CHUNK);
-                    const values = await DataStore.getMany(chunk);
-                    for (let j = 0; j < chunk.length; j++) {
-                        if (i + j > 0) parts.push(",");
-                        parts.push(nl);
-                        const valueStr = JSON.stringify(values[j]) ?? "null";
-                        parts.push(`${ind}${ind}[${JSON.stringify(chunk[j])}${arrSep}${valueStr}]`);
-                    }
+            parts.push(`${ind}"dataStore"${col}[${nl}`);
+            dsStarted = true;
+
+            // One unserializable value must not kill a guaranteed export; keep the
+            // row with a marker so restores know the entry existed.
+            const serialize = (value: unknown): string => {
+                try {
+                    return JSON.stringify(value) ?? "null";
+                } catch {
+                    return JSON.stringify({ __unserializable: true, preview: String(value).slice(0, 2000) });
                 }
-                parts.push(`${nl}${ind}]`);
+            };
+
+            if (forceDataStore) {
+                const keys = await DataStore.keys();
+                let chunkSize = 200;
+                let index = 0;
+                while (index < keys.length) {
+                    const chunk = keys.slice(index, index + chunkSize);
+                    let values: unknown[];
+                    try {
+                        values = await DataStore.getMany(chunk);
+                    } catch (chunkErr) {
+                        // Huge rows can blow up a big getMany; retry the same range
+                        // in smaller pieces before giving up.
+                        if (chunkSize > 1) {
+                            chunkSize = Math.max(1, Math.floor(chunkSize / 4));
+                            continue;
+                        }
+                        throw chunkErr;
+                    }
+                    for (let j = 0; j < chunk.length; j++) {
+                        if (index + j > 0) parts.push(",");
+                        parts.push(nl);
+                        parts.push(`${ind}${ind}[${JSON.stringify(chunk[j])}${arrSep}${serialize(values[j])}]`);
+                    }
+                    index += chunk.length;
+                }
             } else {
                 const entries = await DataStore.entries();
-                parts.push(`${ind}"dataStore"${col}[${nl}`);
-                dsStarted = true;
                 for (let i = 0; i < entries.length; i++) {
                     if (i > 0) parts.push(",");
                     parts.push(nl);
                     const [key, value] = entries[i];
-                    const valueStr = JSON.stringify(value) ?? "null";
-                    parts.push(`${ind}${ind}[${JSON.stringify(key)}${arrSep}${valueStr}]`);
+                    parts.push(`${ind}${ind}[${JSON.stringify(key)}${arrSep}${serialize(value)}]`);
                 }
-                parts.push(`${nl}${ind}]`);
             }
+            parts.push(`${nl}${ind}]`);
         } catch (err) {
             if (dsStarted) parts.push(`${nl}${ind}]`);
-            if (type === "datastore" && !forceDataStore) {
-                throw new Error("DataStore is too large to export. Please clear some plugin data and try again.");
+            if (type === "datastore" || forceDataStore) {
+                // The Large DataStore Export toggle guarantees a complete export;
+                // silently omitting the data would produce a corrupt restore, so
+                // fail loudly instead.
+                throw new Error(`DataStore export failed: ${err instanceof Error ? err.message : String(err)}`);
             }
             logger.warn("Skipping DataStore in backup due to size.");
             toast(Toasts.Type.MESSAGE, "DataStore too large - exported without it.");
