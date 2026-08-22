@@ -1,0 +1,27 @@
+#vc-vimium-hints {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.vc-vimium-hint {
+    position: absolute;
+    transform: translate(-2px, -2px);
+    padding: 1px 4px;
+    border: 1px solid #ffd66e;
+    border-radius: 4px;
+    background-color: #111318;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 50%);
+    color: #ffd66e;
+    font-family: var(--font-monospace, monospace);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+.vc-vimium-hint-matched {
+    color: #3ba55c;
+}
