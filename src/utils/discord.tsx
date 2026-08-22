@@ -210,22 +210,29 @@ export async function fetchUserProfile(id: string, options?: FetchUserProfileOpt
 
     FluxDispatcher.dispatch({ type: "USER_PROFILE_FETCH_START", userId: id });
 
-    const { body } = await RestAPI.get({
-        url: Constants.Endpoints.USER_PROFILE(id),
-        query: {
-            with_mutual_guilds: false,
-            with_mutual_friends_count: false,
-            ...options
-        },
-        oldFormErrors: true,
-    });
+    try {
+        const { body } = await RestAPI.get({
+            url: Constants.Endpoints.USER_PROFILE(id),
+            query: {
+                with_mutual_guilds: false,
+                with_mutual_friends_count: false,
+                ...options
+            },
+            oldFormErrors: true,
+        });
 
-    FluxDispatcher.dispatch({ type: "USER_UPDATE", user: body.user });
-    await FluxDispatcher.dispatch({ type: "USER_PROFILE_FETCH_SUCCESS", userProfile: body });
-    if (options?.guild_id && body.guild_member)
-        FluxDispatcher.dispatch({ type: "GUILD_MEMBER_PROFILE_UPDATE", guildId: options.guild_id, guildMember: body.guild_member });
+        FluxDispatcher.dispatch({ type: "USER_UPDATE", user: body.user });
+        await FluxDispatcher.dispatch({ type: "USER_PROFILE_FETCH_SUCCESS", userProfile: body });
+        if (options?.guild_id && body.guild_member)
+            FluxDispatcher.dispatch({ type: "GUILD_MEMBER_PROFILE_UPDATE", guildId: options.guild_id, guildMember: body.guild_member });
 
-    return UserProfileStore.getUserProfile(id);
+        return UserProfileStore.getUserProfile(id);
+    } catch (e) {
+        // mirror Discord's own failure handling so the store/UI state stays
+        // consistent instead of being stuck in a "fetching" state forever
+        FluxDispatcher.dispatch({ type: "USER_PROFILE_FETCH_FAILURE", userId: id });
+        throw e;
+    }
 }
 
 /**
