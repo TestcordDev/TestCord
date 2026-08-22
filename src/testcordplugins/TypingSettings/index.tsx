@@ -118,11 +118,14 @@ function getCaretColor() {
 
 // One-time migration from the deleted SmoothType plugin: pull its tuned values into
 // the smooth typing keys and drop its leftover store entry so this only runs once.
-const legacySmoothType = (SettingsStore.plain.plugins as Record<string, any>).SmoothType;
-if (legacySmoothType) {
-    if (typeof legacySmoothType.caretColor === "number") settings.store.caretColor = legacySmoothType.caretColor;
-    if (typeof legacySmoothType.transitionDelay === "number") settings.store.transitionDelay = legacySmoothType.transitionDelay;
-    if (typeof legacySmoothType.animationType === "string") settings.store.animationType = legacySmoothType.animationType;
+// Runs from start(): touching settings.store at module scope throws, because plugin
+// settings are not initialized until the plugin manager starts the plugin.
+function migrateLegacySmoothType() {
+    const legacy = (SettingsStore.plain.plugins as Record<string, any>).SmoothType;
+    if (!legacy) return;
+    if (typeof legacy.caretColor === "number") settings.store.caretColor = legacy.caretColor;
+    if (typeof legacy.transitionDelay === "number") settings.store.transitionDelay = legacy.transitionDelay;
+    if (typeof legacy.animationType === "string") settings.store.animationType = legacy.animationType;
     delete (SettingsStore.plain.plugins as Record<string, any>).SmoothType;
     SettingsStore.markAsChanged();
 }
@@ -575,6 +578,7 @@ export default definePlugin({
     settings,
 
     start() {
+        migrateLegacySmoothType();
         applySettings();
     },
 
