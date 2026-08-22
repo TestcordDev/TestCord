@@ -130,18 +130,37 @@ function injectCSS() {
     const rawSelectors = getRawHideSelectors();
     if (rawSelectors.length === 0) return;
 
+    // Measured on a live session: emitting these rules per-selector (~115 rules, most
+    // with :has()) cost ~200ms of EVERY full style recalc, which made all hover UI
+    // feel laggy. Grouping into shared :is()/:has() lists keeps identical coverage
+    // at a fraction of the matching cost. The fuzzy [aria-label*=..." i] selector
+    // stays out of :has() lists — substring matching inside :has() is the single
+    // most expensive pattern here.
+    const exactSelectors = rawSelectors.filter(s => !s.includes("*="));
+    const fuzzySelectors = rawSelectors.filter(s => s.includes("*="));
+
+    const scopes = ['[class*="channelTextArea"]', '[class*="channelBottomBar"]'];
     const activeSelectors: string[] = [];
 
-    for (const sel of rawSelectors) {
-        activeSelectors.push(
-            // Hide the button itself
-            `[class*="channelTextArea"] ${sel}`,
-            `[class*="channelBottomBar"] ${sel}`,
-            // Hide the wrapper item within any button container (collapsing toolbar gap without JS)
-            `[class*="channelTextArea"] [class*="buttons"] > *:is(${sel}, :has(${sel}))`,
-            `[class*="channelBottomBar"] [class*="buttons"] > *:is(${sel}, :has(${sel}))`,
-            `[class*="buttons__"] > *:is(${sel}, :has(${sel}))`
-        );
+    for (const scope of scopes) {
+        if (exactSelectors.length) activeSelectors.push(`${scope} :is(${exactSelectors.join(",")})`);
+        if (fuzzySelectors.length) activeSelectors.push(`${scope} ${fuzzySelectors.join(",")}`);
+        const buttonContainers = `${scope} [class*="buttons"]`;
+        if (exactSelectors.length) {
+            activeSelectors.push(`${buttonContainers} > *:is(${exactSelectors.join(",")})`);
+            activeSelectors.push(`${buttonContainers} > *:has(:is(${exactSelectors.join(",")}))`);
+        }
+        if (fuzzySelectors.length) {
+            activeSelectors.push(`${buttonContainers} > *:is(${fuzzySelectors.join(",")})`);
+        }
+    }
+
+    if (exactSelectors.length) {
+        activeSelectors.push(`[class*="buttons__"] > *:is(${exactSelectors.join(",")})`);
+        activeSelectors.push(`[class*="buttons__"] > *:has(:is(${exactSelectors.join(",")}))`);
+    }
+    if (fuzzySelectors.length) {
+        activeSelectors.push(`[class*="buttons__"] > *:is(${fuzzySelectors.join(",")})`);
     }
 
     activeSelectors.push('[id="channel-attach-THREAD"]');
