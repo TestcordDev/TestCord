@@ -156,6 +156,22 @@ let disposeCancelRAF: (() => void) | null = null;
 let bgFpsActive = false;
 const rafMap = new Map<number, ReturnType<typeof setTimeout>>();
 let rafSeq = 0;
+// Electron's hasFocus() lies on some window managers (e.g. Hyprland), which made the
+// throttle engage during real use and drop the whole client to ~10 FPS. Real input
+// events are ground truth, so any of them counts as active for a grace period.
+let lastRealInput = 0;
+
+function markRealInput() {
+    lastRealInput = performance.now();
+}
+
+function isClientInUse() {
+    return !document.hidden && (
+        document.hasFocus()
+        || document.documentElement.matches(":hover")
+        || performance.now() - lastRealInput < 5000
+    );
+}
 
 function bgFrameIntervalMs(): number {
     return settings.store.lowEndMode ? 200 : 100;
@@ -189,6 +205,10 @@ function applyBgFpsPatch(enable: boolean) {
     if (enable && !bgFpsActive) {
         bgFpsActive = true;
         document.addEventListener("visibilitychange", onVisibilityChange);
+        document.addEventListener("pointermove", markRealInput, { passive: true, capture: true });
+        document.addEventListener("pointerdown", markRealInput, { passive: true, capture: true });
+        document.addEventListener("wheel", markRealInput, { passive: true, capture: true });
+        document.addEventListener("keydown", markRealInput, { capture: true });
         window.addEventListener("blur", onWindowBlur);
         window.addEventListener("focus", onWindowFocus);
         window.addEventListener("pointerenter", onPointerEnter, { passive: true });
@@ -197,6 +217,10 @@ function applyBgFpsPatch(enable: boolean) {
     } else if (!enable && bgFpsActive) {
         bgFpsActive = false;
         document.removeEventListener("visibilitychange", onVisibilityChange);
+        document.removeEventListener("pointermove", markRealInput, { capture: true } as any);
+        document.removeEventListener("pointerdown", markRealInput, { capture: true } as any);
+        document.removeEventListener("wheel", markRealInput, { capture: true } as any);
+        document.removeEventListener("keydown", markRealInput, { capture: true });
         window.removeEventListener("blur", onWindowBlur);
         window.removeEventListener("focus", onWindowFocus);
         window.removeEventListener("pointerenter", onPointerEnter);
@@ -214,7 +238,7 @@ function installRafThrottle() {
         hook: "requestAnimationFrame",
         priority: RuntimeInterpositionPriority.BEHAVIOR,
         wrap: next => cb => {
-            if (RuntimeInteractions.isActive() || !document.hidden && (document.hasFocus() || document.documentElement.matches(":hover"))) return next(cb);
+            if (RuntimeInteractions.isActive() || isClientInUse()) return next(cb);
             const id = ++rafSeq;
             const now = performance.now();
             const delay = Math.max(0, bgFrameIntervalMs() - (now - lastT));
