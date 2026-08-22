@@ -13,11 +13,12 @@ import { Toasts } from "@webpack/common";
 
 import { openBadgeSpooferModal } from "./components/BadgeSpooferModal";
 import { badgeSpooferEngine } from "./engine";
+import { applyHouse, type HouseId,HOUSES } from "./hypesquad";
 import { settings } from "./settings";
 
 export default definePlugin({
     name: "BadgeSpoofer",
-    description: "Discord profile badge spoofer: Game Variety (Games Played), Game Time (Playtime), & Streaming (Hours Streamed) via /api/v9/science.",
+    description: "Discord profile badge spoofer: Game Variety (Games Played), Game Time (Playtime), & Streaming (Hours Streamed) via /api/v9/science. Also switch your real HypeSquad house or leave HypeSquad.",
     authors: [TestcordDevs.sirphantom89],
     tags: ["Customisation", "Appearance", "Utility", "Commands"],
     settings,
@@ -105,6 +106,32 @@ export default definePlugin({
                         }
                     }
                 });
+            }
+        },
+        {
+            name: "hypesquad",
+            description: "Switch your real HypeSquad house or remove your badge",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            options: [
+                {
+                    name: "house",
+                    description: "Which HypeSquad house to join",
+                    type: ApplicationCommandOptionType.INTEGER,
+                    required: true,
+                    choices: [
+                        { label: "Remove Badge (Leave)", value: "0", name: "Remove Badge (Leave)" },
+                        ...HOUSES.map(h => ({ label: `House ${h.name}`, value: String(h.id), name: `House ${h.name}` }))
+                    ]
+                }
+            ],
+            execute: async (args, { channel }) => {
+                const houseId = parseInt(args[0].value, 10) as HouseId;
+                const ok = await applyHouse(houseId);
+                if (ok) {
+                    sendBotMessage(channel.id, {
+                        content: `✅ HypeSquad updated${houseId === 0 ? ", badge removed" : ""}. Reload Discord (Ctrl+R) to see the change.`
+                    });
+                }
             }
         },
         {

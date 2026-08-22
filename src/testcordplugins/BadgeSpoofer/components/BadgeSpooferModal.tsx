@@ -9,6 +9,7 @@ import type { RenderModalProps } from "@vencord/discord-types";
 import { Button, Forms, React, Text, TextInput, Toasts, useEffect, useRef, useState } from "@webpack/common";
 
 import { badgeSpooferEngine } from "../engine";
+import { HypeSquadPicker } from "../hypesquad";
 import type { SpoofLog, SpoofProgress } from "../types";
 
 export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps }) {
@@ -112,15 +113,17 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
     return (
         <ModalRoot {...modalProps} size={ModalSize.MEDIUM}>
             <ModalHeader separator={true}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "2px", flexGrow: 1 }}>
-                    <Text variant="heading-lg/semibold" color="header-primary">
-                        Discord Badge Spoofer
-                    </Text>
+                <div style={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <Text variant="heading-lg/semibold" color="header-primary">
+                            Discord Badge Spoofer
+                        </Text>
+                        <ModalCloseButton onClick={modalProps.onClose} />
+                    </div>
                     <Text variant="text-sm/normal" color="text-muted">
                         Spoof Game Variety (Games Played), Game Time (Playtime), & Streaming (Hours Streamed)
                     </Text>
                 </div>
-                <ModalCloseButton onClick={modalProps.onClose} />
             </ModalHeader>
 
             <ModalContent scrollbarType="none" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "14px" }}>
@@ -209,6 +212,16 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
                             Used by Discord to verify the executable. Leave blank to use defaults.
                         </Forms.FormText>
                     </div>
+                </div>
+
+                {/* HypeSquad House Picker */}
+                <div style={{
+                    background: "var(--background-secondary)",
+                    padding: "12px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--background-modifier-accent)"
+                }}>
+                    <HypeSquadPicker />
                 </div>
 
                 {/* Progress bar */}
