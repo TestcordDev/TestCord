@@ -132,10 +132,10 @@ function injectCSS() {
 
     // Measured on a live session: emitting these rules per-selector (~115 rules, most
     // with :has()) cost ~200ms of EVERY full style recalc, which made all hover UI
-    // feel laggy. Grouping into shared :is()/:has() lists keeps identical coverage
-    // at a fraction of the matching cost. The fuzzy [aria-label*=..." i] selector
-    // stays out of :has() lists — substring matching inside :has() is the single
-    // most expensive pattern here.
+    // feel laggy. Grouping into shared :is() lists and dropping :has() entirely brings
+    // that down to ~60% — :has() under substring-scope ancestors was the single most
+    // expensive pattern. Tradeoff: when Discord wraps a hidden button in its own div,
+    // the wrapper keeps its slot instead of collapsing; the button itself still hides.
     const exactSelectors = rawSelectors.filter(s => !s.includes("*="));
     const fuzzySelectors = rawSelectors.filter(s => s.includes("*="));
 
@@ -145,19 +145,12 @@ function injectCSS() {
     for (const scope of scopes) {
         if (exactSelectors.length) activeSelectors.push(`${scope} :is(${exactSelectors.join(",")})`);
         if (fuzzySelectors.length) activeSelectors.push(`${scope} ${fuzzySelectors.join(",")}`);
-        const buttonContainers = `${scope} [class*="buttons"]`;
-        if (exactSelectors.length) {
-            activeSelectors.push(`${buttonContainers} > *:is(${exactSelectors.join(",")})`);
-            activeSelectors.push(`${buttonContainers} > *:has(:is(${exactSelectors.join(",")}))`);
-        }
-        if (fuzzySelectors.length) {
-            activeSelectors.push(`${buttonContainers} > *:is(${fuzzySelectors.join(",")})`);
-        }
+        if (exactSelectors.length) activeSelectors.push(`${scope} [class*="buttons"] > *:is(${exactSelectors.join(",")})`);
+        if (fuzzySelectors.length) activeSelectors.push(`${scope} [class*="buttons"] > *:is(${fuzzySelectors.join(",")})`);
     }
 
     if (exactSelectors.length) {
         activeSelectors.push(`[class*="buttons__"] > *:is(${exactSelectors.join(",")})`);
-        activeSelectors.push(`[class*="buttons__"] > *:has(:is(${exactSelectors.join(",")}))`);
     }
     if (fuzzySelectors.length) {
         activeSelectors.push(`[class*="buttons__"] > *:is(${fuzzySelectors.join(",")})`);
