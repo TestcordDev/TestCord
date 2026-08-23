@@ -277,3 +277,49 @@ export function entries<KeyType extends IDBValidKey, ValueType = any>(
         );
     });
 }
+
+/**
+ * Get all entries, tolerating records Chromium refuses to deserialize
+ * ("Failed to read large IndexedDB value"). Unreadable keys are skipped and
+ * reported through `onUnreadable` instead of failing the whole read, so one
+ * oversized row cannot take down exports or cloud sync.
+ *
+ * Unlike {@link entries} this always reads key-by-key chunks rather than one
+ * giant getAll, trading some speed for the ability to isolate bad rows.
+ */
+export async function entriesSafe(
+    onUnreadable?: (key: IDBValidKey, error: unknown) => void,
+    customStore = defaultGetStore(),
+): Promise<[IDBValidKey, any][]> {
+    const allKeys = await keys(customStore);
+    const items: [IDBValidKey, any][] = [];
+
+    const MAX_CHUNK = 200;
+    let chunkSize = MAX_CHUNK;
+    let index = 0;
+
+    while (index < allKeys.length) {
+        const chunk = allKeys.slice(index, index + chunkSize);
+        try {
+            const values = await getMany(chunk, customStore);
+            for (let i = 0; i < chunk.length; i++) {
+                items.push([chunk[i], values[i]]);
+            }
+            index += chunk.length;
+            if (chunkSize < MAX_CHUNK) {
+                // Reads work again - crawl back up so the rest of the store is
+                // not fetched one key at a time.
+                chunkSize = Math.min(MAX_CHUNK, Math.max(1, chunkSize * 4));
+            }
+        } catch (err) {
+            if (chunkSize > 1) {
+                chunkSize = Math.max(1, Math.floor(chunkSize / 4));
+                continue;
+            }
+            onUnreadable?.(chunk[0], err);
+            index += 1;
+        }
+    }
+
+    return items;
+}

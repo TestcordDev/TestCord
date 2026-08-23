@@ -248,7 +248,7 @@ export async function savePreset(name: string, createdAt: number, scope: ScopeKe
         preset.quickCss = await VencordNative.quickCss.get().catch(() => "");
     }
     if (scope.includes("dataStore")) {
-        const entries = await DataStore.entries().catch(() => [] as [IDBValidKey, any][]);
+        const entries = await DataStore.entriesSafe().catch(() => [] as [IDBValidKey, any][]);
         preset.dataStore = Object.fromEntries(entries.map(([k, v]) => [String(k), v]));
     }
 
