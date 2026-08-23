@@ -20,6 +20,10 @@ import { debounce } from "@shared/debounce";
 import { IpcEvents } from "@shared/IpcEvents";
 import { contextBridge, webFrame } from "electron/renderer";
 
+// StereoLoader: intercept the voice module load in this (renderer) Node
+// context before Discord's own preload requires it. Must run before the
+// DISCORD_PRELOAD chain below. See testcordplugins/stereoLoader.desktop.
+import { installStereoLoaderPreloadHook } from "./testcordplugins/stereoLoader.desktop/preloadHook";
 import VencordNative, { invoke, sendSync } from "./VencordNative";
 
 contextBridge.exposeInMainWorld("VencordNative", VencordNative);
@@ -29,6 +33,7 @@ if (location.protocol !== "data:") {
     invoke(IpcEvents.INIT_FILE_WATCHERS);
 
     if (IS_DISCORD_DESKTOP) {
+        installStereoLoaderPreloadHook();
         webFrame.executeJavaScript(sendSync<string>(IpcEvents.PRELOAD_GET_RENDERER_JS));
         // Not supported in sandboxed preload scripts but Discord doesn't support it either so who cares
         require(process.env.DISCORD_PRELOAD!);
