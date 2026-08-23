@@ -1630,6 +1630,9 @@ export default definePlugin({
 
         const isBlocked = (url: string): boolean => {
             if (!fastNetwork) return false;
+            // Cheap pre-filter: only Discord API paths can match a blocked route.
+            // CDN/media/image traffic (the bulk of fetches) skips URL construction.
+            if (!/\/api\/(?:v\d+\/)?(?:science|tracing|logging|metrics|track)\b/.test(url)) return false;
             try {
                 const u = new URL(url, window.location.origin);
                 return blockedPaths.some(re => re.test(u.pathname));
@@ -1696,10 +1699,12 @@ export default definePlugin({
 
             const finalUrl = rewriteSize(rawUrl);
             const method = init?.method?.toUpperCase() ?? (input instanceof Request ? input.method.toUpperCase() : "GET");
-            const useCache = cacheEnabled && isImage(finalUrl) && method === "GET";
+            const isGet = method === "GET";
+            const useCache = cacheEnabled && isGet && isImage(finalUrl);
+            // One key computation per request instead of one per branch.
+            const cacheKey = useCache || (fastNetwork && isGet) ? normalizeCacheKey(finalUrl) : null;
 
-            if (useCache) {
-                const cacheKey = normalizeCacheKey(finalUrl);
+            if (useCache && cacheKey) {
                 const hit = cache.get(cacheKey);
                 if (hit && Date.now() - hit.timestamp < cacheMs) {
                     touch(cacheKey);
@@ -1713,9 +1718,8 @@ export default definePlugin({
                 }
             }
 
-            if (fastNetwork && method === "GET") {
-                const dedupeKey = normalizeCacheKey(finalUrl);
-                const existing = inflight.get(dedupeKey);
+            if (fastNetwork && isGet && cacheKey) {
+                const existing = inflight.get(cacheKey);
                 if (existing) return existing.then(r => r.clone());
             }
 
@@ -1724,13 +1728,10 @@ export default definePlugin({
                 : input;
 
             const promise = originalFetch(target, init).then(res => {
-                if (fastNetwork && method === "GET") {
-                    inflight.delete(normalizeCacheKey(finalUrl));
-                }
+                if (cacheKey) inflight.delete(cacheKey);
                 if (useCache && res.ok) {
                     const bytes = Number(res.headers.get("content-length")) || 0;
-                    if (bytes > 0 && bytes <= maxBytes) {
-                        const cacheKey = normalizeCacheKey(finalUrl);
+                    if (bytes > 0 && bytes <= maxBytes && cacheKey) {
                         const old = cache.get(cacheKey);
                         if (old) cacheBytes -= old.bytes;
                         cache.set(cacheKey, { response: res.clone(), timestamp: Date.now(), bytes });
@@ -1742,8 +1743,11 @@ export default definePlugin({
                 return res;
             });
 
-            if (fastNetwork && method === "GET") {
-                inflight.set(normalizeCacheKey(finalUrl), promise);
+            if (cacheKey) {
+                // Rejections must clear the slot too, or the first failed image
+                // request permanently dedupes that URL into a dead promise.
+                inflight.set(cacheKey, promise);
+                promise.catch(() => inflight.delete(cacheKey));
             }
 
                 return promise;

@@ -66,11 +66,6 @@ function buildCss(): string {
 [class*="memberInner"] [class*="avatar"] img[src*=".gif"] {
     content: url("");
 }
-[class*="listItem"] [class*="avatar"] img,
-[class*="message"] [class*="avatar"] img,
-[class*="memberInner"] [class*="avatar"] img {
-    image-rendering: pixelated;
-}
 `;
     }
 
@@ -238,6 +233,9 @@ function installRafThrottle() {
         hook: "requestAnimationFrame",
         priority: RuntimeInterpositionPriority.BEHAVIOR,
         wrap: next => cb => {
+            // Fast path: a focused visible window pays two property reads instead of
+            // the full activity probe (hasFocus()/matches(":hover") force style work).
+            if (!document.hidden) return next(cb);
             if (RuntimeInteractions.isActive() || isClientInUse()) return next(cb);
             const id = ++rafSeq;
             const now = performance.now();

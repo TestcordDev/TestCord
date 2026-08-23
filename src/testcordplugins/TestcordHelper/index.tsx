@@ -1632,15 +1632,16 @@ export default definePlugin({
             }
         }
         hotkeyHandler = (e: KeyboardEvent) => {
-            if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "h") {
-                e.preventDefault();
-                e.stopPropagation();
-                showToast("Sending debug report to channel...", Toasts.Type.MESSAGE);
-                sendDebugReport().catch(err => {
-                    logger.error("Failed to send debug report:", err);
-                    showToast(`Failed to send debug report: ${err.message}`, Toasts.Type.FAILURE);
-                });
-            }
+            // Capture-phase listener on document: bail before touching e.key so
+            // ordinary typing pays two boolean reads, not string work.
+            if (!e.ctrlKey || !e.shiftKey || e.key.toLowerCase() !== "h") return;
+            e.preventDefault();
+            e.stopPropagation();
+            showToast("Sending debug report to channel...", Toasts.Type.MESSAGE);
+            sendDebugReport().catch(err => {
+                logger.error("Failed to send debug report:", err);
+                showToast(`Failed to send debug report: ${err.message}`, Toasts.Type.FAILURE);
+            });
         };
         document.addEventListener("keydown", hotkeyHandler, true);
 

@@ -41,7 +41,10 @@ const fluxFans = new Map<string, FluxHandler>();
 let fluxBusActive = false;
 
 const COALESCE_MS = 50;
-const pendingCoalesce = new Map<string, { event: any; timer: ReturnType<typeof setTimeout> }>();
+// Every swallowed event is queued, never dropped. Dropping intermediates silently
+// broke every plugin watching MESSAGE_CREATE (snipers, loggers, autoresponders)
+// whenever two messages landed in the same channel within the window.
+const pendingCoalesce = new Map<string, { queued: any[]; timer: ReturnType<typeof setTimeout> }>();
 
 function dispatchCoalesced(actionType: string, event: any) {
     const set = fluxSubscribers.get(actionType);
@@ -52,10 +55,9 @@ function dispatchCoalesced(actionType: string, event: any) {
 }
 
 // Leading-edge throttle per channel. The first message of a burst goes through
-// immediately (no added latency), and the trailing timer only fires if something newer
-// arrived while the window was open. Previously the first message was both dispatched
-// inline AND re-dispatched by the timer, so every single message ran all subscribed
-// handlers twice - the opposite of what coalescing is for.
+// immediately (no added latency). Later messages inside the window are held and
+// replayed together in one synchronous task when the timer fires, so React batches
+// the re-renders instead of paying one render pass per message.
 function maybeCoalesce(actionType: string, event: any): boolean {
     if (actionType !== "MESSAGE_CREATE" || !settings.store.messageCoalesce) return false;
     const channelId = event.message?.channel_id;
@@ -63,16 +65,17 @@ function maybeCoalesce(actionType: string, event: any): boolean {
 
     const pending = pendingCoalesce.get(channelId);
     if (pending) {
-        pending.event = event;
+        pending.queued.push(event);
         return true;
     }
 
-    const entry: { event: any; timer: ReturnType<typeof setTimeout>; } = {
-        event: null,
+    const entry: { queued: any[]; timer: ReturnType<typeof setTimeout>; } = {
+        queued: [],
         timer: setTimeout(() => {
-            const latest = pendingCoalesce.get(channelId);
+            const batch = pendingCoalesce.get(channelId);
             pendingCoalesce.delete(channelId);
-            if (latest?.event) dispatchCoalesced(actionType, latest.event);
+            if (!batch) return;
+            for (const ev of batch.queued) dispatchCoalesced(actionType, ev);
         }, COALESCE_MS)
     };
     pendingCoalesce.set(channelId, entry);

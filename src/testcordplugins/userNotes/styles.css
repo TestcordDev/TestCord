@@ -227,14 +227,13 @@
     gap: 8px;
 }
 
-.vc-user-notes-data-modal-user-actions * div:has(svg) {
+.vc-user-notes-data-modal-user-actions div:has(svg) {
     width: 32px !important;
     height: 32px !important;
     overflow: visible !important;
 }
 
 .vc-user-notes-data-modal-user-notes-container
-*
 div:has(.vc-user-notes-data-modal-user-text-area) {
     height: 67px;
 }

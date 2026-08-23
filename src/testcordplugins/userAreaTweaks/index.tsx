@@ -11,22 +11,19 @@ const CSS = `
    User Area — Floating Dock (CSS-only)
 ────────────────────────────────────────────────── */
 
-/* Hide the native flex container of buttons to recreate them elsewhere if needed, 
-   Wait, a pure CSS floating dock without DOM manipulation! */
+/* Everything is scoped under the panels section. The previous version matched
+   ANY section whose class contained "container_" and ran :has() over each one's
+   whole subtree - that selector pair was re-evaluated across the entire app on
+   every DOM change and made all hover UI laggy. */
 
-/* We style the button container itself to look like a floating dock */
-section[class*="container_"]:has([class*="avatar_"]) {
-    position: relative !important;
-    overflow: visible !important;
-}
-
-/* The button container inside the user area */
-[class*="avatarWrapper_"] ~ div[class*="flex_"],
-section[class*="container_"]:has([class*="avatar_"]) > div[class*="flex_"] {
+/* The button container inside the user area, styled as a floating dock.
+   The sibling combinator does the work :has() used to do: the buttons flex
+   container always follows the avatar wrapper in Discord's panels markup. */
+section[class*="panels_"] [class*="avatarWrapper_"] ~ div[class*="flex"] {
     position: absolute !important;
     top: -45px !important; /* Move it above the user area */
     left: 8px !important;
-    
+
     /* Styling the dock */
     display: flex !important;
     align-items: center !important;
@@ -42,15 +39,19 @@ section[class*="container_"]:has([class*="avatar_"]) > div[class*="flex_"] {
     min-height: 32px !important;
 }
 
+section[class*="panels_"] {
+    position: relative !important;
+    overflow: visible !important;
+}
+
 /* Hover effect on the dock */
-[class*="avatarWrapper_"] ~ div[class*="flex_"]:hover,
-section[class*="container_"]:has([class*="avatar_"]) > div[class*="flex_"]:hover {
+section[class*="panels_"] [class*="avatarWrapper_"] ~ div[class*="flex"]:hover {
     transform: translateY(-2px);
     background: rgba(30, 31, 34, 0.98) !important;
 }
 
 /* Style the buttons inside the dock */
-section[class*="container_"]:has([class*="avatar_"]) > div[class*="flex_"] button {
+section[class*="panels_"] [class*="avatarWrapper_"] ~ div[class*="flex"] button {
     background: none !important;
     padding: 0 !important;
     width: 32px !important;
@@ -63,19 +64,21 @@ section[class*="container_"]:has([class*="avatar_"]) > div[class*="flex_"] butto
     flex: 0 0 auto !important;
 }
 
-section[class*="container_"]:has([class*="avatar_"]) > div[class*="flex_"] button:hover {
+section[class*="panels_"] [class*="avatarWrapper_"] ~ div[class*="flex"] button:hover {
     color: #fff !important;
     transform: scale(1.1);
 }
 
-section[class*="container_"]:has([class*="avatar_"]) > div[class*="flex_"] button svg {
+section[class*="panels_"] [class*="avatarWrapper_"] ~ div[class*="flex"] button svg {
     width: 18px !important;
     height: 18px !important;
 }
 
-/* IMPORTANT: Push the voice connection panel up so the dock doesn't overlap it! */
-section[class*="panels_"] > div[class*="container_"]:not(:has([class*="avatar_"])) {
-    margin-bottom: 45px !important; 
+/* IMPORTANT: Push the voice connection panel up so the dock doesn't overlap it!
+   Scoped to direct children of the panels section, so :has() only ever runs
+   against one or two elements instead of every container in the app. */
+section[class*="panels_"] > div[class*="container_"]:not(:has([class*="avatarWrapper_"])) {
+    margin-bottom: 45px !important;
     transition: margin-bottom 0.2s ease !important;
 }
 `;

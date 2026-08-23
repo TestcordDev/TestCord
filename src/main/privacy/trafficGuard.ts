@@ -86,6 +86,13 @@ const BLOCKED_PATTERNS = [
     "sentry.io"
 ];
 
+// Wildcard patterns are compiled once here instead of being rebuilt with
+// new RegExp on every intercepted request (that ran for ALL traffic).
+const BLOCKED_PATTERN_REGEXES = BLOCKED_PATTERNS
+    .filter(p => p.includes("*"))
+    .map(p => new RegExp(p.replace(/\*/g, ".*")));
+const BLOCKED_PATTERN_SUBSTRINGS = BLOCKED_PATTERNS.filter(p => !p.includes("*"));
+
 // Hosts that are considered first-party (Discord itself). Everything else is
 // third-party. Note: ReviewDB / manti.vendicated.dev is intentionally NOT here
 // — it receives your Discord token and is treated as an untrusted third party.
@@ -117,7 +124,14 @@ const MALICIOUS_KEYWORDS = [
 ];
 
 // Extensions that represent fetchable, runnable code.
-const CODE_EXTENSIONS = [".js", ".mjs", ".cjs", ".wasm", ".ts"];
+const CODE_EXTENSION_REGEX = /\.(?:js|mjs|cjs|wasm|ts)$/;
+
+// Boundary-compiled once: threat scanning used to build a fresh RegExp per
+// keyword on every scanned URL.
+const MALICIOUS_KEYWORD_REGEXES = MALICIOUS_KEYWORDS.map(kw => ({
+    keyword: kw,
+    pattern: new RegExp(`(^|[^a-z0-9])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`)
+}));
 
 // Explicit allowlist of known tracking/attribution query parameters that are
 // safe to strip. This is deliberately an allowlist (delete only these) rather
@@ -375,35 +389,12 @@ class TrafficGuardEngine {
 
     // ---- Threat scanning --------------------------------------------------
 
-    private scanForThreat(url: string): string | null {
-        // Only the path is scanned — never the query string, where values like
-        // "?format=rat" are user data, not payload names. Each path segment is
-        // matched with delimiters on both sides so a signature fires on the
-        // standalone token ("rat.js", "token-grabber") but not as an
-        // incidental substring ("corporate.js", "migrate.wasm"). Keywords are
-        // escaped so any regex-special characters are treated literally.
-        let path = "";
-        try {
-            path = new URL(url).pathname.toLowerCase();
-        } catch {
-            path = url.toLowerCase();
-        }
-        const segments = path.split("/").filter(Boolean);
-        for (const kw of MALICIOUS_KEYWORDS) {
-            const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const pattern = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`);
-            if (segments.some(seg => pattern.test(seg))) return kw;
+    private scanPathForThreat(loweredPath: string): string | null {
+        const segments = loweredPath.split("/").filter(Boolean);
+        for (const { keyword, pattern } of MALICIOUS_KEYWORD_REGEXES) {
+            if (segments.some(seg => pattern.test(seg))) return keyword;
         }
         return null;
-    }
-
-    private looksLikeCode(url: string): boolean {
-        try {
-            const path = new URL(url).pathname.toLowerCase();
-            return CODE_EXTENSIONS.some(ext => path.endsWith(ext));
-        } catch {
-            return false;
-        }
     }
 
     // Returns a cleaned URL if any allowlisted tracking params were present, or
@@ -490,12 +481,15 @@ class TrafficGuardEngine {
                 return callback({ cancel: false });
             }
 
-            let host = "";
+            // One parse per request; everything below reuses these parts.
+            let parsedUrl: URL;
             try {
-                host = new URL(url).hostname;
+                parsedUrl = new URL(url);
             } catch {
-                host = url;
+                parsedUrl = null as unknown as URL;
             }
+            const host = parsedUrl?.hostname ?? url;
+            const loweredPath = parsedUrl ? parsedUrl.pathname.toLowerCase() : "";
 
             // Explicit per-host block rule — cancel outright.
             if (this.ruleForHost(host) === "block") {
@@ -506,8 +500,8 @@ class TrafficGuardEngine {
             }
 
             // Remote-code guard: inspect fetchable code from non-first-party hosts.
-            if (this.shields.remoteCodeGuard && !isFirstParty(host) && this.looksLikeCode(url)) {
-                const keyword = this.scanForThreat(url);
+            if (this.shields.remoteCodeGuard && !isFirstParty(host) && CODE_EXTENSION_REGEX.test(loweredPath)) {
+                const keyword = this.scanPathForThreat(loweredPath);
                 if (keyword) {
                     // Malicious signature — hard block + immediate alert.
                     this.counters.totalBlocked++;
@@ -530,14 +524,14 @@ class TrafficGuardEngine {
             // generic Fetch/XHR/Beacon shield is on. The generic shield only
             // applies to telemetry-shaped patterns none of the specific
             // shields already claimed.
-            const path = new URL(url).pathname.toLowerCase();
+            const path = loweredPath;
             const isDiscordApi = isFirstParty(host) && path.includes("/api/");
             const isBadgeSpoofer = isDiscordApi && (url.includes("source=badge_spoofer") || url.includes("badge_spoofer=true") || url.includes("badge_spoofer=1"));
 
             // Badge Spoofer: Explicitly permit spoofed playtime & game telemetry payloads through without telemetry shield blocking
             if (isBadgeSpoofer) {
                 this.trackOutboundRoute(url, false);
-                this.logAllowedEvent(url, details.method, details.resourceType);
+                this.logAllowedEvent(url, details.method, details.resourceType, host);
                 return callback({ cancel: false });
             }
 
@@ -547,13 +541,10 @@ class TrafficGuardEngine {
             const isTracing = isDiscordApi && path.endsWith("/tracing");
             const isRtcDiagnostics = isDiscordApi && /\/(?:rtc|voice)\/(?:quality-report|diagnostics)\/?$/.test(path);
             const isRemoteLogging = isDiscordApi && /\/debug-logs(?:\/|$)/.test(path);
-            const isResidualPattern = !isSentry && !isMetrics && !isScienceTrack && BLOCKED_PATTERNS.some(p => {
-                if (p.includes("*")) {
-                    const regex = new RegExp(p.replace(/\*/g, ".*"));
-                    return regex.test(url);
-                }
-                return url.includes(p);
-            });
+            const isResidualPattern = !isSentry && !isMetrics && !isScienceTrack && (
+                BLOCKED_PATTERN_SUBSTRINGS.some(p => url.includes(p))
+                || BLOCKED_PATTERN_REGEXES.some(re => re.test(url))
+            );
 
             const shouldBlockTelemetry =
                 (isSentry && this.shields.sentry)
@@ -612,7 +603,7 @@ class TrafficGuardEngine {
             }
 
             this.trackOutboundRoute(url, false);
-            this.logAllowedEvent(url, details.method, details.resourceType);
+            this.logAllowedEvent(url, details.method, details.resourceType, host);
             callback({ cancel: false });
         });
 
@@ -665,12 +656,14 @@ class TrafficGuardEngine {
         }
     }
 
-    public logBlockedEvent(url: string, action: string, category: string, outcome: BlockOutcome = "blocked") {
-        let domain = "unknown";
-        try {
-            domain = new URL(url).hostname;
-        } catch {
-            domain = url;
+    public logBlockedEvent(url: string, action: string, category: string, outcome: BlockOutcome = "blocked", knownDomain?: string) {
+        let domain = knownDomain ?? "unknown";
+        if (!domain || domain === "unknown") {
+            try {
+                domain = new URL(url).hostname;
+            } catch {
+                domain = url;
+            }
         }
 
         const log: BlockedEventLog = {
@@ -689,12 +682,14 @@ class TrafficGuardEngine {
         }
     }
 
-    public logAllowedEvent(url: string, method = "GET", resourceType = "xhr") {
-        let domain = "unknown";
-        try {
-            domain = new URL(url).hostname;
-        } catch {
-            domain = url;
+    public logAllowedEvent(url: string, method = "GET", resourceType = "xhr", knownDomain?: string) {
+        let domain = knownDomain ?? "unknown";
+        if (!domain || domain === "unknown") {
+            try {
+                domain = new URL(url).hostname;
+            } catch {
+                domain = url;
+            }
         }
 
         let routeGroup = "Outbound";

@@ -10,7 +10,7 @@ import { classes } from "@utils/misc";
 import type { User } from "@vencord/discord-types";
 import { Tooltip, useEffect, useState } from "@webpack/common";
 
-import { type DetectionRecord, ensureDetection, getDetectionRecord, getDetectionTtlMs, subscribeToDetection } from "./detection";
+import { type DetectionRecord, getDetectionRecord, getDetectionTtlMs, subscribeToDetection } from "./detection";
 
 const cl = classNameFactory("vc-detect-block-");
 
@@ -19,7 +19,7 @@ interface DetectionSnapshot {
     record?: DetectionRecord;
 }
 
-function useBlockState(userId: string, passive = false) {
+function useBlockState(userId: string) {
     const [snapshot, setSnapshot] = useState<DetectionSnapshot>(() => ({
         userId,
         record: getDetectionRecord(userId)
@@ -40,19 +40,16 @@ function useBlockState(userId: string, passive = false) {
     }, [userId]);
 
     useEffect(() => {
-        if (!record) {
-            if (!passive) void ensureDetection(userId);
-            return;
-        }
+        if (!record) return;
 
         const remainingMs = record.checkedAt + getDetectionTtlMs(record.state) - Date.now();
         if (remainingMs <= 0) {
-            if (!passive) setSnapshot({ userId });
+            setSnapshot({ userId });
             return;
         }
 
         const timeout = window.setTimeout(() => {
-            if (!passive) setSnapshot({ userId });
+            setSnapshot({ userId });
         }, remainingMs);
         return () => window.clearTimeout(timeout);
     }, [record, userId]);
@@ -68,9 +65,15 @@ export interface DetectBlockBadgeProps {
 }
 
 export function DetectBlockBadge({ user, isMemberList, isMessage, isProfile }: DetectBlockBadgeProps) {
-    if (!user) return null;
+    // Hooks must run unconditionally - this badge mounts once per chat message,
+    // member list row and nickname, so any conditional hook order crashes React
+    // the moment a render arrives without a user.
+    const state = useBlockState(user?.id ?? "");
 
-    const state = useBlockState(user.id, isMemberList);
+    if (!user) return null;
+    // Display only: detection runs from the voice/group DM watchers. Letting the
+    // badge itself probe turned every rendered message into a profile API request,
+    // which hammered the API while scrolling busy servers.
     if (state !== "blockedYou") return null;
 
     return (
