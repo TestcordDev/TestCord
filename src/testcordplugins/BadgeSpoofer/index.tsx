@@ -69,7 +69,7 @@ export default definePlugin({
             execute: async (options, { channel }) => {
                 if (badgeSpooferEngine.getIsRunning()) {
                     sendBotMessage(channel.id, {
-                        content: "⚠️ **Badge Spoofer is already running.** Use `/badgespoof-stop` to cancel."
+                        content: "Badge Spoofer is already running. Use `/badgespoof-stop` to cancel."
                     });
                     return;
                 }
@@ -80,7 +80,7 @@ export default definePlugin({
                 const fingerprint = findOption(options, "fingerprint", settings.store.customFingerprint || undefined);
 
                 sendBotMessage(channel.id, {
-                    content: `🚀 **Starting Badge Spoofer...** Target: **${hours}h** play, **${streamHours}h** stream per game. Check progress in toasts or open dashboard with \`/badgespoof-dashboard\`.`
+                    content: `Starting Badge Spoofer: **${hours}h** play, **${streamHours}h** stream per game. Progress shows in toasts, or use \`/badgespoof-dashboard\`.`
                 });
 
                 Toasts.show({
@@ -129,7 +129,7 @@ export default definePlugin({
                 const ok = await applyHouse(houseId);
                 if (ok) {
                     sendBotMessage(channel.id, {
-                        content: `✅ HypeSquad updated${houseId === 0 ? ", badge removed" : ""}. Reload Discord (Ctrl+R) to see the change.`
+                        content: `HypeSquad updated${houseId === 0 ? ", badge removed" : ""}. Reload Discord (Ctrl+R) to see the change.`
                     });
                 }
             }
@@ -153,15 +153,15 @@ export default definePlugin({
 
                 sendBotMessage(channel.id, {
                     content: [
-                        "🏆 **Discord Badge Spoofer Status**",
-                        `• **Running:** ${running ? "🟢 Yes (Active)" : "⚪ Idle"}`,
-                        `• **Game Variety (Games):** \`${stats.totalGamesClaimed.toLocaleString()} games\``,
-                        `• **Game Time (Playtime):** \`${Math.round(stats.totalHoursClaimed).toLocaleString()} hours\``,
-                        `• **Streaming (Hours Streamed):** \`${Math.round(stats.totalStreamHoursClaimed || 0).toLocaleString()} hours\``,
-                        `• **Available in Database:** \`${games.length.toLocaleString()} games\``,
-                        `• **Executable Fingerprint:** \`${stats.fingerprint ? "Configured" : "None (Default)"}\``,
+                        "**Discord Badge Spoofer Status**",
+                        `• Running: ${running ? "Yes (Active)" : "Idle"}`,
+                        `• Games: \`${stats.totalGamesClaimed.toLocaleString()}\``,
+                        `• Playtime: \`${Math.round(stats.totalHoursClaimed).toLocaleString()} hours\``,
+                        `• Streamed: \`${Math.round(stats.totalStreamHoursClaimed || 0).toLocaleString()} hours\``,
+                        `• Available in Database: \`${games.length.toLocaleString()} games\``,
+                        `• Executable Fingerprint: \`${stats.fingerprint ? "Configured" : "None"}\``,
                         "",
-                        "*Note: Discord profile badges update in 1-2 days after backend analytics processing.*"
+                        "Badges update on Discord's backend within 1-2 days."
                     ].join("\n")
                 });
             }
@@ -172,12 +172,12 @@ export default definePlugin({
             inputType: ApplicationCommandInputType.BUILT_IN,
             execute: (_, { channel }) => {
                 if (!badgeSpooferEngine.getIsRunning()) {
-                    sendBotMessage(channel.id, { content: "ℹ️ Badge Spoofer is not currently running." });
+                    sendBotMessage(channel.id, { content: "Badge Spoofer is not currently running." });
                     return;
                 }
 
-                badgeSpooferEngine.stopSpoofing();
-                sendBotMessage(channel.id, { content: "🛑 **Badge Spoofer stopped.**" });
+                    badgeSpooferEngine.stopSpoofing();
+                sendBotMessage(channel.id, { content: "Badge Spoofer stopped." });
             }
         }
     ]
