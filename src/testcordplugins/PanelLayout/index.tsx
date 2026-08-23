@@ -14,7 +14,6 @@ import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
-import { Switch } from "@components/Switch";
 import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { TestcordDevs } from "@utils/constants";
 import { ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, RenderModalProps } from "@utils/modal";
@@ -112,6 +111,9 @@ const settings = definePluginSettings({
 // ─── Selectors & Constants ────────────────────────────────────────────────────
 
 const S = {
+    previewButtonContainer: ".previewButtonContainer",
+    previewButton: ".buttonPreview",
+    previewButtonOn: ".previewButtonOn",
     panelContainer: ".container__37e49",
     panelButtons:   ".buttons__37e49",
     panelButton:    ".button__201d5",
@@ -171,7 +173,8 @@ interface ButtonConfig {
     order?: number;
     color: string;
     opacity: number;
-    background: boolean
+    radius: number;
+    background: boolean;
 }
 
 const BUTTON_CONFIG_KEY = "deracul-panel-layout-configs";
@@ -250,6 +253,41 @@ function onGlobalKeydown(e: KeyboardEvent) {
                 e.stopPropagation();
                 clickable.click();
             }
+        }
+    }
+}
+
+function getButtonLabel(button: HTMLElement): string | null {
+    const customLabel = button.getAttribute("data-deracul-label");
+    if (customLabel) return customLabel;
+
+    const aria = button.getAttribute("aria-label")?.toLowerCase() || "";
+    if (aria.includes("mute")) return "Mute";
+    if (aria.includes("deafen")) return "Deafen";
+    if (aria.includes("user settings")) return "User Settings";
+
+    return null;
+}
+
+function onPanelMiddleClick(e: MouseEvent) {
+    if (e.button !== 1) return;
+
+    const target = e.target as HTMLElement;
+    const panelEl = target?.closest(S.panelContainer);
+    const button = target?.closest("button");
+
+    if (panelEl && button) {
+        const label = getButtonLabel(button);
+        if (label) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Ensure data-deracul-label is populated so SettingsModal target filtering matches
+            if (!button.hasAttribute("data-deracul-label")) {
+                button.setAttribute("data-deracul-label", label);
+            }
+
+            openModal(modalProps => <SettingsModal modalProps={modalProps} target={button} />);
         }
     }
 }
@@ -520,15 +558,17 @@ function buildCSS(): string {
     lines.push(`${S.panelButtons} ${S.panelButton} { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }`);
     switch (st.buttonStyle) {
         case "filled":
-            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 8px !important; }
-                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 8px !important; }
+                        ${S.panelButtons} ${S.panelButton}:hover, ${S.previewButtonContainer} ${S.previewButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         case "outlined":
-            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
 
             for (const id of Object.keys(buttonConfigs)) {
                 if (getBtnCfg(id).background !== undefined && !getBtnCfg(id).background) {
                     lines.push(`
+                        ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
+                        ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645,
                         ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
                         ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
                             background: transparent !important;
@@ -542,11 +582,13 @@ function buildCSS(): string {
             // Pre-fallback replica: relies on var(--background-modifier-accent) which
             // new Discord tokens dropped, so the border doesn't actually render.
             // People liked that buggy look, so it's kept as its own option.
-            lines.push(`${S.panelButtons} ${S.panelButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }`);
 
             for (const id of Object.keys(buttonConfigs)) {
                 if (getBtnCfg(id).background !== undefined && !getBtnCfg(id).background) {
                     lines.push(`
+                        ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
+                        ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645,
                         ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
                         ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
                             background: transparent !important;
@@ -557,18 +599,18 @@ function buildCSS(): string {
 
             break;
         case "pill":
-            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 20px !important; }
-                        ${S.panelButtons} ${S.panelButton}.plateState:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { background: var(--bplateStateackground-modifier-hover, var(--background-mod-normal)) !important; border-radius: 20px !important; }
+                        ${S.panelButtons} ${S.panelButton}.plateState:hover, ${S.previewButtonContainer} ${S.previewButton}.plateState:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         case "square":
-            lines.push(`${S.panelButtons} ${S.panelButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 2px !important; }
-                        ${S.panelButtons} ${S.panelButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { background: var(--background-modifier-hover, var(--background-mod-normal)) !important; border-radius: 2px !important; }
+                        ${S.panelButtons} ${S.panelButton}:hover, ${S.previewButtonContainer} ${S.previewButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         default:
             // Keep plugin toggle buttons from showing Discord's own fill (colorBrand
             // hover background) underneath the glow/scale hover effects.
-            lines.push(`${S.panelButtons} ${S.panelButton} { background: transparent !important; }
-                        ${S.panelButtons} ${S.panelButton}:hover { background: transparent !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { background: transparent !important; }
+                        ${S.panelButtons} ${S.panelButton}:hover, ${S.previewButtonContainer} ${S.previewButton}:hover { background: transparent !important; }`);
             break;
     }
 
@@ -585,9 +627,9 @@ function buildCSS(): string {
 
     // Hover
     switch (st.hoverEffect) {
-        case "scale": lines.push(`${S.panelButtons} ${S.panelButton}:hover { transform: scale(1.15) !important; transition: transform 0.15s ease !important; }`); break;
-        case "glow": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: drop-shadow(0 0 6px ${st.glowColor}) !important; transition: filter 0.15s ease !important; }`); break;
-        case "bright": lines.push(`${S.panelButtons} ${S.panelButton}:hover { filter: brightness(1.3) !important; transition: filter 0.15s ease !important; }`); break;
+        case "scale": lines.push(`${S.panelButtons} ${S.panelButton}:hover, ${S.previewButton}:hover { transform: scale(1.15) !important; transition: transform 0.15s ease !important; }`); break;
+        case "glow": lines.push(`${S.panelButtons} ${S.panelButton}:hover, ${S.previewButton}:hover { filter: drop-shadow(0 0 6px ${st.glowColor}) !important; transition: filter 0.15s ease !important; }`); break;
+        case "bright": lines.push(`${S.panelButtons} ${S.panelButton}:hover, ${S.previewButton}:hover { filter: brightness(1.3) !important; transition: filter 0.15s ease !important; }`); break;
     }
 
     if ((st.buttonStyle === "outlineold" || st.buttonStyle === "outlined") && st.hoverEffect === "glow") {
@@ -670,10 +712,11 @@ function buildCustomCSS(): string {
         }
 
         // Custom Active Blob Color & Opacity per button
-        if (settings.store.colorfulActiveButtons && (cfg.color || cfg.opacity !== undefined)) {
+        if (settings.store.colorfulActiveButtons) {
             const baseColor = cfg.color || "#5865f2";
             const alpha = cfg.opacity !== undefined ? Math.round((cfg.opacity / 100) * 255).toString(16).padStart(2, "0") : "ff";
             const finalColor = `${baseColor.slice(0, 7)}${alpha}`;
+            const finalRadius= cfg.radius != null ? `${cfg.radius}px` : "10px";
 
             // We add :hover overrides here so the active custom color isn't erased when interacting!
             lines.push(`
@@ -682,14 +725,17 @@ function buildCustomCSS(): string {
                 ${sel}[aria-checked="true"],
                 ${sel} button[role="switch"][aria-checked="true"]:hover,
                 ${sel} button[aria-checked="true"]:hover,
-                ${sel}[aria-checked="true"]:hover {
+                ${sel}[aria-checked="true"]:hover,
+                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"],
+                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"]:hover {
                     background-color: ${finalColor} !important;
                     color: white !important;
-                    border-radius: 10px !important;
+                    border-radius: ${finalRadius} !important;
                 }
                 ${sel} button[role="switch"][aria-checked="true"] svg,
                 ${sel} button[aria-checked="true"] svg,
-                ${sel}[aria-checked="true"] svg {
+                ${sel}[aria-checked="true"] svg,
+                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"] svg {
                     fill: white !important;
                     color: white !important;
                 }
@@ -752,15 +798,15 @@ const MODAL_BODY_HEIGHT = 440;
 
 // ─── Native-styled helper components ─────────────────────────────────────────
 
-function SliderRow({ label, value, min, max, unit = "px", onChange, resetKey, gap }: {
-    label: string; value: number; min: number; max: number; unit?: string; onChange: (v: number) => void; resetKey?: number; gap: boolean;
+function SliderRow({ label, value, min, max, unit = "px", onChange, resetKey }: {
+    label: string; value: number; min: number; max: number; unit?: string; onChange: (v: number) => void; resetKey?: number;
 }) {
     // One marker per whole unit + stickToMarkers forces the handle to snap to
     // exact integers as it's dragged, instead of free-floating fractional values.
     const stepMarkers = React.useMemo(() => makeRange(min, max, 1), [min, max]);
 
     return (
-        <Flex flexDirection="column" gap={gap ? 8 : 0} style={{ width: "100%" }}>
+        <Flex flexDirection="column" gap={8} style={{ width: "100%" }}>
             <Flex justifyContent="space-between">
                 <BaseText size="md" weight="medium" color="text-default">{label}</BaseText>
                 <BaseText size="sm" weight="semibold" color="text-muted">{Math.round(value)}{unit}</BaseText>
@@ -799,13 +845,14 @@ function Dropdown({ label, options, value, onChange }: {
     );
 }
 
-function ColorRow({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void; }) {
+function ColorRow({ label, value, onChange, onBlur, }: { label: string; value: string; onChange: (v: string) => void; onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; }) {
     return (
         <Flex flexDirection="column" gap={8} style={{ width: "100%" }}>
             <BaseText size="md" weight="medium" color="text-default">{label}</BaseText>
             <input
                 type="color"
                 value={value}
+                onBlur={onBlur}
                 onChange={e => onChange(e.target.value)}
                 style={{ width: "100%", height: "40px", border: "none", borderRadius: "6px", cursor: "pointer", background: "transparent" }}
             />
@@ -999,112 +1046,6 @@ function ButtonsDragTab() {
                     })}
                 </div>
             )}
-
-            {items.length > 0 && (
-                <Flex flexDirection="column" gap={8} style={{ marginTop: "4px" }}>
-                    <Heading tag="h5">Global Keybind Mappings</Heading>
-                    <div className="deracul-scrollbar" style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "160px", overflowY: "auto", paddingRight: "4px" }}>
-                        {items.map(item => {
-                            const cfg = getBtnCfg(item.id);
-                            const listening = listeningId === item.id;
-                            const canonical = getCanonicalLabel(item.label);
-                            const isUserSettings = canonical === "User Settings";
-                            const isPanelLayout = canonical === "Panel Layout";
-                            const isMute = canonical === "Mute";
-                            const isDeafen = canonical === "Deafen";
-                            return (
-                                <div key={item.id} style={{ padding: "8px 12px", backgroundColor: "var(--background-secondary, var(--background-surface-higher))", borderRadius: "6px" }}>
-                                    <BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>
-                                    <Flex gap={8} alignItems="center" style={{ padding: "30px 0 0 0" }}>
-                                        {!isUserSettings && !isPanelLayout && settings.store.colorfulActiveButtons && (
-                                            <>
-                                                {((cfg.color !== undefined && cfg.color !== "#5865f2") || (cfg.opacity !== undefined && cfg.opacity !== 100) || ((cfg.background !== undefined && cfg.background !== true) && (settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold"))) && (
-                                                    <Button size="small" variant="secondary" title="Reset custom color & opacity" onClick={() => {
-                                                        setBtnCfg(item.id, { color: "#5865f2", opacity: 100, background: (settings.store.buttonStyle !== "outlined" && settings.store.buttonStyle !== "outlineold") ? cfg.background : true });
-                                                        apply(); forceUpdate();
-                                                    }}>↺</Button>
-                                                )}
-                                                <SliderRow
-                                                    label="Opacity"
-                                                    min={0}
-                                                    max={100}
-                                                    value={cfg.opacity ?? 100}
-                                                    onChange={v => {
-                                                        setBtnCfg(item.id, { opacity: Number(Math.round(v)) });
-                                                        apply(); forceUpdate();
-                                                    }}
-                                                    unit="%"
-                                                    gap={false}
-                                                />
-                                                <div>
-                                                    <input
-                                                        type="color"
-                                                        title="Active blob background color"
-                                                        value={cfg.color ?? "#5865f2"}
-                                                        onChange={e => {
-                                                            setBtnCfg(item.id, { color: e.target.value });
-                                                            apply();
-                                                        }}
-                                                        onBlur={() => {
-                                                            forceUpdate();
-                                                        }}
-                                                        style={{
-                                                            border: "none",
-                                                            cursor: "pointer",
-                                                            background: "transparent",
-                                                            width: "100%",
-                                                        }}
-                                                    />
-                                                    <Flex gap={8} alignItems="center">
-                                                        <Button size="small" variant="secondary" onClick={() => setListeningId(listening ? null : item.id)}>
-                                                            {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
-                                                        </Button>
-                                                        {cfg.keybind && (
-                                                            <Button size="small" variant="secondary" onClick={() => {
-                                                                setBtnCfg(item.id, { keybind: null });
-                                                                apply(); forceUpdate();
-                                                            }}>✕</Button>
-                                                        )}
-                                                        {(settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold") && !isMute && !isDeafen && (
-                                                            <>
-                                                                <Switch checked={cfg.background ?? true} onChange={v => {
-                                                                    setBtnCfg(item.id, { background: v });
-                                                                    apply(); forceUpdate();
-                                                                }} />
-                                                            </>
-                                                        )}
-                                                    </Flex>
-                                                </div>
-                                            </>
-                                        )}
-                                        {(!settings.store.colorfulActiveButtons || isUserSettings || isPanelLayout) && (
-                                            <>
-                                                <Button size="small" variant="secondary" onClick={() => setListeningId(listening ? null : item.id)}>
-                                                    {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
-                                                </Button>
-                                                {cfg.keybind && (
-                                                    <Button size="small" variant="secondary" onClick={() => {
-                                                        setBtnCfg(item.id, { keybind: null });
-                                                        apply(); forceUpdate();
-                                                    }}>✕</Button>
-                                                )}
-                                                {(settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold") && !isMute && !isDeafen && !isUserSettings && !isPanelLayout && (
-                                                    <>
-                                                        <Switch checked={cfg.background ?? true} onChange={v => {
-                                                            setBtnCfg(item.id, { background: v });
-                                                            apply(); forceUpdate();
-                                                        }} />
-                                                    </>
-                                                )}
-                                            </>
-                                        )}
-                                    </Flex>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </Flex>
-            )}
         </Flex>
     );
 }
@@ -1125,6 +1066,473 @@ function PanelLayoutIcon({ style, className }: { style?: React.CSSProperties; cl
             {/* Bottom-Right Block */}
             <rect x="13" y="11" width="8" height="10" rx="2" fill="currentColor" />
         </svg>
+    );
+}
+
+function SvgPreview({ target, icon, enabled = true }: { target: any; icon?: any; enabled?: boolean }) {
+    const containerRef = React.useRef<HTMLDivElement>(null);
+    const wrapperClass = "svg-preview-scoped";
+
+    React.useLayoutEffect(() => {
+        if (!containerRef.current) return;
+        containerRef.current.innerHTML = "";
+
+        if (target && typeof target !== "string" && target instanceof Element) {
+            const svgNode = target.querySelector("svg");
+            if (svgNode) {
+                const viewBox = svgNode.getAttribute("viewBox") || "0 0 24 24";
+                const maskId = `toggleLineMask-${Math.random().toString(36).substring(2, 7)}`;
+
+                // Extract viewBox dimensions
+                const viewBoxValues = viewBox.split(/[\s,]+/).map(Number);
+                const vbWidth = viewBoxValues[2] || 24;
+                const vbHeight = viewBoxValues[3] || 24;
+
+                // Standard proportional coordinates for custom strike-through line
+                const lineCoords = {
+                    x1: String(Number((vbWidth * 0.88).toFixed(2))),
+                    y1: String(Number((vbHeight * 0.12).toFixed(2))),
+                    x2: String(Number((vbWidth * 0.12).toFixed(2))),
+                    y2: String(Number((vbHeight * 0.88).toFixed(2))),
+                };
+
+                const maskLineWidth = String(Number((vbWidth * 0.22).toFixed(2)));
+                const overlayLineWidth = String(Number((vbWidth * 0.08).toFixed(2)));
+                const lineCap = "round";
+
+                // enabled = false -> OFF state (show strike-through)
+                // enabled = true  -> ON state (clean icon)
+                const showStrikeThrough = !enabled;
+
+                // Clone target SVG hierarchy
+                const contentClone = svgNode.cloneNode(true) as SVGElement;
+
+                // 1. Remove hidden elements (e.g. Lottie hidden keyframes)
+                contentClone.querySelectorAll("*").forEach(el => {
+                    const style = el.getAttribute("style") || "";
+                    const isHiddenAttr = el.getAttribute("display") === "none";
+                    const isHiddenStyle = /display\s*:\s*none/i.test(style) || /visibility\s*:\s*hidden/i.test(style);
+
+                    if (isHiddenAttr || isHiddenStyle) {
+                        el.remove();
+                    }
+                });
+
+                // 2. Strip native <line> tags
+                contentClone.querySelectorAll("line").forEach(line => line.remove());
+
+                // 3. Strip native diagonal slash <path> tags (e.g., Lottie diagonal slash paths)
+                contentClone.querySelectorAll("path").forEach(path => {
+                    const d = path.getAttribute("d") || "";
+                    // Matches diagonal slash path data (e.g. M-10,10 ... 10,-10)
+                    if (/M\s*-?10,\s*10.*10,\s*-10/i.test(d) || /M\s*-?10\s+10.*10\s+-10/i.test(d)) {
+                        path.remove();
+                    }
+                });
+
+                // 4. Remove all existing mask attributes from cloned nodes
+                contentClone.querySelectorAll("[mask]").forEach(el => el.removeAttribute("mask"));
+
+                const newSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                newSvg.setAttribute("width", "20");
+                newSvg.setAttribute("height", "20");
+                newSvg.setAttribute("viewBox", viewBox);
+
+                // Preserve defs minus native masks
+                contentClone.querySelectorAll("defs").forEach(defs => {
+                    const defsClone = defs.cloneNode(true) as Element;
+                    defsClone.querySelectorAll("mask").forEach(m => m.remove());
+                    newSvg.appendChild(defsClone);
+                });
+
+                // 5. Construct mask ONLY when strike-through is needed (enabled = false)
+                if (showStrikeThrough) {
+                    const mask = document.createElementNS("http://www.w3.org/2000/svg", "mask");
+                    mask.setAttribute("id", maskId);
+
+                    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    rect.setAttribute("width", "100%");
+                    rect.setAttribute("height", "100%");
+                    rect.setAttribute("fill", "#ffffff");
+
+                    const maskLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    maskLine.setAttribute("x1", lineCoords.x1);
+                    maskLine.setAttribute("y1", lineCoords.y1);
+                    maskLine.setAttribute("x2", lineCoords.x2);
+                    maskLine.setAttribute("y2", lineCoords.y2);
+                    maskLine.setAttribute("stroke", "#000000");
+                    maskLine.setAttribute("stroke-width", maskLineWidth);
+                    maskLine.setAttribute("stroke-linecap", lineCap);
+                    maskLine.setAttribute("class", "blackLine");
+
+                    mask.appendChild(rect);
+                    mask.appendChild(maskLine);
+                    newSvg.appendChild(mask);
+                }
+
+                // 6. Build Content Group
+                const mainGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                mainGroup.setAttribute("fill", "currentColor");
+
+                if (showStrikeThrough) {
+                    mainGroup.setAttribute("mask", `url(#${maskId})`);
+                }
+
+                Array.from(contentClone.childNodes).forEach(node => {
+                    if (node instanceof Element) {
+                        const tagName = node.tagName.toLowerCase();
+                        if (tagName !== "defs" && tagName !== "style" && tagName !== "mask") {
+                            mainGroup.appendChild(node.cloneNode(true));
+                        }
+                    }
+                });
+
+                newSvg.appendChild(mainGroup);
+
+                // 7. Append Overlay Line ONLY when strike-through is active (enabled = false)
+                if (showStrikeThrough) {
+                    const overlayLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                    overlayLine.setAttribute("x1", lineCoords.x1);
+                    overlayLine.setAttribute("y1", lineCoords.y1);
+                    overlayLine.setAttribute("x2", lineCoords.x2);
+                    overlayLine.setAttribute("y2", lineCoords.y2);
+                    overlayLine.setAttribute("stroke", "currentColor");
+                    overlayLine.setAttribute("stroke-width", overlayLineWidth);
+                    overlayLine.setAttribute("stroke-linecap", lineCap);
+                    newSvg.appendChild(overlayLine);
+                }
+
+                // CSS styling
+                const styleEl = document.createElement("style");
+                styleEl.textContent = `
+                    .${wrapperClass} svg, .${wrapperClass} svg * {
+                        color: var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary))) !important;
+                    }
+
+                    .${wrapperClass} svg [fill]:not([fill=none],[fill=currentColor]) {
+                        fill: var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary))) !important;
+                    }
+
+                    .${wrapperClass} svg [stroke]:not([stroke=none],[stroke=currentColor],.blackLine) {
+                        stroke: var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary))) !important;
+                    }
+                `;
+
+                newSvg.prepend(styleEl);
+                containerRef.current.appendChild(newSvg);
+            }
+        }
+    }, [target, icon, enabled]);
+
+    return (
+        <div
+            className={wrapperClass}
+            ref={containerRef}
+            style={{
+                width: 20,
+                height: 20,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+            }}
+        />
+    );
+}
+
+function SettingsModal({ modalProps, target, icon }: { modalProps: RenderModalProps; target: any; icon?: any; }) {
+    const [listeningId, setListeningId] = React.useState<string | null>(null);
+    const [items] = React.useState<BtnItem[]>(getBtnItems());
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
+    const [, setResetKey] = React.useState(0);
+
+    function resetDefaults() {
+        for (const id of Object.keys(buttonConfigs)) {
+            setBtnCfg(id, {
+                color: "#5865f2",
+                background: true,
+                opacity: 100,
+                radius: 10,
+                keybind: null,
+            });
+        }
+        setResetKey(prev => prev + 1);
+        apply(); forceUpdate();
+    }
+
+    const targetLabel = target.getAttribute("data-deracul-label");
+
+    React.useEffect(() => {
+        if (!listeningId) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (e.key === "Escape") {
+                setListeningId(null);
+                return;
+            }
+
+            if (["Control", "Alt", "Shift", "Meta"].includes(e.key)) {
+                return;
+            }
+
+            const keys: string[] = [];
+            if (e.ctrlKey) keys.push("Ctrl");
+            if (e.altKey) keys.push("Alt");
+            if (e.shiftKey) keys.push("Shift");
+            if (e.metaKey) keys.push("Meta");
+
+            keys.push(e.key.length === 1 ? e.key.toUpperCase() : e.key);
+            const keybind = keys.join("+");
+
+            setBtnCfg(listeningId, { keybind });
+            apply();
+            forceUpdate();
+            setListeningId(null);
+        };
+
+        window.addEventListener("keydown", handleKeyDown, true);
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown, true);
+        };
+    }, [listeningId]);
+
+    return (
+        <ModalRoot {...modalProps} size={ModalSize.LARGE}>
+            {items.filter(item => item.label === targetLabel).map(item => {
+                const cfg = getBtnCfg(item.id);
+                const listening = listeningId === item.id;
+                const canonical = getCanonicalLabel(item.label);
+                const isUserSettings = canonical === "User Settings";
+                const isPanelLayout = canonical === "Panel Layout";
+                const isMute = canonical === "Mute";
+                const isDeafen = canonical === "Deafen";
+
+                const activeColor = cfg.color ?? "#5865f2";
+                const activeOpacity = (cfg.opacity ?? 100) / 100;
+                const activeRadius = (cfg.radius ?? 10);
+                const activeBackground = (cfg.background ?? true);
+                const itemIcon = (item as any).icon || icon;
+
+                const customNameplateNeutral = React.useMemo(() => {
+                    if (typeof target !== "string" && target instanceof Element) {
+                        return getComputedStyle(target)
+                            .getPropertyValue("--custom-nameplate-neutral")
+                            .trim();
+                    }
+                    return null;
+                }, [target]);
+
+                const customNameplateNeutralHovered = React.useMemo(() => {
+                    if (typeof target !== "string" && target instanceof Element) {
+                        return getComputedStyle(target)
+                            .getPropertyValue("--custom-nameplate-neutral-hovered")
+                            .trim();
+                    }
+                    return null;
+                }, [target]);
+
+                const targetSize = React.useMemo(() => {
+                    if (typeof target !== "string" && target?.getBoundingClientRect) {
+                        const rect = target.getBoundingClientRect();
+                        if (rect.width > 0 && rect.height > 0) {
+                            return {
+                                width: `${rect.width}px`,
+                                height: `${rect.height}px`
+                            };
+                        }
+                    }
+                    return { width: "36px", height: "36px" };
+                }, [target]);
+
+                function hexToRgba(hex: string, alpha: number) {
+                    const cleanHex = hex.replace("#", "");
+                    const bigint = parseInt(cleanHex.length === 3 ? cleanHex.split("").map(c => c + c).join("") : cleanHex, 16);
+                    const r = (bigint >> 16) & 255;
+                    const g = (bigint >> 8) & 255;
+                    const b = bigint & 255;
+                    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                }
+
+                const isModified = (cfg.color !== undefined && cfg.color !== "#5865f2") ||
+                    (cfg.opacity !== undefined && cfg.opacity !== 100) ||
+                    (cfg.radius !== undefined && cfg.radius !== 10) ||
+                    ((cfg.background !== undefined && cfg.background !== true) && (settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold")) ||
+                    (cfg.keybind !== null);
+
+                const renderKeybindControls = () => (
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center", minHeight: "32px" }}>
+                        <Button
+                            size="small"
+                            variant="secondary"
+                            onClick={() => setListeningId(listening ? null : item.id)}
+                            style={{
+                                flex: 1,
+                                height: "32px",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center"
+                            }}
+                        >
+                            {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
+                        </Button>
+                        {cfg.keybind && (
+                            <Button
+                                size="small"
+                                variant="secondary"
+                                onClick={() => {
+                                    setBtnCfg(item.id, { keybind: null });
+                                    apply();
+                                    forceUpdate();
+                                }}
+                                style={{
+                                    width: "32px",
+                                    height: "32px",
+                                    minWidth: "32px",
+                                    padding: 0,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    flexShrink: 0
+                                }}
+                            >
+                                ✕
+                            </Button>
+                        )}
+                    </div>
+                );
+
+                return (
+                    <React.Fragment key={item.id}>
+                        <ModalContent style={{ padding: "24px" }}>
+                            <div className="deracul-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto" }}>
+                                <Flex flexDirection="column" gap={16}>
+                                    <div style={{ width: "99%", height: "100%", display: "flex", flexDirection: "column", gap: "24px" }}>
+                                        <BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>
+
+                                        <div style={{ display: "grid", gap: "8px" }}>
+                                            {!isUserSettings && !isPanelLayout && settings.store.colorfulActiveButtons && (
+                                                <>
+                                                    <SliderRow
+                                                        label="Opacity"
+                                                        min={0}
+                                                        max={100}
+                                                        value={cfg.opacity ?? 100}
+                                                        onChange={v => {
+                                                            setBtnCfg(item.id, { opacity: Number(Math.round(v)) });
+                                                            apply(); forceUpdate();
+                                                        }}
+                                                        unit="%"
+                                                    />
+                                                    <SliderRow
+                                                        label="Radius"
+                                                        min={0}
+                                                        max={20}
+                                                        value={cfg.radius ?? 10}
+                                                        onChange={v => {
+                                                            setBtnCfg(item.id, { radius: Number(Math.round(v)) });
+                                                            apply(); forceUpdate();
+                                                        }}
+                                                        unit="px"
+                                                    />
+                                                    {(settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold") && !isMute && !isDeafen && (
+                                                        <FormSwitch title="Enable background" description="Enable a dark background when off" value={cfg.background ?? true} onChange={v => {
+                                                            setBtnCfg(item.id, { background: v });
+                                                            apply(); forceUpdate();
+                                                        }} hideBorder />
+                                                    )}
+                                                    <ColorRow
+                                                        label="Active blob background color"
+                                                        value={cfg.color ?? "#5865f2"}
+                                                        onChange={e => {
+                                                            setBtnCfg(item.id, { color: e });
+                                                            apply();
+                                                        }}
+                                                        onBlur={() => forceUpdate()}
+                                                    />
+                                                    {renderKeybindControls()}
+                                                </>
+                                            )}
+                                            {(isUserSettings || isPanelLayout) && (
+                                                renderKeybindControls()
+                                            )}
+                                        </div>
+
+                                        {!isPanelLayout && !isUserSettings && (
+                                            <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: "10px" }}>
+                                                <Flex gap={24} justifyContent="center" alignItems="center">
+                                                    <Flex flexDirection="column" alignItems="center" gap={8} className="previewButtonContainer">
+                                                        <BaseText size="xs" color="text-muted">OFF State</BaseText>
+                                                        <button
+                                                            className={activeBackground && !isMute && !isDeafen ? "buttonPreview plateMuted__67645" : "buttonPreview"}
+                                                            style={{
+                                                                "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
+                                                                "--custom-nameplate-neutral": customNameplateNeutral,
+                                                                width: targetSize.width,
+                                                                height: targetSize.height,
+                                                                borderRadius: "10px",
+                                                                background: isMute || isDeafen ? "transparent" : undefined,
+                                                                color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                justifyContent: "center",
+                                                                userSelect: "none"
+                                                            } as React.CSSProperties}
+                                                        >
+                                                            <SvgPreview target={target} icon={itemIcon} enabled={!!(isMute || isDeafen)} />
+                                                        </button>
+                                                    </Flex>
+
+                                                    <Flex flexDirection="column" alignItems="center" gap={8} className="previewButtonContainer">
+                                                        <BaseText size="xs" color="text-muted">ON State</BaseText>
+                                                        <button
+                                                            className="buttonPreview previewButtonOn"
+                                                            data-deracul-label={cfg.label}
+                                                            style={{
+                                                                width: targetSize.width,
+                                                                height: targetSize.height,
+                                                                borderRadius: activeRadius != null ? `${activeRadius}px` : "10px",
+                                                                background: hexToRgba(activeColor, activeOpacity),
+                                                                color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
+                                                                border: (settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold")
+                                                                    ? `2px solid ${activeColor}`
+                                                                    : "1px solid transparent",
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                justifyContent: "center",
+                                                                userSelect: "none"
+                                                            }}
+                                                        >
+                                                            <SvgPreview target={target} icon={itemIcon} enabled={!(isMute || isDeafen)} />
+                                                        </button>
+                                                    </Flex>
+                                                </Flex>
+                                            </div>
+                                        )}
+                                    </div>
+                                </Flex>
+                            </div>
+                        </ModalContent>
+
+                        <ModalFooter>
+                            <Flex gap={8} justifyContent="flex-end" style={{ width: "100%" }}>
+                                {isModified && (
+                                    <Button variant="secondary" onClick={resetDefaults}>
+                                        Reset to Defaults
+                                    </Button>
+                                )}
+
+                                <div style={{ flex: 1 }} />
+                                <Button variant="primary" onClick={() => modalProps.onClose()}>
+                                    Done
+                                </Button>
+                            </Flex>
+                        </ModalFooter>
+                    </React.Fragment>
+                );
+            })}
+        </ModalRoot>
     );
 }
 
@@ -1158,14 +1566,6 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("panelOpacity", 100);
         set("lockButtonPosition", false);
         set("hideLine", true);
-
-        for (const id of Object.keys(buttonConfigs)) {
-            setBtnCfg(id, {
-                color: "#5865f2",
-                background: true,
-                opacity: 100,
-            });
-        }
 
         setResetKey(prev => prev + 1);
     }
@@ -1212,7 +1612,6 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
             </ModalHeader>
 
             <ModalContent style={{ padding: "24px" }}>
-                {/* Fixed-height body — switching tabs changes content, never the modal's footprint */}
                 <div className="deracul-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px" }}>
                     <Flex flexDirection="column" gap={16}>
 
@@ -1224,10 +1623,10 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
 
                             <Heading tag="h5">Component Dimensions</Heading>
                             <Card variant="primary">
-                                <SliderRow label="Button Box Size" value={s.buttonContainerSize} min={24} max={48} onChange={v => set("buttonContainerSize", Math.round(v))} resetKey={resetKey} gap={true} />
-                                <SliderRow label="Vector Icon Size" value={s.iconSize} min={12} max={28} onChange={v => set("iconSize", Math.round(v))} resetKey={resetKey} gap={true} />
-                                <SliderRow label="Margin / Gap" value={s.buttonGap} min={0} max={12} onChange={v => set("buttonGap", Math.round(v))} resetKey={resetKey} gap={true} />
-                                <SliderRow label="Idle Opacity" value={s.panelOpacity} min={10} max={100} unit="%" onChange={v => set("panelOpacity", Math.round(v))} resetKey={resetKey} gap={true} />
+                                <SliderRow label="Button Box Size" value={s.buttonContainerSize} min={24} max={48} onChange={v => set("buttonContainerSize", Math.round(v))} resetKey={resetKey} />
+                                <SliderRow label="Vector Icon Size" value={s.iconSize} min={12} max={28} onChange={v => set("iconSize", Math.round(v))} resetKey={resetKey} />
+                                <SliderRow label="Margin / Gap" value={s.buttonGap} min={0} max={12} onChange={v => set("buttonGap", Math.round(v))} resetKey={resetKey} />
+                                <SliderRow label="Idle Opacity" value={s.panelOpacity} min={10} max={100} unit="%" onChange={v => set("panelOpacity", Math.round(v))} resetKey={resetKey} />
                             </Card>
 
                             <Heading tag="h5">Extra Features</Heading>
@@ -1326,13 +1725,15 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
 // ─── Panel Button ─────────────────────────────────────────────────────────────
 
 function PanelLayoutButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
+    const handleOpen = () => openModal(modalProps => <PanelLayoutModal modalProps={modalProps} />);
+
     return (
         <UserAreaButton
             tooltipText={hideTooltips ? void 0 : "Panel Layout"}
             icon={<PanelLayoutIcon style={{ color: iconForeground }} />}
             role="button"
             plated={nameplate != null}
-            onClick={() => openModal(modalProps => <PanelLayoutModal modalProps={modalProps} />)}
+            onClick={handleOpen}
         />
     );
 }
@@ -1354,6 +1755,7 @@ export default definePlugin({
         startObserver();
         SettingsStore.addChangeListener("plugins.TestcordHelper.userAreaButtonIconColor", apply);
         document.addEventListener("keydown", onGlobalKeydown, true);
+        document.addEventListener("auxclick", onPanelMiddleClick, true);
     },
     stop() {
         stopObserver();
@@ -1361,5 +1763,6 @@ export default definePlugin({
         document.getElementById(STYLE_ID)?.remove();
         document.getElementById(CUSTOM_STYLE_ID)?.remove();
         document.removeEventListener("keydown", onGlobalKeydown, true);
+        document.removeEventListener("auxclick", onPanelMiddleClick, true);
     }
 });

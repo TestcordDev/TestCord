@@ -9,6 +9,7 @@ import type { RenderModalProps } from "@vencord/discord-types";
 import { Button, Forms, React, Text, TextInput, Toasts, useEffect, useRef, useState } from "@webpack/common";
 
 import { badgeSpooferEngine } from "../engine";
+import { HypeSquadPicker } from "../hypesquad";
 import type { SpoofLog, SpoofProgress } from "../types";
 
 export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps }) {
@@ -25,7 +26,7 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
             id: "init",
             timestamp: Date.now(),
             type: "info",
-            message: "Discord Badge Spoofer ready. Supports Game Variety (Games Played), Game Time (Playtime Hours), and Streaming (Streamed Hours)."
+            message: "Badge Spoofer ready. Spoofs games played, playtime, and streamed hours."
         }
     ]);
 
@@ -90,7 +91,7 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
         setTotalAvailableGames(games.length);
         Toasts.show({
             id: Toasts.genId(),
-            message: `Reloaded ${games.length} detectable games from Discord CDN!`,
+            message: `Reloaded ${games.length} games from Discord CDN`,
             type: Toasts.Type.SUCCESS
         });
     };
@@ -112,19 +113,20 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
     return (
         <ModalRoot {...modalProps} size={ModalSize.MEDIUM}>
             <ModalHeader separator={true}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "2px", flexGrow: 1 }}>
-                    <Text variant="heading-lg/semibold" color="header-primary">
-                        Discord Badge Spoofer
-                    </Text>
+                <div style={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <Text variant="heading-lg/semibold" color="header-primary">
+                            Discord Badge Spoofer
+                        </Text>
+                        <ModalCloseButton onClick={modalProps.onClose} />
+                    </div>
                     <Text variant="text-sm/normal" color="text-muted">
                         Spoof Game Variety (Games Played), Game Time (Playtime), & Streaming (Hours Streamed)
                     </Text>
                 </div>
-                <ModalCloseButton onClick={modalProps.onClose} />
             </ModalHeader>
 
             <ModalContent scrollbarType="none" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "14px" }}>
-                {/* Stats summary row (4 cards for all 3 badges + db) */}
                 <div style={{
                     display: "grid",
                     gridTemplateColumns: "repeat(4, 1fr)",
@@ -152,7 +154,6 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
                     </div>
                 </div>
 
-                {/* Form Inputs */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
                         <div>
@@ -211,7 +212,15 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
                     </div>
                 </div>
 
-                {/* Progress bar */}
+                <div style={{
+                    background: "var(--background-secondary)",
+                    padding: "12px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--background-modifier-accent)"
+                }}>
+                    <HypeSquadPicker />
+                </div>
+
                 {(isRunning || progress) && (
                     <div style={{
                         background: "var(--background-secondary)",
@@ -244,7 +253,6 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
                     </div>
                 )}
 
-                {/* Console Log Window */}
                 <div>
                     <Forms.FormTitle tag="h5">LIVE OUTPUT LOGS</Forms.FormTitle>
                     <div className="tc-badge-spoofer-logs">
@@ -262,7 +270,6 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
                     </div>
                 </div>
 
-                {/* Notice banner */}
                 <div style={{
                     padding: "10px 14px",
                     background: "var(--background-secondary)",
@@ -273,10 +280,10 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
                     gap: "2px"
                 }}>
                     <Text variant="text-xs/medium" color="header-primary" style={{ fontWeight: 600 }}>
-                        Discord Backend Note
+                        Note
                     </Text>
                     <Text variant="text-xs/normal" color="text-muted" style={{ lineHeight: 1.4 }}>
-                        Game and stream events are accepted by Discord with status <code style={{ background: "rgba(0,0,0,0.3)", padding: "1px 4px", borderRadius: "3px", color: "var(--text-positive)" }}>204 OK</code>. Discord updates profile badge tiers on their 24–48 hour backend analytics cycle.
+                        Discord accepts these events with status <code style={{ background: "rgba(0,0,0,0.3)", padding: "1px 4px", borderRadius: "3px", color: "var(--text-positive)" }}>204 OK</code>. Badge tiers refresh on their backend within 24-48 hours.
                     </Text>
                 </div>
             </ModalContent>

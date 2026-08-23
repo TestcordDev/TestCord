@@ -1056,7 +1056,7 @@ function ChatProfileCard({ user }: { user: User; }) {
     const cardTheme = getProfileCardTheme(profile);
 
     useEffect(() => {
-        if (!profile && !user.bot) void fetchUserProfile(user.id);
+        if (!profile && !user.bot) void fetchUserProfile(user.id).catch(() => { });
     }, [profile, user.bot, user.id]);
 
     return (

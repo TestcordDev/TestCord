@@ -16,6 +16,12 @@ export interface SessionInfo {
     superProps: string;
 }
 
+export interface VoiceContext {
+    channelId: string;
+    guildId: string | null;
+    streamKey: string;
+}
+
 export interface SpoofLog {
     id: string;
     timestamp: number;

@@ -7,9 +7,9 @@
 import * as DataStore from "@api/DataStore";
 import { Logger } from "@utils/Logger";
 import { findStoreLazy } from "@webpack";
-import { AuthenticationStore, RestAPI, UserStore } from "@webpack/common";
+import { AuthenticationStore, ChannelStore, RestAPI, SelectedChannelStore, UserStore } from "@webpack/common";
 
-import type { Game, SessionInfo, SpooferStats, SpoofOptions } from "./types";
+import type { Game, SessionInfo, SpooferStats, SpoofOptions, VoiceContext } from "./types";
 
 const logger = new Logger("BadgeSpooferEngine", "#ff73fa");
 
@@ -223,8 +223,29 @@ export class BadgeSpooferEngine {
         return { heartbeatSession, launchSignature, superProps };
     }
 
-    private buildLaunchEvent(game: Game, session: SessionInfo, seq: number, fingerprint?: string) {
-        const now = Date.now();
+    private resolveVoiceContext(): VoiceContext | null {
+        try {
+            const channelId = (SelectedChannelStore as any)?.getVoiceChannelId?.() || null;
+            if (!channelId) return null;
+
+            const channel = (ChannelStore as any)?.getChannel?.(channelId);
+            const guildId = channel?.guild_id ?? channel?.getGuildId?.() ?? null;
+            const userId = UserStore?.getCurrentUser?.()?.id;
+            if (!userId) return null;
+
+            const streamKey = guildId
+                ? `${guildId}:${channelId}:${userId}`
+                : `call:${channelId}:${userId}`;
+
+            return { channelId, guildId: guildId ?? null, streamKey };
+        } catch (e) {
+            logger.warn("Failed to resolve voice context:", e);
+            return null;
+        }
+    }
+
+    private buildLaunchEvent(game: Game, session: SessionInfo, seq: number, fingerprint?: string, ts?: number, voiceContext?: VoiceContext | null) {
+        const now = ts ?? Date.now();
         const props: Record<string, any> = {
             client_track_timestamp: now,
             client_heartbeat_session_id: session.heartbeatSession,
@@ -247,7 +268,7 @@ export class BadgeSpooferEngine {
             current_user_status: "online",
             game_detection_enabled: true,
             executable_path: game.exe,
-            voice_channel_id: null,
+            voice_channel_id: voiceContext?.channelId ?? null,
             voice_channel_type: null,
             voice_channel_bitrate: null,
             voice_channel_guild_id: null,
@@ -315,7 +336,8 @@ export class BadgeSpooferEngine {
         session: SessionInfo,
         getSeq: () => number,
         fingerprint?: string,
-        userId?: string
+        userId?: string,
+        voiceContext?: VoiceContext | null
     ) {
         const gameSessionId = crypto.randomUUID();
         const mediaSessionId = streamDurationMs > 0 ? crypto.randomUUID() : null;
@@ -327,27 +349,27 @@ export class BadgeSpooferEngine {
 
         const events: any[] = [];
 
-        // 1. Initial game heartbeat (0ms)
+        events.push(
+            this.buildLaunchEvent(game, session, getSeq(), fingerprint, startTime, voiceContext)
+        );
+
         events.push(
             this.buildHeartbeatEvent(game, 0, gameSessionId, true, false, session, getSeq(), startTime, rtcConnectionId, mediaSessionId)
         );
 
-        // 2. Launch game event
-        events.push(
-            this.buildLaunchEvent(game, session, getSeq(), fingerprint)
-        );
-
-        // 3. If streaming hours are included, emit video_stream_started with broadcast properties
         if (streamDurationMs > 0 && mediaSessionId && rtcConnectionId) {
             events.push({
                 type: "video_stream_started",
                 properties: {
-                    client_track_timestamp: startTime + 100,
+                    client_track_timestamp: startTime + 1000,
                     client_heartbeat_session_id: session.heartbeatSession,
                     event_sequence_number: getSeq(),
                     media_session_id: mediaSessionId,
                     rtc_connection_id: rtcConnectionId,
-                    channel_type: 2,
+                    stream_key: voiceContext?.streamKey ?? null,
+                    channel_id: voiceContext?.channelId ?? null,
+                    guild_id: voiceContext?.guildId ?? null,
+                    channel_type: voiceContext?.guildId ? 2 : 1,
                     context: "stream",
                     activity: game.name,
                     application_id: game.id,
@@ -359,19 +381,17 @@ export class BadgeSpooferEngine {
                     hardware_enabled: true,
                     soundshare_session: crypto.randomUUID(),
                     sender_user_id: userId ?? null,
-                    client_send_timestamp: startTime + 100
+                    client_send_timestamp: startTime + 1000
                 }
             });
         }
 
-        // 4. Final game heartbeat (full play duration)
         events.push(
             this.buildHeartbeatEvent(game, playDurationMs, gameSessionId, false, true, session, getSeq(), now, rtcConnectionId, mediaSessionId)
         );
 
-        // 5. If streaming hours are included, emit video_stream_ended with complete realistic WebRTC stream metrics
         if (streamDurationMs > 0 && mediaSessionId && rtcConnectionId) {
-            const bytesSent = Math.floor(streamDurationMs * 562.5); // ~4.5 Mbps stream
+            const bytesSent = Math.floor(streamDurationMs * 562.5);
             const packetsSent = Math.floor((streamDurationMs / 1000) * 350);
 
             events.push({
@@ -398,7 +418,10 @@ export class BadgeSpooferEngine {
                     bytes_sent: bytesSent,
                     packets_sent: packetsSent,
                     packets_lost: 0,
-                    channel_type: 2,
+                    stream_key: voiceContext?.streamKey ?? null,
+                    channel_id: voiceContext?.channelId ?? null,
+                    guild_id: voiceContext?.guildId ?? null,
+                    channel_type: voiceContext?.guildId ? 2 : 1,
                     context: "stream",
                     max_viewers: 3,
                     num_viewers: 2,
@@ -511,7 +534,7 @@ export class BadgeSpooferEngine {
             });
         };
 
-        log("info", "Initializing Discord Badge Spoofer (Games, Playtime & Streaming)...");
+        log("info", "Initializing Badge Spoofer...");
 
         const allGames = await this.loadGames();
         if (allGames.length === 0) {
@@ -543,6 +566,12 @@ export class BadgeSpooferEngine {
 
         const selectedGames = this.selectGames(allGames, targetCount);
         const session = this.createSession();
+        const voiceContext = streamDurationMs > 0 ? this.resolveVoiceContext() : null;
+        if (streamDurationMs > 0 && !voiceContext) {
+            log("warn", "No voice channel joined - stream events will be sent WITHOUT channel attribution and Discord may discard them. Join a server voice channel before spoofing stream hours.");
+        } else if (voiceContext) {
+            log("info", `Stream attribution ready (channel ${voiceContext.channelId}${voiceContext.guildId ? `, guild ${voiceContext.guildId}` : ", DM call"}).`);
+        }
         let seq = 0;
         const getSeq = () => ++seq;
 
@@ -580,7 +609,8 @@ export class BadgeSpooferEngine {
                     session,
                     getSeq,
                     fingerprint,
-                    currentUserId
+                    currentUserId,
+                    voiceContext
                 ));
             }
 
@@ -631,7 +661,7 @@ export class BadgeSpooferEngine {
             status: `Completed: ${sentGamesCount} games claimed.`
         });
 
-        log("success", `Done! Successfully spoofed ${sentGamesCount} games (${(sentGamesCount * hours).toLocaleString()}h play, ${(sentGamesCount * streamHours).toLocaleString()}h stream). Discord badges update in 1-2 days.`);
+        log("success", `Finished: ${sentGamesCount} games claimed (${(sentGamesCount * hours).toLocaleString()}h play, ${(sentGamesCount * streamHours).toLocaleString()}h stream). Badges update in 1-2 days.`);
     }
 
     public stopSpoofing() {

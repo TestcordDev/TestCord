@@ -53,18 +53,18 @@ export default definePlugin({
             ]
         },
         {
-            // Switch accounts modal gates the add-account button behind its own
-            // hardcoded length>=5 check and shows a max accounts error toast.
-            // Unlike the store, this chunk loads lazily so the patch applies reliably.
-            find: "MULTI_ACCOUNT_SWITCH_LANDING",
+            // Switch accounts modal gates the add-account button behind a hardcoded
+            // maxNumAccounts and its own length>=5 checks, showing a max accounts
+            // error toast. This chunk loads lazily so the patch applies reliably.
+            find: "getCurrentUser(),multiAccountUsers",
             replacement: [
                 {
-                    match: /(\i\.length)>=5\?(\i)\(!0\)/,
-                    replace: "$1>=$self.getMaxAccounts()?$2(!0)",
+                    match: /(maxNumAccounts:)5/,
+                    replace: "$1$self.getMaxAccounts()",
                 },
                 {
-                    match: /(\i\.length)<5&&(\i)\(!1\)/,
-                    replace: "$1<$self.getMaxAccounts()&&$2(!1)",
+                    match: /(\i\.length(?:<|>=))5/g,
+                    replace: "$1$self.getMaxAccounts()",
                 },
             ]
         },

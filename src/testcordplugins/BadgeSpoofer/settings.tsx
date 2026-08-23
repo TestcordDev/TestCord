@@ -9,6 +9,7 @@ import { OptionType } from "@utils/types";
 import { Button, React } from "@webpack/common";
 
 import { openBadgeSpooferModal } from "./components/BadgeSpooferModal";
+import { HypeSquadPicker } from "./hypesquad";
 
 export const settings = definePluginSettings({
     dashboardButton: {
@@ -42,5 +43,10 @@ export const settings = definePluginSettings({
         type: OptionType.STRING,
         description: "Optional custom executable_fingerprint for the Games-Played badge counter",
         default: "",
+    },
+    housePicker: {
+        type: OptionType.COMPONENT,
+        description: "Pick your HypeSquad house visually",
+        component: () => <HypeSquadPicker />
     }
 });

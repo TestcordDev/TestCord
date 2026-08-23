@@ -39,10 +39,12 @@ const AccountPanelContextMenu = ErrorBoundary.wrap(() => {
                 disabled={getCurrentChannel()?.getGuildId() == null}
                 action={async e => {
                     if (isPluginEnabled(alwaysExpandProfiles.name)) {
-                        const user = await fetchUserProfile(UserStore.getCurrentUser().id, {
-                            guild_id: prioritizeServerProfile ? undefined : getCurrentChannel()?.getGuildId()
-                        }, false);
-                        return openUserProfile(user!.userId);
+                        try {
+                            const user = await fetchUserProfile(UserStore.getCurrentUser().id, {
+                                guild_id: prioritizeServerProfile ? undefined : getCurrentChannel()?.getGuildId()
+                            }, false);
+                            return openUserProfile(user!.userId);
+                        } catch { }
                     }
                     openAlternatePopout = true;
                     accountPanelRef.current?.click();
@@ -146,7 +148,7 @@ function ServerProfileLauncher({ popoutProps, userId, guildId }: { popoutProps: 
         popoutProps.onRequestClose?.();
         fetchUserProfile(userId, { guild_id: guildId }, false).then(user => {
             if (user) openUserProfile(user.userId);
-        });
+        }).catch(() => { });
     }, []);
     return null;
 }

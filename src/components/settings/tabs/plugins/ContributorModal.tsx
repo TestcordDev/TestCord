@@ -35,7 +35,7 @@ function ContributorModal({ user, modalProps }: { user: User; modalProps: Render
 
     useEffect(() => {
         if (!profile && !user.bot && user.id)
-            fetchUserProfile(user.id);
+            void fetchUserProfile(user.id).catch(() => { });
     }, [user.id, user.bot, profile]);
 
     const githubName = profile?.connectedAccounts?.find(a => a.type === "github")?.name;

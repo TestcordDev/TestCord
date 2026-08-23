@@ -12,7 +12,7 @@ import { definePluginSettings } from "@api/Settings";
 import { EquicordDevs } from "@utils/constants";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
-import { React, UserStore, useState, useStateFromStores } from "@webpack/common";
+import { ContextMenuApi, Menu, React, useEffect, UserStore, useState, useStateFromStores } from "@webpack/common";
 
 const Native = IS_DISCORD_DESKTOP
     ? (VencordNative?.pluginHelpers?.StreamProof as PluginNative<typeof import("./native")>)
@@ -55,17 +55,6 @@ const settings = definePluginSettings({
             }
         }
     },
-    localBlackout: {
-        type: OptionType.BOOLEAN,
-        description: "Blackout entire client on your local screen as well",
-        default: false,
-        onChange(value) {
-            if (streamProofActive) {
-                if (value) document.body.classList.add("stream-proof-local-blackout");
-                else document.body.classList.remove("stream-proof-local-blackout");
-            }
-        }
-    },
     autoStreamProof: {
         type: OptionType.BOOLEAN,
         description: "Automatically enable StreamProof when you start streaming",
@@ -78,8 +67,29 @@ const settings = definePluginSettings({
     }
 });
 
+const CONTEXT_MENU_KEYS = ["blackoutStream", "localBlur"] as const;
+
 let clickHandler: ((e: MouseEvent) => void) | null = null;
 let streamProofActive = false;
+
+// Subscribers notified whenever `streamProofActive` changes, so mounted UI (the
+// toggle button) can re-render event-driven instead of polling on an interval.
+const activeListeners = new Set<() => void>();
+
+function subscribeActive(listener: () => void) {
+    activeListeners.add(listener);
+    return () => {
+        activeListeners.delete(listener);
+    };
+}
+
+function notifyActiveChanged() {
+    for (const listener of activeListeners) listener();
+}
+
+function toggleStreamProof() {
+    streamProofActive ? disableStreamProof() : enableStreamProof();
+}
 
 function isStreaming(): boolean {
     try {
@@ -124,6 +134,7 @@ function handleStreamChange() {
 function enableStreamProof() {
     if (streamProofActive) return;
     streamProofActive = true;
+    notifyActiveChanged();
 
     if (settings.store.blackoutStream) {
         Native?.setContentProtection?.(true);
@@ -131,10 +142,6 @@ function enableStreamProof() {
 
     if (settings.store.localBlur) {
         document.body.classList.add("stream-proof-enabled");
-    }
-
-    if (settings.store.localBlackout) {
-        document.body.classList.add("stream-proof-local-blackout");
     }
 
     if (!clickHandler) {
@@ -155,11 +162,11 @@ function enableStreamProof() {
 function disableStreamProof() {
     if (!streamProofActive) return;
     streamProofActive = false;
+    notifyActiveChanged();
 
     Native?.setContentProtection?.(false);
 
     document.body.classList.remove("stream-proof-enabled");
-    document.body.classList.remove("stream-proof-local-blackout");
 
     if (clickHandler) {
         document.removeEventListener("click", clickHandler as any, true);
@@ -210,30 +217,87 @@ function EyeSlashIcon({ height = 20, width = 20 }: { height?: number; width?: nu
     );
 }
 
+// ── Context Menu ───────────────────────────────────────────────────────────────
+
+function renderStreamProofMenuItems(includeEnabledToggle = false, enabled = streamProofActive, setEnabled?: (value: boolean) => void) {
+    return [
+        includeEnabledToggle && (
+            <Menu.MenuCheckboxItem
+                id="toggle-stream-proof"
+                key="toggle-stream-proof"
+                label="Enabled"
+                checked={enabled}
+                action={() => {
+                    const newEnabled = !enabled;
+                    setEnabled?.(newEnabled);
+                    toggleStreamProof();
+                }}
+            />
+        ),
+        <Menu.MenuCheckboxItem
+            id="update-blackout-stream"
+            key="update-blackout-stream"
+            label="Blackout Stream"
+            checked={settings.store.blackoutStream}
+            action={() => {
+                settings.store.blackoutStream = !settings.store.blackoutStream;
+            }}
+        />,
+        <Menu.MenuCheckboxItem
+            id="update-local-blur"
+            key="update-local-blur"
+            label="Local Blur"
+            checked={settings.store.localBlur}
+            action={() => {
+                settings.store.localBlur = !settings.store.localBlur;
+            }}
+        />
+    ];
+}
+
+function StreamProofContextMenu() {
+    const [enabled, setEnabled] = useState(streamProofActive);
+    settings.use(CONTEXT_MENU_KEYS);
+
+    return (
+        <Menu.Menu
+            navId="stream-proof-context"
+            onClose={() => { }}
+            aria-label="StreamProof options"
+        >
+            <Menu.MenuGroup label="STREAMPROOF">
+                {renderStreamProofMenuItems(true, enabled, setEnabled)}
+            </Menu.MenuGroup>
+        </Menu.Menu>
+    );
+}
+
+function openStreamProofContextMenu(e: React.MouseEvent) {
+    ContextMenuApi.openContextMenu(e, () => <StreamProofContextMenu />);
+}
+
 // ── Chat Bar Button ────────────────────────────────────────────────────────────
 
 const StreamProofButton: ChatBarButtonFactory = ({ isMainChat }) => {
     useStateFromStores([StreamerModeStore, StreamStore, RTCConnectionStore], () => isStreaming());
     const [, forceUpdate] = useState({});
 
+    // Re-render so the button reflects `streamProofActive` after it changes via any
+    // control (context menu, auto-enable on stream start). Event-driven.
+    useEffect(() => subscribeActive(() => forceUpdate({})), []);
+
     if (!isMainChat || settings.store.location !== "chatbar") return null;
 
     function toggle() {
-        if (streamProofActive) {
-            disableStreamProof();
-        } else {
-            enableStreamProof();
-        }
+        toggleStreamProof();
         forceUpdate({});
     }
 
     const active = streamProofActive;
-    const tooltip = active
-        ? "StreamProof : ON — click to disable"
-        : "StreamProof : OFF — click to enable";
+    const tooltip = "StreamProof";
 
     return (
-        <ChatBarButton tooltip={tooltip} onClick={toggle}>
+        <ChatBarButton tooltip={tooltip} onClick={toggle} onContextMenu={openStreamProofContextMenu}>
             <span style={{ color: active ? "var(--status-danger)" : "currentColor" }}>
                 {active ? <EyeSlashIcon /> : <EyeIcon />}
             </span>
@@ -245,7 +309,7 @@ const StreamProofButton: ChatBarButtonFactory = ({ isMainChat }) => {
 
 export default definePlugin({
     name: "StreamProof",
-    description: "Hides messages, links, images, DMs, but not the screen share/voice grid. Toggle via chat bar button.",
+    description: "Hides messages, links, images, DMs, but not the screen share/voice grid. Toggle via button (right-click for options).",
     authors: [EquicordDevs.TheArmagan],
     dependencies: ["ChatInputButtonAPI", "HeaderBarAPI"],
     settings,
@@ -270,16 +334,18 @@ export default definePlugin({
             addHeaderBarButton("StreamProof", () => (
                 <HeaderBarButton
                     icon={() => streamProofActive ? <EyeSlashIcon /> : <EyeIcon />}
-                    tooltip={streamProofActive ? "StreamProof: ON — click to disable" : "StreamProof: OFF — click to enable"}
-                    onClick={() => { streamProofActive ? disableStreamProof() : enableStreamProof(); }}
+                    tooltip="StreamProof"
+                    onClick={() => { toggleStreamProof(); }}
+                    onContextMenu={openStreamProofContextMenu}
                 />
             ), 5);
         } else if (location === "channeltoolbar") {
             addChannelToolbarButton("StreamProof", () => (
                 <ChannelToolbarButton
                     icon={() => streamProofActive ? <EyeSlashIcon /> : <EyeIcon />}
-                    tooltip={streamProofActive ? "StreamProof: ON — click to disable" : "StreamProof: OFF — click to enable"}
-                    onClick={() => { streamProofActive ? disableStreamProof() : enableStreamProof(); }}
+                    tooltip="StreamProof"
+                    onClick={() => { toggleStreamProof(); }}
+                    onContextMenu={openStreamProofContextMenu}
                 />
             ), 5);
         }
