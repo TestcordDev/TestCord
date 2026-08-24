@@ -601,21 +601,29 @@ function buildCSS(): string {
             // Pre-fallback replica: relies on var(--background-modifier-accent) which
             // new Discord tokens dropped, so the border doesn't actually render.
             // People liked that buggy look, so it's kept as its own option.
-            lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButton} { border: 1.5px solid var(--background-modifier-accent); border-radius: 8px !important; }`);
+            lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { border: 1.5px solid var(--background-modifier-accent) !important; border-radius: 8px !important; }`);
 
             for (const id of Object.keys(buttonConfigs)) {
                 if (getBtnCfg(id).background !== undefined && !getBtnCfg(id).background) {
-                    lines.push(`
-                        ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
-                        ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645,
-                        ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
-                        ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
-                            background: transparent !important;
-                        }
-                    `);
+                    if (getBtnCfg(id).label === "Mute" || getBtnCfg(id).label === "Deafen") {
+                        lines.push(`
+                            ${S.audioParent} [aria-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
+                            ${S.audioParent} [aria-label="${getBtnCfg(id).label}"].plateMuted__67645 {
+                                background: transparent !important;
+                            }
+                        `);
+                    } else {
+                        lines.push(`
+                            ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
+                            ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645,
+                            ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
+                            ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
+                                background: transparent !important;
+                            }
+                        `);
+                    }
                 }
             }
-
             break;
         case "pill":
             lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { background: var(--bplateStateackground-modifier-hover, var(--background-mod-normal)) !important; border-radius: 20px !important; }
@@ -1848,9 +1856,6 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
                                                                 borderRadius: activeRadius != null ? `${activeRadius}px` : "10px",
                                                                 background: cfg.colorfulActiveButton ? hexToRgba(activeColor, activeOpacity) : undefined,
                                                                 color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
-                                                                border: (settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold")
-                                                                    ? `2px solid ${activeColor}`
-                                                                    : "1px solid transparent",
                                                                 display: "flex",
                                                                 alignItems: "center",
                                                                 justifyContent: "center",
