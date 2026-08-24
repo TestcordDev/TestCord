@@ -1,3 +1,7 @@
+.vc-channel-gallery-root {
+    -webkit-app-region: no-drag;
+}
+
 .vc-channel-gallery-scroll {
     scrollbar-color: var(--interactive-normal) transparent;
 }

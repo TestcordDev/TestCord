@@ -6,8 +6,9 @@
 
 import { Heading } from "@components/Heading";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalProps, ModalRoot, ModalSize } from "@utils/modal";
-import { ChannelStore, MessageStore, React, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { Button, ChannelStore, MessageStore, React, showToast, Toasts, useEffect, useMemo, useRef, useState } from "@webpack/common";
 
+import { downloadItemsToFolder } from "../utils/download";
 import { extractImages, GalleryItem } from "../utils/extractImages";
 import { fetchMessagesPage } from "../utils/pagination";
 import { GalleryGrid } from "./GalleryGrid";
@@ -109,6 +110,7 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+    const [downloadState, setDownloadState] = useState<{ done: number; total: number } | null>(null);
 
     const abortRef = useRef<AbortController | null>(null);
 
@@ -183,14 +185,40 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
         modalProps.onClose();
     };
 
+    const downloading = downloadState != null;
+
+    async function handleDownloadAll() {
+        if (!items.length || downloading) return;
+
+        setDownloadState({ done: 0, total: items.length });
+        try {
+            const { saved, failed } = await downloadItemsToFolder(items, (done, total) => setDownloadState({ done, total }));
+            showToast(
+                failed ? `Saved ${saved} of ${items.length} files. ${failed} failed.` : `Saved ${saved} file${saved === 1 ? "" : "s"}.`,
+                failed ? Toasts.Type.FAILURE : Toasts.Type.SUCCESS
+            );
+        } finally {
+            setDownloadState(null);
+        }
+    }
+
     const viewerItem = viewerIndex != null ? items[viewerIndex] : null;
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.LARGE} aria-label="Gallery">
+        <ModalRoot {...modalProps} size={ModalSize.LARGE} aria-label="Gallery" className="vc-channel-gallery-root">
             <ModalHeader>
                 <Heading tag="h3" style={{ flex: 1, margin: 0 }}>
                     {title}
                 </Heading>
+                {items.length > 0 && (
+                    <Button
+                        size={Button.Sizes.SMALL}
+                        disabled={downloading}
+                        onClick={handleDownloadAll}
+                    >
+                        {downloading ? `Downloading ${downloadState.done}/${downloadState.total}` : "Download all"}
+                    </Button>
+                )}
                 <ModalCloseButton onClick={onCloseAll} />
             </ModalHeader>
             <ModalContent
