@@ -183,19 +183,35 @@ interface ButtonConfig {
     radius: number;
     background: boolean;
     colorfulActiveButton: boolean;
+    groupId?: string | null;
 }
 
 const BUTTON_CONFIG_KEY = "deracul-panel-layout-configs";
 let buttonConfigs: Record<string, ButtonConfig> = {};
 let configsLoaded = false;
 
+let groupIndex: Map<string, string[]> = new Map();
+
+function rebuildGroupIndex() {
+    const next = new Map<string, string[]>();
+    for (const cfg of Object.values(buttonConfigs)) {
+        if (!cfg.groupId) continue;
+        const members = next.get(cfg.groupId);
+        if (members) members.push(cfg.label);
+        else next.set(cfg.groupId, [cfg.label]);
+    }
+    groupIndex = next;
+}
+
 async function loadConfigs() {
     buttonConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ?? {};
     configsLoaded = true;
+    rebuildGroupIndex();
 }
 
 function saveConfigs() {
     DataStore.set(BUTTON_CONFIG_KEY, buttonConfigs);
+    rebuildGroupIndex();
 }
 
 function getBtnCfg(id: string): ButtonConfig {
@@ -263,6 +279,37 @@ function onGlobalKeydown(e: KeyboardEvent) {
             }
         }
     }
+}
+
+function onGlobalClick(e: MouseEvent) {
+    if (!configsLoaded || !e.isTrusted || groupIndex.size === 0) return;
+
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    const btnEl = target.closest<HTMLElement>("[data-deracul-label]");
+    if (!btnEl) return;
+
+    const label = btnEl.getAttribute("data-deracul-label");
+    if (!label) return;
+
+    const cfg = buttonConfigs[label];
+    if (!cfg?.groupId) return;
+
+    const members = groupIndex.get(cfg.groupId);
+    if (!members) return;
+
+    for (const other of members) {
+        if (other === label) continue;
+
+        const el = document.querySelector(getBtnSelector(other)) as HTMLElement | null;
+        const clickable = (el?.querySelector("button") ?? el) as HTMLElement | null;
+        clickable?.click();
+    }
+}
+
+function getGroupedLabels(groupId: string): string[] {
+    return groupIndex.get(groupId) ?? [];
 }
 
 function getButtonLabel(button: HTMLElement): string | null {
@@ -1044,6 +1091,7 @@ function ButtonsDragTab() {
         <Flex flexDirection="column" gap={16} style={{ paddingBottom: "12px" }}>
             <Paragraph style={{ color: "var(--text-muted)", fontSize: "13px" }}>
                 Drag a square left or right to change its order. Use the switches to show or hide them.
+                Give two or more buttons the same Group name below to link them — clicking one clicks the others too.
             </Paragraph>
 
             {items.length === 0 ? (
@@ -1250,6 +1298,34 @@ function ButtonsDragTab() {
                                             >
                                                 ✕
                                             </Button>
+                                        )}
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                        <BaseText size="xs" color="text-muted">Group (links buttons together)</BaseText>
+                                        <input
+                                            type="text"
+                                            value={cfg.groupId ?? ""}
+                                            placeholder="No group"
+                                            onChange={e => {
+                                                const v = e.target.value;
+                                                setBtnCfg(item.id, { groupId: v.trim() ? v : null });
+                                                apply();
+                                                forceUpdate();
+                                            }}
+                                            style={{
+                                                height: "32px",
+                                                borderRadius: "6px",
+                                                border: "1px solid var(--background-modifier-accent, var(--border-muted))",
+                                                background: "var(--background-secondary-alt, var(--background-mod-subtle))",
+                                                color: "var(--text-default)",
+                                                padding: "0 8px",
+                                                fontSize: "13px",
+                                            }}
+                                        />
+                                        {cfg.groupId && getGroupedLabels(cfg.groupId).filter(l => l !== item.id).length > 0 && (
+                                            <BaseText size="xs" color="text-muted">
+                                                Linked with: {getGroupedLabels(cfg.groupId).filter(l => l !== item.id).join(", ")}
+                                            </BaseText>
                                         )}
                                     </div>
                                 </div>
@@ -1603,6 +1679,7 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
             radius: 10,
             keybind: null,
             colorfulActiveButton: false,
+            groupId: null,
         });
 
         setResetKey(prev => prev + 1);
@@ -2062,7 +2139,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         </>}
 
                         {tab === "drag" && <>
-                            <Heading tag="h5">Button Order & Hotkeys</Heading>
+                            <Heading tag="h5">Button Order & Hotkeys & Grouping</Heading>
                             <ButtonsDragTab />
                         </>}
 
@@ -2118,6 +2195,7 @@ export default definePlugin({
         startObserver();
         SettingsStore.addChangeListener("plugins.TestcordHelper.userAreaButtonIconColor", apply);
         document.addEventListener("keydown", onGlobalKeydown, true);
+        document.addEventListener("click", onGlobalClick, true);
     },
     stop() {
         stopObserver();
@@ -2125,5 +2203,6 @@ export default definePlugin({
         document.getElementById(STYLE_ID)?.remove();
         document.getElementById(CUSTOM_STYLE_ID)?.remove();
         document.removeEventListener("keydown", onGlobalKeydown, true);
+        document.removeEventListener("click", onGlobalClick, true);
     }
 });
