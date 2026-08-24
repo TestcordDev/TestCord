@@ -113,6 +113,7 @@ const S = {
     previewButtonContainer: ".previewButtonContainer",
     previewButton: ".buttonPreview",
     previewButtonOn: ".previewButtonOn",
+    previewButtonOff: ".previewButtonOff",
     panelContainer: ".container__37e49",
     panelButtons:   ".buttons__37e49",
     panelButton:    ".button__201d5",
@@ -181,8 +182,11 @@ interface ButtonConfig {
     color: string;
     opacity: number;
     radius: number;
-    background: boolean;
+    colorOff: string;
+    opacityOff: number;
+    radiusOff: number;
     colorfulActiveButton: boolean;
+    colorfulInActiveButton: boolean;
     groupId?: string | null;
 }
 
@@ -310,6 +314,45 @@ function onGlobalClick(e: MouseEvent) {
 
 function getGroupedLabels(groupId: string): string[] {
     return groupIndex.get(groupId) ?? [];
+}
+
+function isLinked(labelA: string, labelB: string): boolean {
+    const a = getBtnCfg(labelA).groupId;
+    const b = getBtnCfg(labelB).groupId;
+    return !!a && a === b;
+}
+
+// Toggling a link between two buttons from the GUI. Groups are transitive
+// sets (not pairwise), so:
+// - checking a link merges the two buttons' groups (creating one if neither
+//   has one yet, adopting the other's id if only one does, or merging every
+//   member of B's group into A's group if both already belong to different
+//   groups).
+// - unchecking a link removes B from the shared group entirely (there's no
+//   such thing as "still grouped with the others but not A" in a transitive
+//   group model).
+function toggleGroupLink(labelA: string, labelB: string, linked: boolean) {
+    if (linked) {
+        const cfgA = getBtnCfg(labelA);
+        const cfgB = getBtnCfg(labelB);
+
+        if (cfgA.groupId && cfgB.groupId) {
+            if (cfgA.groupId === cfgB.groupId) return; // already linked
+            for (const label of getGroupedLabels(cfgB.groupId)) {
+                setBtnCfg(label, { groupId: cfgA.groupId });
+            }
+        } else if (cfgA.groupId) {
+            setBtnCfg(labelB, { groupId: cfgA.groupId });
+        } else if (cfgB.groupId) {
+            setBtnCfg(labelA, { groupId: cfgB.groupId });
+        } else {
+            const newId = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+            setBtnCfg(labelA, { groupId: newId });
+            setBtnCfg(labelB, { groupId: newId });
+        }
+    } else {
+        setBtnCfg(labelB, { groupId: null });
+    }
 }
 
 function getButtonLabel(button: HTMLElement): string | null {
@@ -620,57 +663,12 @@ function buildCSS(): string {
             break;
         case "outlined":
             lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
-
-            for (const id of Object.keys(buttonConfigs)) {
-                if (getBtnCfg(id).background !== undefined && !getBtnCfg(id).background) {
-                    if (getBtnCfg(id).label === "Mute" || getBtnCfg(id).label === "Deafen") {
-                        lines.push(`
-                            ${S.audioParent} [aria-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
-                            ${S.audioParent} [aria-label="${getBtnCfg(id).label}"].plateMuted__67645 {
-                                background: transparent !important;
-                            }
-                        `);
-                    } else {
-                        lines.push(`
-                            ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
-                            ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645,
-                            ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
-                            ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
-                                background: transparent !important;
-                            }
-                        `);
-                    }
-                }
-            }
-
             break;
         case "outlineold":
             // Pre-fallback replica: relies on var(--background-modifier-accent) which
             // new Discord tokens dropped, so the border doesn't actually render.
             // People liked that buggy look, so it's kept as its own option.
             lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { border: 1.5px solid var(--background-modifier-accent) !important; border-radius: 8px !important; }`);
-
-            for (const id of Object.keys(buttonConfigs)) {
-                if (getBtnCfg(id).background !== undefined && !getBtnCfg(id).background) {
-                    if (getBtnCfg(id).label === "Mute" || getBtnCfg(id).label === "Deafen") {
-                        lines.push(`
-                            ${S.audioParent} [aria-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
-                            ${S.audioParent} [aria-label="${getBtnCfg(id).label}"].plateMuted__67645 {
-                                background: transparent !important;
-                            }
-                        `);
-                    } else {
-                        lines.push(`
-                            ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
-                            ${S.previewButtonContainer} ${S.previewButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645,
-                            ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645:hover,
-                            ${S.panelButtons} ${S.panelButton}[data-deracul-label="${getBtnCfg(id).label}"].plateMuted__67645 {
-                                background: transparent !important;
-                            }
-                        `);
-                    }
-                }
-            }
             break;
         case "pill":
             lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { background: var(--bplateStateackground-modifier-hover, var(--background-mod-normal)) !important; border-radius: 20px !important; }
@@ -788,30 +786,63 @@ function buildCustomCSS(): string {
         // Custom Active Blob Color & Opacity per button
         if (cfg.colorfulActiveButton) {
             const baseColor = cfg.color || "#5865f2";
-            const alpha = cfg.opacity !== undefined ? Math.round((cfg.opacity / 100) * 255).toString(16).padStart(2, "0") : "ff";
+            const alpha = Math.round(((cfg.opacity ?? 100) / 100) * 255).toString(16).padStart(2, "0");
             const finalColor = `${baseColor.slice(0, 7)}${alpha}`;
             const finalRadius= cfg.radius != null ? `${cfg.radius}px` : "10px";
 
             // We add :hover overrides here so the active custom color isn't erased when interacting!
             lines.push(`
-                ${sel} button[role="switch"][aria-checked="true"],
-                ${sel} button[aria-checked="true"],
-                ${sel}[aria-checked="true"],
-                ${sel} button[role="switch"][aria-checked="true"]:hover,
-                ${sel} button[aria-checked="true"]:hover,
-                ${sel}[aria-checked="true"]:hover,
+                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"]:hover,
                 ${S.previewButtonOn}[data-deracul-label="${cfg.label}"],
-                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"]:hover {
+                ${sel} button[role="switch"][aria-checked="true"]:hover,
+                ${sel} button[role="switch"][aria-checked="true"],
+                ${sel} button[aria-checked="true"]:hover,
+                ${sel} button[aria-checked="true"],
+                ${sel}[aria-checked="true"]:hover,
+                ${sel}[aria-checked="true"] {
                     background-color: ${finalColor} !important;
                     color: white !important;
                     border-radius: ${finalRadius} !important;
                 }
+
+                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"] svg,
                 ${sel} button[role="switch"][aria-checked="true"] svg,
                 ${sel} button[aria-checked="true"] svg,
-                ${sel}[aria-checked="true"] svg,
-                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"] svg {
+                ${sel}[aria-checked="true"] svg {
                     fill: white !important;
                     color: white !important;
+                }
+            `);
+        }
+
+        // Custom InActive Blob Color & Opacity per button
+        if (cfg.colorfulInActiveButton) {
+            const baseColor = cfg.colorOff || "#000000";
+            const alpha = Math.round(((cfg.opacityOff ?? 22) / 100) * 255).toString(16).padStart(2, "0");
+            const finalColor = `${baseColor.slice(0, 7)}${alpha}`;
+            const finalColorHovered = `${baseColor.slice(0, 7)}${alpha + 0.11}`;
+            const finalRadius= cfg.radiusOff != null ? `${cfg.radiusOff}px` : "10px";
+
+            // We add :hover overrides here so the active custom color isn't erased when interacting!
+            lines.push(`
+                ${S.previewButtonOff}[data-deracul-label="${cfg.label}"],
+                ${sel} button[role="switch"][aria-checked="false"],
+                ${sel} button[aria-checked="false"],
+                ${sel}[aria-checked="false"] {
+                    --custom-nameplate-neutral-hovered: ${finalColorHovered} !important;
+                    --custom-nameplate-neutral: ${finalColor} !important;
+                    background-color: ${finalColor} !important;
+                    border-radius: ${finalRadius} !important;
+                }
+
+                ${S.previewButtonOff}[data-deracul-label="${cfg.label}"]:hover,
+                ${sel} button[role="switch"][aria-checked="false"]:hover,
+                ${sel} button[aria-checked="false"]:hover,
+                ${sel}[aria-checked="false"]:hover {
+                    --custom-nameplate-neutral-hovered: ${finalColorHovered} !important;
+                    --custom-nameplate-neutral: ${finalColor} !important;
+                    background-color: ${finalColorHovered} !important;
+                    border-radius: ${finalRadius} !important;
                 }
             `);
         }
@@ -1091,7 +1122,7 @@ function ButtonsDragTab() {
         <Flex flexDirection="column" gap={16} style={{ paddingBottom: "12px" }}>
             <Paragraph style={{ color: "var(--text-muted)", fontSize: "13px" }}>
                 Drag a square left or right to change its order. Use the switches to show or hide them.
-                Give two or more buttons the same Group name below to link them — clicking one clicks the others too.
+                Click the chips under "Group with" on a button's card to link it with others — activating one activates the rest.
             </Paragraph>
 
             {items.length === 0 ? (
@@ -1300,32 +1331,51 @@ function ButtonsDragTab() {
                                             </Button>
                                         )}
                                     </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                                        <BaseText size="xs" color="text-muted">Group (links buttons together)</BaseText>
-                                        <input
-                                            type="text"
-                                            value={cfg.groupId ?? ""}
-                                            placeholder="No group"
-                                            onChange={e => {
-                                                const v = e.target.value;
-                                                setBtnCfg(item.id, { groupId: v.trim() ? v : null });
-                                                apply();
-                                                forceUpdate();
-                                            }}
-                                            style={{
-                                                height: "32px",
-                                                borderRadius: "6px",
-                                                border: "1px solid var(--background-modifier-accent, var(--border-muted))",
-                                                background: "var(--background-secondary-alt, var(--background-mod-subtle))",
-                                                color: "var(--text-default)",
-                                                padding: "0 8px",
-                                                fontSize: "13px",
-                                            }}
-                                        />
-                                        {cfg.groupId && getGroupedLabels(cfg.groupId).filter(l => l !== item.id).length > 0 && (
-                                            <BaseText size="xs" color="text-muted">
-                                                Linked with: {getGroupedLabels(cfg.groupId).filter(l => l !== item.id).join(", ")}
-                                            </BaseText>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                        <BaseText size="xs" color="text-muted">Group with (click one activates the others)</BaseText>
+                                        {items.length <= 1 ? (
+                                            <BaseText size="xs" color="text-muted">No other buttons to group with.</BaseText>
+                                        ) : (
+                                            <div style={{
+                                                display: "flex",
+                                                flexWrap: "wrap",
+                                                gap: "6px",
+                                            }}>
+                                                {items.filter(other => other.id !== item.id).map(other => {
+                                                    const linked = isLinked(item.id, other.id);
+                                                    return (
+                                                        <button
+                                                            key={other.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                toggleGroupLink(item.id, other.id, !linked);
+                                                                apply();
+                                                                forceUpdate();
+                                                            }}
+                                                            style={{
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                gap: "6px",
+                                                                height: "28px",
+                                                                padding: "0 10px",
+                                                                borderRadius: "14px",
+                                                                border: linked
+                                                                    ? "1px solid var(--brand-experiment, #5865f2)"
+                                                                    : "1px solid var(--background-modifier-accent, var(--border-muted))",
+                                                                background: linked
+                                                                    ? "var(--brand-experiment, #5865f2)"
+                                                                    : "var(--background-secondary-alt, var(--background-mod-subtle))",
+                                                                color: linked ? "#fff" : "var(--text-default)",
+                                                                fontSize: "12px",
+                                                                cursor: "pointer",
+                                                            }}
+                                                        >
+                                                            {linked && <span aria-hidden>✓</span>}
+                                                            {other.id}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -1674,11 +1724,14 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
     function resetDefaults({ id }: { id: any }) {
         setBtnCfg(id, {
             color: "#5865f2",
-            background: true,
             opacity: 100,
             radius: 10,
-            keybind: null,
+            colorOff: "#000000",
+            opacityOff: 22,
+            radiusOff: 10,
             colorfulActiveButton: false,
+            colorfulInActiveButton: false,
+            keybind: null,
             groupId: null,
         });
 
@@ -1736,7 +1789,10 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
                 const activeColor = cfg.color ?? "#5865f2";
                 const activeOpacity = (cfg.opacity ?? 100) / 100;
                 const activeRadius = (cfg.radius ?? 10);
-                const activeBackground = (cfg.background ?? true);
+
+                const InactiveColor = cfg.colorOff ?? "#000000";
+                const InactiveOpacity = (cfg.opacityOff ?? 22) / 100;
+                const InactiveRadius = (cfg.radiusOff ?? 10);
 
                 const [{ customNameplateNeutral, customNameplateNeutralHovered }, setNameplateVars] = React.useState<{
                     customNameplateNeutral: string | null;
@@ -1816,12 +1872,16 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
                     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
                 }
 
-                const isModified = (cfg.color !== undefined && cfg.color !== "#5865f2") ||
+                const isModified =
+                    (cfg.color !== undefined && cfg.color !== "#5865f2") ||
                     (cfg.opacity !== undefined && cfg.opacity !== 100) ||
                     (cfg.radius !== undefined && cfg.radius !== 10) ||
-                    ((cfg.background !== undefined && cfg.background !== true) && (settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold")) ||
-                    (cfg.keybind !== null) ||
-                    (cfg.colorfulActiveButton !== undefined && cfg.colorfulActiveButton !== false);
+                    (cfg.colorOff !== undefined && cfg.colorOff !== "#000000") ||
+                    (cfg.opacityOff !== undefined && cfg.opacityOff !== 22) ||
+                    (cfg.radiusOff !== undefined && cfg.radiusOff !== 10) ||
+                    (cfg.colorfulActiveButton !== undefined && cfg.colorfulActiveButton !== false) ||
+                    (cfg.colorfulInActiveButton !== undefined && cfg.colorfulInActiveButton !== false) ||
+                    (cfg.keybind !== null);
 
                 return (
                     <React.Fragment key={item.id}>
@@ -1836,16 +1896,51 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
                                         <div style={{ flex: 1 }}>
                                             {!isUserSettings && !isPanelLayout && (
                                                 <>
-                                                    {(settings.store.buttonStyle === "outlined" || settings.store.buttonStyle === "outlineold") && (
-                                                        <FormSwitch title="Enable dark background" description={isMute || isDeafen ? "Enable a dark background when on" : "Enable a dark background when off"} value={cfg.background ?? true} onChange={v => {
-                                                            setBtnCfg(item.id, { background: v });
+                                                    <>
+                                                        <FormSwitch title="Colorful InActive button" description={isMute || isDeafen ? "Enable a colorful background when enabled" : "Enable a colorful background when disabled"} value={cfg.colorfulInActiveButton ?? false} onChange={v => {
+                                                            setBtnCfg(item.id, { colorfulInActiveButton: v });
                                                             apply(); forceUpdate();
-                                                        }} disabled={(isMute || isDeafen) && cfg.colorfulActiveButton === true} />
-                                                    )}
-                                                    <FormSwitch title="Colorful active button" description="Enable a colorful background when on" value={cfg.colorfulActiveButton ?? false} onChange={v => {
+                                                        }} />
+                                                        {cfg.colorfulInActiveButton && (
+                                                            <>
+                                                                <ColorRow
+                                                                    label="InActive blob background color"
+                                                                    value={cfg.colorOff ?? "#000000"}
+                                                                    onChange={e => {
+                                                                        setBtnCfg(item.id, { colorOff: e });
+                                                                        apply();
+                                                                    }}
+                                                                    onBlur={() => forceUpdate()}
+                                                                />
+                                                                <SliderRow
+                                                                    label="Opacity"
+                                                                    min={0}
+                                                                    max={100}
+                                                                    value={cfg.opacityOff ?? 22}
+                                                                    onChange={v => {
+                                                                        setBtnCfg(item.id, { opacityOff: Number(Math.round(v)) });
+                                                                        apply(); forceUpdate();
+                                                                    }}
+                                                                    unit="%"
+                                                                />
+                                                                <SliderRow
+                                                                    label="Radius"
+                                                                    min={0}
+                                                                    max={20}
+                                                                    value={cfg.radiusOff ?? 10}
+                                                                    onChange={v => {
+                                                                        setBtnCfg(item.id, { radiusOff: Number(Math.round(v)) });
+                                                                        apply(); forceUpdate();
+                                                                    }}
+                                                                    unit="px"
+                                                                />
+                                                            </>
+                                                        )}
+                                                    </>
+                                                    <FormSwitch title="Colorful active button" description="Enable a colorful background when enabled" value={cfg.colorfulActiveButton ?? false} onChange={v => {
                                                         setBtnCfg(item.id, { colorfulActiveButton: v });
                                                         apply(); forceUpdate();
-                                                    }} disabled={(isMute || isDeafen) && cfg.background === true} hideBorder={!cfg.colorfulActiveButton} />
+                                                    }} hideBorder={!cfg.colorfulActiveButton} />
                                                     {cfg.colorfulActiveButton && (
                                                         <>
                                                             <ColorRow
@@ -1891,14 +1986,14 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
                                                     <Flex flexDirection="column" alignItems="center" gap={8}>
                                                         <BaseText size="xs" color="text-muted">OFF State</BaseText>
                                                         <button
-                                                            className={activeBackground && !isMute && !isDeafen ? "buttonPreview plateMuted__67645" : "buttonPreview"}
+                                                            className={!isMute && !isDeafen ? "buttonPreview previewButtonOff plateMuted__67645" : "buttonPreview previewButtonOff"}
+                                                            data-deracul-label={cfg.label}
                                                             style={{
                                                                 "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
                                                                 "--custom-nameplate-neutral": customNameplateNeutral,
                                                                 width: targetSize.width,
                                                                 height: targetSize.height,
-                                                                borderRadius: "10px",
-                                                                background: isMute || isDeafen || !activeBackground ? "transparent" : undefined,
+                                                                background: "transparent",
                                                                 color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
                                                                 display: "flex",
                                                                 alignItems: "center",
@@ -1923,15 +2018,14 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
                                                     <Flex flexDirection="column" alignItems="center" gap={8} className="previewButtonContainer">
                                                         <BaseText size="xs" color="text-muted">ON State</BaseText>
                                                         <button
-                                                            className={activeBackground && (isMute || isDeafen) ? "buttonPreview previewButtonOn button__201d5 lookBlank__201d5 plateMuted__67645" : "buttonPreview previewButtonOn button__201d5 lookBlank__201d5"}
+                                                            className={isMute || isDeafen ? "buttonPreview previewButtonOn button__201d5 lookBlank__201d5 plateMuted__67645" : "buttonPreview previewButtonOn button__201d5 lookBlank__201d5"}
                                                             data-deracul-label={cfg.label}
                                                             style={{
                                                                 "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
                                                                 "--custom-nameplate-neutral": customNameplateNeutral,
                                                                 width: targetSize.width,
                                                                 height: targetSize.height,
-                                                                borderRadius: activeRadius != null ? `${activeRadius}px` : "10px",
-                                                                background: cfg.colorfulActiveButton ? hexToRgba(activeColor, activeOpacity) : undefined,
+                                                                background: "transparent",
                                                                 color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
                                                                 display: "flex",
                                                                 alignItems: "center",
