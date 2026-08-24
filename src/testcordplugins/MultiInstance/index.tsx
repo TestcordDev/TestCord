@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-// TODO: token signing in doesnt work
 import "./style.css";
 
 import { HeaderBarButton } from "@api/HeaderBar";
