@@ -1549,7 +1549,8 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps }) {
                             .filter(item => !getBtnCfg(item.id).hidden &&
                                 getCanonicalLabel(item.label) !== "Soundboard disabled when deafened" &&
                                 getCanonicalLabel(item.label) !== "Open Soundboard" &&
-                                getCanonicalLabel(item.label) !== "User Settings"
+                                getCanonicalLabel(item.label) !== "User Settings" &&
+                                getCanonicalLabel(item.label) !== "Panel Layout"
                             )
                             .map(item => {
                                 const cfg = getBtnCfg(item.id);
