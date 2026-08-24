@@ -188,34 +188,50 @@ interface ButtonConfig {
     colorfulActiveButton: boolean;
     colorfulInActiveButton: boolean;
     groupId?: string | null;
+    linkedTo?: string[];
 }
 
 const BUTTON_CONFIG_KEY = "deracul-panel-layout-configs";
 let buttonConfigs: Record<string, ButtonConfig> = {};
 let configsLoaded = false;
 
-let groupIndex: Map<string, string[]> = new Map();
+let anyLinksConfigured = false;
 
-function rebuildGroupIndex() {
-    const next = new Map<string, string[]>();
+function rebuildLinkIndex() {
+    anyLinksConfigured = Object.values(buttonConfigs).some(cfg => (cfg.linkedTo?.length ?? 0) > 0);
+}
+
+function migrateLegacyGroups() {
+    const byGroup = new Map<string, string[]>();
     for (const cfg of Object.values(buttonConfigs)) {
         if (!cfg.groupId) continue;
-        const members = next.get(cfg.groupId);
+        const members = byGroup.get(cfg.groupId);
         if (members) members.push(cfg.label);
-        else next.set(cfg.groupId, [cfg.label]);
+        else byGroup.set(cfg.groupId, [cfg.label]);
     }
-    groupIndex = next;
+    if (byGroup.size === 0) return;
+
+    for (const members of byGroup.values()) {
+        for (const label of members) {
+            const others = members.filter(l => l !== label);
+            const existing = new Set(getBtnCfg(label).linkedTo ?? []);
+            for (const o of others) existing.add(o);
+            buttonConfigs[label] = { ...getBtnCfg(label), label, linkedTo: Array.from(existing), groupId: null };
+        }
+    }
+    saveConfigs();
 }
 
 async function loadConfigs() {
     buttonConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ?? {};
     configsLoaded = true;
-    rebuildGroupIndex();
+    migrateLegacyGroups();
+    rebuildLinkIndex();
 }
 
 function saveConfigs() {
     DataStore.set(BUTTON_CONFIG_KEY, buttonConfigs);
-    rebuildGroupIndex();
+    rebuildLinkIndex();
 }
 
 function getBtnCfg(id: string): ButtonConfig {
@@ -279,14 +295,56 @@ function onGlobalKeydown(e: KeyboardEvent) {
             if (clickable) {
                 e.preventDefault();
                 e.stopPropagation();
+                const wasActive = isBtnActive(cfg.label);
                 clickable.click();
+                syncLinkedPartners(cfg.label, wasActive);
             }
         }
     }
 }
 
+function isBtnActive(label: string): boolean | null {
+    const el = document.querySelector(getBtnSelector(label)) as HTMLElement | null;
+    if (!el) return null;
+    const scope = (el.querySelector("button") ?? el) as HTMLElement;
+
+    const ariaChecked = scope.getAttribute("aria-checked") ?? el.getAttribute("aria-checked");
+    if (ariaChecked === "true") return true;
+    if (ariaChecked === "false") return false;
+
+    const ariaPressed = scope.getAttribute("aria-pressed") ?? el.getAttribute("aria-pressed");
+    if (ariaPressed === "true") return true;
+    if (ariaPressed === "false") return false;
+
+    if (el.classList.contains("plateMuted__67645") || scope.classList.contains("plateMuted__67645")) return true;
+
+    return null;
+}
+
+function syncLinkedPartners(label: string, wasActive: boolean | null) {
+    const partners = buttonConfigs[label]?.linkedTo;
+    if (!partners?.length) return;
+
+    const newActive = wasActive === null ? null : !wasActive;
+
+    for (const other of partners) {
+        if (other === label) continue;
+
+        if (newActive !== null) {
+            const partnerActive = isBtnActive(other);
+            if (partnerActive === newActive) continue;
+        }
+
+        const el = document.querySelector(getBtnSelector(other)) as HTMLElement | null;
+        const clickable = (el?.querySelector("button") ?? el) as HTMLElement | null;
+        clickable?.click();
+    }
+}
+
 function onGlobalClick(e: MouseEvent) {
-    if (!configsLoaded || !e.isTrusted || groupIndex.size === 0) return;
+    // Cheapest possible bail-out first: skip entirely (no DOM walk, no lookup)
+    // whenever the user hasn't linked any buttons at all.
+    if (!configsLoaded || !e.isTrusted || !anyLinksConfigured) return;
 
     const target = e.target as HTMLElement | null;
     if (!target) return;
@@ -298,61 +356,30 @@ function onGlobalClick(e: MouseEvent) {
     if (!label) return;
 
     const cfg = buttonConfigs[label];
-    if (!cfg?.groupId) return;
+    if (!cfg?.linkedTo?.length) return;
 
-    const members = groupIndex.get(cfg.groupId);
-    if (!members) return;
-
-    for (const other of members) {
-        if (other === label) continue;
-
-        const el = document.querySelector(getBtnSelector(other)) as HTMLElement | null;
-        const clickable = (el?.querySelector("button") ?? el) as HTMLElement | null;
-        clickable?.click();
-    }
-}
-
-function getGroupedLabels(groupId: string): string[] {
-    return groupIndex.get(groupId) ?? [];
+    const wasActive = isBtnActive(label);
+    syncLinkedPartners(label, wasActive);
 }
 
 function isLinked(labelA: string, labelB: string): boolean {
-    const a = getBtnCfg(labelA).groupId;
-    const b = getBtnCfg(labelB).groupId;
-    return !!a && a === b;
+    return getBtnCfg(labelA).linkedTo?.includes(labelB) ?? false;
 }
 
-// Toggling a link between two buttons from the GUI. Groups are transitive
-// sets (not pairwise), so:
-// - checking a link merges the two buttons' groups (creating one if neither
-//   has one yet, adopting the other's id if only one does, or merging every
-//   member of B's group into A's group if both already belong to different
-//   groups).
-// - unchecking a link removes B from the shared group entirely (there's no
-//   such thing as "still grouped with the others but not A" in a transitive
-//   group model).
 function toggleGroupLink(labelA: string, labelB: string, linked: boolean) {
-    if (linked) {
-        const cfgA = getBtnCfg(labelA);
-        const cfgB = getBtnCfg(labelB);
+    const listA = new Set(getBtnCfg(labelA).linkedTo ?? []);
+    const listB = new Set(getBtnCfg(labelB).linkedTo ?? []);
 
-        if (cfgA.groupId && cfgB.groupId) {
-            if (cfgA.groupId === cfgB.groupId) return; // already linked
-            for (const label of getGroupedLabels(cfgB.groupId)) {
-                setBtnCfg(label, { groupId: cfgA.groupId });
-            }
-        } else if (cfgA.groupId) {
-            setBtnCfg(labelB, { groupId: cfgA.groupId });
-        } else if (cfgB.groupId) {
-            setBtnCfg(labelA, { groupId: cfgB.groupId });
-        } else {
-            const newId = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-            setBtnCfg(labelA, { groupId: newId });
-            setBtnCfg(labelB, { groupId: newId });
-        }
+    if (linked) {
+        listA.add(labelB);
+        listB.add(labelA);
     } else {
-        setBtnCfg(labelB, { groupId: null });
+        listA.delete(labelB);
+        listB.delete(labelA);
     }
+
+    setBtnCfg(labelA, { linkedTo: Array.from(listA) });
+    setBtnCfg(labelB, { linkedTo: Array.from(listB) });
 }
 
 function getButtonLabel(button: HTMLElement): string | null {
@@ -1722,6 +1749,10 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
     const [, setResetKey] = React.useState(0);
 
     function resetDefaults({ id }: { id: any }) {
+        for (const partner of getBtnCfg(id).linkedTo ?? []) {
+            toggleGroupLink(id, partner, false);
+        }
+
         setBtnCfg(id, {
             color: "#5865f2",
             opacity: 100,
@@ -1732,7 +1763,6 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
             colorfulActiveButton: false,
             colorfulInActiveButton: false,
             keybind: null,
-            groupId: null,
         });
 
         setResetKey(prev => prev + 1);
