@@ -355,10 +355,12 @@ function buildSmoothCSS(): string {
     pointer-events: none;
     z-index: 99999;
     display: none;
-    will-change: transform, height;
     transition: transform ${ms}ms ${easing}, height ${ms}ms ${easing};
 }
-[data-slate-editor] { caret-color: transparent !important; }
+/* Children are covered too: Discord's own stylesheets re-color the caret on
+   inner editor nodes (.editor__*, slate leaves), which brings the native
+   blinking caret back on top of ours while smooth typing is active. */
+[data-slate-editor], [data-slate-editor] * { caret-color: transparent !important; }
 `;
 }
 
@@ -384,9 +386,13 @@ function stopBlink() {
 
 function applyCaretPosition() {
     const el = getSmoothCaret();
-    if (!document.activeElement?.closest("[data-slate-editor]")) {
+    const activeEditor = document.activeElement?.closest<HTMLElement>("[data-slate-editor]") ?? null;
+    // Re-pinning here self-heals when React swaps the focused editor node
+    // without a blur/focusin cycle.
+    if (!activeEditor) {
         el.style.display = "none"; return;
     }
+    hideNativeCaretInline(activeEditor);
     const sel = window.getSelection();
     if (!sel?.rangeCount) { el.style.display = "none"; return; }
     const range = sel.getRangeAt(0).cloneRange();
@@ -478,10 +484,55 @@ function stopObserver() {
     caretQueued = false;
 }
 
+// Editors currently carrying an inline caret-color override. The stylesheet rule
+// hides the native caret, but Discord's own sheets set caret colors on inner
+// editor nodes and load after ours - the inline !important pin wins every
+// cascade battle regardless of order or specificity.
+const inlineHiddenEditors = new Set<HTMLElement>();
+
+function hideNativeCaretInline(editor: HTMLElement) {
+    if (!inlineHiddenEditors.has(editor)) {
+        editor.style.setProperty("caret-color", "transparent", "important");
+        inlineHiddenEditors.add(editor);
+    }
+}
+
+function restoreInlineHiddenEditors() {
+    for (const editor of inlineHiddenEditors) {
+        editor.style.removeProperty("caret-color");
+    }
+    inlineHiddenEditors.clear();
+}
+
+function closestSlateEditor(target: EventTarget | null): HTMLElement | null {
+    if (!(target instanceof Element)) return null;
+    const fromTarget = target.closest<HTMLElement>("[data-slate-editor]");
+    return fromTarget ?? document.activeElement?.closest<HTMLElement>("[data-slate-editor]") ?? null;
+}
+
 const smoothHandlers = {
     sel: () => scheduleApplyCaretPosition(),
-    focus: () => { observeEditor(); scheduleApplyCaretPosition(); },
-    blur: () => { observeEditor(); hideSmoothCaret(); },
+    focus: (e: FocusEvent) => {
+        const editor = closestSlateEditor(e.target);
+        if (editor) hideNativeCaretInline(editor);
+        observeEditor();
+        scheduleApplyCaretPosition();
+    },
+    blur: () => {
+        // Re-check after focus settles so tabbing between editors does not
+        // flash the native caret; unpins editors that lost focus entirely.
+        setTimeout(() => {
+            const active = document.activeElement;
+            for (const editor of [...inlineHiddenEditors]) {
+                if (!editor.isConnected || (active !== editor && !editor.contains(active))) {
+                    editor.style.removeProperty("caret-color");
+                    inlineHiddenEditors.delete(editor);
+                }
+            }
+        }, 0);
+        observeEditor();
+        hideSmoothCaret();
+    },
     key: () => scheduleApplyCaretPosition(),
     click: (e: MouseEvent) => {
         if (!(e.target instanceof Element) || !e.target.closest("[data-slate-editor]")) {
@@ -523,15 +574,23 @@ function removeSmoothCSS() {
 
 function startSmoothTyping() {
     applySmoothCSS();
+    // Remove strays from earlier sessions before reusing the id.
+    document.querySelectorAll(`#${SMOOTH_CARET_ID}`).forEach((el, i) => {
+        if (i > 0) el.remove();
+    });
     getSmoothCaret();
     startObserver();
     startListeners();
+    // The editor may already be focused when the toggle flips on.
+    const editor = closestSlateEditor(document.activeElement);
+    if (editor) hideNativeCaretInline(editor);
 }
 
 function stopSmoothTyping() {
     stopObserver();
     stopListeners();
     removeSmoothCSS();
+    restoreInlineHiddenEditors();
     if (blinkTimer) clearTimeout(blinkTimer);
     document.getElementById(SMOOTH_CARET_ID)?.remove();
 }

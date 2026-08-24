@@ -32,6 +32,7 @@ import { Settings, SettingsStore } from "@api/Settings";
 import { disableStyle, enableStyle, removeStyle } from "@api/Styles";
 import { traceFunction } from "@debug/Tracer";
 import { Logger } from "@utils/Logger";
+import { sleep } from "@utils/misc";
 import { onlyOnce } from "@utils/onlyOnce";
 import { canonicalizeFind, canonicalizeReplacement } from "@utils/patches";
 import { DefinedSettings, Patch, Plugin, PluginDef, PluginSettingDef, ReporterTestable, StartAt } from "@utils/types";
@@ -167,8 +168,16 @@ export const startAllPlugins = traceFunction("startAllPlugins", async function s
             pending.push(() => startPlugin(Plugins[name]));
         }
     }
+    // Time-sliced: with hundreds of plugins a tight start loop blocks the main
+    // thread for seconds right when Discord paints its first screens. Handing
+    // control back to the event loop every ~12ms keeps startup interactive.
+    let lastSlice = performance.now();
     for (const start of pending) {
         try { start(); } catch (e) { logger.error("Failed to start plugin", e); }
+        if (performance.now() - lastSlice > 12) {
+            await sleep(0);
+            lastSlice = performance.now();
+        }
     }
 
     // After the final "WebpackReady" start pass, publish the set of enabled

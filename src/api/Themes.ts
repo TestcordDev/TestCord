@@ -19,6 +19,7 @@
 import { Settings, SettingsStore, type ThemeActivationMode } from "@api/Settings";
 import { createAndAppendStyle } from "@utils/css";
 import { isNonNullish } from "@utils/guards";
+import { Logger } from "@utils/Logger";
 import { ThemeStore } from "@vencord/discord-types";
 import { PopoutWindowStore } from "@webpack/common";
 
@@ -105,6 +106,12 @@ async function initThemes() {
         for (const theme of enabledThemes) {
             const mode = getThemeActivationMode(theme);
             if (!shouldApplyTheme(mode, activeTheme)) continue;
+            // A missing file would silently produce a dead @import; surface it instead
+            const exists = await VencordNative.themes.getThemeData(theme).then(() => true).catch(() => false);
+            if (!exists) {
+                new Logger("Themes").warn(`Enabled theme "${theme}" was not found in the themes folder, skipping`);
+                continue;
+            }
             links.add(`vencord:///themes/${theme}?v=${version}`);
         }
     }

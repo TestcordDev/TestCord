@@ -123,6 +123,32 @@ Returns all plugins with patch failures and runtime errors:
 {"id": "6", "health": [{"plugin": "Questify", "patchFailures": [...], "runtimeErrors": [...]}]}
 ```
 
+#### `loaf` — Long frame attribution (Long Animation Frames API)
+
+Always-on recorder while LiveFix is enabled. Captures the last 40 main-thread frames longer than 50ms with the top scripts that blocked each one, then aggregates script time per invoker.
+
+```json
+{"id": "7", "action": "loaf"}
+```
+
+```json
+{"id": "7", "frameCount": 12, "totalMs": 8420, "topInvokers": [{"invoker": "event-listener:DIV#app-mount.onmouseout", "ms": 2450}], "frames": [...]}
+```
+
+Use this when the client feels laggy: `topInvokers` names exactly which handler or timer ate the time. Frames whose `blocking` is high but have no scripts point at style/layout cost instead of JavaScript.
+
+#### `hoverProbe` — Quantify hover lag
+
+Dispatches synthetic mouseover/mouseout pairs over 14 sidebar buttons and returns the median main-thread cost. Healthy clients measure below ~20ms; hundreds of milliseconds indicate the style recalc or handler pathology.
+
+```json
+{"id": "8", "action": "hoverProbe"}
+```
+
+```json
+{"id": "8", "medianMs": 0.3, "runs": [0.3, 0.3, 0.4], "healthyBelowMs": 20}
+```
+
 ## Usage Examples
 
 ### Find the new module ID for a feature

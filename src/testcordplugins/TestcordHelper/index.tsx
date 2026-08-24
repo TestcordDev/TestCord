@@ -1233,7 +1233,7 @@ interface LiveFixRequest {
     id: string;
     action: "search" | "readModule" | "eval" | "testPattern" | "listPending" | "patchHealth"
     | "dispatchStats" | "slowEvents" | "pluginTimings" | "patchTimings" | "memory" | "profile" | "reset"
-    | "consoleDump";
+    | "consoleDump" | "loaf" | "hoverProbe";
     query?: string;
     moduleId?: number;
     code?: string;
@@ -1248,6 +1248,62 @@ const CONSOLE_BUF_MAX = 500;
 const consoleBuf: Array<{ level: string; msg: string; time: number; }> = [];
 let origConsole: Record<string, (...args: any[]) => void> = {};
 let consoleOverridesInstalled = false;
+
+interface LoafScript {
+    dur: number;
+    invoker: string;
+    src: string;
+    fn: string;
+}
+
+interface LoafFrame {
+    dur: number;
+    blocking: number;
+    scripts: LoafScript[];
+}
+
+const LOAF_BUF_MAX = 40;
+const loafBuf: LoafFrame[] = [];
+let loafObserverInstalled = false;
+
+function installLoafRecorder() {
+    if (loafObserverInstalled || typeof PerformanceObserver === "undefined") return;
+    interface LoafEntry extends PerformanceEntry {
+        scripts?: Array<{
+            duration: number;
+            invokerType?: string;
+            invoker?: string;
+            sourceURL?: string;
+            sourceFunctionName?: string;
+        }>;
+        blockingDuration?: number;
+    }
+    try {
+        const observer = new PerformanceObserver(list => {
+            for (const entry of list.getEntries() as LoafEntry[]) {
+                const scripts = (entry.scripts ?? [])
+                    .map(s => ({
+                        dur: Math.round(s.duration),
+                        invoker: s.invokerType && s.invoker ? `${s.invokerType}:${String(s.invoker).slice(0, 80)}` : "",
+                        src: (s.sourceURL || "").split("/").pop() + ":" + (s.sourceFunctionName || ""),
+                        fn: ""
+                    }))
+                    .sort((a, b) => b.dur - a.dur)
+                    .slice(0, 6);
+                loafBuf.push({
+                    dur: Math.round(entry.duration),
+                    blocking: Math.round(entry.blockingDuration ?? 0),
+                    scripts
+                });
+                if (loafBuf.length > LOAF_BUF_MAX) loafBuf.shift();
+            }
+        });
+        observer.observe({ type: "long-animation-frame", durationThreshold: 50 } as PerformanceObserverInit);
+        loafObserverInstalled = true;
+    } catch {
+        // Long Animation Frames API unavailable on this Chromium
+    }
+}
 
 function installConsoleCapture() {
     if (consoleOverridesInstalled) return;
@@ -1439,6 +1495,49 @@ function handleLiveFixRequest(req: LiveFixRequest): any {
                 return { id, entries: consoleBuf.slice(-count) };
             }
 
+            case "loaf": {
+                const frames = loafBuf.slice();
+                const totalMs = frames.reduce((a, f) => a + f.dur, 0);
+                const byInvoker: Record<string, number> = {};
+                for (const f of frames) {
+                    for (const s of f.scripts) {
+                        if (!s.invoker) continue;
+                        byInvoker[s.invoker] = (byInvoker[s.invoker] ?? 0) + s.dur;
+                    }
+                }
+                const top = Object.entries(byInvoker)
+                    .map(([invoker, ms]) => ({ invoker, ms }))
+                    .sort((a, b) => b.ms - a.ms)
+                    .slice(0, 15);
+                return { id, frameCount: frames.length, totalMs, topInvokers: top, frames: frames.slice(-10) };
+            }
+
+            case "hoverProbe": {
+                const buttons = Array.from(
+                    document.querySelectorAll<HTMLElement>("[class*=listItem] [class*=avatar], [class*=sidebar] button")
+                ).slice(0, 14);
+                if (buttons.length < 4) return { id, error: "Not enough sidebar buttons visible for probe." };
+                const run = () => {
+                    const t0 = performance.now();
+                    for (const b of buttons) {
+                        b.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+                        b.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+                    }
+                    return Math.round((performance.now() - t0) * 10) / 10;
+                };
+                run();
+                const runs: number[] = [];
+                for (let i = 0; i < 7; i++) runs.push(run());
+                runs.sort((a, b) => a - b);
+                return {
+                    id,
+                    medianMs: runs[3],
+                    runs,
+                    healthyBelowMs: 20,
+                    note: "Median hover cost over 14 buttons. High values mean style recalc or handler lag; pair with loaf to attribute."
+                };
+            }
+
             case "reset": {
                 dispatchStats.clear();
                 recentSlowEvents.length = 0;
@@ -1459,6 +1558,7 @@ async function startLiveFixServer() {
 
     try {
         const token = await NativeHelper.startLiveFixServer();
+        installLoafRecorder();
 
         liveFixInterval = setInterval(async () => {
             let cmd: string | null = null;
