@@ -1816,14 +1816,6 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
                 const isMute = canonical === "Mute";
                 const isDeafen = canonical === "Deafen";
 
-                const activeColor = cfg.color ?? "#5865f2";
-                const activeOpacity = (cfg.opacity ?? 100) / 100;
-                const activeRadius = (cfg.radius ?? 10);
-
-                const InactiveColor = cfg.colorOff ?? "#000000";
-                const InactiveOpacity = (cfg.opacityOff ?? 22) / 100;
-                const InactiveRadius = (cfg.radiusOff ?? 10);
-
                 const [{ customNameplateNeutral, customNameplateNeutralHovered }, setNameplateVars] = React.useState<{
                     customNameplateNeutral: string | null;
                     customNameplateNeutralHovered: string | null;
