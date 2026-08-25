@@ -7,6 +7,7 @@
 import "./PrivacySecurityPanel.css";
 
 import { useSettings } from "@api/Settings";
+import { Card } from "@components/Card";
 import { SettingsTab } from "@components/settings/tabs/BaseTab";
 import { React, TabBar, useEffect, useRef, useState } from "@webpack/common";
 
@@ -825,7 +826,7 @@ export function PrivacySecurityPanel() {
                             </div>
                         </div>
                     )}
-                <div className="ps-card">
+                <Card className="ps-card">
                     <div className="ps-card-header">
                         <div className="ps-header-title-group">
                             <h2 className="ps-card-title-text">Privacy Protection</h2>
@@ -934,12 +935,12 @@ export function PrivacySecurityPanel() {
                             </div>
                         </div>
                     </div>
-                </div>
+                </Card>
                 <div className="ps-main-layout">
                     {/* LEFT COLUMN: SECURE CONNECT & OUTBOUND SURFACES */}
                     <div className="ps-main-left-col">
                         {/* SECTION 1: SECURE CONNECT (ENCRYPTED DNS) */}
-                        <div className="ps-card">
+                        <Card className="ps-card">
                             <div className="ps-card-header">
                                 <div className="ps-header-title-group">
                                     <h2 className="ps-card-title-text">Secure Connect</h2>
@@ -1044,10 +1045,10 @@ export function PrivacySecurityPanel() {
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </Card>
 
                         {/* SECTION 2: OUTBOUND SURFACES */}
-                        <div className="ps-card">
+                        <Card className="ps-card">
                             <div className="ps-card-header">
                                 <div className="ps-header-title-group">
                                     <h2 className="ps-card-title-text">Outbound Surfaces</h2>
@@ -1106,12 +1107,12 @@ export function PrivacySecurityPanel() {
                             <div className="ps-footer-note">
                                 Observed counters cover this runtime session. This inventory does not make test requests and optional plugins can add destinations when you enable or use them.
                             </div>
-                        </div>
+                        </Card>
                     </div>
 
                     {/* RIGHT COLUMN: PRIVACY SUITE PROTECTION */}
                     <div className="ps-main-right-col">
-                        <div className="ps-card">
+                        <Card className="ps-card">
                             <div className="ps-card-header">
                                 <div className="ps-header-title-group">
                                     <h2 className="ps-card-title-text">Privacy Suite Protection</h2>
@@ -1333,7 +1334,7 @@ export function PrivacySecurityPanel() {
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </Card>
                     </div>
                 </div>
                 </>}
