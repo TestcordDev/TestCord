@@ -187,7 +187,6 @@ interface ButtonConfig {
     radiusOff: number;
     colorfulActiveButton: boolean;
     colorfulInActiveButton: boolean;
-    groupId?: string | null;
     linkedTo?: string[];
 }
 
@@ -201,31 +200,9 @@ function rebuildLinkIndex() {
     anyLinksConfigured = Object.values(buttonConfigs).some(cfg => (cfg.linkedTo?.length ?? 0) > 0);
 }
 
-function migrateLegacyGroups() {
-    const byGroup = new Map<string, string[]>();
-    for (const cfg of Object.values(buttonConfigs)) {
-        if (!cfg.groupId) continue;
-        const members = byGroup.get(cfg.groupId);
-        if (members) members.push(cfg.label);
-        else byGroup.set(cfg.groupId, [cfg.label]);
-    }
-    if (byGroup.size === 0) return;
-
-    for (const members of byGroup.values()) {
-        for (const label of members) {
-            const others = members.filter(l => l !== label);
-            const existing = new Set(getBtnCfg(label).linkedTo ?? []);
-            for (const o of others) existing.add(o);
-            buttonConfigs[label] = { ...getBtnCfg(label), label, linkedTo: Array.from(existing), groupId: null };
-        }
-    }
-    saveConfigs();
-}
-
 async function loadConfigs() {
     buttonConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ?? {};
     configsLoaded = true;
-    migrateLegacyGroups();
     rebuildLinkIndex();
 }
 
@@ -1156,127 +1133,121 @@ function ButtonsDragTab() {
                 <BaseText size="sm" color="text-muted">No buttons detected. Open this tab again once buttons load.</BaseText>
             ) : (
                 <>
-                    <div style={{
-                        display: "flex",
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: "12px",
-                        backgroundColor: "var(--background-secondary, var(--background-surface-higher))",
-                        borderRadius: "12px",
-                        border: "1px solid var(--background-modifier-accent, var(--border-muted))",
-                        padding: "16px",
-                        position: "relative"
-                    }}>
-                        <div className="deracul-scrollbar" style={{
+                    <Card>
+                        <div style={{
                             display: "flex",
-                            flexDirection: "row",
-                            gap: "12px",
-                            overflowX: "auto",
-                            flex: 1,
-                            minWidth: 0,
-                            alignItems: "center"
                         }}>
-                            {items.map((item, index) => {
-                                const cfg = getBtnCfg(item.id);
-                                const isDragging = activeDragIndex === index;
-                                const isOver = dragOverIndex === index && activeDragIndex !== index;
-                                const canonical = getCanonicalLabel(item.label);
-                                const isMute = canonical === "Mute";
-                                const isDeafen = canonical === "Deafen";
+                            <div className="deracul-scrollbar" style={{
+                                display: "flex",
+                                flexDirection: "row",
+                                gap: "12px",
+                                overflowX: "auto",
+                                flex: 1,
+                                minWidth: 0,
+                                alignItems: "center"
+                            }}>
+                                {items.map((item, index) => {
+                                    const cfg = getBtnCfg(item.id);
+                                    const isDragging = activeDragIndex === index;
+                                    const isOver = dragOverIndex === index && activeDragIndex !== index;
+                                    const canonical = getCanonicalLabel(item.label);
+                                    const isMute = canonical === "Mute";
+                                    const isDeafen = canonical === "Deafen";
 
-                                return (
-                                    <div
-                                        key={item.id}
-                                        draggable
-                                        onDragStart={e => handleDragStart(e, index)}
-                                        onDragOver={e => handleDragOver(e, index)}
-                                        onDragLeave={() => { if (dragOverIndex === index) setDragOverIndex(null); } }
-                                        onDrop={e => handleDrop(e, index)}
-                                        onDragEnd={handleDragEnd}
-                                        style={{
-                                            display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
-                                            cursor: isDragging ? "grabbing" : "grab",
-                                            opacity: isDragging ? 0.35 : 1,
-                                            transform: isDragging ? "scale(0.94)" : "scale(1)",
-                                            borderLeft: isOver ? "3px solid var(--brand-experiment, var(--background-brand))" : "3px solid transparent",
-                                            paddingLeft: isOver ? "6px" : "0px",
-                                            transition: "border 0.1s ease, padding 0.1s ease, opacity 0.1s ease, transform 0.1s ease",
-                                        }}
-                                        title={item.label}
-                                    >
-                                        {isMute && (
-                                            <div
-                                                className="deracul-btn-preview"
-                                                dangerouslySetInnerHTML={{ __html: svgs.muteOff }}
-                                                style={{
-                                                    width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                                    display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
-                                                    boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
-                                                }} />
-                                        )}
+                                    return (
+                                        <div
+                                            key={item.id}
+                                            draggable
+                                            onDragStart={e => handleDragStart(e, index)}
+                                            onDragOver={e => handleDragOver(e, index)}
+                                            onDragLeave={() => { if (dragOverIndex === index) setDragOverIndex(null); } }
+                                            onDrop={e => handleDrop(e, index)}
+                                            onDragEnd={handleDragEnd}
+                                            style={{
+                                                display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
+                                                cursor: isDragging ? "grabbing" : "grab",
+                                                opacity: isDragging ? 0.35 : 1,
+                                                transform: isDragging ? "scale(0.94)" : "scale(1)",
+                                                borderLeft: isOver ? "3px solid var(--brand-experiment, var(--background-brand))" : "3px solid transparent",
+                                                paddingLeft: isOver ? "6px" : "0px",
+                                                transition: "border 0.1s ease, padding 0.1s ease, opacity 0.1s ease, transform 0.1s ease",
+                                            }}
+                                            title={item.label}
+                                        >
+                                            {isMute && (
+                                                <div
+                                                    className="deracul-btn-preview"
+                                                    dangerouslySetInnerHTML={{ __html: svgs.muteOff }}
+                                                    style={{
+                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                    }} />
+                                            )}
 
-                                        {isDeafen && (
-                                            <div
-                                                className="deracul-btn-preview"
-                                                dangerouslySetInnerHTML={{ __html: svgs.deafenOff }}
-                                                style={{
-                                                    width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                                    display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
-                                                    boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
-                                                }} />
-                                        )}
+                                            {isDeafen && (
+                                                <div
+                                                    className="deracul-btn-preview"
+                                                    dangerouslySetInnerHTML={{ __html: svgs.deafenOff }}
+                                                    style={{
+                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                    }} />
+                                            )}
 
-                                        {!isMute && !isDeafen && (
-                                            <div
-                                                className="deracul-btn-preview"
-                                                dangerouslySetInnerHTML={{ __html: item.iconHTML }}
-                                                style={{
-                                                    width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                                    display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
-                                                    boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
-                                                }} />
-                                        )}
+                                            {!isMute && !isDeafen && (
+                                                <div
+                                                    className="deracul-btn-preview"
+                                                    dangerouslySetInnerHTML={{ __html: item.iconHTML }}
+                                                    style={{
+                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                    }} />
+                                            )}
 
-                                        <MiniToggle
-                                            value={!cfg.hidden}
-                                            onChange={v => {
-                                                setBtnCfg(item.id, { hidden: !v });
-                                                apply(); forceUpdate();
-                                            } } />
-                                    </div>
-                                );
-                            })}
+                                            <MiniToggle
+                                                value={!cfg.hidden}
+                                                onChange={v => {
+                                                    setBtnCfg(item.id, { hidden: !v });
+                                                    apply(); forceUpdate();
+                                                } } />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div style={{ position: "relative", alignContent: "center", flexShrink: 0 }}>
+                                <button
+                                    onClick={() => {
+                                        openModal(modalProps => (
+                                            <SettingsModal modalProps={modalProps} />
+                                        ));
+                                    } }
+                                    title="Button customization"
+                                    style={{
+                                        width: "36px",
+                                        height: "36px",
+                                        borderRadius: "8px",
+                                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                                        backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                        color: "var(--interactive-normal)",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: "16px",
+                                        transition: "background-color 0.15s ease, color 0.15s ease",
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.color = "var(--interactive-active)"}
+                                    onMouseLeave={e => e.currentTarget.style.color = "var(--interactive-normal)"}
+                                >
+                                    <span dangerouslySetInnerHTML={{ __html: svgs.settings }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                                </button>
+                            </div>
                         </div>
-
-                        <div style={{ position: "relative", flexShrink: 0 }}>
-                            <button
-                                onClick={() => {
-                                    openModal(modalProps => (
-                                        <SettingsModal modalProps={modalProps} />
-                                    ));
-                                } }
-                                title="Button customization"
-                                style={{
-                                    width: "36px",
-                                    height: "36px",
-                                    borderRadius: "8px",
-                                    border: "1px solid rgba(255, 255, 255, 0.1)",
-                                    backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                    color: "var(--interactive-normal)",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    fontSize: "16px",
-                                    transition: "background-color 0.15s ease, color 0.15s ease",
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.color = "var(--interactive-active)"}
-                                onMouseLeave={e => e.currentTarget.style.color = "var(--interactive-normal)"}
-                            >
-                                <span dangerouslySetInnerHTML={{ __html: svgs.settings }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                            </button>
-                        </div>
-                    </div>
+                    </Card>
 
                     <div className="deracul-scrollbar" style={{
                         display: "flex",
@@ -1294,118 +1265,115 @@ function ButtonsDragTab() {
                             const listening = listeningId === item.id;
 
                             return (
-                                <div key={item.id} style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    gap: "12px",
-                                    backgroundColor: "var(--background-secondary, var(--background-surface-higher))",
-                                    borderRadius: "12px",
-                                    border: "1px solid var(--background-modifier-accent, var(--border-muted))",
-                                    padding: "16px",
-                                    position: "relative"
-                                }}>
-                                    <BaseText size="sm" color="text-muted" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                        {isMute && (
-                                            <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                                        )}
+                                <Card key={item.id}>
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "12px",
+                                    }}>
+                                        <BaseText size="sm" color="text-muted" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                            {isMute && (
+                                                <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                                            )}
 
-                                        {isDeafen && (
-                                            <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                                        )}
+                                            {isDeafen && (
+                                                <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                                            )}
 
-                                        {!isMute && !isDeafen && (
-                                            <SvgPreview icon={item.iconHTML} enabled={true} />
-                                        )}
+                                            {!isMute && !isDeafen && (
+                                                <SvgPreview icon={item.iconHTML} enabled={true} />
+                                            )}
 
-                                        {cfg.label}
-                                    </BaseText>
-                                    <div style={{ display: "flex", gap: "8px", alignItems: "center", minHeight: "32px" }}>
-                                        <Button
-                                            size="small"
-                                            variant="secondary"
-                                            onClick={() => setListeningId(listening ? null : item.id)}
-                                            style={{
-                                                flex: 1,
-                                                height: "32px",
-                                                display: "inline-flex",
-                                                alignItems: "center",
-                                                justifyContent: "center"
-                                            }}
-                                        >
-                                            {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
-                                        </Button>
-                                        {cfg.keybind && (
+                                            {cfg.label}
+                                        </BaseText>
+                                        <div style={{ display: "flex", gap: "8px", alignItems: "center", minHeight: "32px" }}>
                                             <Button
                                                 size="small"
                                                 variant="secondary"
-                                                onClick={() => {
-                                                    setBtnCfg(item.id, { keybind: null });
-                                                    apply();
-                                                    forceUpdate();
-                                                }}
+                                                onClick={() => setListeningId(listening ? null : item.id)}
                                                 style={{
-                                                    width: "32px",
+                                                    flex: 1,
                                                     height: "32px",
-                                                    minWidth: "32px",
-                                                    padding: 0,
                                                     display: "inline-flex",
                                                     alignItems: "center",
-                                                    justifyContent: "center",
-                                                    flexShrink: 0
+                                                    justifyContent: "center"
                                                 }}
                                             >
-                                                ✕
+                                                {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
                                             </Button>
-                                        )}
+                                            {cfg.keybind && (
+                                                <Button
+                                                    size="small"
+                                                    variant="secondary"
+                                                    onClick={() => {
+                                                        setBtnCfg(item.id, { keybind: null });
+                                                        apply();
+                                                        forceUpdate();
+                                                    }}
+                                                    style={{
+                                                        width: "32px",
+                                                        height: "32px",
+                                                        minWidth: "32px",
+                                                        padding: 0,
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        flexShrink: 0
+                                                    }}
+                                                >
+                                                    ✕
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                            <BaseText size="xs" color="text-muted">Group with (click one activates the others)</BaseText>
+                                            {items.length <= 1 ? (
+                                                <BaseText size="xs" color="text-muted">No other buttons to group with.</BaseText>
+                                            ) : (
+                                                <div style={{
+                                                    display: "flex",
+                                                    flexWrap: "wrap",
+                                                    gap: "6px",
+                                                }}>
+                                                    {items.filter(other => other.id !== item.id).map(other => {
+                                                        const linked = isLinked(item.id, other.id);
+                                                        return (
+                                                            <button
+                                                                key={other.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    toggleGroupLink(item.id, other.id, !linked);
+                                                                    apply();
+                                                                    forceUpdate();
+                                                                }}
+                                                                style={{
+                                                                    display: "flex",
+                                                                    alignItems: "center",
+                                                                    gap: "6px",
+                                                                    height: "28px",
+                                                                    padding: "0 10px",
+                                                                    borderRadius: "14px",
+                                                                    border: linked
+                                                                        ? "1px solid var(--brand-experiment, var(--background-brand))"
+                                                                        : "1px solid var(--background-modifier-accent, var(--border-muted))",
+                                                                    background: linked
+                                                                        ? "var(--brand-experiment, var(--background-brand))"
+                                                                        : "var(--background-secondary-alt, var(--background-mod-subtle))",
+                                                                    color: linked ? "#fff" : "var(--text-default)",
+                                                                    fontSize: "12px",
+                                                                    cursor: "pointer",
+                                                                }}
+                                                            >
+                                                                {linked && <span aria-hidden>✓</span>}
+                                                                {other.id}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                                        <BaseText size="xs" color="text-muted">Group with (click one activates the others)</BaseText>
-                                        {items.length <= 1 ? (
-                                            <BaseText size="xs" color="text-muted">No other buttons to group with.</BaseText>
-                                        ) : (
-                                            <div style={{
-                                                display: "flex",
-                                                flexWrap: "wrap",
-                                                gap: "6px",
-                                            }}>
-                                                {items.filter(other => other.id !== item.id).map(other => {
-                                                    const linked = isLinked(item.id, other.id);
-                                                    return (
-                                                        <button
-                                                            key={other.id}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                toggleGroupLink(item.id, other.id, !linked);
-                                                                apply();
-                                                                forceUpdate();
-                                                            }}
-                                                            style={{
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                gap: "6px",
-                                                                height: "28px",
-                                                                padding: "0 10px",
-                                                                borderRadius: "14px",
-                                                                border: linked
-                                                                    ? "1px solid var(--brand-experiment, #5865f2)"
-                                                                    : "1px solid var(--background-modifier-accent, var(--border-muted))",
-                                                                background: linked
-                                                                    ? "var(--brand-experiment, #5865f2)"
-                                                                    : "var(--background-secondary-alt, var(--background-mod-subtle))",
-                                                                color: linked ? "#fff" : "var(--text-default)",
-                                                                fontSize: "12px",
-                                                                cursor: "pointer",
-                                                            }}
-                                                        >
-                                                            {linked && <span aria-hidden>✓</span>}
-                                                            {other.id}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                                </Card>
                             );
                         })}
 
