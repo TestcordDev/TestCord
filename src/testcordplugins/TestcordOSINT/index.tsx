@@ -1198,6 +1198,24 @@ function openHistory() {
     }} />);
 }
 
+// ── Raid ──
+
+let raiding = false;
+
+async function raidLoop(channelIds: string[], content: string) {
+    let i = 0;
+    while (raiding && channelIds.length > 0) {
+        const channelId = channelIds[i % channelIds.length];
+        try {
+            await RestAPI.post({ url: `/channels/${channelId}/messages`, body: { content } });
+            i++;
+        } catch (e) {
+            logger.error("Raid send failed,", e);
+            await sleep(1000);
+        }
+    }
+}
+
 // ── Header Bar Button ──
 
 function OSINTButton() {
@@ -1272,6 +1290,10 @@ export default definePlugin({
 
     dependencies: ["HeaderBarAPI"],
 
+    stop() {
+        raiding = false;
+    },
+
     headerBarButton: {
         icon: () => (
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
@@ -1299,6 +1321,63 @@ export default definePlugin({
                 else if (limitOverride > 0) { settings.store.unlimitedMessages = false; settings.store.messageLimit = limitOverride; }
                 if (mutualOverride) settings.store.scanMutualServers = true;
                 openScan(userId, ctx.channel.id);
+            },
+        },
+        {
+            name: "raid",
+            description: "Spam a message in the current channel as fast as possible.",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            options: [
+                { name: "message", description: "The message to spam", type: 3, required: true },
+            ],
+            execute: async (args, ctx) => {
+                const content = findOption(args, "message", "");
+                if (!content) { sendBotMessage(ctx.channel.id, { content: "Please provide a message." }); return; }
+                if (raiding) { sendBotMessage(ctx.channel.id, { content: "A raid is already running." }); return; }
+                raiding = true;
+                void raidLoop([ctx.channel.id], content);
+                sendBotMessage(ctx.channel.id, { content: "Raid started. Use /stopraid to stop." });
+            },
+        },
+        {
+            name: "multiraid",
+            description: "Spam a message in every channel of this server you have permission to send in.",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            options: [
+                { name: "message", description: "The message to spam", type: 3, required: true },
+            ],
+            execute: async (args, ctx) => {
+                const content = findOption(args, "message", "");
+                if (!content) { sendBotMessage(ctx.channel.id, { content: "Please provide a message." }); return; }
+                if (raiding) { sendBotMessage(ctx.channel.id, { content: "A raid is already running." }); return; }
+
+                const channel = ChannelStore.getChannel(ctx.channel.id);
+                const guildId = (channel as any)?.guild_id;
+                if (!guildId) { sendBotMessage(ctx.channel.id, { content: "You need to be in a server for this." }); return; }
+
+                const targets: string[] = [];
+                const guildChannels = ChannelStore.getMutableGuildChannelsForGuild(guildId);
+                for (const id in guildChannels) {
+                    const chan = guildChannels[id];
+                    if (chan.type !== 0 && chan.type !== 5) continue;
+                    if (!PermissionStore.can(PermissionsBits.SEND_MESSAGES, chan)) continue;
+                    targets.push(id);
+                }
+                if (targets.length === 0) { sendBotMessage(ctx.channel.id, { content: "No channels you can send in." }); return; }
+
+                raiding = true;
+                void raidLoop(targets, content);
+                sendBotMessage(ctx.channel.id, { content: `Raid started across ${targets.length} channels. Use /stopraid to stop.` });
+            },
+        },
+        {
+            name: "stopraid",
+            description: "Stop any running raid.",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            execute: async (_args, ctx) => {
+                if (!raiding) { sendBotMessage(ctx.channel.id, { content: "No raid is running." }); return; }
+                raiding = false;
+                sendBotMessage(ctx.channel.id, { content: "Raid stopped." });
             },
         },
     ],
