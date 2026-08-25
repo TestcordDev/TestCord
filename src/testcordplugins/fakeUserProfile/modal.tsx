@@ -12,12 +12,11 @@ import { Margins } from "@utils/margins";
 import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalProps, ModalRoot, ModalSize } from "@utils/modal";
 import { Button, Forms, IconUtils, React, showToast, Text, Toasts, useEffect, useState } from "@webpack/common";
 
-import { clearTarget, getCachedTarget, getManualProfile, loadTarget, logger, saveManualProfile, setEnabled, settings } from "./data";
+import { clearTarget, type FlairType,getCachedTarget, getManualProfile, loadTarget, logger, saveManualProfile, setEnabled, settings } from "./data";
 
 const DECORATIONS_API = "https://fakeprofile.sampath.me/decorations";
 const EFFECTS_API = "https://fakeprofile.sampath.me/profile-effects";
 const NAMEPLATES_API = "https://fakeprofile.sampath.me/nameplates";
-
 interface NameplatePreset { name: string; src: string; asset: string | null; }
 
 function extractNameplateAsset(src: string): string | null {
@@ -159,13 +158,13 @@ const NITRO_LEVELS = [
     { label: "None", icon: "" },
     { label: "Nitro", icon: "https://cdn.discordapp.com/badge-icons/2ba85e8026a8614b640c2837bcdfe21b.png" },
     { label: "Bronze (1 mo)", icon: "https://cdn.discordapp.com/badge-icons/4f33c4a9c64ce221936bd256c356f91f.png" },
-    { label: "Silver (2 mo)", icon: "https://cdn.discordapp.com/badge-icons/4514fab914bdbfb4ad2fa23df76121a6.png" },
-    { label: "Gold (3 mo)", icon: "https://cdn.discordapp.com/badge-icons/2895086c18d5531d499862e41d1155a6.png" },
-    { label: "Platinum (6 mo)", icon: "https://cdn.discordapp.com/badge-icons/0334688279c8359120922938dcb1d6f8.png" },
-    { label: "Diamond (12 mo)", icon: "https://cdn.discordapp.com/badge-icons/0d61871f72bb9a33a7ae568c1fb4f20a.png" },
-    { label: "Emerald (24 mo)", icon: "https://cdn.discordapp.com/badge-icons/11e2d339068b55d3a506cff34d3780f3.png" },
-    { label: "Ruby (36 mo)", icon: "https://cdn.discordapp.com/badge-icons/cd5e2cfd9d7f27a8cdcd3e8a8d5dc9f4.png" },
-    { label: "Opal (72 mo)", icon: "https://cdn.discordapp.com/badge-icons/5b154df19c53dce2af92c9b61e6be5e2.png" },
+    { label: "Silver (3 mo)", icon: "https://cdn.discordapp.com/badge-icons/4514fab914bdbfb4ad2fa23df76121a6.png" },
+    { label: "Gold (6 mo)", icon: "https://cdn.discordapp.com/badge-icons/2895086c18d5531d499862e41d1155a6.png" },
+    { label: "Platinum (12 mo)", icon: "https://cdn.discordapp.com/badge-icons/0334688279c8359120922938dcb1d6f8.png" },
+    { label: "Diamond (24 mo)", icon: "https://cdn.discordapp.com/badge-icons/0d61871f72bb9a33a7ae568c1fb4f20a.png" },
+    { label: "Emerald (36 mo)", icon: "https://cdn.discordapp.com/badge-icons/11e2d339068b55d3a506cff34d3780f3.png" },
+    { label: "Ruby (60 mo)", icon: "https://cdn.discordapp.com/badge-icons/cd5e2cfd9d7f27a8cdcd3e8a8d5dc9f4.png" },
+    { label: "Opal (72+ mo)", icon: "https://cdn.discordapp.com/badge-icons/5b154df19c53dce2af92c9b61e6be5e2.png" },
 ];
 
 const BOOST_LEVELS = [
@@ -213,6 +212,22 @@ interface ProfileEffectPreset {
 
 const NAMEPLATE_PALETTES = ["cobalt", "crimson", "green", "orange", "pink", "red", "sky", "violet", "yellow"];
 
+const FLAIR_OPTIONS = [
+    { id: "none", label: "None" },
+    { id: "app", label: "App" },
+    { id: "verifiedApp", label: "Verified App" },
+    { id: "official", label: "Discord Official" },
+] as const;
+
+const GIFTING_BADGES_LIST = [
+    { id: "gifting-patron", label: "Patron (1 gift)", icon: "https://cdn.discordapp.com/badge-icons/ac305d1b9481f312ce4419e7f8296558.png" },
+    { id: "gifting-champion", label: "Champion (2 gifts)", icon: "https://cdn.discordapp.com/badge-icons/8b7792c4f65953d3ff564f23429cb79e.png" },
+    { id: "gifting-luminary", label: "Luminary (3 gifts)", icon: "https://cdn.discordapp.com/badge-icons/3119f5504b2cd09576a323908c7c3517.png" },
+    { id: "gifting-icon", label: "Icon (6 gifts)", icon: "https://cdn.discordapp.com/badge-icons/64f2413c9b9803661322aaad25826b62.png" },
+    { id: "gifting-hero", label: "Hero (10 gifts)", icon: "https://cdn.discordapp.com/badge-icons/77d65b1f210014a11eb1582ee06ab684.png" },
+    { id: "gifting-legend", label: "Legend (20 gifts)", icon: "https://cdn.discordapp.com/badge-icons/7fe346cfc5da1340087d8759a9e7a395.png" }
+];
+
 export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }) {
     const initial = getCachedTarget();
     const initialManual = getManualProfile();
@@ -234,15 +249,15 @@ export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }
     const [nameplateOpen, setNameplateOpen] = useState(false);
 
     useEffect(() => {
+        const normalizeItems = (data: any) => {
+            if (Array.isArray(data)) return data;
+            if (data && typeof data === "object") return Object.values(data);
+            return [];
+        };
         fetch(DECORATIONS_API)
             .then(r => r.json())
             .then((data: any) => {
-                let items: any[] = [];
-                if (Array.isArray(data)) {
-                    items = data;
-                } else if (data && typeof data === "object") {
-                    items = Object.values(data);
-                }
+                const items = normalizeItems(data);
                 if (!items.length) logger.warn("Decorations API returned no usable data", data);
                 setDecorations(items as DecorationPreset[]);
             })
@@ -250,16 +265,32 @@ export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }
         fetch(EFFECTS_API)
             .then(r => r.json())
             .then((data: any) => {
-                let items: any[] = [];
-                if (Array.isArray(data)) {
-                    items = data;
-                } else if (data && typeof data === "object") {
-                    items = Object.values(data);
-                }
+                const items = normalizeItems(data);
                 if (!items.length) logger.warn("Effects API returned no usable data at fakeprofile.sampath.me/profile-effects", data);
                 setEffects(items as ProfileEffectPreset[]);
             })
             .catch(e => logger.error("Failed to fetch effects", e));
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        async function loadNameplates() {
+            try {
+                const res = await fetch(NAMEPLATES_API);
+                const data = await res.json();
+                if (cancelled) return;
+                const raw = Array.isArray(data) ? data : (data && typeof data === "object" ? Object.values(data) : []);
+                const items = (raw as any[])
+                    .filter((n: any) => n && typeof n.src === "string")
+                    .map((n: any) => ({ name: n.name ?? "Nameplate", src: n.src as string, asset: extractNameplateAsset(n.src) }));
+                setNameplates(items as NameplatePreset[]);
+                setNameplatesLoaded(true);
+            } catch (e) {
+                logger.error("Failed to fetch nameplates", e);
+            }
+        }
+        loadNameplates();
+        return () => { cancelled = true; };
     }, []);
 
     const [manualId, setManualId] = useState(initialManual.id);
@@ -285,6 +316,12 @@ export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }
     const [manualOldName, setManualOldName] = useState(initialManual.oldName);
     const [manualNitro, setManualNitro] = useState(initialManual.nitro);
     const [manualDecorationAsset, setManualDecorationAsset] = useState(initialManual.decorationAsset);
+    const [manualFlair, setManualFlair] = useState<string>(initialManual.flair ?? "none");
+    const [manualShowAccountAgeBadge, setManualShowAccountAgeBadge] = useState(initialManual.showAccountAgeBadge ?? true);
+    const [manualGameTimeHours, setManualGameTimeHours] = useState(String(initialManual.gameTimeHours ?? -1));
+    const [manualStreamHours, setManualStreamHours] = useState(String(initialManual.streamHours ?? -1));
+    const [manualGameVarietyCount, setManualGameVarietyCount] = useState(String(initialManual.gameVarietyCount ?? -1));
+    const [manualGiftingBadgeIds, setManualGiftingBadgeIds] = useState<string[]>(initialManual.giftingBadgeIds ?? []);
     const [manualNameplateAsset, setManualNameplateAsset] = useState(initialManual.nameplateAsset);
     const [manualNameplateSkuId, setManualNameplateSkuId] = useState(initialManual.nameplateSkuId);
     const [manualNameplatePalette, setManualNameplatePalette] = useState(initialManual.nameplatePalette);
@@ -326,6 +363,14 @@ export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }
             return;
         }
 
+        const gameTimeHours = Number(manualGameTimeHours);
+        const streamHours = Number(manualStreamHours);
+        const gameVarietyCount = Number(manualGameVarietyCount);
+        if ([gameTimeHours, streamHours, gameVarietyCount].some(v => !Number.isFinite(v))) {
+            showToast("Badge amounts must be numbers. Use -1 to turn a badge off.", Toasts.Type.FAILURE);
+            return;
+        }
+
         const manual = saveManualProfile({
             id,
             username,
@@ -345,6 +390,12 @@ export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }
             nitro: manualNitro,
             nitroLevel: manualNitroLevel,
             boostMonths: manualBoostMonths,
+            flair: manualFlair as FlairType,
+            showAccountAgeBadge: manualShowAccountAgeBadge,
+            gameTimeHours,
+            streamHours,
+            gameVarietyCount,
+            giftingBadgeIds: manualGiftingBadgeIds,
             avatarDecoration: manualAvatarDecoration,
             decorationAsset: manualDecorationAsset,
             nameplateAsset: manualNameplateAsset,
@@ -403,21 +454,6 @@ export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }
 
     function toggleFlag(flag: number, v: boolean) {
         setManualFlags(current => v ? current | flag : current & ~flag);
-    }
-
-    function loadNameplates() {
-        if (nameplatesLoaded) return;
-        fetch(NAMEPLATES_API)
-            .then(r => r.json())
-            .then((data: any) => {
-                const raw = Array.isArray(data) ? data : (data && typeof data === "object" ? Object.values(data) : []);
-                const items = (raw as any[])
-                    .filter((n: any) => n && typeof n.src === "string")
-                    .map((n: any) => ({ name: n.name ?? "Nameplate", src: n.src as string, asset: extractNameplateAsset(n.src) }));
-                setNameplates(items as NameplatePreset[]);
-                setNameplatesLoaded(true);
-            })
-            .catch(e => logger.error("Failed to fetch nameplates", e));
     }
 
     return (
@@ -532,6 +568,43 @@ export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }
                             ))}
                         </div>
 
+                        <SectionLabel>Name tag flair</SectionLabel>
+                        <div className="fup-badges" style={{ marginBottom: 14 }}>
+                            {FLAIR_OPTIONS.map(f => (
+                                <BadgeBtn
+                                    key={f.id}
+                                    label={f.label}
+                                    active={manualFlair === f.id}
+                                    onClick={() => {
+                                        setManualFlair(f.id);
+                                        if (f.id !== "none") setManualBot(true);
+                                    }}
+                                />
+                            ))}
+                        </div>
+                        {manualFlair !== "none" && (
+                            <div className="fup-hint" style={{ marginBottom: 10 }}>
+                                Shows the {FLAIR_OPTIONS.find(f => f.id === manualFlair)?.label} tag next to your name in messages and your profile.
+                            </div>
+                        )}
+
+                        <SectionLabel>New profile badges</SectionLabel>
+                        <div className="fup-field">
+                            <FormSwitch value={manualShowAccountAgeBadge} onChange={setManualShowAccountAgeBadge} description="Shows the Account Age badge with the tier matching the creation date above." title="Account Age badge" />
+                        </div>
+                        <Field label="Game Time hours (-1 = off)" value={manualGameTimeHours} placeholder="-1" onChange={setManualGameTimeHours} />
+                        <Field label="Streaming hours (-1 = off)" value={manualStreamHours} placeholder="-1" onChange={setManualStreamHours} />
+                        <Field label="Game Variety games played (-1 = off)" value={manualGameVarietyCount} placeholder="-1" onChange={setManualGameVarietyCount} />
+
+                        <SectionLabel>Gifting badges</SectionLabel>
+                        <div className="fup-badges" style={{ marginBottom: 14 }}>
+                            {GIFTING_BADGES_LIST.map(b => (
+                                <BadgeBtn key={b.id} label={b.label} icon={b.icon} active={manualGiftingBadgeIds.includes(b.id)} onClick={() => setManualGiftingBadgeIds(
+                                    manualGiftingBadgeIds.includes(b.id) ? manualGiftingBadgeIds.filter(x => x !== b.id) : [...manualGiftingBadgeIds, b.id]
+                                )} />
+                            ))}
+                        </div>
+
                         <div className="fup-divider" />
 
                         <SectionLabel>Profile picture</SectionLabel>
@@ -585,9 +658,9 @@ export function FakeUserProfileModal({ modalProps }: { modalProps: ModalProps; }
 
                         <div className="fup-divider" />
 
-                        <Collapsible label="Nameplate" count={nameplatesLoaded ? nameplates.length : undefined} open={nameplateOpen} onToggle={() => setNameplateOpen(!nameplateOpen)}>
+                        <Collapsible label="Nameplate" count={nameplatesLoaded ? nameplates.filter(n => n.asset).length : undefined} open={nameplateOpen} onToggle={() => setNameplateOpen(!nameplateOpen)}>
                             {!nameplatesLoaded ? (
-                                <button className="fup-btn fup-btn-primary" style={{ width: "100%", justifyContent: "center", marginBottom: 10 }} onClick={loadNameplates}>Load nameplates</button>
+                                <div className="fup-hint">Loading nameplates…</div>
                             ) : (
                                 <div className="fup-decoration-grid">
                                     <div

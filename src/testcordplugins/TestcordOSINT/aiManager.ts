@@ -61,6 +61,7 @@ export interface CordCatBreach {
     username?: string;
     tag?: string;
     ip?: string;
+    password?: string;
     date?: string;
 }
 

@@ -1,0 +1,347 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+.vc-testcord-ml-root {
+    display: flex;
+    flex-direction: column;
+    height: min(76vh, 780px);
+    min-height: 520px;
+}
+
+.vc-testcord-ml-toolbar {
+    display: grid;
+    gap: 14px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--background-primary);
+}
+
+.vc-testcord-ml-tabs,
+.vc-testcord-ml-actions,
+.vc-testcord-ml-backup-actions,
+.vc-testcord-ml-entry-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.vc-testcord-ml-overview,
+.vc-testcord-ml-filters {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.vc-testcord-ml-overview {
+    justify-content: space-between;
+}
+
+.vc-testcord-ml-overview > div {
+    display: grid;
+    gap: 2px;
+}
+
+.vc-testcord-ml-overview strong {
+    color: var(--header-primary);
+    font-size: 16px;
+}
+
+.vc-testcord-ml-overview span,
+.vc-testcord-ml-section-label {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.vc-testcord-ml-section-label {
+    flex: none;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.vc-testcord-ml-stats {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.vc-testcord-ml-stats span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 9px 10px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    color: var(--text-muted);
+    background: var(--background-secondary);
+    font-size: 11px;
+}
+
+.vc-testcord-ml-stats strong {
+    overflow: hidden;
+    color: var(--header-primary);
+    font-size: 16px;
+    line-height: 20px;
+    text-overflow: ellipsis;
+}
+
+.vc-testcord-ml-search-help {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.vc-testcord-ml-search-help span {
+    display: block;
+    padding: 8px 10px;
+    margin-top: 8px;
+    border-radius: 6px;
+    background: var(--background-secondary);
+    line-height: 1.5;
+}
+
+.vc-testcord-ml-search-help code {
+    color: var(--text-normal);
+    font-size: 11px;
+}
+
+.vc-testcord-ml-backup-actions {
+    flex-wrap: wrap;
+    padding-top: 2px;
+}
+
+.vc-testcord-ml-scroller {
+    padding: 14px 20px 24px;
+    background: var(--background-primary);
+}
+
+.vc-testcord-ml-entry {
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    background: var(--background-secondary);
+}
+
+.vc-testcord-ml-entry-protected {
+    border-color: var(--status-positive);
+    box-shadow: inset 3px 0 var(--status-positive);
+}
+
+.vc-testcord-ml-entry-header,
+.vc-testcord-ml-entry-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.vc-testcord-ml-entry-footer {
+    flex-wrap: wrap;
+    padding-top: 10px;
+    margin-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.vc-testcord-ml-identity {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+}
+
+.vc-testcord-ml-author {
+    overflow: hidden;
+    color: var(--header-primary);
+    font-size: 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-testcord-ml-location {
+    overflow: hidden;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-testcord-ml-status {
+    flex: none;
+    align-self: flex-start;
+    min-width: max-content;
+    padding: 3px 8px;
+    border-radius: 999px;
+    color: var(--white-500);
+    background: var(--status-danger);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.vc-testcord-ml-status-edited {
+    background: var(--status-warning);
+}
+
+.vc-testcord-ml-status-ghostPinged {
+    background: var(--status-positive);
+}
+
+.vc-testcord-ml-content {
+    padding: 10px 12px;
+    margin-top: 12px;
+    border-radius: 7px;
+    color: var(--text-normal);
+    background: var(--background-primary);
+    line-height: 1.35;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.vc-testcord-ml-muted {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.vc-testcord-ml-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.vc-testcord-ml-attachments a {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    max-width: 100%;
+    padding: 3px 7px;
+    border-radius: 4px;
+    color: var(--text-link);
+    background: var(--background-primary);
+    font-size: 11px;
+    text-decoration: none;
+}
+
+.vc-testcord-ml-attachments a:hover {
+    text-decoration: underline;
+}
+
+.vc-testcord-ml-history {
+    margin-top: 10px;
+    color: var(--text-muted);
+}
+
+.vc-testcord-ml-history-entry {
+    padding: 8px;
+    margin-top: 6px;
+    border-left: 2px solid var(--status-warning);
+    background: var(--background-primary);
+}
+
+.vc-testcord-ml-history-entry time {
+    font-size: 11px;
+}
+
+.vc-testcord-ml-entry-meta {
+    display: flex;
+    align-items: center;
+    flex: none;
+    gap: 10px;
+    white-space: nowrap;
+}
+
+.vc-testcord-ml-entry-meta span::before {
+    margin-right: 10px;
+    color: var(--text-muted);
+    content: "\2022";
+}
+
+.vc-testcord-ml-entry .vc-testcord-ml-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-left: auto;
+}
+
+.vc-testcord-ml-empty {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 180px;
+    padding: 40px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.vc-testcord-ml-empty svg {
+    margin-bottom: 12px;
+    opacity: 0.65;
+}
+
+.vc-testcord-ml-empty strong {
+    margin-bottom: 4px;
+    color: var(--header-primary);
+    font-size: 16px;
+}
+
+.vc-testcord-ml-load-more {
+    width: 100%;
+}
+
+@media (width <= 900px) {
+    .vc-testcord-ml-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .vc-testcord-ml-entry-footer {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .vc-testcord-ml-entry .vc-testcord-ml-actions {
+        justify-content: flex-start;
+        margin-left: 0;
+    }
+}
+
+@media (width <= 620px) {
+    .vc-testcord-ml-root {
+        min-height: 0;
+    }
+
+    .vc-testcord-ml-toolbar,
+    .vc-testcord-ml-scroller {
+        padding-right: 12px;
+        padding-left: 12px;
+    }
+
+    .vc-testcord-ml-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .vc-testcord-ml-filters {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .vc-testcord-ml-tabs {
+        flex-wrap: wrap;
+    }
+}
+
+.vc-testcord-ml-actions button {
+    cursor: pointer;
+    padding: 8px 14px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    color: var(--text-default);
+    background: var(--background-secondary);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.vc-testcord-ml-actions button:hover {
+    background: var(--background-modifier-hover);
+}

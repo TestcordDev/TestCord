@@ -1,0 +1,1054 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+.vc-osint-club-root {
+    --oc-base: var(--background-base-lowest, var(--background-primary));
+    --oc-panel: var(--background-base-low, var(--background-secondary));
+    --oc-raised: var(--background-base-lower, var(--background-secondary-alt));
+    --oc-text: var(--text-default, var(--text-normal));
+    --oc-heading: var(--text-strong, var(--header-primary));
+    --oc-muted: var(--text-muted, var(--header-secondary));
+    --oc-border: color-mix(in srgb, var(--oc-text) 13%, transparent);
+    --oc-border-strong: color-mix(in srgb, var(--oc-text) 28%, var(--oc-border));
+    --oc-accent: color-mix(in srgb, var(--oc-text) 20%, var(--oc-base));
+    --oc-accent-soft: color-mix(in srgb, var(--oc-text) 7%, transparent);
+    --oc-control: color-mix(in srgb, var(--oc-text) 7%, var(--oc-base));
+    --oc-control-hover: color-mix(in srgb, var(--oc-text) 13%, var(--oc-base));
+
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: calc(100% + 200px);
+    min-width: 0;
+    margin-top: -56px;
+    margin-left: -200px;
+    color: var(--oc-text);
+}
+
+.vc-osint-club-root *,
+.vc-osint-club-root *::before,
+.vc-osint-club-root *::after {
+    box-sizing: border-box;
+}
+
+.vc-osint-club-root button {
+    border: 1px solid var(--oc-border);
+    color: var(--oc-heading);
+    background: var(--oc-control);
+    box-shadow: none;
+}
+
+.vc-osint-club-root button:disabled {
+    color: var(--oc-muted);
+    background: var(--oc-base);
+}
+
+.vc-osint-club-root button:hover:not(:disabled) {
+    border-color: var(--oc-border-strong);
+    background: var(--oc-control-hover);
+}
+
+.vc-osint-club-root a {
+    color: var(--oc-heading);
+}
+
+.vc-osint-club-hero {
+    position: relative;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 148px;
+    padding: 24px;
+    overflow: hidden;
+    border: 1px solid var(--oc-border-strong);
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 88% 18%, var(--oc-accent-soft), transparent 34%),
+        linear-gradient(130deg, var(--oc-accent-soft), var(--oc-base) 64%);
+    box-shadow:
+        0 16px 38px color-mix(in srgb, var(--black-500) 24%, transparent),
+        inset 0 1px 0 color-mix(in srgb, var(--oc-text) 10%, transparent);
+}
+
+.vc-osint-club-hero::after {
+    position: absolute;
+    top: -84px;
+    right: -60px;
+    width: 250px;
+    height: 250px;
+    border: 1px solid var(--oc-border-strong);
+    border-radius: 50%;
+    box-shadow:
+        0 0 0 28px color-mix(in srgb, var(--oc-text) 4%, transparent),
+        0 0 0 58px color-mix(in srgb, var(--oc-text) 3%, transparent);
+    content: "";
+    pointer-events: none;
+}
+
+.vc-osint-club-hero > div {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+}
+
+.vc-osint-club-hero h1 {
+    margin: 4px 0 8px;
+    color: var(--oc-heading);
+    font-size: clamp(28px, 4vw, 42px);
+    letter-spacing: -.03em;
+}
+
+.vc-osint-club-hero p {
+    max-width: 680px;
+    margin: 0;
+    color: var(--oc-muted);
+    font-size: 15px;
+    line-height: 1.55;
+}
+
+.vc-osint-club-eyebrow {
+    color: var(--oc-muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .14em;
+}
+
+.vc-osint-club-health {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 160px;
+}
+
+.vc-osint-club-health span {
+    position: relative;
+    padding: 9px 12px 9px 30px;
+    border: 1px solid currentcolor;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    background: color-mix(in srgb, currentcolor 9%, var(--oc-base));
+}
+
+.vc-osint-club-health span::before {
+    position: absolute;
+    top: 50%;
+    left: 13px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentcolor;
+    box-shadow: 0 0 0 4px color-mix(in srgb, currentcolor 18%, transparent);
+    content: "";
+    transform: translateY(-50%);
+}
+
+.vc-osint-club-ready {
+    color: var(--status-positive);
+}
+
+.vc-osint-club-missing {
+    color: var(--status-warning);
+}
+
+.vc-osint-club-nav {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--oc-border);
+    border-radius: 14px;
+    background: var(--oc-panel);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--oc-text) 7%, transparent);
+}
+
+.vc-osint-club-nav-button {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    height: auto;
+    min-height: 54px;
+    padding: 9px 10px;
+}
+
+.vc-osint-club-nav-button span {
+    font-weight: 700;
+}
+
+.vc-osint-club-nav-button small {
+    overflow: hidden;
+    font-size: 10px;
+    font-weight: 500;
+    opacity: .72;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-osint-club-root .vc-osint-club-nav-button-active {
+    border-color: var(--oc-heading);
+    background: var(--oc-accent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--oc-text) 14%, transparent);
+}
+
+.vc-osint-club-workspace {
+    display: grid;
+    grid-template-columns: minmax(350px, .72fr) minmax(520px, 1.28fr);
+    gap: 16px;
+    align-items: start;
+    min-width: 0;
+}
+
+.vc-osint-club-tools {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.vc-osint-club-card {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--oc-border);
+    border-radius: 14px;
+    background: var(--oc-panel);
+    box-shadow:
+        0 7px 20px color-mix(in srgb, var(--black-500) 14%, transparent),
+        inset 0 1px 0 color-mix(in srgb, var(--oc-text) 7%, transparent);
+}
+
+.vc-osint-club-card-head {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--oc-border);
+    background: linear-gradient(115deg, var(--oc-accent-soft), transparent 68%);
+}
+
+.vc-osint-club-card-head h3 {
+    margin-bottom: 3px;
+    color: var(--oc-heading);
+}
+
+.vc-osint-club-card-head span {
+    color: var(--oc-muted);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.vc-osint-club-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    padding: 15px 16px 16px;
+}
+
+.vc-osint-club-split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    min-width: 0;
+}
+
+.vc-osint-club-actions,
+.vc-osint-club-links,
+.vc-osint-club-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.vc-osint-club-links {
+    gap: 16px;
+    font-size: 13px;
+}
+
+.vc-osint-club-toggles {
+    align-items: flex-start;
+    flex-direction: column;
+}
+
+.vc-osint-club-toggle-label {
+    color: var(--oc-text);
+    font-size: 13px;
+}
+
+.vc-osint-club-note {
+    padding: 10px 12px;
+    border-left: 3px solid var(--oc-border-strong);
+    border-radius: 0 8px 8px 0;
+    color: var(--oc-muted);
+    background: var(--oc-accent-soft);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.vc-osint-club-resource-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.vc-osint-club-resource {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
+    padding: 11px 12px;
+    border: 1px solid var(--oc-border);
+    border-radius: 10px;
+    background: var(--oc-base);
+    transition: border-color 120ms ease, transform 120ms ease;
+}
+
+.vc-osint-club-resource:hover {
+    border-color: var(--oc-border-strong);
+    transform: translateY(-1px);
+}
+
+.vc-osint-club-resource > div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.vc-osint-club-resource strong {
+    overflow: hidden;
+    color: var(--oc-heading);
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-osint-club-resource span {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--oc-muted);
+    font-size: 11px;
+    line-height: 1.35;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.vc-osint-club-results {
+    position: sticky;
+    top: 0;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--oc-border-strong);
+    border-radius: 14px;
+    background: var(--oc-base);
+    box-shadow:
+        0 16px 36px color-mix(in srgb, var(--black-500) 22%, transparent),
+        inset 0 1px 0 color-mix(in srgb, var(--oc-text) 8%, transparent);
+}
+
+.vc-osint-club-results-head {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 72px;
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--oc-border);
+    background: linear-gradient(120deg, var(--oc-accent-soft), var(--oc-panel));
+}
+
+.vc-osint-club-result-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+}
+
+.vc-osint-club-results-head > div {
+    min-width: 0;
+}
+
+.vc-osint-club-results-head h3 {
+    margin-top: 3px;
+    overflow: hidden;
+    color: var(--oc-heading);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-osint-club-visual-output {
+    min-height: 520px;
+    max-height: calc(100vh - 310px);
+    overflow: auto;
+    background: var(--oc-base);
+}
+
+.vc-osint-club-result-meta {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--oc-border);
+    background: color-mix(in srgb, var(--oc-base) 93%, transparent);
+    backdrop-filter: blur(10px);
+}
+
+.vc-osint-club-result-meta span {
+    padding: 3px 7px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.vc-osint-club-result-meta time {
+    color: var(--oc-muted);
+    font-size: 10px;
+}
+
+.vc-osint-club-success {
+    color: var(--status-positive);
+    background: color-mix(in srgb, var(--status-positive) 12%, transparent);
+}
+
+.vc-osint-club-error {
+    color: var(--status-danger);
+    background: color-mix(in srgb, var(--status-danger) 12%, transparent);
+}
+
+.vc-osint-club-empty,
+.vc-osint-club-loading {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    padding: 30px;
+    color: var(--oc-muted);
+    font-size: 13px;
+    line-height: 1.55;
+    text-align: center;
+}
+
+.vc-osint-club-loading span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--oc-heading);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--oc-text) 35%, transparent);
+    animation: vc-osint-club-pulse 1.2s infinite;
+}
+
+.vc-osint-club-history {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 10px;
+    border-bottom: 1px solid var(--oc-border);
+    background: var(--oc-panel);
+}
+
+.vc-osint-club-history-head {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 3px 7px;
+    color: var(--oc-muted);
+    font-size: 11px;
+}
+
+.vc-osint-club-history-head strong {
+    color: var(--oc-heading);
+    font-size: 12px;
+}
+
+.vc-osint-club-history-track {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.vc-osint-club-history-item {
+    display: flex;
+    flex: 0 0 190px;
+    justify-content: space-between;
+    min-width: 0;
+}
+
+.vc-osint-club-history-item span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-osint-club-history-item small {
+    flex: 0 0 auto;
+    opacity: .68;
+}
+
+.vc-osint-club-root .vc-osint-club-history-item-active {
+    border-color: var(--oc-heading);
+    background: var(--oc-accent);
+}
+
+.vc-osint-club-history-empty {
+    padding: 8px;
+    color: var(--oc-muted);
+    font-size: 12px;
+    text-align: center;
+}
+
+.vc-osint-club-profile-result,
+.vc-osint-club-visual-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+}
+
+.vc-osint-club-profile-hero {
+    position: relative;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    min-width: 0;
+    padding: 18px;
+    overflow: hidden;
+    border: 1px solid var(--oc-border-strong);
+    border-radius: 16px;
+    background:
+        radial-gradient(circle at 100% 0, var(--oc-accent-soft), transparent 42%),
+        linear-gradient(125deg, var(--oc-accent-soft), var(--oc-panel));
+}
+
+.vc-osint-club-profile-hero::after {
+    position: absolute;
+    right: -50px;
+    bottom: -80px;
+    width: 210px;
+    height: 210px;
+    border: 1px solid var(--oc-border-strong);
+    border-radius: 50%;
+    content: "";
+    pointer-events: none;
+}
+
+.vc-osint-club-profile-hero > * {
+    position: relative;
+    z-index: 1;
+}
+
+.vc-osint-club-avatar-fallback {
+    display: grid;
+    flex: 0 0 80px;
+    width: 80px;
+    height: 80px;
+    place-items: center;
+    border: 1px solid var(--oc-border-strong);
+    border-radius: 50%;
+    color: var(--oc-heading);
+    background: linear-gradient(135deg, var(--oc-accent), var(--oc-base));
+    box-shadow: 0 8px 22px color-mix(in srgb, var(--black-500) 32%, transparent);
+    font-size: 24px;
+    font-weight: 800;
+}
+
+.vc-osint-club-profile-title {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.vc-osint-club-profile-title > span {
+    color: var(--oc-muted);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.vc-osint-club-profile-title h1 {
+    margin: 3px 0;
+    overflow: hidden;
+    color: var(--oc-heading);
+    font-size: 25px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-osint-club-profile-title p {
+    margin: 0;
+    overflow: hidden;
+    color: var(--oc-muted);
+    font-family: var(--font-code);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-osint-club-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.vc-osint-club-metric {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+    min-height: 74px;
+    justify-content: center;
+    padding: 11px 12px;
+    overflow: hidden;
+    border: 1px solid var(--oc-border);
+    border-radius: 11px;
+    background: var(--oc-panel);
+}
+
+.vc-osint-club-metric::before {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--oc-border-strong);
+    content: "";
+}
+
+.vc-osint-club-metric span {
+    overflow: hidden;
+    color: var(--oc-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.vc-osint-club-metric strong {
+    overflow: hidden;
+    color: var(--oc-heading);
+    font-size: 17px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-osint-club-metric-positive::before {
+    background: var(--status-positive);
+}
+
+.vc-osint-club-metric-warning::before {
+    background: var(--status-warning);
+}
+
+.vc-osint-club-metric-danger::before {
+    background: var(--status-danger);
+}
+
+.vc-osint-club-visual-section {
+    overflow: hidden;
+    border: 1px solid var(--oc-border);
+    border-radius: 12px;
+    background: var(--oc-panel);
+}
+
+.vc-osint-club-visual-section-head {
+    padding: 11px 13px;
+    border-bottom: 1px solid var(--oc-border);
+    background: linear-gradient(105deg, var(--oc-accent-soft), transparent 62%);
+}
+
+.vc-osint-club-visual-section-head h3 {
+    color: var(--oc-heading);
+}
+
+.vc-osint-club-visual-section-head span {
+    display: block;
+    margin-top: 2px;
+    color: var(--oc-muted);
+    font-size: 11px;
+}
+
+.vc-osint-club-visual-section-body {
+    padding: 10px;
+}
+
+.vc-osint-club-data-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    min-width: 0;
+}
+
+.vc-osint-club-data-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    padding: 9px 10px;
+    border: 1px solid var(--oc-border);
+    border-radius: 8px;
+    background: var(--oc-base);
+}
+
+.vc-osint-club-data-field span {
+    color: var(--oc-muted);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.vc-osint-club-data-field > div {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.vc-osint-club-copy-mini {
+    min-width: auto;
+    min-height: 24px;
+    padding: 2px 7px;
+    opacity: .68;
+    font-size: 10px;
+}
+
+.vc-osint-club-copy-mini:focus-visible {
+    opacity: 1;
+}
+
+.vc-osint-club-data-field:hover .vc-osint-club-copy-mini {
+    opacity: 1;
+}
+
+.vc-osint-club-data-field strong {
+    overflow-wrap: anywhere;
+    color: var(--oc-heading);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.vc-osint-club-data-group {
+    grid-column: 1 / -1;
+    overflow: hidden;
+    border: 1px solid var(--oc-border);
+    border-radius: 9px;
+    background: var(--oc-base);
+}
+
+.vc-osint-club-data-group > summary {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 11px;
+    color: var(--oc-heading);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    list-style: none;
+}
+
+.vc-osint-club-data-group > summary::-webkit-details-marker {
+    display: none;
+}
+
+.vc-osint-club-data-group > summary::after {
+    color: var(--oc-muted);
+    content: "+";
+    font-size: 16px;
+}
+
+.vc-osint-club-data-group[open] > summary::after {
+    content: "−";
+}
+
+.vc-osint-club-record-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.vc-osint-club-data-group > .vc-osint-club-data-grid,
+.vc-osint-club-data-group > .vc-osint-club-record-list {
+    padding: 0 8px 8px;
+}
+
+.vc-osint-club-record-card {
+    min-width: 0;
+    padding: 9px;
+    border: 1px solid var(--oc-border);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--oc-text) 3%, var(--oc-base));
+}
+
+.vc-osint-club-primitive,
+.vc-osint-club-data-empty {
+    display: block;
+    padding: 9px;
+    overflow-wrap: anywhere;
+    color: var(--oc-muted);
+    font-size: 12px;
+}
+
+.vc-osint-club-service-grid,
+.vc-osint-club-location-grid,
+.vc-osint-club-pivot-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.vc-osint-club-service {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid currentcolor;
+    border-radius: 11px;
+    background: color-mix(in srgb, currentcolor 7%, var(--oc-panel));
+}
+
+.vc-osint-club-service > span {
+    flex: 0 0 9px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: currentcolor;
+    box-shadow: 0 0 0 4px color-mix(in srgb, currentcolor 14%, transparent);
+}
+
+.vc-osint-club-service > div {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.vc-osint-club-service strong {
+    color: var(--oc-heading);
+    font-size: 12px;
+}
+
+.vc-osint-club-service small,
+.vc-osint-club-service b {
+    color: var(--oc-muted);
+    font-size: 10px;
+}
+
+.vc-osint-club-service-up {
+    color: var(--status-positive);
+}
+
+.vc-osint-club-service-down {
+    color: var(--status-danger);
+}
+
+.vc-osint-club-location-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+    padding: 14px;
+    overflow: hidden;
+    border: 1px solid var(--oc-border-strong);
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--oc-accent-soft), var(--oc-panel));
+}
+
+.vc-osint-club-location-card > span {
+    align-self: flex-start;
+    padding: 3px 7px;
+    border-radius: 999px;
+    color: var(--status-positive);
+    background: color-mix(in srgb, var(--status-positive) 10%, transparent);
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.vc-osint-club-location-card strong {
+    color: var(--oc-heading);
+    font-size: 14px;
+}
+
+.vc-osint-club-location-card p,
+.vc-osint-club-location-card small {
+    margin: 0;
+    color: var(--oc-muted);
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+.vc-osint-club-location-card p {
+    font-family: var(--font-code);
+}
+
+.vc-osint-club-location-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-top: 7px;
+    margin-top: auto;
+    border-top: 1px solid var(--oc-border);
+}
+
+.vc-osint-club-data-group > summary small {
+    margin-left: auto;
+    color: var(--oc-muted);
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.vc-osint-club-pivot-grid {
+    padding: 14px;
+}
+
+.vc-osint-club-pivot-card {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px;
+    border: 1px solid var(--oc-border);
+    border-radius: 12px;
+    background: var(--oc-panel);
+}
+
+.vc-osint-club-pivot-card > div {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.vc-osint-club-pivot-card span {
+    color: var(--oc-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+.vc-osint-club-pivot-card strong {
+    color: var(--oc-heading);
+}
+
+.vc-osint-club-error-state {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    min-height: 300px;
+    justify-content: center;
+    margin: 14px;
+    padding: 30px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--status-danger) 60%, var(--oc-border));
+    border-radius: 16px;
+    background:
+        radial-gradient(circle at 100% 0, color-mix(in srgb, var(--status-danger) 18%, transparent), transparent 44%),
+        var(--oc-panel);
+}
+
+.vc-osint-club-error-state > span {
+    align-self: flex-start;
+    padding: 4px 8px;
+    border-radius: 999px;
+    color: var(--status-danger);
+    background: color-mix(in srgb, var(--status-danger) 10%, transparent);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.vc-osint-club-error-state h3 {
+    max-width: 560px;
+    color: var(--oc-heading);
+    font-size: 20px;
+    line-height: 1.35;
+}
+
+.vc-osint-club-error-state p {
+    max-width: 580px;
+    margin: 0;
+    color: var(--oc-muted);
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+@keyframes vc-osint-club-pulse {
+    70% {
+        box-shadow: 0 0 0 9px transparent;
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 transparent;
+    }
+}
+
+@media (width <= 960px) {
+    .vc-osint-club-root {
+        width: 100%;
+        margin-top: 0;
+        margin-left: 0;
+    }
+
+    .vc-osint-club-nav {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .vc-osint-club-workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .vc-osint-club-results {
+        position: static;
+    }
+
+    .vc-osint-club-visual-output {
+        max-height: none;
+    }
+}
+
+@media (width <= 620px) {
+    .vc-osint-club-hero {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: 19px;
+    }
+
+    .vc-osint-club-health {
+        width: 100%;
+    }
+
+    .vc-osint-club-nav,
+    .vc-osint-club-split,
+    .vc-osint-club-resource-grid,
+    .vc-osint-club-service-grid,
+    .vc-osint-club-location-grid,
+    .vc-osint-club-pivot-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .vc-osint-club-metrics,
+    .vc-osint-club-data-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .vc-osint-club-profile-hero {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .vc-osint-club-nav-button {
+        min-height: 46px;
+    }
+}

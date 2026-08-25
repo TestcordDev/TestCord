@@ -9,15 +9,14 @@ import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
-import { User } from "@vencord/discord-types";
+import type { User } from "@vencord/discord-types";
 import { React } from "@webpack/common";
 
-const fs = (window as any).require?.("fs");
-const os = (window as any).require?.("os");
-const pathModule = (window as any).require?.("path");
+import { getAllPresence, putPresenceBatch } from "./db";
 
 const log = new Logger("LastOnline");
-const DATASTORE_KEY = "LastOnline_onlineList";
+const LEGACY_DATASTORE_KEY = "LastOnline_onlineList";
+const MAX_DISPLAY_AGE = 604800000; // 7 days, matches the display window
 
 const settings = definePluginSettings({
     showInServers: {
@@ -34,78 +33,66 @@ interface PresenceStatus {
 }
 
 const recentlyOnlineList: Map<string, PresenceStatus> = new Map();
-const MAX_DISPLAY_AGE = 604800000; // 7 days, matches the display window
+const dirtyEntries = new Map<string, PresenceStatus>();
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
-
-function getFilePath() {
-    if (!fs || !os || !pathModule) return null;
-    try {
-        return pathModule.join(os.homedir(), "Downloads", "onlinelist.json");
-    } catch {
-        return null;
-    }
-}
 
 function pruneOnlineList() {
     const now = Date.now();
     for (const [userId, status] of recentlyOnlineList) {
         if (status.lastOffline !== null && now - status.lastOffline > MAX_DISPLAY_AGE) {
             recentlyOnlineList.delete(userId);
+            dirtyEntries.set(userId, status);
         }
     }
 }
 
-function writeOnlineList() {
-    const data = Object.fromEntries(recentlyOnlineList);
-    void DataStore.set(DATASTORE_KEY, data).catch(e => log.error("Failed to save to DataStore:", e));
-    const filePath = getFilePath();
-    if (fs && filePath) {
-        try {
-            fs.writeFile(filePath, JSON.stringify(data, null, 2), (e: any) => {
-                if (e) log.error("Failed to save online list to file:", e);
-            });
-        } catch (e) {
-            log.error("Failed to save online list to file:", e);
-        }
-    }
-}
-
-// Debounce writes so a burst of presence updates results in a single async write
+// Batch presence writes into a single idb transaction so bursts of updates cost one write
 function saveOnlineList() {
     if (saveTimer !== null) return;
     saveTimer = setTimeout(() => {
         saveTimer = null;
         pruneOnlineList();
-        writeOnlineList();
+        flushWrites();
     }, 2000);
+}
+
+function flushWrites() {
+    if (!dirtyEntries.size) return;
+    const entries = [...dirtyEntries];
+    dirtyEntries.clear();
+    putPresenceBatch(entries).catch(e => log.error("Failed to save presence to idb:", e));
 }
 
 async function loadOnlineList() {
     try {
-        const storedData = await DataStore.get<Record<string, PresenceStatus>>(DATASTORE_KEY);
-        if (storedData && typeof storedData === "object") {
-            for (const [userId, status] of Object.entries(storedData)) {
-                recentlyOnlineList.set(userId, status);
+        const storedData = await getAllPresence();
+        for (const [userId, status] of Object.entries(storedData)) {
+            recentlyOnlineList.set(userId, status);
+        }
+    } catch (e) {
+        log.error("Failed to load presence from idb:", e);
+    }
+
+    // One-time migration from the old DataStore key
+    try {
+        const legacy = await DataStore.get<Record<string, PresenceStatus>>(LEGACY_DATASTORE_KEY);
+        if (legacy && typeof legacy === "object") {
+            let migrated = 0;
+            for (const [userId, status] of Object.entries(legacy)) {
+                if (!recentlyOnlineList.has(userId)) {
+                    recentlyOnlineList.set(userId, status);
+                    dirtyEntries.set(userId, status);
+                    migrated++;
+                }
+            }
+            if (migrated > 0) {
+                flushWrites();
+                await DataStore.del(LEGACY_DATASTORE_KEY);
+                log.info(`Migrated ${migrated} presence records from DataStore to idb`);
             }
         }
     } catch (e) {
-        log.error("Failed to load from DataStore:", e);
-    }
-
-    const filePath = getFilePath();
-    if (fs && filePath) {
-        try {
-            if (fs.existsSync(filePath)) {
-                const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-                for (const [userId, status] of Object.entries(data)) {
-                    if (!recentlyOnlineList.has(userId)) {
-                        recentlyOnlineList.set(userId, status as PresenceStatus);
-                    }
-                }
-            }
-        } catch (e) {
-            log.error("Failed to load online list from file:", e);
-        }
+        log.error("Failed to migrate legacy presence data:", e);
     }
 }
 
@@ -131,7 +118,10 @@ function handlePresenceUpdate(status: string, userId: string) {
         changed = true;
     }
     // Only schedule a write when something actually changed
-    if (changed) saveOnlineList();
+    if (changed) {
+        dirtyEntries.set(userId, recentlyOnlineList.get(userId)!);
+        saveOnlineList();
+    }
 }
 
 function formatTime(time: number) {
@@ -212,9 +202,9 @@ export default definePlugin({
         if (saveTimer !== null) {
             clearTimeout(saveTimer);
             saveTimer = null;
-            pruneOnlineList();
-            writeOnlineList();
         }
+        pruneOnlineList();
+        flushWrites();
     },
     shouldShowRecentlyOffline(user: User) {
         const presenceStatus = recentlyOnlineList.get(user.id);
@@ -226,7 +216,7 @@ export default definePlugin({
         if (shouldShow) {
             const timeSinceOffline = Date.now() - (presenceStatus.lastOffline || 0);
             // Only show if offline for less than 7 days (604800000 ms)
-            if (timeSinceOffline > 604800000) {
+            if (timeSinceOffline > MAX_DISPLAY_AGE) {
                 return false;
             }
         }
@@ -236,7 +226,6 @@ export default definePlugin({
     buildRecentlyOffline(user: User) {
         const presenceStatus = recentlyOnlineList.get(user.id);
         if (!presenceStatus) {
-            log.warn(`buildRecentlyOffline called for user ${user.username}#${user.discriminator} but no presence status found`);
             return null;
         }
 
@@ -246,10 +235,6 @@ export default definePlugin({
             text = "now";
         } else {
             const formattedTime = formatTime(presenceStatus.lastOffline);
-            if (!formattedTime) {
-                log.warn(`formatTime returned empty string for user ${user.username}#${user.discriminator}`);
-                return null;
-            }
             text = `${formattedTime} ago`;
         }
 

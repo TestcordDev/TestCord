@@ -172,8 +172,12 @@ function getDMChannelsWithUser(userId: string): string[] {
 
 // ── Fetch helpers ──
 
-function toMessageData(msg: Message): MessageData {
+function toMessageData(msg: Message, ctx?: { channelId?: string; guildId?: string; }): MessageData {
     const raw = msg as any;
+    const channelId = raw.channel_id ?? ctx?.channelId;
+    const channel = channelId ? ChannelStore.getChannel(channelId) : null;
+    const guildId = raw.guildId ?? ctx?.guildId ?? channel?.guild_id;
+
     return {
         id: msg.id,
         content: msg.content,
@@ -205,6 +209,20 @@ function toMessageData(msg: Message): MessageData {
         flags: msg.flags,
         tts: raw.tts,
         pinned: msg.pinned,
+        editedTimestamp: raw.editedTimestamp ?? null,
+        interaction: raw.interaction
+            ? { name: raw.interaction.name, applicationId: raw.interaction.applicationId }
+            : undefined,
+        mentionsList: (msg.mentions ?? [])
+            .filter((u: any) => u?.id)
+            .map((u: any) => ({ id: u.id, username: u.username ?? "unknown" })),
+        referencedAuthor: raw.referencedMessage?.author
+            ? { id: raw.referencedMessage.author.id, username: raw.referencedMessage.author.username ?? "" }
+            : undefined,
+        channelId,
+        channelName: channel?.name,
+        guildId,
+        guildName: GuildStore.getGuild(guildId)?.name,
     } as MessageData;
 }
 
@@ -540,7 +558,7 @@ function OSINTScanPanel({ userId, channelId, modalProps }: { userId: string; cha
                 try {
                     const { messages, total } = await searchMessages(userId, guildId, chanId ?? channelId, offset);
                     if (cancelled || messages.length === 0) break;
-                    acc.push(...messages.map(toMessageData));
+                    acc.push(...messages.map(m => toMessageData(m, { channelId: chanId ?? channelId, guildId: guildId ?? undefined })));
                     state.total = acc.length;
                     const now = Date.now();
                     if (!unlimited || now - lastMessagesUpdateRef.current > 500) {
@@ -774,16 +792,29 @@ function OSINTScanPanel({ userId, channelId, modalProps }: { userId: string; cha
                                         {cordcatResult.breaches.length > 0 && (
                                             <div>
                                                 <div style={{ fontWeight: 600, marginBottom: 6 }}>Breach Records ({cordcatResult.breaches.length})</div>
-                                                {cordcatResult.breaches.map((b, i) => (
-                                                    <div key={i} className="vc-osint-cordcat-action">
-                                                        <div className="vc-osint-cordcat-action-header">
-                                                            <span className="vc-osint-tag">{b.source}</span>
-                                                            {b.date && <span className="vc-osint-cordcat-date">{b.date}</span>}
+                                                {cordcatResult.breaches.map((b, i) => {
+                                                    const leakedFields = [
+                                                        b.ip ? "IP" : null,
+                                                        b.username ? "username" : null,
+                                                        b.password ? "password" : null,
+                                                    ].filter(Boolean) as string[];
+                                                    return (
+                                                        <div key={i} className="vc-osint-cordcat-action">
+                                                            <div className="vc-osint-cordcat-action-header">
+                                                                <span className="vc-osint-tag">{b.source}</span>
+                                                                {b.date && <span className="vc-osint-cordcat-date">{b.date}</span>}
+                                                            </div>
+                                                            {b.categories && b.categories.length > 0 && <div>Categories: {b.categories.join(", ")}</div>}
+                                                            {b.ip && <div>IP: {b.ip}</div>}
+                                                            {b.tag && <div>Username at leak: {b.tag}</div>}
+                                                            {leakedFields.length > 0 && (
+                                                                <div style={{ color: "var(--status-danger)" }}>
+                                                                    Leaked data: {leakedFields.join(", ")}
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                        {b.categories && b.categories.length > 0 && <div>Categories: {b.categories.join(", ")}</div>}
-                                                        {b.ip && <div>IP: {b.ip}</div>}
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
@@ -927,7 +958,7 @@ function OSINTMultiScan({ modalProps }: { modalProps: any; }) {
                     while (running) {
                         const { messages, total } = await searchMessages(targets[i].userId, guildId, channelId, offset);
                         if (messages.length === 0) break;
-                        acc.push(...messages.map(toMessageData));
+                        acc.push(...messages.map(m => toMessageData(m, { channelId, guildId })));
                         offset += messages.length;
                         if (!unlimited && acc.length >= limit) break;
                         if (offset >= total) break;
@@ -943,7 +974,7 @@ function OSINTMultiScan({ modalProps }: { modalProps: any; }) {
                         while (running) {
                             const { messages, total } = await searchMessages(targets[i].userId, null, dmId, dmOffset);
                             if (messages.length === 0) break;
-                            acc.push(...messages.map(toMessageData));
+                            acc.push(...messages.map(m => toMessageData(m, { channelId: dmId })));
                             dmOffset += messages.length;
                             if (!unlimited && acc.length >= limit) break;
                             if (dmOffset >= total) break;
@@ -1145,6 +1176,11 @@ function UserPickerModal({ modalProps, onSelect }: { modalProps: any; onSelect: 
 
 function openScan(userId: string, channelId: string) {
     openModal(props => <OSINTScanPanel userId={userId} channelId={channelId} modalProps={props} />);
+}
+
+/** Entry point for other plugins (e.g. MessageLoggerTestcord) to open a scan for a user. */
+export function openOsintScanFor(userId: string, channelId?: string) {
+    openScan(userId, channelId ?? SelectedChannelStore.getChannelId());
 }
 
 function openUserPicker(channelId: string) {

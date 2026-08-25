@@ -60,6 +60,10 @@ export const manualBadgeFlags = {
     ActiveDeveloper: 1 << 22,
 } as const;
 
+export type FlairType = "none" | "app" | "verifiedApp" | "official";
+
+export const VERIFIED_BOT_FLAG = 1 << 16;
+
 export interface ManualProfileData {
     id: string;
     username: string;
@@ -79,6 +83,12 @@ export interface ManualProfileData {
     nitro: boolean;
     nitroLevel: number;
     boostMonths: number;
+    flair: FlairType;
+    showAccountAgeBadge: boolean;
+    gameTimeHours: number;
+    streamHours: number;
+    gameVarietyCount: number;
+    giftingBadgeIds: string[];
     avatarDecoration: string;
     decorationAsset: string;
     nameplateAsset: string;
@@ -188,6 +198,12 @@ function getDefaultManualProfile(): ManualProfileData {
         nitro: false,
         nitroLevel: -1,
         boostMonths: -1,
+        flair: "none",
+        showAccountAgeBadge: true,
+        gameTimeHours: -1,
+        streamHours: -1,
+        gameVarietyCount: -1,
+        giftingBadgeIds: [],
         avatarDecoration: "",
         decorationAsset: "",
         nameplateAsset: "",
@@ -259,6 +275,23 @@ export function getManualProfile(): ManualProfileData {
     };
 }
 
+function applyFlair(profile: ManualProfileData, target: Record<string, any>) {
+    switch (profile.flair) {
+        case "app":
+            target.bot = true;
+            break;
+        case "verifiedApp":
+            target.bot = true;
+            target.flags = (target.flags ?? 0) | VERIFIED_BOT_FLAG;
+            target.publicFlags = (target.publicFlags ?? 0) | VERIFIED_BOT_FLAG;
+            break;
+        case "official":
+            target.system = true;
+            target.bot = true;
+            break;
+    }
+}
+
 function createManualUser(profile: ManualProfileData): User {
     const me = UserStore.getCurrentUser();
     const id = profile.id || me?.id || "";
@@ -301,12 +334,14 @@ function createManualUser(profile: ManualProfileData): User {
             return (base as any)?.createdAt ?? new Date(SnowflakeUtils.extractTimestamp(id));
         })(),
         premiumSince: profile.premiumType > 0
-            ? makeDateForUser(id, [1, 2, 3, 6, 12, 24, 36, 72][profile.nitroLevel] ?? 1)
+            ? makeDateForUser(id, [1, 3, 6, 12, 24, 36, 60, 72][profile.nitroLevel] ?? 1)
             : ((base as any)?.premiumSince ?? undefined),
         premiumGuildSince: profile.boostMonths >= 0
             ? makeDateForUser(id, [1, 2, 3, 6, 9, 12, 15, 18, 24][profile.boostMonths] ?? 1)
             : ((base as any)?.premiumGuildSince ?? undefined),
     } as unknown as User;
+
+    applyFlair(profile, user as unknown as Record<string, any>);
 
     return user;
 }
@@ -323,7 +358,7 @@ function createManualTarget(profile: ManualProfileData): CachedTarget {
 
     const hasNitro = profile.premiumType > 0 || (realProfile.premiumType ?? 0) > 0;
     const { nitroLevel } = profile;
-    const NITRO_M = [1, 2, 3, 6, 12, 24, 36, 72];
+    const NITRO_M = [1, 3, 6, 12, 24, 36, 60, 72];
     const premiumSince = hasNitro
         ? (profile.premiumType > 0 ? makeDateForUser(id, NITRO_M[nitroLevel] ?? 1) : (realProfile.premiumSince ?? null))
         : null;
@@ -399,6 +434,17 @@ export async function loadTarget(targetId: string): Promise<CachedTarget> {
     }
 
     user = UserStore.getUser(targetId) ?? user;
+    const fetchedUser = profile?.user ?? null;
+    if (fetchedUser?.collectibles != null && (user as any).collectibles == null) {
+        try {
+            Object.defineProperty(user, "collectibles", {
+                value: fetchedUser.collectibles,
+                writable: true,
+                enumerable: true,
+                configurable: true,
+            });
+        } catch { /* ignore */ }
+    }
 
     cached = {
         id: targetId,

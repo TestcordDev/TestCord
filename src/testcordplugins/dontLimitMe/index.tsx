@@ -14,10 +14,9 @@ export default definePlugin({
     patches: [
         {
             find: "cancelQueueMetricTimers",
-            noWarn: true,
             replacement: {
-                match: /this\.maxSize=[a-zA-Z]+,/,
-                replace: "this.maxSize=Number.MAX_SAFE_INTEGER,"
+                match: /isFull\(\)\{return this\.queue\.length>=this\.maxSize\}/,
+                replace: "isFull(){return false}"
             }
         }
     ]

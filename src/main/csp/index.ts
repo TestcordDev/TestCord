@@ -139,6 +139,7 @@ export const CspPolicies: PolicyMap = {
     "assets.ppy.sh": ConnectSrc,
     "free.freeipapi.com": ConnectSrc,
     "ipwho.is": ConnectSrc,
+    "ip-api.com": ConnectSrc, // OSINTToolkit IP provider
     "huskapi.nin0.dev": ConnectSrc,
     "lrclib.net": ConnectSrc,
     "nekos.best": ConnectSrc,
