@@ -1005,29 +1005,262 @@ function Dropdown({ label, options, value, onChange }: {
     );
 }
 
-function ColorRow({ label, value, onChange, onBlur, }: { label: string; value: string; onChange: (v: string) => void; onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; }) {
+// ─── Color conversion helpers ────────────────────────────────────────────────
+
+function hexToRgb(hex: string): [number, number, number] {
+    const clean = hex.replace("#", "").trim();
+    const full = clean.length === 3 ? clean.split("").map(c => c + c).join("") : clean.padEnd(6, "0").slice(0, 6);
+    const n = parseInt(full, 16) || 0;
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+    const clamp = (v: number) => Math.round(Math.max(0, Math.min(255, v)));
+    return "#" + [r, g, b].map(v => clamp(v).toString(16).padStart(2, "0")).join("");
+}
+
+function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    let h = 0;
+    if (d !== 0) {
+        if (max === r) h = ((g - b) / d) % 6;
+        else if (max === g) h = (b - r) / d + 2;
+        else h = (r - g) / d + 4;
+        h *= 60;
+        if (h < 0) h += 360;
+    }
+    return [h, max === 0 ? 0 : (d / max) * 100, max * 100];
+}
+
+function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
+    s /= 100; v /= 100;
+    const c = v * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = v - c;
+    let rgb: [number, number, number];
+    if (h < 60) rgb = [c, x, 0];
+    else if (h < 120) rgb = [x, c, 0];
+    else if (h < 180) rgb = [0, c, x];
+    else if (h < 240) rgb = [0, x, c];
+    else if (h < 300) rgb = [x, 0, c];
+    else rgb = [c, 0, x];
+    return [(rgb[0] + m) * 255, (rgb[1] + m) * 255, (rgb[2] + m) * 255];
+}
+
+function isValidHex(v: string): boolean {
+    return /^#?[0-9a-fA-F]{6}$/.test(v.trim());
+}
+
+const COLOR_PRESETS = [
+    "#5865F2", "#EB459E", "#ED4245", "#FEE75C",
+    "#57F287", "#00C7D9", "#FFFFFF", "#23272A",
+];
+
+// ─── Custom color picker ──────────────────────────────────────────────────────
+
+function ColorPickerPanel({ value, onChange }: { value: string; onChange: (hex: string) => void; }) {
+    const hsvRef = React.useRef<[number, number, number]>(rgbToHsv(...hexToRgb(value)));
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
+    const [hexInput, setHexInput] = React.useState(value.toUpperCase());
+    const svRef = React.useRef<HTMLDivElement>(null);
+    const hueRef = React.useRef<HTMLDivElement>(null);
+    const draggingRef = React.useRef<"sv" | "hue" | null>(null);
+
+    React.useEffect(() => {
+        if (draggingRef.current) return;
+        hsvRef.current = rgbToHsv(...hexToRgb(value));
+        setHexInput(value.toUpperCase());
+        forceUpdate();
+    }, [value]);
+
+    const commit = (h: number, s: number, v: number) => {
+        hsvRef.current = [h, s, v];
+        const hex = rgbToHex(...hsvToRgb(h, s, v));
+        setHexInput(hex.toUpperCase());
+        onChange(hex);
+        forceUpdate();
+    };
+
+    const fromSvPointer = (clientX: number, clientY: number) => {
+        const rect = svRef.current!.getBoundingClientRect();
+        const x = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+        const y = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+        commit(hsvRef.current[0], x * 100, (1 - y) * 100);
+    };
+
+    const fromHuePointer = (clientX: number) => {
+        const rect = hueRef.current!.getBoundingClientRect();
+        const x = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+        commit(x * 360, hsvRef.current[1], hsvRef.current[2]);
+    };
+
+    React.useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            if (draggingRef.current === "sv") fromSvPointer(e.clientX, e.clientY);
+            else if (draggingRef.current === "hue") fromHuePointer(e.clientX);
+        };
+        const onUp = () => { draggingRef.current = null; };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+        return () => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+        };
+    }, []);
+
+    const [h, s, v] = hsvRef.current;
+
     return (
-        <Flex flexDirection="column" gap={8} style={{ width: "100%" }}>
-            <BaseText size="md" weight="medium" color="text-default">{label}</BaseText>
-            <Flex alignItems="center" gap={10}>
+        <div
+            style={{
+                marginTop: "10px", padding: "12px", borderRadius: "10px",
+                background: "var(--background-secondary, var(--background-base-lower))",
+                border: "1px solid var(--background-modifier-accent, var(--border-muted))",
+                boxShadow: "0 8px 20px -8px rgba(0,0,0,0.35)",
+            }}
+            onMouseDown={e => e.stopPropagation()}
+        >
+            <div
+                ref={svRef}
+                onMouseDown={e => { draggingRef.current = "sv"; fromSvPointer(e.clientX, e.clientY); }}
+                style={{
+                    position: "relative", width: "100%", height: "120px", borderRadius: "8px",
+                    cursor: "crosshair", userSelect: "none",
+                    background: `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)), hsl(${h}, 100%, 50%)`,
+                }}
+            >
                 <div style={{
-                    position: "relative", width: "44px", height: "36px", flexShrink: 0,
-                    borderRadius: "8px", overflow: "hidden",
-                    border: "1px solid var(--background-modifier-accent, var(--border-muted))",
-                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
-                }}>
-                    <div style={{ position: "absolute", inset: 0, background: value }} />
-                    <input
-                        type="color"
-                        value={value}
-                        onBlur={onBlur}
-                        onChange={e => onChange(e.target.value)}
+                    position: "absolute", left: `${s}%`, top: `${100 - v}%`,
+                    width: "14px", height: "14px", borderRadius: "50%",
+                    transform: "translate(-50%, -50%)",
+                    border: "2px solid white", boxShadow: "0 0 0 1px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.4)",
+                    background: value, pointerEvents: "none",
+                }} />
+            </div>
+
+            <div
+                ref={hueRef}
+                onMouseDown={e => { draggingRef.current = "hue"; fromHuePointer(e.clientX); }}
+                style={{
+                    position: "relative", width: "100%", height: "12px", borderRadius: "6px",
+                    marginTop: "10px", cursor: "pointer", userSelect: "none",
+                    background: "linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)",
+                }}
+            >
+                <div style={{
+                    position: "absolute", left: `${(h / 360) * 100}%`, top: "50%",
+                    width: "8px", height: "16px", borderRadius: "3px",
+                    transform: "translate(-50%, -50%)",
+                    border: "2px solid white", boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+                    background: `hsl(${h}, 100%, 50%)`, pointerEvents: "none",
+                }} />
+            </div>
+
+            <Flex alignItems="center" gap={8} style={{ marginTop: "10px" }}>
+                <div style={{
+                    width: "28px", height: "28px", borderRadius: "6px", flexShrink: 0,
+                    background: value, border: "1px solid var(--background-modifier-accent, var(--border-muted))",
+                }} />
+                <input
+                    value={hexInput}
+                    onChange={e => {
+                        const val = e.target.value;
+                        setHexInput(val);
+                        if (isValidHex(val)) {
+                            const hex = val.startsWith("#") ? val : `#${val}`;
+                            hsvRef.current = rgbToHsv(...hexToRgb(hex));
+                            onChange(hex.toLowerCase());
+                            forceUpdate();
+                        }
+                    }}
+                    onBlur={() => {
+                        if (!isValidHex(hexInput)) {
+                            setHexInput(value.toUpperCase());
+                        }
+                    }}
+                    onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    spellCheck={false}
+                    style={{
+                        flex: 1, height: "28px", padding: "0 8px", borderRadius: "6px",
+                        border: "1px solid var(--background-modifier-accent, var(--border-muted))",
+                        background: "var(--background-secondary-alt, var(--background-mod-subtle))",
+                        color: "var(--text-default)", fontFamily: "var(--font-code, monospace)",
+                        fontSize: "12px", textTransform: "uppercase",
+                    }}
+                />
+            </Flex>
+
+            <Flex gap={6} style={{ marginTop: "10px", flexWrap: "wrap" }}>
+                {COLOR_PRESETS.map(preset => (
+                    <div
+                        key={preset}
+                        onClick={() => {
+                            hsvRef.current = rgbToHsv(...hexToRgb(preset));
+                            setHexInput(preset.toUpperCase());
+                            onChange(preset);
+                            forceUpdate();
+                        }}
+                        title={preset}
                         style={{
-                            position: "absolute", inset: "-4px", width: "calc(100% + 8px)", height: "calc(100% + 8px)",
-                            border: "none", padding: 0, cursor: "pointer", opacity: 0,
+                            width: "20px", height: "20px", borderRadius: "5px", cursor: "pointer",
+                            background: preset,
+                            border: preset.toLowerCase() === value.toLowerCase()
+                                ? "2px solid var(--brand-experiment, var(--background-brand))"
+                                : "1px solid var(--background-modifier-accent, var(--border-muted))",
                         }}
                     />
-                </div>
+                ))}
+            </Flex>
+        </div>
+    );
+}
+
+function ColorRow({ label, value, onChange, onBlur }: { label: string; value: string; onChange: (v: string) => void; onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; }) {
+    const [open, setOpen] = React.useState(false);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    const close = () => {
+        setOpen(false);
+        onBlur?.({} as React.FocusEvent<HTMLInputElement>);
+    };
+
+    const handleRealtimeChange = (newHex: string) => {
+        onChange(newHex);
+        onBlur?.({} as React.FocusEvent<HTMLInputElement>);
+    };
+
+    React.useEffect(() => {
+        if (!open) return;
+        const onDocMouseDown = (e: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) close();
+        };
+        const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+        document.addEventListener("mousedown", onDocMouseDown);
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("mousedown", onDocMouseDown);
+            document.removeEventListener("keydown", onKeyDown);
+        };
+    }, [open]);
+
+    return (
+        <div ref={containerRef} style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+            <BaseText size="md" weight="medium" color="text-default">{label}</BaseText>
+            <Flex
+                alignItems="center" gap={10}
+                onClick={() => (open ? close() : setOpen(true))}
+                style={{ cursor: "pointer" }}
+            >
+                <div style={{
+                    position: "relative", width: "44px", height: "36px", flexShrink: 0,
+                    borderRadius: "8px", overflow: "hidden", background: value,
+                    border: open
+                        ? "2px solid var(--brand-experiment, var(--background-brand))"
+                        : "1px solid var(--background-modifier-accent, var(--border-muted))",
+                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
+                    transition: "border-color 0.15s ease",
+                }} />
                 <BaseText
                     size="sm" weight="medium" color="text-muted"
                     style={{
@@ -1039,7 +1272,8 @@ function ColorRow({ label, value, onChange, onBlur, }: { label: string; value: s
                     {value}
                 </BaseText>
             </Flex>
-        </Flex>
+            {open && <ColorPickerPanel value={value} onChange={handleRealtimeChange} />}
+        </div>
     );
 }
 
@@ -1962,41 +2196,43 @@ function SettingModalItem({
                                         }} />
                                         {cfg.colorfulInActiveButton && (
                                             <>
-                                                <Card>
-                                                    <div style={{ display: "grid", gap: "8px" }}>
-                                                    <ColorRow
-                                                        label="InActive blob background color"
-                                                        value={cfg.colorOff ?? "#000000"}
-                                                        onChange={e => {
-                                                            setBtnCfg(item.id, { colorOff: e });
-                                                            apply();
-                                                        }}
-                                                        onBlur={() => forceUpdate()}
-                                                    />
-                                                    <SliderRow
-                                                        label="Opacity"
-                                                        min={0}
-                                                        max={100}
-                                                        value={cfg.opacityOff ?? 22}
-                                                        onChange={v => {
-                                                            setBtnCfg(item.id, { opacityOff: Number(Math.round(v)) });
-                                                            apply(); forceUpdate();
-                                                        }}
-                                                        unit="%"
-                                                    />
-                                                    <SliderRow
-                                                        label="Radius"
-                                                        min={0}
-                                                        max={20}
-                                                        value={cfg.radiusOff ?? 10}
-                                                        onChange={v => {
-                                                            setBtnCfg(item.id, { radiusOff: Number(Math.round(v)) });
-                                                            apply(); forceUpdate();
-                                                        }}
-                                                        unit="px"
-                                                    />
-                                                    </div>
-                                                </Card>
+                                                <div style={{ marginBottom: "16px" }}>
+                                                    <Card>
+                                                        <div style={{ display: "grid", gap: "8px" }}>
+                                                            <ColorRow
+                                                                label="InActive blob background color"
+                                                                value={cfg.colorOff ?? "#000000"}
+                                                                onChange={e => {
+                                                                    setBtnCfg(item.id, { colorOff: e });
+                                                                    apply();
+                                                                }}
+                                                                onBlur={() => forceUpdate()}
+                                                            />
+                                                            <SliderRow
+                                                                label="Opacity"
+                                                                min={0}
+                                                                max={100}
+                                                                value={cfg.opacityOff ?? 22}
+                                                                onChange={v => {
+                                                                    setBtnCfg(item.id, { opacityOff: Number(Math.round(v)) });
+                                                                    apply(); forceUpdate();
+                                                                }}
+                                                                unit="%"
+                                                            />
+                                                            <SliderRow
+                                                                label="Radius"
+                                                                min={0}
+                                                                max={20}
+                                                                value={cfg.radiusOff ?? 10}
+                                                                onChange={v => {
+                                                                    setBtnCfg(item.id, { radiusOff: Number(Math.round(v)) });
+                                                                    apply(); forceUpdate();
+                                                                }}
+                                                                unit="px"
+                                                            />
+                                                        </div>
+                                                    </Card>
+                                                </div>
                                             </>
                                         )}
                                         <FormSwitch title="Colorful active button" description="Enable a colorful background when enabled" value={cfg.colorfulActiveButton ?? false} onChange={v => {
