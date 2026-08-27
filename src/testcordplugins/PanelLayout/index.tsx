@@ -16,9 +16,9 @@ import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
 import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { TestcordDevs } from "@utils/constants";
-import { ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, RenderModalProps } from "@utils/modal";
+import { ModalContent, ModalFooter, openModal, RenderModalProps } from "@utils/modal";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
-import { React, Select, Slider } from "@webpack/common";
+import { Modal, React, Select, Slider } from "@webpack/common";
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
@@ -477,6 +477,57 @@ function buildCSS(): string {
         .PanelLayoutModal { min-height: 0 !important; }
     `);
 
+    // SubModalButton
+    lines.push(`
+        .SubModalButton {
+            position: relative;
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 9px 14px;
+            border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 14%, var(--border-subtle));
+            border-radius: 8px;
+            background: var(--background-base-lower-alt);
+            cursor: pointer;
+            overflow: hidden;
+            box-shadow: 0 1px #ffffff08 inset;
+            transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+        }
+
+        .SubModalButton:hover {
+            background: var(--background-base-low);
+            border-color:
+                color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 32%, var(--border-subtle));
+            box-shadow: var(--elevation-low), 0 1px #ffffff0d inset;
+            transform: translateY(-1px);
+        }
+
+        .SubModalButton:active {
+            box-shadow: none;
+            transform: translateY(0) scale(.99);
+        }
+
+        .SubModalButton:before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            border-radius: 8px 0 0 8px;
+            background: var(--brand, var(--brand-experiment, var(--background-brand)));
+            opacity: .35;
+            transform: scaleY(.35);
+            transform-origin: center;
+            transition: opacity .16s ease, transform .16s ease;
+        }
+
+        .SubModalButton:hover:before {
+            opacity: 1;
+            transform: scaleY(1);
+        }
+    `);
     // Native custom scrollbars
     lines.push(`
         .deracul-scrollbar::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
@@ -958,13 +1009,36 @@ function ColorRow({ label, value, onChange, onBlur, }: { label: string; value: s
     return (
         <Flex flexDirection="column" gap={8} style={{ width: "100%" }}>
             <BaseText size="md" weight="medium" color="text-default">{label}</BaseText>
-            <input
-                type="color"
-                value={value}
-                onBlur={onBlur}
-                onChange={e => onChange(e.target.value)}
-                style={{ width: "100%", height: "40px", border: "none", borderRadius: "6px", cursor: "pointer", background: "transparent" }}
-            />
+            <Flex alignItems="center" gap={10}>
+                <div style={{
+                    position: "relative", width: "44px", height: "36px", flexShrink: 0,
+                    borderRadius: "8px", overflow: "hidden",
+                    border: "1px solid var(--background-modifier-accent, var(--border-muted))",
+                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
+                }}>
+                    <div style={{ position: "absolute", inset: 0, background: value }} />
+                    <input
+                        type="color"
+                        value={value}
+                        onBlur={onBlur}
+                        onChange={e => onChange(e.target.value)}
+                        style={{
+                            position: "absolute", inset: "-4px", width: "calc(100% + 8px)", height: "calc(100% + 8px)",
+                            border: "none", padding: 0, cursor: "pointer", opacity: 0,
+                        }}
+                    />
+                </div>
+                <BaseText
+                    size="sm" weight="medium" color="text-muted"
+                    style={{
+                        fontFamily: "var(--font-code, monospace)",
+                        background: "var(--background-secondary-alt, var(--background-mod-subtle))",
+                        borderRadius: "6px", padding: "6px 10px", textTransform: "uppercase",
+                    }}
+                >
+                    {value}
+                </BaseText>
+            </Flex>
         </Flex>
     );
 }
@@ -988,10 +1062,22 @@ function MiniToggle({ value, onChange }: { value: boolean; onChange: (v: boolean
 
 interface BtnItem { id: string; label: string; iconHTML: string; }
 
+// Building this list clones + rewrites SVGs (to dedupe id collisions across
+// buttons), which is real DOM work — cache it instead of redoing it on every
+// modal open. Invalidated only when the actual set of visible buttons changes.
+let btnItemsCache: BtnItem[] | null = null;
+let btnItemsCacheKey = "";
+
 function getBtnItems(): BtnItem[] {
+    const buttons = getAllButtons();
+
+    // Cheap fingerprint of "what's on screen" — if unchanged, reuse the cache.
+    const key = buttons.map(el => getCanonicalLabel(getBtnLabel(el) ?? "")).join("|");
+    if (btnItemsCache && key === btnItemsCacheKey) return btnItemsCache;
+
     const seen = new Set<string>();
     const out: BtnItem[] = [];
-    for (const el of getAllButtons()) {
+    for (const el of buttons) {
         const rawLabel = getBtnLabel(el);
         if (!rawLabel) continue;
         const label = getCanonicalLabel(rawLabel);
@@ -1015,21 +1101,30 @@ function getBtnItems(): BtnItem[] {
             // ---------------------------------------------------------
 
             // --- FIX: Prevent SVG ID Collisions ---
+            // Single pass: collect old->new id map, then rewrite all references
+            // once, instead of re-scanning the whole cloned tree per id (was O(n^2)).
             const uniqueSuffix = Math.random().toString(36).substring(2, 7);
-            clone.querySelectorAll("[id]").forEach(node => {
-                const oldId = node.id;
-                const newId = `${oldId}-${uniqueSuffix}`;
-                node.id = newId;
-
+            const idNodes = clone.querySelectorAll("[id]");
+            if (idNodes.length) {
+                const idMap = new Map<string, string>();
+                idNodes.forEach(node => {
+                    const newId = `${node.id}-${uniqueSuffix}`;
+                    idMap.set(node.id, newId);
+                    node.id = newId;
+                });
                 clone.querySelectorAll("*").forEach(child => {
                     ["mask", "fill", "clip-path", "filter"].forEach(attr => {
                         const val = child.getAttribute(attr);
-                        if (val && (val.includes(`url(#${oldId})`) || val.includes(`url('#${oldId}')`) || val.includes(`url("#${oldId}")`))) {
-                            child.setAttribute(attr, `url(#${newId})`);
+                        if (!val) return;
+                        for (const [oldId, newId] of idMap) {
+                            if (val === `url(#${oldId})` || val === `url('#${oldId}')` || val === `url("#${oldId}")`) {
+                                child.setAttribute(attr, `url(#${newId})`);
+                                break;
+                            }
                         }
                     });
                 });
-            });
+            }
             // --------------------------------------
 
             iconHTML = clone.outerHTML;
@@ -1049,12 +1144,14 @@ function getBtnItems(): BtnItem[] {
     }
 
     out.sort((a, b) => (getBtnCfg(a.id).order ?? 0) - (getBtnCfg(b.id).order ?? 0));
+    btnItemsCache = out;
+    btnItemsCacheKey = key;
     return out;
 }
 
 function ButtonsDragTab() {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
-    const [items, setItems] = React.useState<BtnItem[]>(getBtnItems());
+    const [items, setItems] = React.useState<BtnItem[]>(() => getBtnItems());
     const [listeningId, setListeningId] = React.useState<string | null>(null);
 
     // Index-based drag state. We never mutate `items` mid-drag — only on drop.
@@ -1403,6 +1500,97 @@ function PanelLayoutIcon({ style, className }: { style?: React.CSSProperties; cl
     );
 }
 
+// ─── Tab icons ────────────────────────────────────────────────────────────────
+// Kept in the same flat, currentColor, rects/circles-only language as
+// PanelLayoutIcon above so the tab strip reads as one family.
+
+function TabPanelIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="3" y="3" width="8" height="10" rx="2" fill="currentColor" />
+            <rect x="3" y="15" width="8" height="6" rx="2" fill="currentColor" />
+            <rect x="13" y="3" width="8" height="6" rx="2" fill="currentColor" />
+            <rect x="13" y="11" width="8" height="10" rx="2" fill="currentColor" />
+        </svg>
+    );
+}
+
+function TabCallIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="2" y="8" width="20" height="10" rx="5" fill="none" stroke="currentColor" strokeWidth="2" />
+            <circle cx="8" cy="13" r="1.6" fill="currentColor" />
+            <circle cx="12" cy="13" r="1.6" fill="currentColor" />
+            <circle cx="16" cy="13" r="1.6" fill="currentColor" />
+        </svg>
+    );
+}
+
+function TabStyleIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" fill="currentColor" fillOpacity="0.35" />
+            <path d="M12 3a9 9 0 0 1 0 18 4.5 4.5 0 0 1-1-8.9A2 2 0 0 0 12 8a2 2 0 0 0 0-4 9 9 0 0 1 0-1Z" fill="currentColor" />
+        </svg>
+    );
+}
+
+function TabColorsIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="9" cy="9" r="6" fill="currentColor" fillOpacity="0.55" />
+            <circle cx="15" cy="9" r="6" fill="currentColor" fillOpacity="0.55" />
+            <circle cx="12" cy="15" r="6" fill="currentColor" fillOpacity="0.55" />
+        </svg>
+    );
+}
+
+function TabVisibilityIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path fillRule="evenodd" clipRule="evenodd" d="M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7Zm0 3.8A3.2 3.2 0 1 0 12 15.2 3.2 3.2 0 0 0 12 8.8Z" fill="currentColor" />
+        </svg>
+    );
+}
+
+function TabButtonsIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="8" cy="6" r="1.8" fill="currentColor" />
+            <circle cx="16" cy="6" r="1.8" fill="currentColor" />
+            <circle cx="8" cy="12" r="1.8" fill="currentColor" />
+            <circle cx="16" cy="12" r="1.8" fill="currentColor" />
+            <circle cx="8" cy="18" r="1.8" fill="currentColor" />
+            <circle cx="16" cy="18" r="1.8" fill="currentColor" />
+        </svg>
+    );
+}
+
+const TAB_ICONS: Record<Tab, () => React.ReactElement> = {
+    panel: TabPanelIcon,
+    call: TabCallIcon,
+    style: TabStyleIcon,
+    colors: TabColorsIcon,
+    hide: TabVisibilityIcon,
+    drag: TabButtonsIcon,
+};
+
+// Small accent-bar heading used to open each settings section — a single
+// repeated device instead of a bespoke icon per section, so it reads as
+// rhythm rather than decoration.
+function SectionHeading({ children }: { children: React.ReactNode; }) {
+    return (
+        <Flex alignItems="center" gap={8} style={{ marginTop: "4px" }}>
+            <div style={{
+                width: "3px", height: "13px", borderRadius: "2px",
+                background: "var(--brand-experiment, var(--background-brand))",
+                flexShrink: 0,
+            }} />
+            <Heading tag="h5" style={{ margin: 0 }}>{children}</Heading>
+        </Flex>
+    );
+}
+
 function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean }) {
     const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -1583,8 +1771,6 @@ function SubModalButton({
     cfg: any;
     handleOpenSubModal: (item: BtnItem) => void;
 }) {
-    const [isHovered, setIsHovered] = React.useState(false);
-
     const canonical = getCanonicalLabel(item.label);
     const isMute = canonical === "Mute";
     const isDeafen = canonical === "Deafen";
@@ -1592,30 +1778,7 @@ function SubModalButton({
     return (
         <button
             onClick={() => handleOpenSubModal(item)}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            style={{
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "16px",
-                padding: "9px 14px",
-                border: `1px solid ${
-                    isHovered
-                        ? "color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 32%, var(--border-subtle))"
-                        : "color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 14%, var(--border-subtle))"
-                }`,
-                borderRadius: "8px",
-                background: isHovered ? "var(--background-base-low)" : "var(--background-base-lower-alt)",
-                cursor: "pointer",
-                overflow: "hidden",
-                boxShadow: isHovered
-                    ? "var(--elevation-low), 0 1px #ffffff0d inset"
-                    : "0 1px #ffffff08 inset",
-                transform: isHovered ? "translateY(-1px)" : "none",
-                transition: "background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease",
-            }}
+            className="SubModalButton"
         >
             <BaseText size="sm" color="text-muted" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 {isMute && (
@@ -1632,22 +1795,6 @@ function SubModalButton({
 
                 {cfg.label}
             </BaseText>
-
-            <span
-                style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: "3px",
-                    borderRadius: "8px 0 0 8px",
-                    background: "var(--brand, var(--brand-experiment, var(--background-brand)))",
-                    opacity: isHovered ? 1 : 0.35,
-                    transform: isHovered ? "scaleY(1)" : "scaleY(.35)",
-                    transformOrigin: "center",
-                    transition: "opacity .16s ease, transform .16s ease",
-                }}
-            />
         </button>
     );
 }
@@ -1662,55 +1809,331 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps }) {
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM} className="PanelLayoutModal">
-            <ModalHeader>
-                <BaseText size="sm" color="text-muted">Button customization</BaseText>
-            </ModalHeader>
+        <Modal title={<BaseText size="sm" color="text-muted">Button customization</BaseText>} {...modalProps} size="md">
+            {items.length === 0 ? (
+                <BaseText size="sm" color="text-muted">
+                    No buttons detected. Open this tab again once buttons load.
+                </BaseText>
+            ) : (
+                <div className="deracul-scrollbar" style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "1px" }}>
+                    {(items ?? [])
+                    .filter(item => !getBtnCfg(item.id).hidden &&
+                        getCanonicalLabel(item.label) !== "Soundboard disabled when deafened" &&
+                        getCanonicalLabel(item.label) !== "Open Soundboard" &&
+                        getCanonicalLabel(item.label) !== "User Settings" &&
+                        getCanonicalLabel(item.label) !== "Panel Layout"
+                    )
+                    .map(item => {
+                        const cfg = getBtnCfg(item.id);
 
-            <ModalContent>
-                {items.length === 0 ? (
-                    <BaseText size="sm" color="text-muted">
-                        No buttons detected. Open this tab again once buttons load.
-                    </BaseText>
-                ) : (
-                    <div className="deracul-scrollbar" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        {(items ?? [])
-                            .filter(item => !getBtnCfg(item.id).hidden &&
-                                getCanonicalLabel(item.label) !== "Soundboard disabled when deafened" &&
-                                getCanonicalLabel(item.label) !== "Open Soundboard" &&
-                                getCanonicalLabel(item.label) !== "User Settings" &&
-                                getCanonicalLabel(item.label) !== "Panel Layout"
-                            )
-                            .map(item => {
-                                const cfg = getBtnCfg(item.id);
+                        return (
+                            <SubModalButton
+                                key={item.id}
+                                item={item}
+                                cfg={cfg}
+                                handleOpenSubModal={handleOpenSubModal}
+                            />
+                        );
+                    })}
+                </div>
+            )}
 
-                                return (
-                                    <SubModalButton
-                                        key={item.id}
-                                        item={item}
-                                        cfg={cfg}
-                                        handleOpenSubModal={handleOpenSubModal}
-                                    />
-                                );
-                            })}
-                    </div>
-                )}
+            <Flex gap={8} justifyContent="flex-end" style={{ width: "100%", marginTop: "var(--custom-modal-padding-md)" }}>
+                <div style={{ flex: 1 }} />
+                <Button variant="primary" onClick={() => modalProps.onClose()}>
+                    Done
+                </Button>
+            </Flex>
+        </Modal>
+    );
+}
+
+function SettingModalItem({
+    item,
+    label,
+    icon,
+    modalProps,
+    resetDefaults,
+    forceUpdate
+}: {
+    item: BtnItem;
+    label: any;
+    icon?: any;
+    modalProps: RenderModalProps;
+    resetDefaults: (arg: { id: any }) => void;
+    forceUpdate: () => void;
+}) {
+    const cfg = getBtnCfg(item.id);
+    const canonical = getCanonicalLabel(item.label);
+    const isUserSettings = canonical === "User Settings";
+    const isPanelLayout = canonical === "Panel Layout";
+    const isMute = canonical === "Mute";
+    const isDeafen = canonical === "Deafen";
+
+    const [targetSize, setTargetSize] = React.useState({ width: "36px", height: "36px" });
+    const [{ customNameplateNeutral, customNameplateNeutralHovered }, setNameplateVars] = React.useState<{
+        customNameplateNeutral: string | null;
+        customNameplateNeutralHovered: string | null;
+    }>({
+        customNameplateNeutral: null,
+        customNameplateNeutralHovered: null,
+    });
+
+    React.useLayoutEffect(() => {
+        let targetEl: Element | null = null;
+
+        if (typeof label === "string") {
+            targetEl =
+                document.querySelector(`${S.panelContainer} [data-deracul-label="${label}"]`) ||
+                document.querySelector(`${S.panelContainer} ${S.panelButton}`) ||
+                document.querySelector(S.panelButton);
+        } else if (label && "current" in label) {
+            targetEl = (label as React.RefObject<Element>).current;
+        } else if (label instanceof Element) {
+            targetEl = label;
+        } else {
+            targetEl =
+                document.querySelector(`${S.panelContainer} ${S.panelButton}`) ||
+                document.querySelector(S.panelButton);
+        }
+
+        if (!targetEl) return;
+
+        const computed = getComputedStyle(targetEl);
+        const neutral = computed.getPropertyValue("--custom-nameplate-neutral").trim();
+        const neutralHovered = computed.getPropertyValue("--custom-nameplate-neutral-hovered").trim();
+
+        setNameplateVars({
+            customNameplateNeutral: neutral || null,
+            customNameplateNeutralHovered: neutralHovered || null,
+        });
+
+        if (!label) return;
+
+        const buttonEl = document.querySelector<HTMLElement>(
+            `${S.panelContainer} [data-deracul-label="${label}"]`
+        ) || document.querySelector<HTMLElement>(
+            `${S.panelContainer} ${S.panelButton}[data-deracul-label="${label}"]`
+        );
+
+        if (!buttonEl) return;
+
+        const updateSize = () => {
+            const rect = buttonEl.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                setTargetSize({
+                    width: `${rect.width}px`,
+                    height: `${rect.height}px`,
+                });
+            }
+        };
+
+        updateSize();
+
+        const observer = new ResizeObserver(updateSize);
+        observer.observe(buttonEl);
+
+        return () => observer.disconnect();
+    }, [label]);
+
+    const isModified =
+        (cfg.color !== undefined && cfg.color !== "#5865f2") ||
+        (cfg.opacity !== undefined && cfg.opacity !== 100) ||
+        (cfg.radius !== undefined && cfg.radius !== 10) ||
+        (cfg.colorOff !== undefined && cfg.colorOff !== "#000000") ||
+        (cfg.opacityOff !== undefined && cfg.opacityOff !== 22) ||
+        (cfg.radiusOff !== undefined && cfg.radiusOff !== 10) ||
+        (cfg.colorfulActiveButton !== undefined && cfg.colorfulActiveButton !== false) ||
+        (cfg.colorfulInActiveButton !== undefined && cfg.colorfulInActiveButton !== false) ||
+        (cfg.keybind !== null);
+
+    return (
+        <Modal title={<BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>} {...modalProps} size="xl">
+            <ModalContent style={{ padding: "24px" }}>
+                <div className="deracul-scrollbar" style={{ overflow: "visible" }}>
+                    <Flex flexDirection="column" gap={16} style={{ overflow: "visible", height: "100%" }}>
+                        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "row-reverse", gap: "24px", overflow: "visible" }}>
+                            <div style={{ flex: 1 }}>
+                                {!isUserSettings && !isPanelLayout && (
+                                    <>
+                                        <FormSwitch title="Colorful InActive button" description={isMute || isDeafen ? "Enable a colorful background when enabled" : "Enable a colorful background when disabled"} value={cfg.colorfulInActiveButton ?? false} onChange={v => {
+                                            setBtnCfg(item.id, { colorfulInActiveButton: v });
+                                            apply(); forceUpdate();
+                                        }} />
+                                        {cfg.colorfulInActiveButton && (
+                                            <>
+                                                <Card>
+                                                    <div style={{ display: "grid", gap: "8px" }}>
+                                                    <ColorRow
+                                                        label="InActive blob background color"
+                                                        value={cfg.colorOff ?? "#000000"}
+                                                        onChange={e => {
+                                                            setBtnCfg(item.id, { colorOff: e });
+                                                            apply();
+                                                        }}
+                                                        onBlur={() => forceUpdate()}
+                                                    />
+                                                    <SliderRow
+                                                        label="Opacity"
+                                                        min={0}
+                                                        max={100}
+                                                        value={cfg.opacityOff ?? 22}
+                                                        onChange={v => {
+                                                            setBtnCfg(item.id, { opacityOff: Number(Math.round(v)) });
+                                                            apply(); forceUpdate();
+                                                        }}
+                                                        unit="%"
+                                                    />
+                                                    <SliderRow
+                                                        label="Radius"
+                                                        min={0}
+                                                        max={20}
+                                                        value={cfg.radiusOff ?? 10}
+                                                        onChange={v => {
+                                                            setBtnCfg(item.id, { radiusOff: Number(Math.round(v)) });
+                                                            apply(); forceUpdate();
+                                                        }}
+                                                        unit="px"
+                                                    />
+                                                    </div>
+                                                </Card>
+                                            </>
+                                        )}
+                                        <FormSwitch title="Colorful active button" description="Enable a colorful background when enabled" value={cfg.colorfulActiveButton ?? false} onChange={v => {
+                                            setBtnCfg(item.id, { colorfulActiveButton: v });
+                                            apply(); forceUpdate();
+                                        }} hideBorder={!cfg.colorfulActiveButton} />
+                                        {cfg.colorfulActiveButton && (
+                                            <>
+                                                <Card>
+                                                    <div style={{ display: "grid", gap: "8px" }}>
+                                                        <ColorRow
+                                                            label="Active blob background color"
+                                                            value={cfg.color ?? "#5865f2"}
+                                                            onChange={e => {
+                                                                setBtnCfg(item.id, { color: e });
+                                                                apply();
+                                                            }}
+                                                            onBlur={() => forceUpdate()}
+                                                        />
+                                                        <SliderRow
+                                                            label="Opacity"
+                                                            min={0}
+                                                            max={100}
+                                                            value={cfg.opacity ?? 100}
+                                                            onChange={v => {
+                                                                setBtnCfg(item.id, { opacity: Number(Math.round(v)) });
+                                                                apply(); forceUpdate();
+                                                            }}
+                                                            unit="%"
+                                                        />
+                                                        <SliderRow
+                                                            label="Radius"
+                                                            min={0}
+                                                            max={20}
+                                                            value={cfg.radius ?? 10}
+                                                            onChange={v => {
+                                                                setBtnCfg(item.id, { radius: Number(Math.round(v)) });
+                                                                apply(); forceUpdate();
+                                                            }}
+                                                            unit="px"
+                                                        />
+                                                    </div>
+                                                </Card>
+                                            </>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+
+                            {!isPanelLayout && !isUserSettings && (
+                                <div style={{ alignContent: "center", flexShrink: 0, borderRight: "1px solid rgba(255, 255, 255, 0.08)", padding: "12px 20px 12px 12px", overflow: "visible" }}>
+                                    <Flex flexDirection="column" alignItems="center" gap={16} className="previewButtonContainer" style={{ overflow: "visible" }}>
+                                        <Flex flexDirection="column" alignItems="center" gap={8}>
+                                            <BaseText size="xs" color="text-muted">OFF State</BaseText>
+                                            <button
+                                                className={!isMute && !isDeafen ? "buttonPreview previewButtonOff plateMuted__67645" : "buttonPreview previewButtonOff"}
+                                                data-deracul-label={cfg.label}
+                                                style={{
+                                                    "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
+                                                    "--custom-nameplate-neutral": customNameplateNeutral,
+                                                    width: targetSize.width,
+                                                    height: targetSize.height,
+                                                    background: "transparent",
+                                                    color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    userSelect: "none"
+                                                } as React.CSSProperties}
+                                            >
+                                                {isMute && (
+                                                    <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                                                )}
+                                                {isDeafen && (
+                                                    <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                                                )}
+                                                {!isMute && !isDeafen && (
+                                                    <SvgPreview icon={icon} enabled={false} />
+                                                )}
+                                            </button>
+                                        </Flex>
+
+                                        <Flex flexDirection="column" alignItems="center" gap={8} className="previewButtonContainer">
+                                            <BaseText size="xs" color="text-muted">ON State</BaseText>
+                                            <button
+                                                className={isMute || isDeafen ? "buttonPreview previewButtonOn button__201d5 lookBlank__201d5 plateMuted__67645" : "buttonPreview previewButtonOn button__201d5 lookBlank__201d5"}
+                                                data-deracul-label={cfg.label}
+                                                style={{
+                                                    "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
+                                                    "--custom-nameplate-neutral": customNameplateNeutral,
+                                                    width: targetSize.width,
+                                                    height: targetSize.height,
+                                                    background: "transparent",
+                                                    color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    userSelect: "none"
+                                                } as React.CSSProperties}
+                                            >
+                                                {isMute && (
+                                                    <span dangerouslySetInnerHTML={{ __html: svgs.muteOn }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" } as React.CSSProperties} />
+                                                )}
+                                                {isDeafen && (
+                                                    <span dangerouslySetInnerHTML={{ __html: svgs.deafenOn }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" } as React.CSSProperties} />
+                                                )}
+                                                {!isMute && !isDeafen && (
+                                                    <SvgPreview icon={icon} enabled={true} />
+                                                )}
+                                            </button>
+                                        </Flex>
+                                    </Flex>
+                                </div>
+                            )}
+                        </div>
+                    </Flex>
+                </div>
             </ModalContent>
 
-            <ModalFooter>
+            <ModalFooter style={{ paddingRight: 0, paddingLeft: 0 }}>
                 <Flex gap={8} justifyContent="flex-end" style={{ width: "100%" }}>
+                    {isModified && (
+                        <Button variant="secondary" onClick={() => resetDefaults({ id: item.id })}>
+                            Reset to Defaults
+                        </Button>
+                    )}
                     <div style={{ flex: 1 }} />
                     <Button variant="primary" onClick={() => modalProps.onClose()}>
                         Done
                     </Button>
                 </Flex>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 
 function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProps; label: any; icon?: any; }) {
-    const [targetSize, setTargetSize] = React.useState({ width: "36px", height: "36px" });
     const [listeningId, setListeningId] = React.useState<string | null>(null);
     const [items] = React.useState<BtnItem[]>(getBtnItems());
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
@@ -1734,7 +2157,8 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
         });
 
         setResetKey(prev => prev + 1);
-        apply(); forceUpdate();
+        apply();
+        forceUpdate();
     }
 
     React.useEffect(() => {
@@ -1774,294 +2198,22 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
         };
     }, [listeningId]);
 
+    const filteredItems = items.filter(item => item.label === label);
+
     return (
-        <ModalRoot {...modalProps} size={ModalSize.LARGE} className="PanelLayoutModal">
-            {items.filter(item => item.label === label).map(item => {
-                const cfg = getBtnCfg(item.id);
-                const canonical = getCanonicalLabel(item.label);
-                const isUserSettings = canonical === "User Settings";
-                const isPanelLayout = canonical === "Panel Layout";
-                const isMute = canonical === "Mute";
-                const isDeafen = canonical === "Deafen";
-
-                const [{ customNameplateNeutral, customNameplateNeutralHovered }, setNameplateVars] = React.useState<{
-                    customNameplateNeutral: string | null;
-                    customNameplateNeutralHovered: string | null;
-                }>({
-                    customNameplateNeutral: null,
-                    customNameplateNeutralHovered: null,
-                });
-
-                React.useLayoutEffect(() => {
-                    // 1. Resolve target element (supports string label, React ref, DOM element, or panel button fallback)
-                    let targetEl: Element | null = null;
-
-                    if (typeof label === "string") {
-                        targetEl =
-                            document.querySelector(`${S.panelContainer} [data-deracul-label="${label}"]`) ||
-                            document.querySelector(`${S.panelContainer} ${S.panelButton}`) ||
-                            document.querySelector(S.panelButton);
-                    } else if (label && "current" in label) {
-                        targetEl = (label as React.RefObject<Element>).current;
-                    } else if (label instanceof Element) {
-                        targetEl = label;
-                    } else {
-                        targetEl =
-                            document.querySelector(`${S.panelContainer} ${S.panelButton}`) ||
-                            document.querySelector(S.panelButton);
-                    }
-
-                    if (!targetEl) return;
-
-                    // 2. Read computed CSS custom properties after DOM layout
-                    const computed = getComputedStyle(targetEl);
-                    const neutral = computed.getPropertyValue("--custom-nameplate-neutral").trim();
-                    const neutralHovered = computed.getPropertyValue("--custom-nameplate-neutral-hovered").trim();
-
-                    setNameplateVars({
-                        customNameplateNeutral: neutral || null,
-                        customNameplateNeutralHovered: neutralHovered || null,
-                    });
-
-                    if (!label) return;
-
-                    // Build query using S.panelContainer and the data attribute (or S.panelButton)
-                    const buttonEl = document.querySelector<HTMLElement>(
-                        `${S.panelContainer} [data-deracul-label="${label}"]`
-                    ) || document.querySelector<HTMLElement>(
-                        `${S.panelContainer} ${S.panelButton}[data-deracul-label="${label}"]`
-                    );
-
-                    if (!buttonEl) return;
-
-                    const updateSize = () => {
-                        const rect = buttonEl.getBoundingClientRect();
-                        if (rect.width > 0 && rect.height > 0) {
-                            setTargetSize({
-                                width: `${rect.width}px`,
-                                height: `${rect.height}px`,
-                            });
-                        }
-                    };
-
-                    updateSize();
-
-                    // Recalculate if the button size updates dynamically
-                    const observer = new ResizeObserver(updateSize);
-                    observer.observe(buttonEl);
-
-                    return () => observer.disconnect();
-                }, []);
-
-                function hexToRgba(hex: string, alpha: number) {
-                    const cleanHex = hex.replace("#", "");
-                    const bigint = parseInt(cleanHex.length === 3 ? cleanHex.split("").map(c => c + c).join("") : cleanHex, 16);
-                    const r = (bigint >> 16) & 255;
-                    const g = (bigint >> 8) & 255;
-                    const b = bigint & 255;
-                    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-                }
-
-                const isModified =
-                    (cfg.color !== undefined && cfg.color !== "#5865f2") ||
-                    (cfg.opacity !== undefined && cfg.opacity !== 100) ||
-                    (cfg.radius !== undefined && cfg.radius !== 10) ||
-                    (cfg.colorOff !== undefined && cfg.colorOff !== "#000000") ||
-                    (cfg.opacityOff !== undefined && cfg.opacityOff !== 22) ||
-                    (cfg.radiusOff !== undefined && cfg.radiusOff !== 10) ||
-                    (cfg.colorfulActiveButton !== undefined && cfg.colorfulActiveButton !== false) ||
-                    (cfg.colorfulInActiveButton !== undefined && cfg.colorfulInActiveButton !== false) ||
-                    (cfg.keybind !== null);
-
-                return (
-                    <React.Fragment key={item.id}>
-                        <ModalHeader>
-                            <BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>
-                        </ModalHeader>
-
-                        <ModalContent style={{ padding: "24px" }}>
-                            <div className="deracul-scrollbar" style={{ overflow: "visible" }}>
-                                <Flex flexDirection="column" gap={16} style={{ overflow: "visible", height: "100%" }}>
-                                    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "row-reverse", gap: "24px", overflow: "visible" }}>
-                                        <div style={{ flex: 1 }}>
-                                            {!isUserSettings && !isPanelLayout && (
-                                                <>
-                                                    <>
-                                                        <FormSwitch title="Colorful InActive button" description={isMute || isDeafen ? "Enable a colorful background when enabled" : "Enable a colorful background when disabled"} value={cfg.colorfulInActiveButton ?? false} onChange={v => {
-                                                            setBtnCfg(item.id, { colorfulInActiveButton: v });
-                                                            apply(); forceUpdate();
-                                                        }} />
-                                                        {cfg.colorfulInActiveButton && (
-                                                            <>
-                                                                <ColorRow
-                                                                    label="InActive blob background color"
-                                                                    value={cfg.colorOff ?? "#000000"}
-                                                                    onChange={e => {
-                                                                        setBtnCfg(item.id, { colorOff: e });
-                                                                        apply();
-                                                                    }}
-                                                                    onBlur={() => forceUpdate()}
-                                                                />
-                                                                <SliderRow
-                                                                    label="Opacity"
-                                                                    min={0}
-                                                                    max={100}
-                                                                    value={cfg.opacityOff ?? 22}
-                                                                    onChange={v => {
-                                                                        setBtnCfg(item.id, { opacityOff: Number(Math.round(v)) });
-                                                                        apply(); forceUpdate();
-                                                                    }}
-                                                                    unit="%"
-                                                                />
-                                                                <SliderRow
-                                                                    label="Radius"
-                                                                    min={0}
-                                                                    max={20}
-                                                                    value={cfg.radiusOff ?? 10}
-                                                                    onChange={v => {
-                                                                        setBtnCfg(item.id, { radiusOff: Number(Math.round(v)) });
-                                                                        apply(); forceUpdate();
-                                                                    }}
-                                                                    unit="px"
-                                                                />
-                                                            </>
-                                                        )}
-                                                    </>
-                                                    <FormSwitch title="Colorful active button" description="Enable a colorful background when enabled" value={cfg.colorfulActiveButton ?? false} onChange={v => {
-                                                        setBtnCfg(item.id, { colorfulActiveButton: v });
-                                                        apply(); forceUpdate();
-                                                    }} hideBorder={!cfg.colorfulActiveButton} />
-                                                    {cfg.colorfulActiveButton && (
-                                                        <>
-                                                            <ColorRow
-                                                                label="Active blob background color"
-                                                                value={cfg.color ?? "#5865f2"}
-                                                                onChange={e => {
-                                                                    setBtnCfg(item.id, { color: e });
-                                                                    apply();
-                                                                }}
-                                                                onBlur={() => forceUpdate()}
-                                                            />
-                                                            <SliderRow
-                                                                label="Opacity"
-                                                                min={0}
-                                                                max={100}
-                                                                value={cfg.opacity ?? 100}
-                                                                onChange={v => {
-                                                                    setBtnCfg(item.id, { opacity: Number(Math.round(v)) });
-                                                                    apply(); forceUpdate();
-                                                                }}
-                                                                unit="%"
-                                                            />
-                                                            <SliderRow
-                                                                label="Radius"
-                                                                min={0}
-                                                                max={20}
-                                                                value={cfg.radius ?? 10}
-                                                                onChange={v => {
-                                                                    setBtnCfg(item.id, { radius: Number(Math.round(v)) });
-                                                                    apply(); forceUpdate();
-                                                                }}
-                                                                unit="px"
-                                                            />
-                                                        </>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-
-                                        {!isPanelLayout && !isUserSettings && (
-                                            <div style={{ alignContent: "center", flexShrink: 0, borderRight: "1px solid rgba(255, 255, 255, 0.08)", padding: "12px 20px 12px 12px", overflow: "visible" }}>
-                                                <Flex flexDirection="column" alignItems="center" gap={16} className="previewButtonContainer" style={{ overflow: "visible" }}>
-                                                    <Flex flexDirection="column" alignItems="center" gap={8}>
-                                                        <BaseText size="xs" color="text-muted">OFF State</BaseText>
-                                                        <button
-                                                            className={!isMute && !isDeafen ? "buttonPreview previewButtonOff plateMuted__67645" : "buttonPreview previewButtonOff"}
-                                                            data-deracul-label={cfg.label}
-                                                            style={{
-                                                                "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
-                                                                "--custom-nameplate-neutral": customNameplateNeutral,
-                                                                width: targetSize.width,
-                                                                height: targetSize.height,
-                                                                background: "transparent",
-                                                                color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                justifyContent: "center",
-                                                                userSelect: "none"
-                                                            } as React.CSSProperties}
-                                                        >
-                                                            {isMute && (
-                                                                <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                                                            )}
-
-                                                            {isDeafen && (
-                                                                <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                                                            )}
-
-                                                            {!isMute && !isDeafen && (
-                                                                <SvgPreview icon={icon} enabled={false} />
-                                                            )}
-                                                        </button>
-                                                    </Flex>
-
-                                                    <Flex flexDirection="column" alignItems="center" gap={8} className="previewButtonContainer">
-                                                        <BaseText size="xs" color="text-muted">ON State</BaseText>
-                                                        <button
-                                                            className={isMute || isDeafen ? "buttonPreview previewButtonOn button__201d5 lookBlank__201d5 plateMuted__67645" : "buttonPreview previewButtonOn button__201d5 lookBlank__201d5"}
-                                                            data-deracul-label={cfg.label}
-                                                            style={{
-                                                                "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
-                                                                "--custom-nameplate-neutral": customNameplateNeutral,
-                                                                width: targetSize.width,
-                                                                height: targetSize.height,
-                                                                background: "transparent",
-                                                                color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                justifyContent: "center",
-                                                                userSelect: "none"
-                                                            } as React.CSSProperties}
-                                                        >
-                                                            {isMute && (
-                                                                <span dangerouslySetInnerHTML={{ __html: svgs.muteOn }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" } as React.CSSProperties} />
-                                                            )}
-
-                                                            {isDeafen && (
-                                                                <span dangerouslySetInnerHTML={{ __html: svgs.deafenOn }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" } as React.CSSProperties} />
-                                                            )}
-
-                                                            {!isMute && !isDeafen && (
-                                                                <SvgPreview icon={icon} enabled={true} />
-                                                            )}
-                                                        </button>
-                                                    </Flex>
-                                                </Flex>
-                                            </div>
-                                        )}
-                                    </div>
-                                </Flex>
-                            </div>
-                        </ModalContent>
-
-                        <ModalFooter>
-                            <Flex gap={8} justifyContent="flex-end" style={{ width: "100%" }}>
-                                {isModified && (
-                                    <Button variant="secondary" onClick={() => resetDefaults({ id: item.id })}>
-                                        Reset to Defaults
-                                    </Button>
-                                )}
-
-                                <div style={{ flex: 1 }} />
-                                <Button variant="primary" onClick={() => modalProps.onClose()}>
-                                    Done
-                                </Button>
-                            </Flex>
-                        </ModalFooter>
-                    </React.Fragment>
-                );
-            })}
-        </ModalRoot>
+        <>
+            {filteredItems.map(item => (
+                <SettingModalItem
+                    key={item.id}
+                    item={item}
+                    label={label}
+                    icon={icon}
+                    modalProps={modalProps}
+                    resetDefaults={resetDefaults}
+                    forceUpdate={forceUpdate}
+                />
+            ))}
+        </>
     );
 }
 
@@ -2100,13 +2252,15 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
     }
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.LARGE}>
-            <ModalHeader separator={false} style={{ padding: "24px 24px 0 24px", display: "flex", flexDirection: "column", position: "relative" }}>
-                <Flex gap={12} alignItems="center" style={{ width: "100%", paddingRight: "36px" }}>
+        <Modal title={
+        <>
+            <Flex gap={12} alignItems="center" style={{ width: "100%", paddingRight: "36px" }}>
                     <div style={{
                         display: "flex", alignItems: "center", justifyContent: "center",
                         width: "40px", height: "40px", borderRadius: "12px",
-                        background: "var(--brand-experiment, var(--background-brand))", color: "white"
+                        background: "linear-gradient(160deg, color-mix(in srgb, var(--brand-experiment, var(--background-brand)) 100%, white 12%), var(--brand-experiment, var(--background-brand)))",
+                        boxShadow: "0 4px 14px -4px color-mix(in srgb, var(--brand-experiment, var(--background-brand)) 65%, transparent)",
+                        color: "white",
                     }}>
                         <PanelLayoutIcon />
                     </div>
@@ -2120,37 +2274,52 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                     </div>
                 </Flex>
 
-                <Flex gap={24} style={{ marginTop: "24px", borderBottom: "1px solid var(--background-modifier-accent, var(--border-muted))", width: "100%" }}>
-                    {tabsList.map(t => (
-                        <div
-                            key={t.id}
-                            onClick={() => setTab(t.id)}
-                            style={{
-                                paddingBottom: "12px",
-                                cursor: "pointer",
-                                borderBottom: tab === t.id ? "2px solid var(--brand-experiment, var(--background-brand))" : "2px solid transparent",
-                                transition: "all 0.15s ease",
-                            }}
-                        >
-                            <BaseText size="md" weight={tab === t.id ? "semibold" : "medium"} color={tab === t.id ? "text-strong" : "text-muted"}>
-                                {t.label}
-                            </BaseText>
-                        </div>
-                    ))}
+                <Flex gap={4} style={{ marginTop: "24px", borderBottom: "1px solid var(--background-modifier-accent, var(--border-muted))", width: "100%" }}>
+                    {tabsList.map(t => {
+                        const Icon = TAB_ICONS[t.id];
+                        const active = tab === t.id;
+                        return (
+                            <div
+                                key={t.id}
+                                onClick={() => setTab(t.id)}
+                                style={{
+                                    display: "flex", alignItems: "center", gap: "6px",
+                                    padding: "8px 12px", marginBottom: "-1px",
+                                    cursor: "pointer", borderRadius: "6px 6px 0 0",
+                                    borderBottom: active ? "2px solid var(--brand-experiment, var(--background-brand))" : "2px solid transparent",
+                                    backgroundColor: "transparent",
+                                    transition: "background-color 0.15s ease, border-color 0.15s ease",
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = active
+                                        ? "transparent"
+                                        : "var(--background-modifier-hover, var(--background-mod-subtle))";
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = "transparent";
+                                }}
+                            >
+                                <span style={{ display: "flex", color: active ? "var(--brand-experiment, var(--background-brand))" : "var(--text-muted)", transition: "color 0.15s ease" }}>
+                                    <Icon />
+                                </span>
+                                <BaseText size="md" weight={active ? "semibold" : "medium"} color={active ? "text-strong" : "text-muted"}>
+                                    {t.label}
+                                </BaseText>
+                            </div>
+                        );
+                    })}
                 </Flex>
-            </ModalHeader>
-
-            <ModalContent style={{ padding: "24px" }}>
+        </>} {...modalProps} size="xl">
                 <div className="deracul-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px" }}>
                     <Flex flexDirection="column" gap={16}>
 
                         {tab === "panel" && <>
-                            <Heading tag="h5">Layout Structure</Heading>
+                            <SectionHeading>Layout Structure</SectionHeading>
                             <Card variant="primary">
                                 <Dropdown label="User Panel Alignment" options={PANEL_LAYOUTS} value={s.userPanelLayout} onChange={v => set("userPanelLayout", v)} />
                             </Card>
 
-                            <Heading tag="h5">Component Dimensions</Heading>
+                            <SectionHeading>Component Dimensions</SectionHeading>
                             <Card variant="primary">
                                 <SliderRow label="Button Box Size" value={s.buttonContainerSize} min={24} max={48} onChange={v => set("buttonContainerSize", Math.round(v))} resetKey={resetKey} />
                                 <SliderRow label="Vector Icon Size" value={s.iconSize} min={12} max={28} onChange={v => set("iconSize", Math.round(v))} resetKey={resetKey} />
@@ -2158,7 +2327,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                 <SliderRow label="Idle Opacity" value={s.panelOpacity} min={10} max={100} unit="%" onChange={v => set("panelOpacity", Math.round(v))} resetKey={resetKey} />
                             </Card>
 
-                            <Heading tag="h5">Extra Features</Heading>
+                            <SectionHeading>Extra Features</SectionHeading>
                             <Card variant="primary">
                                 <FormSwitch title="Hide Dropdown Chevrons" description="Removes the tiny arrows next to Mute/Deafen." value={s.hideChevrons} onChange={v => set("hideChevrons", v)} />
                                 <FormSwitch title="Lock Button Position" description="Prevents Mute, Deafen, and Settings buttons from dropping down to a new row when you have a long status or share screen." value={s.lockButtonPosition} onChange={v => set("lockButtonPosition", v)} />
@@ -2168,12 +2337,12 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         </>}
 
                         {tab === "call" && <>
-                            <Heading tag="h5">Action Bar Layout</Heading>
+                            <SectionHeading>Action Bar Layout</SectionHeading>
                             <Card variant="primary">
                                 <Dropdown label="Call Controls Alignment" options={CALL_LAYOUTS} value={s.callControlsLayout} onChange={v => set("callControlsLayout", v)} />
                             </Card>
 
-                            <Heading tag="h5">Voice Settings</Heading>
+                            <SectionHeading>Voice Settings</SectionHeading>
                             <Card variant="primary">
                                 <FormSwitch title="Compact Mode" description="Reduces padding inside call buttons to save space." value={s.callCompact} onChange={v => set("callCompact", v)} />
                                 <FormSwitch title="Hide Disconnect Button" value={s.hideDisconnect} onChange={v => set("hideDisconnect", v)} />
@@ -2183,7 +2352,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         </>}
 
                         {tab === "style" && <>
-                            <Heading tag="h5">Aesthetics</Heading>
+                            <SectionHeading>Aesthetics</SectionHeading>
                             <Card variant="primary">
                                 <Dropdown label="Button Base Style" options={BUTTON_STYLES} value={s.buttonStyle} onChange={v => set("buttonStyle", v)} />
                                 <Dropdown label="Interaction Hover Effect" options={HOVER_EFFECTS} value={s.hoverEffect} onChange={v => set("hoverEffect", v)} />
@@ -2191,30 +2360,32 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         </>}
 
                         {tab === "colors" && <>
-                            <Heading tag="h5">Panel Colors</Heading>
+                            <SectionHeading>Panel Colors</SectionHeading>
                             <Card variant="primary">
-                                <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} />
+                                <div style={{ display: "grid", gap: "8px" }}>
+                                    <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} />
 
-                                {settings.store.hoverEffect === "glow" && <>
-                                    <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} />
-                                </>}
+                                    {settings.store.hoverEffect === "glow" && <>
+                                        <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} />
+                                    </>}
+                                </div>
                             </Card>
 
-                            <Heading tag="h5">Native Buttons</Heading>
+                            <SectionHeading>Native Buttons</SectionHeading>
                             <Card variant="primary">
                                 <FormSwitch title="Force Icon Color" description="Applies the icon color to Discord's native Mute, Deafen, and Settings buttons even when no custom icon color is set in TestcordHelper." value={s.forceNativeButtonColor} onChange={v => set("forceNativeButtonColor", v)} hideBorder />
                             </Card>
                         </>}
 
                         {tab === "hide" && <>
-                            <Heading tag="h5">Standard Buttons</Heading>
+                            <SectionHeading>Standard Buttons</SectionHeading>
                             <Card variant="primary">
                                 <FormSwitch title="Hide Mute" value={s.hideMute} onChange={v => set("hideMute", v)} />
                                 <FormSwitch title="Hide Deafen" value={s.hideDeafen} onChange={v => set("hideDeafen", v)} />
                                 <FormSwitch title="Hide User Settings" value={s.hideSettings} onChange={v => set("hideSettings", v)} hideBorder />
                             </Card>
 
-                            <Heading tag="h5">Call Buttons</Heading>
+                            <SectionHeading>Call Buttons</SectionHeading>
                             <Card variant="primary">
                                 <FormSwitch title="Hide Camera" value={s.hideCamera} onChange={v => set("hideCamera", v)} />
                                 <FormSwitch title="Hide Screen Share" value={s.hideScreenShare} onChange={v => set("hideScreenShare", v)} />
@@ -2223,13 +2394,12 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         </>}
 
                         {tab === "drag" && <>
-                            <Heading tag="h5">Button Order & Hotkeys & Grouping</Heading>
+                            <SectionHeading>Button Order & Hotkeys & Grouping</SectionHeading>
                             <ButtonsDragTab />
                         </>}
 
                     </Flex>
                 </div>
-            </ModalContent>
 
             <ModalFooter>
                 <Flex gap={8} justifyContent="flex-end" style={{ width: "100%" }}>
@@ -2242,7 +2412,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                     </Button>
                 </Flex>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 

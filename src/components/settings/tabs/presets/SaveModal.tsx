@@ -7,8 +7,8 @@
 import { Button } from "@components/Button";
 import { FormSwitch } from "@components/FormSwitch";
 import { Paragraph } from "@components/Paragraph";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, type RenderModalProps } from "@utils/modal";
-import { React, TextInput } from "@webpack/common";
+import { ModalContent, ModalFooter, openModal, type RenderModalProps } from "@utils/modal";
+import { Modal, React, TextInput } from "@webpack/common";
 
 import type { ScopeKey } from "./presets";
 
@@ -36,30 +36,26 @@ function SaveModal({ modalProps, initialName, onSave }: { modalProps: RenderModa
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM}>
-            <ModalHeader className="vc-presets-modal-header">
-                <h2 className="vc-presets-modal-title">Save current as preset</h2>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+        <Modal title={<h2 className="vc-presets-modal-title">Save current as preset</h2>} {...modalProps} size="lg">
             <ModalContent className="vc-presets-modal-content">
                 <TextInput value={name} onChange={setName} placeholder="Preset name" autoFocus />
                 <Paragraph className="vc-presets-dim">Choose what this preset captures:</Paragraph>
-                {SCOPES.map(s => (
+                {SCOPES.map((s, index) => (
                     <FormSwitch
                         key={s.key}
                         value={scope[s.key]}
                         onChange={v => toggle(s.key, v)}
                         title={s.label}
                         description={s.warn && scope[s.key] ? `⚠ ${s.description}` : s.description}
+                        hideBorder={index === SCOPES.length - 1}
                     />
                 ))}
                 {selected.length === 0 && <Paragraph className="vc-presets-modal-invalid">Pick at least one thing to save.</Paragraph>}
             </ModalContent>
             <ModalFooter className="vc-presets-modal-footer">
                 <Button onClick={submit} disabled={!canSave}>Save</Button>
-                <Button variant="secondary" onClick={modalProps.onClose}>Cancel</Button>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 

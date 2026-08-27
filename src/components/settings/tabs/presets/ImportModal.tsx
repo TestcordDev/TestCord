@@ -6,9 +6,9 @@
 
 import { Button } from "@components/Button";
 import { Paragraph } from "@components/Paragraph";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, type RenderModalProps } from "@utils/modal";
+import { ModalContent, ModalFooter, openModal, type RenderModalProps } from "@utils/modal";
 import { chooseFile } from "@utils/web";
-import { Alerts, React, showToast, TextArea, TextInput, Toasts } from "@webpack/common";
+import { Alerts, Modal, React, showToast, TextArea, TextInput, Toasts } from "@webpack/common";
 
 import { hasPreset, importPresetObject, Preset, validatePreset } from "./presets";
 
@@ -69,11 +69,7 @@ function ImportModal({ modalProps, onImported }: { modalProps: RenderModalProps;
     const enabledCount = preview ? Object.values(preview.plugins).filter(p => p.enabled).length : 0;
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM}>
-            <ModalHeader className="vc-presets-modal-header">
-                <h2 className="vc-presets-modal-title">Import preset</h2>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+        <Modal title={<h2 className="vc-presets-modal-title">Import preset</h2>} {...modalProps} size="lg">
             <ModalContent className="vc-presets-modal-content">
                 <Paragraph>Paste a preset string, or open a <code>.json</code> file.</Paragraph>
                 <TextArea
@@ -108,7 +104,7 @@ function ImportModal({ modalProps, onImported }: { modalProps: RenderModalProps;
                 <Button onClick={doImport} disabled={!preview || !effectiveName.trim()}>Import</Button>
                 <Button variant="secondary" onClick={modalProps.onClose}>Cancel</Button>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 

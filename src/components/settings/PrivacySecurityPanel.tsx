@@ -9,7 +9,7 @@ import "./PrivacySecurityPanel.css";
 import { useSettings } from "@api/Settings";
 import { Card } from "@components/Card";
 import { SettingsTab } from "@components/settings/tabs/BaseTab";
-import { React, TabBar, useEffect, useRef, useState } from "@webpack/common";
+import { Modal, openModal, React, TabBar, useEffect, useRef, useState } from "@webpack/common";
 
 import { ExperimentalPanel } from "./ExperimentalPanel";
 
@@ -283,6 +283,7 @@ export function PrivacySecurityPanel() {
         setCopiedField(field);
         setTimeout(() => setCopiedField(prev => (prev === field ? null : prev)), 1500);
     };
+
     // Custom Dropdown State & Ref
     const [isDnsOpen, setIsDnsOpen] = useState(false);
     const selectRef = useRef<HTMLDivElement>(null);
@@ -306,7 +307,6 @@ export function PrivacySecurityPanel() {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key !== "Escape") return;
             setSelectedBlock(null);
-            setIsAllowedModalOpen(false);
             setIsDnsOpen(false);
             setIsLimitOpen(false);
             setIsAllowedRouteOpen(false);
@@ -388,9 +388,6 @@ export function PrivacySecurityPanel() {
     });
     const [selectedDns, setSelectedDns] = useState("Cloudflare 1.1.1.1");
     const [activeTestBtn, setActiveTestBtn] = useState<"doh" | "dot" | "auto" | null>(null);
-    // Whether the main-process encrypted DNS engine is enabled (gated by the
-    // Custom DNS toggle) and whether the renderer CustomDNS engine is the one
-    // actively resolving traffic.
     const [dnsEngineEnabled, setDnsEngineEnabled] = useState(true);
     const [rendererDnsActive, setRendererDnsActive] = useState(false);
     const [nativeCalls, setNativeCalls] = useState(0);
@@ -471,7 +468,6 @@ export function PrivacySecurityPanel() {
 
     // Allowed Requests Inspector State
     const [allowedLogs, setAllowedLogs] = useState<AllowedEventLog[]>([]);
-    const [isAllowedModalOpen, setIsAllowedModalOpen] = useState(false);
     const [allowedSearchQuery, setAllowedSearchQuery] = useState("");
     const [selectedAllowedRoute, setSelectedAllowedRoute] = useState<string>("all");
 
@@ -508,7 +504,6 @@ export function PrivacySecurityPanel() {
             }
             setIpcError(false);
         } catch {
-            // Surface the failure instead of silently showing stale defaults.
             setIpcError(true);
         } finally {
             setLoading(false);
@@ -796,6 +791,351 @@ export function PrivacySecurityPanel() {
         settings.plugins.CustomDNS.rewriteFetch = !dnsRewrite;
     };
 
+    function openmodal() {
+        openModal(modalProps => (
+            <Modal
+                title={
+                <>
+                    <div className="ps-block-modal-title-group">
+                        <span className="ps-badge ps-badge-green">Allowed Outbound Traffic</span>
+                        <h3 className="ps-block-modal-title" style={{ margin: "4px 0 0 0" }}>Allowed Outbound Requests Inspector</h3>
+                    </div>
+                </>}
+                role="dialog"
+                size="xl"
+                {...modalProps}
+            >
+
+                <div className="ps-block-modal-body ps-allowed-modal-body" style={{ maxHeight: "68vh", overflowY: "auto", padding: "16px" }}>
+                    {/* Controls: Search, Route Filter & Clear */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center", flex: 1, minWidth: "240px" }}>
+                            <input
+                                type="text"
+                                className="ps-search-input"
+                                placeholder="Search allowed requests by URL, domain, or method..."
+                                value={allowedSearchQuery}
+                                onChange={e => setAllowedSearchQuery(e.target.value)}
+                                style={{ width: "100%", padding: "6px 12px", borderRadius: "6px", fontSize: "13px" }}
+                            />
+                            {allowedSearchQuery && (
+                                <button
+                                    type="button"
+                                    className="ps-search-clear"
+                                    onClick={() => setAllowedSearchQuery("")}
+                                >
+                                    ✕
+                                </button>
+                            )}
+                        </div>
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <div className="ps-custom-select-wrapper" ref={allowedRouteSelectRef} style={{ width: "190px" }}>
+                                <button
+                                    type="button"
+                                    className={`ps-custom-select-trigger ${isAllowedRouteOpen ? "ps-custom-select-open" : ""}`}
+                                    onClick={() => setIsAllowedRouteOpen(!isAllowedRouteOpen)}
+                                >
+                                    <span className="ps-custom-select-value">
+                                        {selectedAllowedRoute === "all" ? "All Outbound Routes" : selectedAllowedRoute}
+                                    </span>
+                                    <svg
+                                        className={`ps-custom-select-chevron ${isAllowedRouteOpen ? "ps-chevron-rotated" : ""}`}
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
+                                        <polyline points="6 9 12 15 18 9" />
+                                    </svg>
+                                </button>
+
+                                {isAllowedRouteOpen && (
+                                    <div className="ps-custom-select-menu">
+                                        <div
+                                            className={`ps-custom-select-item ${selectedAllowedRoute === "all" ? "ps-custom-select-item-selected" : ""}`}
+                                            onClick={() => {
+                                                setSelectedAllowedRoute("all");
+                                                setIsAllowedRouteOpen(false);
+                                            }}
+                                        >
+                                            <span>All Outbound Routes</span>
+                                            {selectedAllowedRoute === "all" && (
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="20 6 9 17 4 12" />
+                                                </svg>
+                                            )}
+                                        </div>
+                                        {outboundRoutes.map(r => {
+                                            const isSelected = r.title === selectedAllowedRoute;
+                                            return (
+                                                <div
+                                                    key={r.id}
+                                                    className={`ps-custom-select-item ${isSelected ? "ps-custom-select-item-selected" : ""}`}
+                                                    onClick={() => {
+                                                        setSelectedAllowedRoute(r.title);
+                                                        setIsAllowedRouteOpen(false);
+                                                    }}
+                                                >
+                                                    <span>{r.title}</span>
+                                                    {isSelected && (
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="20 6 9 17 4 12" />
+                                                        </svg>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                className="ps-btn ps-btn-stop"
+                                style={{ padding: "6px 12px", fontSize: "12px" }}
+                                onClick={async () => {
+                                    if (VencordNative?.privacy?.clearAllowedLogs) {
+                                        await VencordNative.privacy.clearAllowedLogs();
+                                        setAllowedLogs([]);
+                                    }
+                                }}
+                            >
+                                Clear Logs
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Allowed Requests List */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        {filteredAllowedLogs.length > 0 ? (
+                            filteredAllowedLogs.map(log => (
+                                <div
+                                    key={log.id}
+                                    style={{
+                                        background: "var(--background-secondary-alt, #1e1f22)",
+                                        border: "1px solid var(--background-tertiary, #313338)",
+                                        borderRadius: "8px",
+                                        padding: "10px 14px",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "4px"
+                                    }}
+                                >
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                            <span
+                                                style={{
+                                                    background: log.method === "POST" ? "rgba(88, 101, 242, 0.2)" : "rgba(35, 165, 90, 0.2)",
+                                                    color: log.method === "POST" ? "#5865f2" : "#23a55a",
+                                                    fontSize: "11px",
+                                                    fontWeight: 700,
+                                                    padding: "2px 6px",
+                                                    borderRadius: "4px",
+                                                    fontFamily: "monospace"
+                                                }}
+                                            >
+                                                {log.method}
+                                            </span>
+                                            <span style={{ fontWeight: 600, color: "var(--header-primary, #f2f3f5)", fontSize: "13px" }}>
+                                                {log.domain}
+                                            </span>
+                                            <span className="ps-badge ps-badge-xs ps-badge-blue">
+                                                {log.routeGroup || "Outbound"}
+                                            </span>
+                                        </div>
+                                        <span style={{ fontSize: "11px", color: "var(--text-muted, #949ba4)" }}>
+                                            {formatTimeAgo(log.timestamp)}
+                                        </span>
+                                    </div>
+                                    <div
+                                        className="ps-mono"
+                                        onClick={() => copyToClipboard(log.url, log.id)}
+                                        style={{
+                                            fontSize: "11px",
+                                            color: "var(--text-muted, #949ba4)",
+                                            wordBreak: "break-all",
+                                            cursor: "pointer"
+                                        }}
+                                        title="Click to copy full request URL"
+                                    >
+                                        {log.url} {copiedField === log.id && <span style={{ color: "#23a55a", marginLeft: "6px" }}>✓ Copied</span>}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="ps-no-results" style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)" }}>
+                                No allowed requests recorded matching criteria.
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="ps-block-modal-footer">
+                    <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                        Showing {filteredAllowedLogs.length} of {allowedLogs.length} allowed requests
+                    </span>
+                    <button
+                        type="button"
+                        className="ps-btn"
+                        onClick={() => modalProps.onClose()}
+                    >
+                        Close
+                    </button>
+                </div>
+            </Modal>
+        ));
+    }
+
+    function selectedBlockModal() {
+        if (selectedBlock) {
+            openModal(modalProps => (
+                <Modal
+                    role="dialog"
+                    aria-modal="true"
+                    title={
+                    <>
+                        <div className="ps-block-modal-header">
+                            <div className="ps-block-modal-title-group">
+                                <span className="ps-block-category-tag">{getCategoryLabel(selectedBlock.category)}</span>
+                                <h3 className="ps-block-modal-title">{getEventTitle(selectedBlock)}</h3>
+                            </div>
+                        </div>
+                    </>}
+                    {...modalProps}
+                >
+                    <div className="ps-block-modal-body">
+                        <p className="ps-block-modal-explain">{getCategoryExplanation(selectedBlock.category)}</p>
+
+                        <div className="ps-block-detail-grid">
+                            <div className="ps-block-detail-row">
+                                <span className="ps-block-detail-key">Action</span>
+                                <span className="ps-block-detail-val">{selectedBlock.action}</span>
+                            </div>
+                            <div className="ps-block-detail-row">
+                                <span className="ps-block-detail-key">Category</span>
+                                <span className="ps-block-detail-val">{selectedBlock.category}</span>
+                            </div>
+                            <div className="ps-block-detail-row">
+                                <span className="ps-block-detail-key">Caught by</span>
+                                <span className="ps-block-detail-val">{getShieldForCategory(selectedBlock.category)}</span>
+                            </div>
+                            <div className="ps-block-detail-row">
+                                <span className="ps-block-detail-key">Domain</span>
+                                <span className="ps-block-detail-val ps-mono">{selectedBlock.domain}</span>
+                            </div>
+                            <div className="ps-block-detail-row">
+                                <span className="ps-block-detail-key">Reputation</span>
+                                <span className="ps-block-detail-val">
+                                    <span className={`ps-rep-tag ps-rep-${repTagClass(selectedBlock.domain)}`}>{hostReputationLabel(selectedBlock.domain)}</span>
+                                    <span className="ps-rep-note">{hostReputationNote(selectedBlock.domain)}</span>
+                                </span>
+                            </div>
+                            <div className="ps-block-detail-row">
+                                <span className="ps-block-detail-key">Host rule</span>
+                                <span className="ps-block-detail-val">
+                                    {hostRules[selectedBlock.domain]
+                                        ? (hostRules[selectedBlock.domain] === "allow" ? "Allowed to receive your token" : "Always blocked")
+                                        : "None (default handling)"}
+                                </span>
+                            </div>
+                            <div className="ps-block-detail-row">
+                                <span className="ps-block-detail-key">Outcome</span>
+                                <span className="ps-block-detail-val">{selectedBlock.outcome || "blocked"}</span>
+                            </div>
+                            <div className="ps-block-detail-row">
+                                <span className="ps-block-detail-key">When</span>
+                                <span className="ps-block-detail-val">{formatAbsoluteTime(selectedBlock.timestamp)} ({formatTimeAgo(selectedBlock.timestamp)})</span>
+                            </div>
+                            <div className="ps-block-detail-row">
+                                <span className="ps-block-detail-key">Event ID</span>
+                                <span className="ps-block-detail-val ps-mono">{selectedBlock.id}</span>
+                            </div>
+                        </div>
+
+                        {(() => {
+                            const parts = parseUrlParts(selectedBlock.url);
+                            return (
+                                <>
+                                    <h4 className="ps-block-detail-subhead">Request</h4>
+                                    <div className="ps-block-url-full ps-mono" title={selectedBlock.url}>{selectedBlock.url}</div>
+                                    <div className="ps-block-detail-grid">
+                                        <div className="ps-block-detail-row">
+                                            <span className="ps-block-detail-key">Scheme</span>
+                                            <span className="ps-block-detail-val ps-mono">{parts.scheme}</span>
+                                        </div>
+                                        <div className="ps-block-detail-row">
+                                            <span className="ps-block-detail-key">Host</span>
+                                            <span className="ps-block-detail-val ps-mono">{parts.host}</span>
+                                        </div>
+                                        <div className="ps-block-detail-row">
+                                            <span className="ps-block-detail-key">Port</span>
+                                            <span className="ps-block-detail-val ps-mono">{parts.port}</span>
+                                        </div>
+                                        <div className="ps-block-detail-row">
+                                            <span className="ps-block-detail-key">Path</span>
+                                            <span className="ps-block-detail-val ps-mono">{parts.path}</span>
+                                        </div>
+                                        {parts.query && (
+                                            <div className="ps-block-detail-row">
+                                                <span className="ps-block-detail-key">Query</span>
+                                                <span className="ps-block-detail-val ps-mono">{parts.query}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            );
+                        })()}
+                    </div>
+
+                    <div className="ps-block-modal-footer">
+                        <div className="ps-block-modal-actions">
+                            {classifyHost(selectedBlock.domain) !== "first-party" && (
+                                hostRules[selectedBlock.domain]
+                                    ? (
+                                        <button
+                                            type="button"
+                                            className="ps-host-action-btn ps-host-action-clear"
+                                            onClick={() => clearHostRule(selectedBlock.domain)}
+                                        >
+                                            Clear host rule
+                                        </button>
+                                    )
+                                    : (
+                                        <>
+                                            <button
+                                                type="button"
+                                                className="ps-host-action-btn ps-host-action-allow"
+                                                onClick={() => setHostRule(selectedBlock.domain, "allow")}
+                                            >
+                                                Allow this host
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="ps-host-action-btn ps-host-action-block"
+                                                onClick={() => setHostRule(selectedBlock.domain, "block")}
+                                            >
+                                                Always block this host
+                                            </button>
+                                        </>
+                                    )
+                            )}
+                        </div>
+                        <button
+                            type="button"
+                            className="ps-block-copy-btn"
+                            onClick={() => copyToClipboard(buildBlockReport(selectedBlock), "all")}
+                        >
+                            {copiedField === "all" ? "Copied" : "Copy details"}
+                        </button>
+                    </div>
+                </Modal>
+            ));
+        }
+    }
+
     return (
         <SettingsTab>
             <div className="ps-command-center">
@@ -1066,7 +1406,7 @@ export function PrivacySecurityPanel() {
                                         className="ps-summary-badge ps-summary-badge-interactive"
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => { setSelectedAllowedRoute("all"); setIsAllowedModalOpen(true); }}
+                                        onClick={() => { setSelectedAllowedRoute("all"); openmodal(); }}
                                         title="Click to view all allowed outbound requests in a popup window"
                                     >
                                         <span className="ps-summary-num">{allowedLogs.length}</span>
@@ -1089,7 +1429,7 @@ export function PrivacySecurityPanel() {
                                         className="ps-route-card ps-route-card-interactive"
                                         role="button"
                                         tabIndex={0}
-                                        onClick={() => { setSelectedAllowedRoute(route.title); setIsAllowedModalOpen(true); }}
+                                        onClick={() => { setSelectedAllowedRoute(route.title); openmodal(); }}
                                         title={`Click to inspect allowed requests for ${route.title}`}
                                     >
                                         <div className="ps-route-header">
@@ -1242,7 +1582,10 @@ export function PrivacySecurityPanel() {
                                                         className="ps-block-card-amber"
                                                         role="button"
                                                         tabIndex={0}
-                                                        onClick={() => setSelectedBlock(log)}
+                                                        onClick={() => {
+                                                            setSelectedBlock(log);
+                                                            selectedBlockModal();
+                                                        }}
                                                         onKeyDown={e => {
                                                             if (e.key === "Enter" || e.key === " ") {
                                                                 e.preventDefault();
@@ -1278,7 +1621,7 @@ export function PrivacySecurityPanel() {
                                         )}
                                     </div>
 
-                                    {/* Pagination Controls moved to the bottom */}
+                                    {/* Pagination Controls */}
                                     <div className="ps-pagination-footer">
                                         <div className="ps-export-actions">
                                             <button
@@ -1339,362 +1682,6 @@ export function PrivacySecurityPanel() {
                 </div>
                 </>}
             </div>
-
-            {selectedBlock && (
-                <div className="ps-block-modal-overlay" onClick={() => setSelectedBlock(null)}>
-                    <div
-                        className="ps-block-modal"
-                        role="dialog"
-                        aria-modal="true"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <div className="ps-block-modal-header">
-                            <div className="ps-block-modal-title-group">
-                                <span className="ps-block-category-tag">{getCategoryLabel(selectedBlock.category)}</span>
-                                <h3 className="ps-block-modal-title">{getEventTitle(selectedBlock)}</h3>
-                            </div>
-                            <button
-                                type="button"
-                                className="ps-block-modal-close"
-                                onClick={() => setSelectedBlock(null)}
-                            >
-                                ✕
-                            </button>
-                        </div>
-
-                        <div className="ps-block-modal-body">
-                            <p className="ps-block-modal-explain">{getCategoryExplanation(selectedBlock.category)}</p>
-
-                            <div className="ps-block-detail-grid">
-                                <div className="ps-block-detail-row">
-                                    <span className="ps-block-detail-key">Action</span>
-                                    <span className="ps-block-detail-val">{selectedBlock.action}</span>
-                                </div>
-                                <div className="ps-block-detail-row">
-                                    <span className="ps-block-detail-key">Category</span>
-                                    <span className="ps-block-detail-val">{selectedBlock.category}</span>
-                                </div>
-                                <div className="ps-block-detail-row">
-                                    <span className="ps-block-detail-key">Caught by</span>
-                                    <span className="ps-block-detail-val">{getShieldForCategory(selectedBlock.category)}</span>
-                                </div>
-                                <div className="ps-block-detail-row">
-                                    <span className="ps-block-detail-key">Domain</span>
-                                    <span className="ps-block-detail-val ps-mono">{selectedBlock.domain}</span>
-                                </div>
-                                <div className="ps-block-detail-row">
-                                    <span className="ps-block-detail-key">Reputation</span>
-                                    <span className="ps-block-detail-val">
-                                        <span className={`ps-rep-tag ps-rep-${repTagClass(selectedBlock.domain)}`}>{hostReputationLabel(selectedBlock.domain)}</span>
-                                        <span className="ps-rep-note">{hostReputationNote(selectedBlock.domain)}</span>
-                                    </span>
-                                </div>
-                                <div className="ps-block-detail-row">
-                                    <span className="ps-block-detail-key">Host rule</span>
-                                    <span className="ps-block-detail-val">
-                                        {hostRules[selectedBlock.domain]
-                                            ? (hostRules[selectedBlock.domain] === "allow" ? "Allowed to receive your token" : "Always blocked")
-                                            : "None (default handling)"}
-                                    </span>
-                                </div>
-                                <div className="ps-block-detail-row">
-                                    <span className="ps-block-detail-key">Outcome</span>
-                                    <span className="ps-block-detail-val">{selectedBlock.outcome || "blocked"}</span>
-                                </div>
-                                <div className="ps-block-detail-row">
-                                    <span className="ps-block-detail-key">When</span>
-                                    <span className="ps-block-detail-val">{formatAbsoluteTime(selectedBlock.timestamp)} ({formatTimeAgo(selectedBlock.timestamp)})</span>
-                                </div>
-                                <div className="ps-block-detail-row">
-                                    <span className="ps-block-detail-key">Event ID</span>
-                                    <span className="ps-block-detail-val ps-mono">{selectedBlock.id}</span>
-                                </div>
-                            </div>
-
-                            {(() => {
-                                const parts = parseUrlParts(selectedBlock.url);
-                                return (
-                                    <>
-                                        <h4 className="ps-block-detail-subhead">Request</h4>
-                                        <div className="ps-block-url-full ps-mono" title={selectedBlock.url}>{selectedBlock.url}</div>
-                                        <div className="ps-block-detail-grid">
-                                            <div className="ps-block-detail-row">
-                                                <span className="ps-block-detail-key">Scheme</span>
-                                                <span className="ps-block-detail-val ps-mono">{parts.scheme}</span>
-                                            </div>
-                                            <div className="ps-block-detail-row">
-                                                <span className="ps-block-detail-key">Host</span>
-                                                <span className="ps-block-detail-val ps-mono">{parts.host}</span>
-                                            </div>
-                                            <div className="ps-block-detail-row">
-                                                <span className="ps-block-detail-key">Port</span>
-                                                <span className="ps-block-detail-val ps-mono">{parts.port}</span>
-                                            </div>
-                                            <div className="ps-block-detail-row">
-                                                <span className="ps-block-detail-key">Path</span>
-                                                <span className="ps-block-detail-val ps-mono">{parts.path}</span>
-                                            </div>
-                                            {parts.query && (
-                                                <div className="ps-block-detail-row">
-                                                    <span className="ps-block-detail-key">Query</span>
-                                                    <span className="ps-block-detail-val ps-mono">{parts.query}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </>
-                                );
-                            })()}
-                        </div>
-
-                        <div className="ps-block-modal-footer">
-                            <div className="ps-block-modal-actions">
-                                {classifyHost(selectedBlock.domain) !== "first-party" && (
-                                    hostRules[selectedBlock.domain]
-                                        ? (
-                                            <button
-                                                type="button"
-                                                className="ps-host-action-btn ps-host-action-clear"
-                                                onClick={() => clearHostRule(selectedBlock.domain)}
-                                            >
-                                                Clear host rule
-                                            </button>
-                                        )
-                                        : (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    className="ps-host-action-btn ps-host-action-allow"
-                                                    onClick={() => setHostRule(selectedBlock.domain, "allow")}
-                                                >
-                                                    Allow this host
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="ps-host-action-btn ps-host-action-block"
-                                                    onClick={() => setHostRule(selectedBlock.domain, "block")}
-                                                >
-                                                    Always block this host
-                                                </button>
-                                            </>
-                                        )
-                                )}
-                            </div>
-                            <button
-                                type="button"
-                                className="ps-block-copy-btn"
-                                onClick={() => copyToClipboard(buildBlockReport(selectedBlock), "all")}
-                            >
-                                {copiedField === "all" ? "Copied" : "Copy details"}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            {isAllowedModalOpen && (
-                <div className="ps-block-modal-overlay" onClick={() => setIsAllowedModalOpen(false)}>
-                    <div
-                        className="ps-block-modal"
-                        role="dialog"
-                        aria-modal="true"
-                        style={{ maxWidth: "820px", width: "90%" }}
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <div className="ps-block-modal-header">
-                            <div className="ps-block-modal-title-group">
-                                <span className="ps-badge ps-badge-green">Allowed Outbound Traffic</span>
-                                <h3 className="ps-block-modal-title" style={{ margin: "4px 0 0 0" }}>Allowed Outbound Requests Inspector</h3>
-                            </div>
-                            <button
-                                type="button"
-                                className="ps-block-modal-close"
-                                onClick={() => setIsAllowedModalOpen(false)}
-                            >
-                                ✕
-                            </button>
-                        </div>
-
-                        <div className="ps-block-modal-body ps-allowed-modal-body" style={{ maxHeight: "68vh", overflowY: "auto", padding: "16px" }}>
-                            {/* Controls: Search, Route Filter & Clear */}
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-                                <div style={{ display: "flex", gap: "8px", alignItems: "center", flex: 1, minWidth: "240px" }}>
-                                    <input
-                                        type="text"
-                                        className="ps-search-input"
-                                        placeholder="Search allowed requests by URL, domain, or method..."
-                                        value={allowedSearchQuery}
-                                        onChange={e => setAllowedSearchQuery(e.target.value)}
-                                        style={{ width: "100%", padding: "6px 12px", borderRadius: "6px", fontSize: "13px" }}
-                                    />
-                                    {allowedSearchQuery && (
-                                        <button
-                                            type="button"
-                                            className="ps-search-clear"
-                                            onClick={() => setAllowedSearchQuery("")}
-                                        >
-                                            ✕
-                                        </button>
-                                    )}
-                                </div>
-                                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                                    <div className="ps-custom-select-wrapper" ref={allowedRouteSelectRef} style={{ width: "190px" }}>
-                                        <button
-                                            type="button"
-                                            className={`ps-custom-select-trigger ${isAllowedRouteOpen ? "ps-custom-select-open" : ""}`}
-                                            onClick={() => setIsAllowedRouteOpen(!isAllowedRouteOpen)}
-                                        >
-                                            <span className="ps-custom-select-value">
-                                                {selectedAllowedRoute === "all" ? "All Outbound Routes" : selectedAllowedRoute}
-                                            </span>
-                                            <svg
-                                                className={`ps-custom-select-chevron ${isAllowedRouteOpen ? "ps-chevron-rotated" : ""}`}
-                                                width="16"
-                                                height="16"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                            >
-                                                <polyline points="6 9 12 15 18 9" />
-                                            </svg>
-                                        </button>
-
-                                        {isAllowedRouteOpen && (
-                                            <div className="ps-custom-select-menu">
-                                                <div
-                                                    className={`ps-custom-select-item ${selectedAllowedRoute === "all" ? "ps-custom-select-item-selected" : ""}`}
-                                                    onClick={() => {
-                                                        setSelectedAllowedRoute("all");
-                                                        setIsAllowedRouteOpen(false);
-                                                    }}
-                                                >
-                                                    <span>All Outbound Routes</span>
-                                                    {selectedAllowedRoute === "all" && (
-                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                            <polyline points="20 6 9 17 4 12" />
-                                                        </svg>
-                                                    )}
-                                                </div>
-                                                {outboundRoutes.map(r => {
-                                                    const isSelected = r.title === selectedAllowedRoute;
-                                                    return (
-                                                        <div
-                                                            key={r.id}
-                                                            className={`ps-custom-select-item ${isSelected ? "ps-custom-select-item-selected" : ""}`}
-                                                            onClick={() => {
-                                                                setSelectedAllowedRoute(r.title);
-                                                                setIsAllowedRouteOpen(false);
-                                                            }}
-                                                        >
-                                                            <span>{r.title}</span>
-                                                            {isSelected && (
-                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                                    <polyline points="20 6 9 17 4 12" />
-                                                                </svg>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <button
-                                        type="button"
-                                        className="ps-btn ps-btn-stop"
-                                        style={{ padding: "6px 12px", fontSize: "12px" }}
-                                        onClick={async () => {
-                                            if (VencordNative?.privacy?.clearAllowedLogs) {
-                                                await VencordNative.privacy.clearAllowedLogs();
-                                                setAllowedLogs([]);
-                                            }
-                                        }}
-                                    >
-                                        Clear Logs
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Allowed Requests List */}
-                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                                {filteredAllowedLogs.length > 0 ? (
-                                    filteredAllowedLogs.map(log => (
-                                        <div
-                                            key={log.id}
-                                            style={{
-                                                background: "var(--background-secondary-alt, #1e1f22)",
-                                                border: "1px solid var(--background-tertiary, #313338)",
-                                                borderRadius: "8px",
-                                                padding: "10px 14px",
-                                                display: "flex",
-                                                flexDirection: "column",
-                                                gap: "4px"
-                                            }}
-                                        >
-                                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                                    <span
-                                                        style={{
-                                                            background: log.method === "POST" ? "rgba(88, 101, 242, 0.2)" : "rgba(35, 165, 90, 0.2)",
-                                                            color: log.method === "POST" ? "#5865f2" : "#23a55a",
-                                                            fontSize: "11px",
-                                                            fontWeight: 700,
-                                                            padding: "2px 6px",
-                                                            borderRadius: "4px",
-                                                            fontFamily: "monospace"
-                                                        }}
-                                                    >
-                                                        {log.method}
-                                                    </span>
-                                                    <span style={{ fontWeight: 600, color: "var(--header-primary, #f2f3f5)", fontSize: "13px" }}>
-                                                        {log.domain}
-                                                    </span>
-                                                    <span className="ps-badge ps-badge-xs ps-badge-blue">
-                                                        {log.routeGroup || "Outbound"}
-                                                    </span>
-                                                </div>
-                                                <span style={{ fontSize: "11px", color: "var(--text-muted, #949ba4)" }}>
-                                                    {formatTimeAgo(log.timestamp)}
-                                                </span>
-                                            </div>
-                                            <div
-                                                className="ps-mono"
-                                                onClick={() => copyToClipboard(log.url, log.id)}
-                                                style={{
-                                                    fontSize: "11px",
-                                                    color: "var(--text-muted, #949ba4)",
-                                                    wordBreak: "break-all",
-                                                    cursor: "pointer"
-                                                }}
-                                                title="Click to copy full request URL"
-                                            >
-                                                {log.url} {copiedField === log.id && <span style={{ color: "#23a55a", marginLeft: "6px" }}>✓ Copied</span>}
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="ps-no-results" style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)" }}>
-                                        No allowed requests recorded matching criteria.
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="ps-block-modal-footer">
-                            <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                                Showing {filteredAllowedLogs.length} of {allowedLogs.length} allowed requests
-                            </span>
-                            <button
-                                type="button"
-                                className="ps-btn"
-                                onClick={() => setIsAllowedModalOpen(false)}
-                            >
-                                Close
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </SettingsTab>
     );
 }

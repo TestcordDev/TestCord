@@ -15,9 +15,9 @@ import { copyToClipboard } from "@utils/clipboard";
 import { classNameFactory } from "@utils/css";
 import { openUserProfile } from "@utils/discord";
 import { classes } from "@utils/misc";
-import { ModalCloseButton, ModalContent, ModalHeader, type ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
+import { ModalContent, type ModalProps, openModal } from "@utils/modal";
 import { formatDurationMs } from "@utils/text";
-import { ChannelStore, GuildStore, IconUtils, NavigationRouter, React, Select, TextInput, Toasts, Tooltip, useEffect, useMemo, UserStore, useState, useStateFromStores } from "@webpack/common";
+import { ChannelStore, GuildStore, IconUtils, Modal, NavigationRouter, React, Select, TextInput, Toasts, Tooltip, useEffect, useMemo, UserStore, useState, useStateFromStores } from "@webpack/common";
 
 import { addServerTarget, getServerTargets, getTargets, removeServerTarget, removeTarget, setTargets, settings, subscribeServerTargets, subscribeTargets } from "..";
 import { analyzeSurveillanceEvents, OsintAnalysisResult } from "../osintAnalysis";
@@ -400,11 +400,7 @@ const EventDetailsModal = ErrorBoundary.wrap(function EventDetailsModal({ event,
     };
 
     return (
-        <ModalRoot {...modalProps} title="" size={ModalSize.MEDIUM}>
-            <ModalHeader>
-                <HeadingPrimary className={cl("modal-title")}>Event Details</HeadingPrimary>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+        <Modal {...modalProps} title={<HeadingPrimary className={cl("modal-title")}>Event Details</HeadingPrimary>} size="lg">
             <ModalContent className={cl("modal-content")}>
                 <div className={cl("modal-grid")}>
                     <DetailField label="Type" value={typeLabels[event.type]} />
@@ -440,7 +436,7 @@ const EventDetailsModal = ErrorBoundary.wrap(function EventDetailsModal({ event,
                 </div>
                 <div className={cl("modal-meta")}>Event ID: {event.id}</div>
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }, { noop: true });
 

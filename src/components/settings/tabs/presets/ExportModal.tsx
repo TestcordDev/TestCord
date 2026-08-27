@@ -7,9 +7,9 @@
 import { Button } from "@components/Button";
 import { Paragraph } from "@components/Paragraph";
 import { copyToClipboard } from "@utils/clipboard";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, type RenderModalProps } from "@utils/modal";
+import { ModalContent, ModalFooter, openModal, type RenderModalProps } from "@utils/modal";
 import { saveFile } from "@utils/web";
-import { showToast, Toasts } from "@webpack/common";
+import { Modal, showToast, Toasts } from "@webpack/common";
 
 import { exportPreset } from "./presets";
 
@@ -28,11 +28,7 @@ function ExportModal({ modalProps, name }: { modalProps: RenderModalProps; name:
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.SMALL}>
-            <ModalHeader className="vc-presets-modal-header">
-                <h2 className="vc-presets-modal-title">Export "{name}"</h2>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+        <Modal title={<h2 className="vc-presets-modal-title">Export "{name}"</h2>} {...modalProps} size="md">
             <ModalContent className="vc-presets-modal-content">
                 <Paragraph>How do you want to export this preset?</Paragraph>
                 <div className="vc-presets-modal-actions">
@@ -43,7 +39,7 @@ function ExportModal({ modalProps, name }: { modalProps: RenderModalProps; name:
             <ModalFooter className="vc-presets-modal-footer">
                 <Button variant="secondary" onClick={modalProps.onClose}>Cancel</Button>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 

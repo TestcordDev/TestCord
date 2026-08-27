@@ -667,7 +667,7 @@
 }
 
 .vc-surveillance-modal-meta {
-    color: var(--white-500, #fff);
+    color: var(--text-default, #fff);
     font-size: 12px;
 }
 

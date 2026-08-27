@@ -7,8 +7,8 @@
 import { Button } from "@components/Button";
 import { FormSwitch } from "@components/FormSwitch";
 import { Paragraph } from "@components/Paragraph";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, type RenderModalProps } from "@utils/modal";
-import { React, showToast, TextInput, Toasts } from "@webpack/common";
+import { ModalContent, ModalFooter, openModal, type RenderModalProps } from "@utils/modal";
+import { Modal, React, showToast, TextInput, Toasts } from "@webpack/common";
 
 import { getMergePlan, hasPreset, type MergeConflict,mergePresets } from "./presets";
 
@@ -127,18 +127,14 @@ function MergeModal({ modalProps, sourceName, targetName, onMerged }: { modalPro
 
     if (!plan) {
         return (
-            <ModalRoot {...modalProps} size={ModalSize.SMALL}>
-                <ModalHeader className="vc-presets-modal-header">
-                    <h2 className="vc-presets-modal-title">Merge presets</h2>
-                    <ModalCloseButton onClick={modalProps.onClose} />
-                </ModalHeader>
+            <Modal title={<h2 className="vc-presets-modal-title">Merge presets</h2>} {...modalProps} size="md">
                 <ModalContent className="vc-presets-modal-content">
                     <Paragraph>One of these presets no longer exists.</Paragraph>
                 </ModalContent>
                 <ModalFooter className="vc-presets-modal-footer">
                     <Button variant="secondary" onClick={modalProps.onClose}>Close</Button>
                 </ModalFooter>
-            </ModalRoot>
+            </Modal>
         );
     }
 
@@ -165,11 +161,7 @@ function MergeModal({ modalProps, sourceName, targetName, onMerged }: { modalPro
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM}>
-            <ModalHeader className="vc-presets-modal-header">
-                <h2 className="vc-presets-modal-title">Merge into "{targetName}"</h2>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+        <Modal title={<h2 className="vc-presets-modal-title">Merge into "{targetName}"</h2>} {...modalProps} size="lg">
             <ModalContent className="vc-presets-modal-content">
                 <Paragraph>
                     Drag merge source: <strong>{sourceName}</strong>. Drop target: <strong>{targetName}</strong>. A new merged preset will be created.
@@ -211,6 +203,7 @@ function MergeModal({ modalProps, sourceName, targetName, onMerged }: { modalPro
                         onChange={setDeleteTarget}
                         title={`Delete target preset (${targetName})`}
                         description="Removes the preset you dropped onto after the merged preset is created."
+                        hideBorder
                     />
                 </div>
 
@@ -218,7 +211,7 @@ function MergeModal({ modalProps, sourceName, targetName, onMerged }: { modalPro
                     <div className="vc-presets-merge-section vc-presets-merge-additions">
                         <strong>Additions</strong>
                         <Paragraph className="vc-presets-dim">These do not overlap and will be added automatically.</Paragraph>
-                        <div className="vc-presets-merge-list">
+                        <div className="vc-presets-merge-list" style={{ paddingTop: "1px" }}>
                             {plan.additions.map(item => <span key={item} className="vc-presets-merge-chip">{item}</span>)}
                         </div>
                     </div>
@@ -228,7 +221,7 @@ function MergeModal({ modalProps, sourceName, targetName, onMerged }: { modalPro
                     <div className="vc-presets-merge-section">
                         <strong>Already matching</strong>
                         <Paragraph className="vc-presets-dim">These are already present or identical.</Paragraph>
-                        <div className="vc-presets-merge-list">
+                        <div className="vc-presets-merge-list" style={{ paddingTop: "1px" }}>
                             {plan.overlaps.map(item => <span key={item} className="vc-presets-merge-chip">{item}</span>)}
                         </div>
                     </div>
@@ -257,7 +250,7 @@ function MergeModal({ modalProps, sourceName, targetName, onMerged }: { modalPro
                     <Button variant="secondary" onClick={modalProps.onClose}>Cancel</Button>
                 </div>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 

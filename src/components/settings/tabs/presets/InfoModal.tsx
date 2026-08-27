@@ -9,8 +9,8 @@ import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
 import { copyToClipboard } from "@utils/clipboard";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, type RenderModalProps } from "@utils/modal";
-import { React, showToast, TextArea, Toasts } from "@webpack/common";
+import { ModalContent, ModalFooter, openModal, type RenderModalProps } from "@utils/modal";
+import { Modal, React, showToast, TextArea, Toasts } from "@webpack/common";
 
 import { openExportModal } from "./ExportModal";
 import { getForceApplyDefault, getPreset, getRestoreDefault, setPresetForceApply, setPresetLiveBackup, setPresetRestore, stringifyPreset, updatePresetRaw } from "./presets";
@@ -123,18 +123,14 @@ function InfoModal({ modalProps, name, onChange }: { modalProps: RenderModalProp
 
     if (!preset) {
         return (
-            <ModalRoot {...modalProps} size={ModalSize.SMALL}>
-                <ModalHeader className="vc-presets-modal-header">
-                    <h2 className="vc-presets-modal-title">Preset</h2>
-                    <ModalCloseButton onClick={modalProps.onClose} />
-                </ModalHeader>
+            <Modal title={<h2 className="vc-presets-modal-title">Preset</h2>} {...modalProps} size="md">
                 <ModalContent className="vc-presets-modal-content">
                     <Paragraph>Preset not found.</Paragraph>
                 </ModalContent>
                 <ModalFooter className="vc-presets-modal-footer">
                     <Button variant="secondary" onClick={modalProps.onClose}>Close</Button>
                 </ModalFooter>
-            </ModalRoot>
+            </Modal>
         );
     }
 
@@ -184,11 +180,7 @@ function InfoModal({ modalProps, name, onChange }: { modalProps: RenderModalProp
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM}>
-            <ModalHeader className="vc-presets-modal-header">
-                <h2 className="vc-presets-modal-title">Preset "{name}"</h2>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+        <Modal title={<h2 className="vc-presets-modal-title">Preset "{name}"</h2>} {...modalProps} size="lg">
             <ModalContent className="vc-presets-modal-content">
                 <div className="vc-presets-tabs">
                     <button className={`vc-presets-tab ${tab === "info" ? "vc-presets-tab-active" : ""}`} onClick={() => showTab("info")}>Info</button>
@@ -245,7 +237,7 @@ function InfoModal({ modalProps, name, onChange }: { modalProps: RenderModalProp
                 {tab === "json" && <Button onClick={saveJson}>Save edits</Button>}
                 <Button variant="secondary" onClick={modalProps.onClose}>Close</Button>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 

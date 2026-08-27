@@ -5,8 +5,8 @@
  */
 
 import { Button } from "@components/Button";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, type RenderModalProps } from "@utils/modal";
-import { React, TextInput } from "@webpack/common";
+import { ModalContent, ModalFooter, openModal, type RenderModalProps } from "@utils/modal";
+import { Modal, React, TextInput } from "@webpack/common";
 
 function NameModal({ modalProps, title, initial, onSubmit }: { modalProps: RenderModalProps; title: string; initial: string; onSubmit: (name: string) => void; }) {
     const [value, setValue] = React.useState(initial);
@@ -18,11 +18,7 @@ function NameModal({ modalProps, title, initial, onSubmit }: { modalProps: Rende
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.SMALL}>
-            <ModalHeader className="vc-presets-modal-header">
-                <h2 className="vc-presets-modal-title">{title}</h2>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+        <Modal title={<h2 className="vc-presets-modal-title">{title}</h2>} {...modalProps} size="md">
             <ModalContent className="vc-presets-modal-content">
                 <TextInput
                     value={value}
@@ -35,7 +31,7 @@ function NameModal({ modalProps, title, initial, onSubmit }: { modalProps: Rende
                 <Button onClick={submit} disabled={!value.trim()}>OK</Button>
                 <Button variant="secondary" onClick={modalProps.onClose}>Cancel</Button>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 
