@@ -160,9 +160,9 @@ export default definePlugin({
         if (!hasFavourites()) return children;
         return <AttachmentContextProvider component={component} key={key}>{children}</AttachmentContextProvider>;
     },
-    renderEmbed(this: EmbedComponent) {
-        if (!hasFavourites()) return this.__render();
-        return <EmbedContext.Provider value={this.props.embed}>{this.__render()}</EmbedContext.Provider>;
+    renderEmbed(comp: EmbedComponent) {
+        if (!hasFavourites()) return comp.__render();
+        return <EmbedContext.Provider value={comp.props.embed}>{comp.__render()}</EmbedContext.Provider>;
     },
     renderEmbedMosaicItem(children: ReactNode, index: number) {
         return <EmbedMosaicContext.Provider value={index}>{children}</EmbedMosaicContext.Provider>;
