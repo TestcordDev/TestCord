@@ -16,9 +16,9 @@ import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
 import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { TestcordDevs } from "@utils/constants";
-import { ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, RenderModalProps } from "@utils/modal";
+import { ModalContent, ModalFooter, openModal, RenderModalProps } from "@utils/modal";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
-import { React, Select, Slider } from "@webpack/common";
+import { Modal, React, Select, Slider } from "@webpack/common";
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
@@ -187,7 +187,6 @@ interface ButtonConfig {
     radiusOff: number;
     colorfulActiveButton: boolean;
     colorfulInActiveButton: boolean;
-    groupId?: string | null;
     linkedTo?: string[];
 }
 
@@ -201,31 +200,9 @@ function rebuildLinkIndex() {
     anyLinksConfigured = Object.values(buttonConfigs).some(cfg => (cfg.linkedTo?.length ?? 0) > 0);
 }
 
-function migrateLegacyGroups() {
-    const byGroup = new Map<string, string[]>();
-    for (const cfg of Object.values(buttonConfigs)) {
-        if (!cfg.groupId) continue;
-        const members = byGroup.get(cfg.groupId);
-        if (members) members.push(cfg.label);
-        else byGroup.set(cfg.groupId, [cfg.label]);
-    }
-    if (byGroup.size === 0) return;
-
-    for (const members of byGroup.values()) {
-        for (const label of members) {
-            const others = members.filter(l => l !== label);
-            const existing = new Set(getBtnCfg(label).linkedTo ?? []);
-            for (const o of others) existing.add(o);
-            buttonConfigs[label] = { ...getBtnCfg(label), label, linkedTo: Array.from(existing), groupId: null };
-        }
-    }
-    saveConfigs();
-}
-
 async function loadConfigs() {
     buttonConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ?? {};
     configsLoaded = true;
-    migrateLegacyGroups();
     rebuildLinkIndex();
 }
 
@@ -500,6 +477,57 @@ function buildCSS(): string {
         .PanelLayoutModal { min-height: 0 !important; }
     `);
 
+    // SubModalButton
+    lines.push(`
+        .SubModalButton {
+            position: relative;
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 9px 14px;
+            border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 14%, var(--border-subtle));
+            border-radius: 8px;
+            background: var(--background-base-lower-alt);
+            cursor: pointer;
+            overflow: hidden;
+            box-shadow: 0 1px #ffffff08 inset;
+            transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+        }
+
+        .SubModalButton:hover {
+            background: var(--background-base-low);
+            border-color:
+                color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 32%, var(--border-subtle));
+            box-shadow: var(--elevation-low), 0 1px #ffffff0d inset;
+            transform: translateY(-1px);
+        }
+
+        .SubModalButton:active {
+            box-shadow: none;
+            transform: translateY(0) scale(.99);
+        }
+
+        .SubModalButton:before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            border-radius: 8px 0 0 8px;
+            background: var(--brand, var(--brand-experiment, var(--background-brand)));
+            opacity: .35;
+            transform: scaleY(.35);
+            transform-origin: center;
+            transition: opacity .16s ease, transform .16s ease;
+        }
+
+        .SubModalButton:hover:before {
+            opacity: 1;
+            transform: scaleY(1);
+        }
+    `);
     // Native custom scrollbars
     lines.push(`
         .deracul-scrollbar::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
@@ -977,18 +1005,275 @@ function Dropdown({ label, options, value, onChange }: {
     );
 }
 
-function ColorRow({ label, value, onChange, onBlur, }: { label: string; value: string; onChange: (v: string) => void; onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; }) {
+// ─── Color conversion helpers ────────────────────────────────────────────────
+
+function hexToRgb(hex: string): [number, number, number] {
+    const clean = hex.replace("#", "").trim();
+    const full = clean.length === 3 ? clean.split("").map(c => c + c).join("") : clean.padEnd(6, "0").slice(0, 6);
+    const n = parseInt(full, 16) || 0;
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+    const clamp = (v: number) => Math.round(Math.max(0, Math.min(255, v)));
+    return "#" + [r, g, b].map(v => clamp(v).toString(16).padStart(2, "0")).join("");
+}
+
+function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+    let h = 0;
+    if (d !== 0) {
+        if (max === r) h = ((g - b) / d) % 6;
+        else if (max === g) h = (b - r) / d + 2;
+        else h = (r - g) / d + 4;
+        h *= 60;
+        if (h < 0) h += 360;
+    }
+    return [h, max === 0 ? 0 : (d / max) * 100, max * 100];
+}
+
+function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
+    s /= 100; v /= 100;
+    const c = v * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = v - c;
+    let rgb: [number, number, number];
+    if (h < 60) rgb = [c, x, 0];
+    else if (h < 120) rgb = [x, c, 0];
+    else if (h < 180) rgb = [0, c, x];
+    else if (h < 240) rgb = [0, x, c];
+    else if (h < 300) rgb = [x, 0, c];
+    else rgb = [c, 0, x];
+    return [(rgb[0] + m) * 255, (rgb[1] + m) * 255, (rgb[2] + m) * 255];
+}
+
+function isValidHex(v: string): boolean {
+    return /^#?[0-9a-fA-F]{6}$/.test(v.trim());
+}
+
+const COLOR_PRESETS = [
+    "#5865F2", "#EB459E", "#ED4245", "#FEE75C",
+    "#57F287", "#00C7D9", "#FFFFFF", "#23272A",
+];
+
+// ─── Custom color picker ──────────────────────────────────────────────────────
+
+function ColorPickerPanel({ value, onChange }: { value: string; onChange: (hex: string) => void; }) {
+    const hsvRef = React.useRef<[number, number, number]>(rgbToHsv(...hexToRgb(value)));
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
+    const [hexInput, setHexInput] = React.useState(value.toUpperCase());
+    const svRef = React.useRef<HTMLDivElement>(null);
+    const hueRef = React.useRef<HTMLDivElement>(null);
+    const draggingRef = React.useRef<"sv" | "hue" | null>(null);
+
+    React.useEffect(() => {
+        if (draggingRef.current) return;
+        hsvRef.current = rgbToHsv(...hexToRgb(value));
+        setHexInput(value.toUpperCase());
+        forceUpdate();
+    }, [value]);
+
+    const commit = (h: number, s: number, v: number) => {
+        hsvRef.current = [h, s, v];
+        const hex = rgbToHex(...hsvToRgb(h, s, v));
+        setHexInput(hex.toUpperCase());
+        onChange(hex);
+        forceUpdate();
+    };
+
+    const fromSvPointer = (clientX: number, clientY: number) => {
+        const rect = svRef.current!.getBoundingClientRect();
+        const x = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+        const y = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+        commit(hsvRef.current[0], x * 100, (1 - y) * 100);
+    };
+
+    const fromHuePointer = (clientX: number) => {
+        const rect = hueRef.current!.getBoundingClientRect();
+        const x = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+        commit(x * 360, hsvRef.current[1], hsvRef.current[2]);
+    };
+
+    React.useEffect(() => {
+        const onMove = (e: MouseEvent) => {
+            if (draggingRef.current === "sv") fromSvPointer(e.clientX, e.clientY);
+            else if (draggingRef.current === "hue") fromHuePointer(e.clientX);
+        };
+        const onUp = () => { draggingRef.current = null; };
+        document.addEventListener("mousemove", onMove);
+        document.addEventListener("mouseup", onUp);
+        return () => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+        };
+    }, []);
+
+    const [h, s, v] = hsvRef.current;
+
     return (
-        <Flex flexDirection="column" gap={8} style={{ width: "100%" }}>
+        <div
+            style={{
+                marginTop: "10px", padding: "12px", borderRadius: "10px",
+                background: "var(--background-secondary, var(--background-base-lower))",
+                border: "1px solid var(--background-modifier-accent, var(--border-muted))",
+                boxShadow: "0 8px 20px -8px rgba(0,0,0,0.35)",
+            }}
+            onMouseDown={e => e.stopPropagation()}
+        >
+            <div
+                ref={svRef}
+                onMouseDown={e => { draggingRef.current = "sv"; fromSvPointer(e.clientX, e.clientY); }}
+                style={{
+                    position: "relative", width: "100%", height: "120px", borderRadius: "8px",
+                    cursor: "crosshair", userSelect: "none",
+                    background: `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)), hsl(${h}, 100%, 50%)`,
+                }}
+            >
+                <div style={{
+                    position: "absolute", left: `${s}%`, top: `${100 - v}%`,
+                    width: "14px", height: "14px", borderRadius: "50%",
+                    transform: "translate(-50%, -50%)",
+                    border: "2px solid white", boxShadow: "0 0 0 1px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.4)",
+                    background: value, pointerEvents: "none",
+                }} />
+            </div>
+
+            <div
+                ref={hueRef}
+                onMouseDown={e => { draggingRef.current = "hue"; fromHuePointer(e.clientX); }}
+                style={{
+                    position: "relative", width: "100%", height: "12px", borderRadius: "6px",
+                    marginTop: "10px", cursor: "pointer", userSelect: "none",
+                    background: "linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)",
+                }}
+            >
+                <div style={{
+                    position: "absolute", left: `${(h / 360) * 100}%`, top: "50%",
+                    width: "8px", height: "16px", borderRadius: "3px",
+                    transform: "translate(-50%, -50%)",
+                    border: "2px solid white", boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
+                    background: `hsl(${h}, 100%, 50%)`, pointerEvents: "none",
+                }} />
+            </div>
+
+            <Flex alignItems="center" gap={8} style={{ marginTop: "10px" }}>
+                <div style={{
+                    width: "28px", height: "28px", borderRadius: "6px", flexShrink: 0,
+                    background: value, border: "1px solid var(--background-modifier-accent, var(--border-muted))",
+                }} />
+                <input
+                    value={hexInput}
+                    onChange={e => {
+                        const val = e.target.value;
+                        setHexInput(val);
+                        if (isValidHex(val)) {
+                            const hex = val.startsWith("#") ? val : `#${val}`;
+                            hsvRef.current = rgbToHsv(...hexToRgb(hex));
+                            onChange(hex.toLowerCase());
+                            forceUpdate();
+                        }
+                    }}
+                    onBlur={() => {
+                        if (!isValidHex(hexInput)) {
+                            setHexInput(value.toUpperCase());
+                        }
+                    }}
+                    onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    spellCheck={false}
+                    style={{
+                        flex: 1, height: "28px", padding: "0 8px", borderRadius: "6px",
+                        border: "1px solid var(--background-modifier-accent, var(--border-muted))",
+                        background: "var(--background-secondary-alt, var(--background-mod-subtle))",
+                        color: "var(--text-default)", fontFamily: "var(--font-code, monospace)",
+                        fontSize: "12px", textTransform: "uppercase",
+                    }}
+                />
+            </Flex>
+
+            <Flex gap={6} style={{ marginTop: "10px", flexWrap: "wrap" }}>
+                {COLOR_PRESETS.map(preset => (
+                    <div
+                        key={preset}
+                        onClick={() => {
+                            hsvRef.current = rgbToHsv(...hexToRgb(preset));
+                            setHexInput(preset.toUpperCase());
+                            onChange(preset);
+                            forceUpdate();
+                        }}
+                        title={preset}
+                        style={{
+                            width: "20px", height: "20px", borderRadius: "5px", cursor: "pointer",
+                            background: preset,
+                            border: preset.toLowerCase() === value.toLowerCase()
+                                ? "2px solid var(--brand-experiment, var(--background-brand))"
+                                : "1px solid var(--background-modifier-accent, var(--border-muted))",
+                        }}
+                    />
+                ))}
+            </Flex>
+        </div>
+    );
+}
+
+function ColorRow({ label, value, onChange, onBlur }: { label: string; value: string; onChange: (v: string) => void; onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; }) {
+    const [open, setOpen] = React.useState(false);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    const close = () => {
+        setOpen(false);
+        onBlur?.({} as React.FocusEvent<HTMLInputElement>);
+    };
+
+    const handleRealtimeChange = (newHex: string) => {
+        onChange(newHex);
+        onBlur?.({} as React.FocusEvent<HTMLInputElement>);
+    };
+
+    React.useEffect(() => {
+        if (!open) return;
+        const onDocMouseDown = (e: MouseEvent) => {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) close();
+        };
+        const onKeyDown = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+        document.addEventListener("mousedown", onDocMouseDown);
+        document.addEventListener("keydown", onKeyDown);
+        return () => {
+            document.removeEventListener("mousedown", onDocMouseDown);
+            document.removeEventListener("keydown", onKeyDown);
+        };
+    }, [open]);
+
+    return (
+        <div ref={containerRef} style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
             <BaseText size="md" weight="medium" color="text-default">{label}</BaseText>
-            <input
-                type="color"
-                value={value}
-                onBlur={onBlur}
-                onChange={e => onChange(e.target.value)}
-                style={{ width: "100%", height: "40px", border: "none", borderRadius: "6px", cursor: "pointer", background: "transparent" }}
-            />
-        </Flex>
+            <Flex
+                alignItems="center" gap={10}
+                onClick={() => (open ? close() : setOpen(true))}
+                style={{ cursor: "pointer" }}
+            >
+                <div style={{
+                    position: "relative", width: "44px", height: "36px", flexShrink: 0,
+                    borderRadius: "8px", overflow: "hidden", background: value,
+                    border: open
+                        ? "2px solid var(--brand-experiment, var(--background-brand))"
+                        : "1px solid var(--background-modifier-accent, var(--border-muted))",
+                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
+                    transition: "border-color 0.15s ease",
+                }} />
+                <BaseText
+                    size="sm" weight="medium" color="text-muted"
+                    style={{
+                        fontFamily: "var(--font-code, monospace)",
+                        background: "var(--background-secondary-alt, var(--background-mod-subtle))",
+                        borderRadius: "6px", padding: "6px 10px", textTransform: "uppercase",
+                    }}
+                >
+                    {value}
+                </BaseText>
+            </Flex>
+            {open && <ColorPickerPanel value={value} onChange={handleRealtimeChange} />}
+        </div>
     );
 }
 
@@ -1011,10 +1296,22 @@ function MiniToggle({ value, onChange }: { value: boolean; onChange: (v: boolean
 
 interface BtnItem { id: string; label: string; iconHTML: string; }
 
+// Building this list clones + rewrites SVGs (to dedupe id collisions across
+// buttons), which is real DOM work — cache it instead of redoing it on every
+// modal open. Invalidated only when the actual set of visible buttons changes.
+let btnItemsCache: BtnItem[] | null = null;
+let btnItemsCacheKey = "";
+
 function getBtnItems(): BtnItem[] {
+    const buttons = getAllButtons();
+
+    // Cheap fingerprint of "what's on screen" — if unchanged, reuse the cache.
+    const key = buttons.map(el => getCanonicalLabel(getBtnLabel(el) ?? "")).join("|");
+    if (btnItemsCache && key === btnItemsCacheKey) return btnItemsCache;
+
     const seen = new Set<string>();
     const out: BtnItem[] = [];
-    for (const el of getAllButtons()) {
+    for (const el of buttons) {
         const rawLabel = getBtnLabel(el);
         if (!rawLabel) continue;
         const label = getCanonicalLabel(rawLabel);
@@ -1038,21 +1335,30 @@ function getBtnItems(): BtnItem[] {
             // ---------------------------------------------------------
 
             // --- FIX: Prevent SVG ID Collisions ---
+            // Single pass: collect old->new id map, then rewrite all references
+            // once, instead of re-scanning the whole cloned tree per id (was O(n^2)).
             const uniqueSuffix = Math.random().toString(36).substring(2, 7);
-            clone.querySelectorAll("[id]").forEach(node => {
-                const oldId = node.id;
-                const newId = `${oldId}-${uniqueSuffix}`;
-                node.id = newId;
-
+            const idNodes = clone.querySelectorAll("[id]");
+            if (idNodes.length) {
+                const idMap = new Map<string, string>();
+                idNodes.forEach(node => {
+                    const newId = `${node.id}-${uniqueSuffix}`;
+                    idMap.set(node.id, newId);
+                    node.id = newId;
+                });
                 clone.querySelectorAll("*").forEach(child => {
                     ["mask", "fill", "clip-path", "filter"].forEach(attr => {
                         const val = child.getAttribute(attr);
-                        if (val && (val.includes(`url(#${oldId})`) || val.includes(`url('#${oldId}')`) || val.includes(`url("#${oldId}")`))) {
-                            child.setAttribute(attr, `url(#${newId})`);
+                        if (!val) return;
+                        for (const [oldId, newId] of idMap) {
+                            if (val === `url(#${oldId})` || val === `url('#${oldId}')` || val === `url("#${oldId}")`) {
+                                child.setAttribute(attr, `url(#${newId})`);
+                                break;
+                            }
                         }
                     });
                 });
-            });
+            }
             // --------------------------------------
 
             iconHTML = clone.outerHTML;
@@ -1072,12 +1378,14 @@ function getBtnItems(): BtnItem[] {
     }
 
     out.sort((a, b) => (getBtnCfg(a.id).order ?? 0) - (getBtnCfg(b.id).order ?? 0));
+    btnItemsCache = out;
+    btnItemsCacheKey = key;
     return out;
 }
 
 function ButtonsDragTab() {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
-    const [items, setItems] = React.useState<BtnItem[]>(getBtnItems());
+    const [items, setItems] = React.useState<BtnItem[]>(() => getBtnItems());
     const [listeningId, setListeningId] = React.useState<string | null>(null);
 
     // Index-based drag state. We never mutate `items` mid-drag — only on drop.
@@ -1156,127 +1464,121 @@ function ButtonsDragTab() {
                 <BaseText size="sm" color="text-muted">No buttons detected. Open this tab again once buttons load.</BaseText>
             ) : (
                 <>
-                    <div style={{
-                        display: "flex",
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: "12px",
-                        backgroundColor: "var(--background-secondary, var(--background-surface-higher))",
-                        borderRadius: "12px",
-                        border: "1px solid var(--background-modifier-accent, var(--border-muted))",
-                        padding: "16px",
-                        position: "relative"
-                    }}>
-                        <div className="deracul-scrollbar" style={{
+                    <Card>
+                        <div style={{
                             display: "flex",
-                            flexDirection: "row",
-                            gap: "12px",
-                            overflowX: "auto",
-                            flex: 1,
-                            minWidth: 0,
-                            alignItems: "center"
                         }}>
-                            {items.map((item, index) => {
-                                const cfg = getBtnCfg(item.id);
-                                const isDragging = activeDragIndex === index;
-                                const isOver = dragOverIndex === index && activeDragIndex !== index;
-                                const canonical = getCanonicalLabel(item.label);
-                                const isMute = canonical === "Mute";
-                                const isDeafen = canonical === "Deafen";
+                            <div className="deracul-scrollbar" style={{
+                                display: "flex",
+                                flexDirection: "row",
+                                gap: "12px",
+                                overflowX: "auto",
+                                flex: 1,
+                                minWidth: 0,
+                                alignItems: "center"
+                            }}>
+                                {items.map((item, index) => {
+                                    const cfg = getBtnCfg(item.id);
+                                    const isDragging = activeDragIndex === index;
+                                    const isOver = dragOverIndex === index && activeDragIndex !== index;
+                                    const canonical = getCanonicalLabel(item.label);
+                                    const isMute = canonical === "Mute";
+                                    const isDeafen = canonical === "Deafen";
 
-                                return (
-                                    <div
-                                        key={item.id}
-                                        draggable
-                                        onDragStart={e => handleDragStart(e, index)}
-                                        onDragOver={e => handleDragOver(e, index)}
-                                        onDragLeave={() => { if (dragOverIndex === index) setDragOverIndex(null); } }
-                                        onDrop={e => handleDrop(e, index)}
-                                        onDragEnd={handleDragEnd}
-                                        style={{
-                                            display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
-                                            cursor: isDragging ? "grabbing" : "grab",
-                                            opacity: isDragging ? 0.35 : 1,
-                                            transform: isDragging ? "scale(0.94)" : "scale(1)",
-                                            borderLeft: isOver ? "3px solid var(--brand-experiment, var(--background-brand))" : "3px solid transparent",
-                                            paddingLeft: isOver ? "6px" : "0px",
-                                            transition: "border 0.1s ease, padding 0.1s ease, opacity 0.1s ease, transform 0.1s ease",
-                                        }}
-                                        title={item.label}
-                                    >
-                                        {isMute && (
-                                            <div
-                                                className="deracul-btn-preview"
-                                                dangerouslySetInnerHTML={{ __html: svgs.muteOff }}
-                                                style={{
-                                                    width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                                    display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
-                                                    boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
-                                                }} />
-                                        )}
+                                    return (
+                                        <div
+                                            key={item.id}
+                                            draggable
+                                            onDragStart={e => handleDragStart(e, index)}
+                                            onDragOver={e => handleDragOver(e, index)}
+                                            onDragLeave={() => { if (dragOverIndex === index) setDragOverIndex(null); } }
+                                            onDrop={e => handleDrop(e, index)}
+                                            onDragEnd={handleDragEnd}
+                                            style={{
+                                                display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
+                                                cursor: isDragging ? "grabbing" : "grab",
+                                                opacity: isDragging ? 0.35 : 1,
+                                                transform: isDragging ? "scale(0.94)" : "scale(1)",
+                                                borderLeft: isOver ? "3px solid var(--brand-experiment, var(--background-brand))" : "3px solid transparent",
+                                                paddingLeft: isOver ? "6px" : "0px",
+                                                transition: "border 0.1s ease, padding 0.1s ease, opacity 0.1s ease, transform 0.1s ease",
+                                            }}
+                                            title={item.label}
+                                        >
+                                            {isMute && (
+                                                <div
+                                                    className="deracul-btn-preview"
+                                                    dangerouslySetInnerHTML={{ __html: svgs.muteOff }}
+                                                    style={{
+                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                    }} />
+                                            )}
 
-                                        {isDeafen && (
-                                            <div
-                                                className="deracul-btn-preview"
-                                                dangerouslySetInnerHTML={{ __html: svgs.deafenOff }}
-                                                style={{
-                                                    width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                                    display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
-                                                    boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
-                                                }} />
-                                        )}
+                                            {isDeafen && (
+                                                <div
+                                                    className="deracul-btn-preview"
+                                                    dangerouslySetInnerHTML={{ __html: svgs.deafenOff }}
+                                                    style={{
+                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                    }} />
+                                            )}
 
-                                        {!isMute && !isDeafen && (
-                                            <div
-                                                className="deracul-btn-preview"
-                                                dangerouslySetInnerHTML={{ __html: item.iconHTML }}
-                                                style={{
-                                                    width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                                    display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
-                                                    boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
-                                                }} />
-                                        )}
+                                            {!isMute && !isDeafen && (
+                                                <div
+                                                    className="deracul-btn-preview"
+                                                    dangerouslySetInnerHTML={{ __html: item.iconHTML }}
+                                                    style={{
+                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                    }} />
+                                            )}
 
-                                        <MiniToggle
-                                            value={!cfg.hidden}
-                                            onChange={v => {
-                                                setBtnCfg(item.id, { hidden: !v });
-                                                apply(); forceUpdate();
-                                            } } />
-                                    </div>
-                                );
-                            })}
+                                            <MiniToggle
+                                                value={!cfg.hidden}
+                                                onChange={v => {
+                                                    setBtnCfg(item.id, { hidden: !v });
+                                                    apply(); forceUpdate();
+                                                } } />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div style={{ position: "relative", alignContent: "center", flexShrink: 0 }}>
+                                <button
+                                    onClick={() => {
+                                        openModal(modalProps => (
+                                            <SettingsModal modalProps={modalProps} />
+                                        ));
+                                    } }
+                                    title="Button customization"
+                                    style={{
+                                        width: "36px",
+                                        height: "36px",
+                                        borderRadius: "8px",
+                                        border: "1px solid rgba(255, 255, 255, 0.1)",
+                                        backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                        color: "var(--interactive-normal)",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        fontSize: "16px",
+                                        transition: "background-color 0.15s ease, color 0.15s ease",
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.color = "var(--interactive-active)"}
+                                    onMouseLeave={e => e.currentTarget.style.color = "var(--interactive-normal)"}
+                                >
+                                    <span dangerouslySetInnerHTML={{ __html: svgs.settings }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                                </button>
+                            </div>
                         </div>
-
-                        <div style={{ position: "relative", flexShrink: 0 }}>
-                            <button
-                                onClick={() => {
-                                    openModal(modalProps => (
-                                        <SettingsModal modalProps={modalProps} />
-                                    ));
-                                } }
-                                title="Button customization"
-                                style={{
-                                    width: "36px",
-                                    height: "36px",
-                                    borderRadius: "8px",
-                                    border: "1px solid rgba(255, 255, 255, 0.1)",
-                                    backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                    color: "var(--interactive-normal)",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    fontSize: "16px",
-                                    transition: "background-color 0.15s ease, color 0.15s ease",
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.color = "var(--interactive-active)"}
-                                onMouseLeave={e => e.currentTarget.style.color = "var(--interactive-normal)"}
-                            >
-                                <span dangerouslySetInnerHTML={{ __html: svgs.settings }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                            </button>
-                        </div>
-                    </div>
+                    </Card>
 
                     <div className="deracul-scrollbar" style={{
                         display: "flex",
@@ -1294,118 +1596,115 @@ function ButtonsDragTab() {
                             const listening = listeningId === item.id;
 
                             return (
-                                <div key={item.id} style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    gap: "12px",
-                                    backgroundColor: "var(--background-secondary, var(--background-surface-higher))",
-                                    borderRadius: "12px",
-                                    border: "1px solid var(--background-modifier-accent, var(--border-muted))",
-                                    padding: "16px",
-                                    position: "relative"
-                                }}>
-                                    <BaseText size="sm" color="text-muted" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                                        {isMute && (
-                                            <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                                        )}
+                                <Card key={item.id}>
+                                    <div style={{
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: "12px",
+                                    }}>
+                                        <BaseText size="sm" color="text-muted" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                            {isMute && (
+                                                <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                                            )}
 
-                                        {isDeafen && (
-                                            <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                                        )}
+                                            {isDeafen && (
+                                                <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                                            )}
 
-                                        {!isMute && !isDeafen && (
-                                            <SvgPreview icon={item.iconHTML} enabled={true} />
-                                        )}
+                                            {!isMute && !isDeafen && (
+                                                <SvgPreview icon={item.iconHTML} enabled={true} />
+                                            )}
 
-                                        {cfg.label}
-                                    </BaseText>
-                                    <div style={{ display: "flex", gap: "8px", alignItems: "center", minHeight: "32px" }}>
-                                        <Button
-                                            size="small"
-                                            variant="secondary"
-                                            onClick={() => setListeningId(listening ? null : item.id)}
-                                            style={{
-                                                flex: 1,
-                                                height: "32px",
-                                                display: "inline-flex",
-                                                alignItems: "center",
-                                                justifyContent: "center"
-                                            }}
-                                        >
-                                            {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
-                                        </Button>
-                                        {cfg.keybind && (
+                                            {cfg.label}
+                                        </BaseText>
+                                        <div style={{ display: "flex", gap: "8px", alignItems: "center", minHeight: "32px" }}>
                                             <Button
                                                 size="small"
                                                 variant="secondary"
-                                                onClick={() => {
-                                                    setBtnCfg(item.id, { keybind: null });
-                                                    apply();
-                                                    forceUpdate();
-                                                }}
+                                                onClick={() => setListeningId(listening ? null : item.id)}
                                                 style={{
-                                                    width: "32px",
+                                                    flex: 1,
                                                     height: "32px",
-                                                    minWidth: "32px",
-                                                    padding: 0,
                                                     display: "inline-flex",
                                                     alignItems: "center",
-                                                    justifyContent: "center",
-                                                    flexShrink: 0
+                                                    justifyContent: "center"
                                                 }}
                                             >
-                                                ✕
+                                                {listening ? "Press key..." : (cfg.keybind || "Assign Key")}
                                             </Button>
-                                        )}
+                                            {cfg.keybind && (
+                                                <Button
+                                                    size="small"
+                                                    variant="secondary"
+                                                    onClick={() => {
+                                                        setBtnCfg(item.id, { keybind: null });
+                                                        apply();
+                                                        forceUpdate();
+                                                    }}
+                                                    style={{
+                                                        width: "32px",
+                                                        height: "32px",
+                                                        minWidth: "32px",
+                                                        padding: 0,
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "center",
+                                                        flexShrink: 0
+                                                    }}
+                                                >
+                                                    ✕
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                            <BaseText size="xs" color="text-muted">Group with (click one activates the others)</BaseText>
+                                            {items.length <= 1 ? (
+                                                <BaseText size="xs" color="text-muted">No other buttons to group with.</BaseText>
+                                            ) : (
+                                                <div style={{
+                                                    display: "flex",
+                                                    flexWrap: "wrap",
+                                                    gap: "6px",
+                                                }}>
+                                                    {items.filter(other => other.id !== item.id).map(other => {
+                                                        const linked = isLinked(item.id, other.id);
+                                                        return (
+                                                            <button
+                                                                key={other.id}
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    toggleGroupLink(item.id, other.id, !linked);
+                                                                    apply();
+                                                                    forceUpdate();
+                                                                }}
+                                                                style={{
+                                                                    display: "flex",
+                                                                    alignItems: "center",
+                                                                    gap: "6px",
+                                                                    height: "28px",
+                                                                    padding: "0 10px",
+                                                                    borderRadius: "14px",
+                                                                    border: linked
+                                                                        ? "1px solid var(--brand-experiment, var(--background-brand))"
+                                                                        : "1px solid var(--background-modifier-accent, var(--border-muted))",
+                                                                    background: linked
+                                                                        ? "var(--brand-experiment, var(--background-brand))"
+                                                                        : "var(--background-secondary-alt, var(--background-mod-subtle))",
+                                                                    color: linked ? "#fff" : "var(--text-default)",
+                                                                    fontSize: "12px",
+                                                                    cursor: "pointer",
+                                                                }}
+                                                            >
+                                                                {linked && <span aria-hidden>✓</span>}
+                                                                {other.id}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                                        <BaseText size="xs" color="text-muted">Group with (click one activates the others)</BaseText>
-                                        {items.length <= 1 ? (
-                                            <BaseText size="xs" color="text-muted">No other buttons to group with.</BaseText>
-                                        ) : (
-                                            <div style={{
-                                                display: "flex",
-                                                flexWrap: "wrap",
-                                                gap: "6px",
-                                            }}>
-                                                {items.filter(other => other.id !== item.id).map(other => {
-                                                    const linked = isLinked(item.id, other.id);
-                                                    return (
-                                                        <button
-                                                            key={other.id}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                toggleGroupLink(item.id, other.id, !linked);
-                                                                apply();
-                                                                forceUpdate();
-                                                            }}
-                                                            style={{
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                gap: "6px",
-                                                                height: "28px",
-                                                                padding: "0 10px",
-                                                                borderRadius: "14px",
-                                                                border: linked
-                                                                    ? "1px solid var(--brand-experiment, #5865f2)"
-                                                                    : "1px solid var(--background-modifier-accent, var(--border-muted))",
-                                                                background: linked
-                                                                    ? "var(--brand-experiment, #5865f2)"
-                                                                    : "var(--background-secondary-alt, var(--background-mod-subtle))",
-                                                                color: linked ? "#fff" : "var(--text-default)",
-                                                                fontSize: "12px",
-                                                                cursor: "pointer",
-                                                            }}
-                                                        >
-                                                            {linked && <span aria-hidden>✓</span>}
-                                                            {other.id}
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                                </Card>
                             );
                         })}
 
@@ -1432,6 +1731,97 @@ function PanelLayoutIcon({ style, className }: { style?: React.CSSProperties; cl
             {/* Bottom-Right Block */}
             <rect x="13" y="11" width="8" height="10" rx="2" fill="currentColor" />
         </svg>
+    );
+}
+
+// ─── Tab icons ────────────────────────────────────────────────────────────────
+// Kept in the same flat, currentColor, rects/circles-only language as
+// PanelLayoutIcon above so the tab strip reads as one family.
+
+function TabPanelIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="3" y="3" width="8" height="10" rx="2" fill="currentColor" />
+            <rect x="3" y="15" width="8" height="6" rx="2" fill="currentColor" />
+            <rect x="13" y="3" width="8" height="6" rx="2" fill="currentColor" />
+            <rect x="13" y="11" width="8" height="10" rx="2" fill="currentColor" />
+        </svg>
+    );
+}
+
+function TabCallIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="2" y="8" width="20" height="10" rx="5" fill="none" stroke="currentColor" strokeWidth="2" />
+            <circle cx="8" cy="13" r="1.6" fill="currentColor" />
+            <circle cx="12" cy="13" r="1.6" fill="currentColor" />
+            <circle cx="16" cy="13" r="1.6" fill="currentColor" />
+        </svg>
+    );
+}
+
+function TabStyleIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" fill="currentColor" fillOpacity="0.35" />
+            <path d="M12 3a9 9 0 0 1 0 18 4.5 4.5 0 0 1-1-8.9A2 2 0 0 0 12 8a2 2 0 0 0 0-4 9 9 0 0 1 0-1Z" fill="currentColor" />
+        </svg>
+    );
+}
+
+function TabColorsIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="9" cy="9" r="6" fill="currentColor" fillOpacity="0.55" />
+            <circle cx="15" cy="9" r="6" fill="currentColor" fillOpacity="0.55" />
+            <circle cx="12" cy="15" r="6" fill="currentColor" fillOpacity="0.55" />
+        </svg>
+    );
+}
+
+function TabVisibilityIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path fillRule="evenodd" clipRule="evenodd" d="M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7Zm0 3.8A3.2 3.2 0 1 0 12 15.2 3.2 3.2 0 0 0 12 8.8Z" fill="currentColor" />
+        </svg>
+    );
+}
+
+function TabButtonsIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="8" cy="6" r="1.8" fill="currentColor" />
+            <circle cx="16" cy="6" r="1.8" fill="currentColor" />
+            <circle cx="8" cy="12" r="1.8" fill="currentColor" />
+            <circle cx="16" cy="12" r="1.8" fill="currentColor" />
+            <circle cx="8" cy="18" r="1.8" fill="currentColor" />
+            <circle cx="16" cy="18" r="1.8" fill="currentColor" />
+        </svg>
+    );
+}
+
+const TAB_ICONS: Record<Tab, () => React.ReactElement> = {
+    panel: TabPanelIcon,
+    call: TabCallIcon,
+    style: TabStyleIcon,
+    colors: TabColorsIcon,
+    hide: TabVisibilityIcon,
+    drag: TabButtonsIcon,
+};
+
+// Small accent-bar heading used to open each settings section — a single
+// repeated device instead of a bespoke icon per section, so it reads as
+// rhythm rather than decoration.
+function SectionHeading({ children }: { children: React.ReactNode; }) {
+    return (
+        <Flex alignItems="center" gap={8} style={{ marginTop: "4px" }}>
+            <div style={{
+                width: "3px", height: "13px", borderRadius: "2px",
+                background: "var(--brand-experiment, var(--background-brand))",
+                flexShrink: 0,
+            }} />
+            <Heading tag="h5" style={{ margin: 0 }}>{children}</Heading>
+        </Flex>
     );
 }
 
@@ -1615,8 +2005,6 @@ function SubModalButton({
     cfg: any;
     handleOpenSubModal: (item: BtnItem) => void;
 }) {
-    const [isHovered, setIsHovered] = React.useState(false);
-
     const canonical = getCanonicalLabel(item.label);
     const isMute = canonical === "Mute";
     const isDeafen = canonical === "Deafen";
@@ -1624,30 +2012,7 @@ function SubModalButton({
     return (
         <button
             onClick={() => handleOpenSubModal(item)}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            style={{
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "16px",
-                padding: "9px 14px",
-                border: `1px solid ${
-                    isHovered
-                        ? "color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 32%, var(--border-subtle))"
-                        : "color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 14%, var(--border-subtle))"
-                }`,
-                borderRadius: "8px",
-                background: isHovered ? "var(--background-base-low)" : "var(--background-base-lower-alt)",
-                cursor: "pointer",
-                overflow: "hidden",
-                boxShadow: isHovered
-                    ? "var(--elevation-low), 0 1px #ffffff0d inset"
-                    : "0 1px #ffffff08 inset",
-                transform: isHovered ? "translateY(-1px)" : "none",
-                transition: "background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease",
-            }}
+            className="SubModalButton"
         >
             <BaseText size="sm" color="text-muted" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 {isMute && (
@@ -1664,22 +2029,6 @@ function SubModalButton({
 
                 {cfg.label}
             </BaseText>
-
-            <span
-                style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: "3px",
-                    borderRadius: "8px 0 0 8px",
-                    background: "var(--brand, var(--brand-experiment, var(--background-brand)))",
-                    opacity: isHovered ? 1 : 0.35,
-                    transform: isHovered ? "scaleY(1)" : "scaleY(.35)",
-                    transformOrigin: "center",
-                    transition: "opacity .16s ease, transform .16s ease",
-                }}
-            />
         </button>
     );
 }
@@ -1694,55 +2043,333 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps }) {
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM} className="PanelLayoutModal">
-            <ModalHeader>
-                <BaseText size="sm" color="text-muted">Button customization</BaseText>
-            </ModalHeader>
+        <Modal title={<BaseText size="sm" color="text-muted">Button customization</BaseText>} {...modalProps} size="md">
+            {items.length === 0 ? (
+                <BaseText size="sm" color="text-muted">
+                    No buttons detected. Open this tab again once buttons load.
+                </BaseText>
+            ) : (
+                <div className="deracul-scrollbar" style={{ display: "flex", flexDirection: "column", gap: "8px", paddingTop: "1px" }}>
+                    {(items ?? [])
+                    .filter(item => !getBtnCfg(item.id).hidden &&
+                        getCanonicalLabel(item.label) !== "Soundboard disabled when deafened" &&
+                        getCanonicalLabel(item.label) !== "Open Soundboard" &&
+                        getCanonicalLabel(item.label) !== "User Settings" &&
+                        getCanonicalLabel(item.label) !== "Panel Layout"
+                    )
+                    .map(item => {
+                        const cfg = getBtnCfg(item.id);
 
-            <ModalContent>
-                {items.length === 0 ? (
-                    <BaseText size="sm" color="text-muted">
-                        No buttons detected. Open this tab again once buttons load.
-                    </BaseText>
-                ) : (
-                    <div className="deracul-scrollbar" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                        {(items ?? [])
-                            .filter(item => !getBtnCfg(item.id).hidden &&
-                                getCanonicalLabel(item.label) !== "Soundboard disabled when deafened" &&
-                                getCanonicalLabel(item.label) !== "Open Soundboard" &&
-                                getCanonicalLabel(item.label) !== "User Settings" &&
-                                getCanonicalLabel(item.label) !== "Panel Layout"
-                            )
-                            .map(item => {
-                                const cfg = getBtnCfg(item.id);
+                        return (
+                            <SubModalButton
+                                key={item.id}
+                                item={item}
+                                cfg={cfg}
+                                handleOpenSubModal={handleOpenSubModal}
+                            />
+                        );
+                    })}
+                </div>
+            )}
 
-                                return (
-                                    <SubModalButton
-                                        key={item.id}
-                                        item={item}
-                                        cfg={cfg}
-                                        handleOpenSubModal={handleOpenSubModal}
-                                    />
-                                );
-                            })}
-                    </div>
-                )}
+            <Flex gap={8} justifyContent="flex-end" style={{ width: "100%", marginTop: "var(--custom-modal-padding-md)" }}>
+                <div style={{ flex: 1 }} />
+                <Button variant="primary" onClick={() => modalProps.onClose()}>
+                    Done
+                </Button>
+            </Flex>
+        </Modal>
+    );
+}
+
+function SettingModalItem({
+    item,
+    label,
+    icon,
+    modalProps,
+    resetDefaults,
+    forceUpdate
+}: {
+    item: BtnItem;
+    label: any;
+    icon?: any;
+    modalProps: RenderModalProps;
+    resetDefaults: (arg: { id: any }) => void;
+    forceUpdate: () => void;
+}) {
+    const cfg = getBtnCfg(item.id);
+    const canonical = getCanonicalLabel(item.label);
+    const isUserSettings = canonical === "User Settings";
+    const isPanelLayout = canonical === "Panel Layout";
+    const isMute = canonical === "Mute";
+    const isDeafen = canonical === "Deafen";
+
+    const [targetSize, setTargetSize] = React.useState({ width: "36px", height: "36px" });
+    const [{ customNameplateNeutral, customNameplateNeutralHovered }, setNameplateVars] = React.useState<{
+        customNameplateNeutral: string | null;
+        customNameplateNeutralHovered: string | null;
+    }>({
+        customNameplateNeutral: null,
+        customNameplateNeutralHovered: null,
+    });
+
+    React.useLayoutEffect(() => {
+        let targetEl: Element | null = null;
+
+        if (typeof label === "string") {
+            targetEl =
+                document.querySelector(`${S.panelContainer} [data-deracul-label="${label}"]`) ||
+                document.querySelector(`${S.panelContainer} ${S.panelButton}`) ||
+                document.querySelector(S.panelButton);
+        } else if (label && "current" in label) {
+            targetEl = (label as React.RefObject<Element>).current;
+        } else if (label instanceof Element) {
+            targetEl = label;
+        } else {
+            targetEl =
+                document.querySelector(`${S.panelContainer} ${S.panelButton}`) ||
+                document.querySelector(S.panelButton);
+        }
+
+        if (!targetEl) return;
+
+        const computed = getComputedStyle(targetEl);
+        const neutral = computed.getPropertyValue("--custom-nameplate-neutral").trim();
+        const neutralHovered = computed.getPropertyValue("--custom-nameplate-neutral-hovered").trim();
+
+        setNameplateVars({
+            customNameplateNeutral: neutral || null,
+            customNameplateNeutralHovered: neutralHovered || null,
+        });
+
+        if (!label) return;
+
+        const buttonEl = document.querySelector<HTMLElement>(
+            `${S.panelContainer} [data-deracul-label="${label}"]`
+        ) || document.querySelector<HTMLElement>(
+            `${S.panelContainer} ${S.panelButton}[data-deracul-label="${label}"]`
+        );
+
+        if (!buttonEl) return;
+
+        const updateSize = () => {
+            const rect = buttonEl.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+                setTargetSize({
+                    width: `${rect.width}px`,
+                    height: `${rect.height}px`,
+                });
+            }
+        };
+
+        updateSize();
+
+        const observer = new ResizeObserver(updateSize);
+        observer.observe(buttonEl);
+
+        return () => observer.disconnect();
+    }, [label]);
+
+    const isModified =
+        (cfg.color !== undefined && cfg.color !== "#5865f2") ||
+        (cfg.opacity !== undefined && cfg.opacity !== 100) ||
+        (cfg.radius !== undefined && cfg.radius !== 10) ||
+        (cfg.colorOff !== undefined && cfg.colorOff !== "#000000") ||
+        (cfg.opacityOff !== undefined && cfg.opacityOff !== 22) ||
+        (cfg.radiusOff !== undefined && cfg.radiusOff !== 10) ||
+        (cfg.colorfulActiveButton !== undefined && cfg.colorfulActiveButton !== false) ||
+        (cfg.colorfulInActiveButton !== undefined && cfg.colorfulInActiveButton !== false) ||
+        (cfg.keybind !== null);
+
+    return (
+        <Modal title={<BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>} {...modalProps} size="xl">
+            <ModalContent style={{ padding: "24px" }}>
+                <div className="deracul-scrollbar" style={{ overflow: "visible" }}>
+                    <Flex flexDirection="column" gap={16} style={{ overflow: "visible", height: "100%" }}>
+                        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "row-reverse", gap: "24px", overflow: "visible" }}>
+                            <div style={{ flex: 1 }}>
+                                {!isUserSettings && !isPanelLayout && (
+                                    <>
+                                        <FormSwitch title="Colorful InActive button" description={isMute || isDeafen ? "Enable a colorful background when enabled" : "Enable a colorful background when disabled"} value={cfg.colorfulInActiveButton ?? false} onChange={v => {
+                                            setBtnCfg(item.id, { colorfulInActiveButton: v });
+                                            apply(); forceUpdate();
+                                        }} />
+                                        {cfg.colorfulInActiveButton && (
+                                            <>
+                                                <div style={{ marginBottom: "16px" }}>
+                                                    <Card>
+                                                        <div style={{ display: "grid", gap: "8px" }}>
+                                                            <ColorRow
+                                                                label="InActive blob background color"
+                                                                value={cfg.colorOff ?? "#000000"}
+                                                                onChange={e => {
+                                                                    setBtnCfg(item.id, { colorOff: e });
+                                                                    apply();
+                                                                }}
+                                                                onBlur={() => forceUpdate()}
+                                                            />
+                                                            <SliderRow
+                                                                label="Opacity"
+                                                                min={0}
+                                                                max={100}
+                                                                value={cfg.opacityOff ?? 22}
+                                                                onChange={v => {
+                                                                    setBtnCfg(item.id, { opacityOff: Number(Math.round(v)) });
+                                                                    apply(); forceUpdate();
+                                                                }}
+                                                                unit="%"
+                                                            />
+                                                            <SliderRow
+                                                                label="Radius"
+                                                                min={0}
+                                                                max={20}
+                                                                value={cfg.radiusOff ?? 10}
+                                                                onChange={v => {
+                                                                    setBtnCfg(item.id, { radiusOff: Number(Math.round(v)) });
+                                                                    apply(); forceUpdate();
+                                                                }}
+                                                                unit="px"
+                                                            />
+                                                        </div>
+                                                    </Card>
+                                                </div>
+                                            </>
+                                        )}
+                                        <FormSwitch title="Colorful active button" description="Enable a colorful background when enabled" value={cfg.colorfulActiveButton ?? false} onChange={v => {
+                                            setBtnCfg(item.id, { colorfulActiveButton: v });
+                                            apply(); forceUpdate();
+                                        }} hideBorder={!cfg.colorfulActiveButton} />
+                                        {cfg.colorfulActiveButton && (
+                                            <>
+                                                <Card>
+                                                    <div style={{ display: "grid", gap: "8px" }}>
+                                                        <ColorRow
+                                                            label="Active blob background color"
+                                                            value={cfg.color ?? "#5865f2"}
+                                                            onChange={e => {
+                                                                setBtnCfg(item.id, { color: e });
+                                                                apply();
+                                                            }}
+                                                            onBlur={() => forceUpdate()}
+                                                        />
+                                                        <SliderRow
+                                                            label="Opacity"
+                                                            min={0}
+                                                            max={100}
+                                                            value={cfg.opacity ?? 100}
+                                                            onChange={v => {
+                                                                setBtnCfg(item.id, { opacity: Number(Math.round(v)) });
+                                                                apply(); forceUpdate();
+                                                            }}
+                                                            unit="%"
+                                                        />
+                                                        <SliderRow
+                                                            label="Radius"
+                                                            min={0}
+                                                            max={20}
+                                                            value={cfg.radius ?? 10}
+                                                            onChange={v => {
+                                                                setBtnCfg(item.id, { radius: Number(Math.round(v)) });
+                                                                apply(); forceUpdate();
+                                                            }}
+                                                            unit="px"
+                                                        />
+                                                    </div>
+                                                </Card>
+                                            </>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+
+                            {!isPanelLayout && !isUserSettings && (
+                                <div style={{ alignContent: "center", flexShrink: 0, borderRight: "1px solid rgba(255, 255, 255, 0.08)", padding: "12px 20px 12px 12px", overflow: "visible" }}>
+                                    <Flex flexDirection="column" alignItems="center" gap={16} className="previewButtonContainer" style={{ overflow: "visible" }}>
+                                        <Flex flexDirection="column" alignItems="center" gap={8}>
+                                            <BaseText size="xs" color="text-muted">OFF State</BaseText>
+                                            <button
+                                                className={!isMute && !isDeafen ? "buttonPreview previewButtonOff plateMuted__67645" : "buttonPreview previewButtonOff"}
+                                                data-deracul-label={cfg.label}
+                                                style={{
+                                                    "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
+                                                    "--custom-nameplate-neutral": customNameplateNeutral,
+                                                    width: targetSize.width,
+                                                    height: targetSize.height,
+                                                    background: "transparent",
+                                                    color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    userSelect: "none"
+                                                } as React.CSSProperties}
+                                            >
+                                                {isMute && (
+                                                    <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                                                )}
+                                                {isDeafen && (
+                                                    <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                                                )}
+                                                {!isMute && !isDeafen && (
+                                                    <SvgPreview icon={icon} enabled={false} />
+                                                )}
+                                            </button>
+                                        </Flex>
+
+                                        <Flex flexDirection="column" alignItems="center" gap={8} className="previewButtonContainer">
+                                            <BaseText size="xs" color="text-muted">ON State</BaseText>
+                                            <button
+                                                className={isMute || isDeafen ? "buttonPreview previewButtonOn button__201d5 lookBlank__201d5 plateMuted__67645" : "buttonPreview previewButtonOn button__201d5 lookBlank__201d5"}
+                                                data-deracul-label={cfg.label}
+                                                style={{
+                                                    "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
+                                                    "--custom-nameplate-neutral": customNameplateNeutral,
+                                                    width: targetSize.width,
+                                                    height: targetSize.height,
+                                                    background: "transparent",
+                                                    color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    userSelect: "none"
+                                                } as React.CSSProperties}
+                                            >
+                                                {isMute && (
+                                                    <span dangerouslySetInnerHTML={{ __html: svgs.muteOn }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" } as React.CSSProperties} />
+                                                )}
+                                                {isDeafen && (
+                                                    <span dangerouslySetInnerHTML={{ __html: svgs.deafenOn }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" } as React.CSSProperties} />
+                                                )}
+                                                {!isMute && !isDeafen && (
+                                                    <SvgPreview icon={icon} enabled={true} />
+                                                )}
+                                            </button>
+                                        </Flex>
+                                    </Flex>
+                                </div>
+                            )}
+                        </div>
+                    </Flex>
+                </div>
             </ModalContent>
 
-            <ModalFooter>
+            <ModalFooter style={{ paddingRight: 0, paddingLeft: 0 }}>
                 <Flex gap={8} justifyContent="flex-end" style={{ width: "100%" }}>
+                    {isModified && (
+                        <Button variant="secondary" onClick={() => resetDefaults({ id: item.id })}>
+                            Reset to Defaults
+                        </Button>
+                    )}
                     <div style={{ flex: 1 }} />
                     <Button variant="primary" onClick={() => modalProps.onClose()}>
                         Done
                     </Button>
                 </Flex>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 
 function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProps; label: any; icon?: any; }) {
-    const [targetSize, setTargetSize] = React.useState({ width: "36px", height: "36px" });
     const [listeningId, setListeningId] = React.useState<string | null>(null);
     const [items] = React.useState<BtnItem[]>(getBtnItems());
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
@@ -1766,7 +2393,8 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
         });
 
         setResetKey(prev => prev + 1);
-        apply(); forceUpdate();
+        apply();
+        forceUpdate();
     }
 
     React.useEffect(() => {
@@ -1806,294 +2434,22 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
         };
     }, [listeningId]);
 
+    const filteredItems = items.filter(item => item.label === label);
+
     return (
-        <ModalRoot {...modalProps} size={ModalSize.LARGE} className="PanelLayoutModal">
-            {items.filter(item => item.label === label).map(item => {
-                const cfg = getBtnCfg(item.id);
-                const canonical = getCanonicalLabel(item.label);
-                const isUserSettings = canonical === "User Settings";
-                const isPanelLayout = canonical === "Panel Layout";
-                const isMute = canonical === "Mute";
-                const isDeafen = canonical === "Deafen";
-
-                const [{ customNameplateNeutral, customNameplateNeutralHovered }, setNameplateVars] = React.useState<{
-                    customNameplateNeutral: string | null;
-                    customNameplateNeutralHovered: string | null;
-                }>({
-                    customNameplateNeutral: null,
-                    customNameplateNeutralHovered: null,
-                });
-
-                React.useLayoutEffect(() => {
-                    // 1. Resolve target element (supports string label, React ref, DOM element, or panel button fallback)
-                    let targetEl: Element | null = null;
-
-                    if (typeof label === "string") {
-                        targetEl =
-                            document.querySelector(`${S.panelContainer} [data-deracul-label="${label}"]`) ||
-                            document.querySelector(`${S.panelContainer} ${S.panelButton}`) ||
-                            document.querySelector(S.panelButton);
-                    } else if (label && "current" in label) {
-                        targetEl = (label as React.RefObject<Element>).current;
-                    } else if (label instanceof Element) {
-                        targetEl = label;
-                    } else {
-                        targetEl =
-                            document.querySelector(`${S.panelContainer} ${S.panelButton}`) ||
-                            document.querySelector(S.panelButton);
-                    }
-
-                    if (!targetEl) return;
-
-                    // 2. Read computed CSS custom properties after DOM layout
-                    const computed = getComputedStyle(targetEl);
-                    const neutral = computed.getPropertyValue("--custom-nameplate-neutral").trim();
-                    const neutralHovered = computed.getPropertyValue("--custom-nameplate-neutral-hovered").trim();
-
-                    setNameplateVars({
-                        customNameplateNeutral: neutral || null,
-                        customNameplateNeutralHovered: neutralHovered || null,
-                    });
-
-                    if (!label) return;
-
-                    // Build query using S.panelContainer and the data attribute (or S.panelButton)
-                    const buttonEl = document.querySelector<HTMLElement>(
-                        `${S.panelContainer} [data-deracul-label="${label}"]`
-                    ) || document.querySelector<HTMLElement>(
-                        `${S.panelContainer} ${S.panelButton}[data-deracul-label="${label}"]`
-                    );
-
-                    if (!buttonEl) return;
-
-                    const updateSize = () => {
-                        const rect = buttonEl.getBoundingClientRect();
-                        if (rect.width > 0 && rect.height > 0) {
-                            setTargetSize({
-                                width: `${rect.width}px`,
-                                height: `${rect.height}px`,
-                            });
-                        }
-                    };
-
-                    updateSize();
-
-                    // Recalculate if the button size updates dynamically
-                    const observer = new ResizeObserver(updateSize);
-                    observer.observe(buttonEl);
-
-                    return () => observer.disconnect();
-                }, []);
-
-                function hexToRgba(hex: string, alpha: number) {
-                    const cleanHex = hex.replace("#", "");
-                    const bigint = parseInt(cleanHex.length === 3 ? cleanHex.split("").map(c => c + c).join("") : cleanHex, 16);
-                    const r = (bigint >> 16) & 255;
-                    const g = (bigint >> 8) & 255;
-                    const b = bigint & 255;
-                    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-                }
-
-                const isModified =
-                    (cfg.color !== undefined && cfg.color !== "#5865f2") ||
-                    (cfg.opacity !== undefined && cfg.opacity !== 100) ||
-                    (cfg.radius !== undefined && cfg.radius !== 10) ||
-                    (cfg.colorOff !== undefined && cfg.colorOff !== "#000000") ||
-                    (cfg.opacityOff !== undefined && cfg.opacityOff !== 22) ||
-                    (cfg.radiusOff !== undefined && cfg.radiusOff !== 10) ||
-                    (cfg.colorfulActiveButton !== undefined && cfg.colorfulActiveButton !== false) ||
-                    (cfg.colorfulInActiveButton !== undefined && cfg.colorfulInActiveButton !== false) ||
-                    (cfg.keybind !== null);
-
-                return (
-                    <React.Fragment key={item.id}>
-                        <ModalHeader>
-                            <BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>
-                        </ModalHeader>
-
-                        <ModalContent style={{ padding: "24px" }}>
-                            <div className="deracul-scrollbar" style={{ overflow: "visible" }}>
-                                <Flex flexDirection="column" gap={16} style={{ overflow: "visible", height: "100%" }}>
-                                    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "row-reverse", gap: "24px", overflow: "visible" }}>
-                                        <div style={{ flex: 1 }}>
-                                            {!isUserSettings && !isPanelLayout && (
-                                                <>
-                                                    <>
-                                                        <FormSwitch title="Colorful InActive button" description={isMute || isDeafen ? "Enable a colorful background when enabled" : "Enable a colorful background when disabled"} value={cfg.colorfulInActiveButton ?? false} onChange={v => {
-                                                            setBtnCfg(item.id, { colorfulInActiveButton: v });
-                                                            apply(); forceUpdate();
-                                                        }} />
-                                                        {cfg.colorfulInActiveButton && (
-                                                            <>
-                                                                <ColorRow
-                                                                    label="InActive blob background color"
-                                                                    value={cfg.colorOff ?? "#000000"}
-                                                                    onChange={e => {
-                                                                        setBtnCfg(item.id, { colorOff: e });
-                                                                        apply();
-                                                                    }}
-                                                                    onBlur={() => forceUpdate()}
-                                                                />
-                                                                <SliderRow
-                                                                    label="Opacity"
-                                                                    min={0}
-                                                                    max={100}
-                                                                    value={cfg.opacityOff ?? 22}
-                                                                    onChange={v => {
-                                                                        setBtnCfg(item.id, { opacityOff: Number(Math.round(v)) });
-                                                                        apply(); forceUpdate();
-                                                                    }}
-                                                                    unit="%"
-                                                                />
-                                                                <SliderRow
-                                                                    label="Radius"
-                                                                    min={0}
-                                                                    max={20}
-                                                                    value={cfg.radiusOff ?? 10}
-                                                                    onChange={v => {
-                                                                        setBtnCfg(item.id, { radiusOff: Number(Math.round(v)) });
-                                                                        apply(); forceUpdate();
-                                                                    }}
-                                                                    unit="px"
-                                                                />
-                                                            </>
-                                                        )}
-                                                    </>
-                                                    <FormSwitch title="Colorful active button" description="Enable a colorful background when enabled" value={cfg.colorfulActiveButton ?? false} onChange={v => {
-                                                        setBtnCfg(item.id, { colorfulActiveButton: v });
-                                                        apply(); forceUpdate();
-                                                    }} hideBorder={!cfg.colorfulActiveButton} />
-                                                    {cfg.colorfulActiveButton && (
-                                                        <>
-                                                            <ColorRow
-                                                                label="Active blob background color"
-                                                                value={cfg.color ?? "#5865f2"}
-                                                                onChange={e => {
-                                                                    setBtnCfg(item.id, { color: e });
-                                                                    apply();
-                                                                }}
-                                                                onBlur={() => forceUpdate()}
-                                                            />
-                                                            <SliderRow
-                                                                label="Opacity"
-                                                                min={0}
-                                                                max={100}
-                                                                value={cfg.opacity ?? 100}
-                                                                onChange={v => {
-                                                                    setBtnCfg(item.id, { opacity: Number(Math.round(v)) });
-                                                                    apply(); forceUpdate();
-                                                                }}
-                                                                unit="%"
-                                                            />
-                                                            <SliderRow
-                                                                label="Radius"
-                                                                min={0}
-                                                                max={20}
-                                                                value={cfg.radius ?? 10}
-                                                                onChange={v => {
-                                                                    setBtnCfg(item.id, { radius: Number(Math.round(v)) });
-                                                                    apply(); forceUpdate();
-                                                                }}
-                                                                unit="px"
-                                                            />
-                                                        </>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-
-                                        {!isPanelLayout && !isUserSettings && (
-                                            <div style={{ alignContent: "center", flexShrink: 0, borderRight: "1px solid rgba(255, 255, 255, 0.08)", padding: "12px 20px 12px 12px", overflow: "visible" }}>
-                                                <Flex flexDirection="column" alignItems="center" gap={16} className="previewButtonContainer" style={{ overflow: "visible" }}>
-                                                    <Flex flexDirection="column" alignItems="center" gap={8}>
-                                                        <BaseText size="xs" color="text-muted">OFF State</BaseText>
-                                                        <button
-                                                            className={!isMute && !isDeafen ? "buttonPreview previewButtonOff plateMuted__67645" : "buttonPreview previewButtonOff"}
-                                                            data-deracul-label={cfg.label}
-                                                            style={{
-                                                                "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
-                                                                "--custom-nameplate-neutral": customNameplateNeutral,
-                                                                width: targetSize.width,
-                                                                height: targetSize.height,
-                                                                background: "transparent",
-                                                                color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                justifyContent: "center",
-                                                                userSelect: "none"
-                                                            } as React.CSSProperties}
-                                                        >
-                                                            {isMute && (
-                                                                <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                                                            )}
-
-                                                            {isDeafen && (
-                                                                <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                                                            )}
-
-                                                            {!isMute && !isDeafen && (
-                                                                <SvgPreview icon={icon} enabled={false} />
-                                                            )}
-                                                        </button>
-                                                    </Flex>
-
-                                                    <Flex flexDirection="column" alignItems="center" gap={8} className="previewButtonContainer">
-                                                        <BaseText size="xs" color="text-muted">ON State</BaseText>
-                                                        <button
-                                                            className={isMute || isDeafen ? "buttonPreview previewButtonOn button__201d5 lookBlank__201d5 plateMuted__67645" : "buttonPreview previewButtonOn button__201d5 lookBlank__201d5"}
-                                                            data-deracul-label={cfg.label}
-                                                            style={{
-                                                                "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
-                                                                "--custom-nameplate-neutral": customNameplateNeutral,
-                                                                width: targetSize.width,
-                                                                height: targetSize.height,
-                                                                background: "transparent",
-                                                                color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                justifyContent: "center",
-                                                                userSelect: "none"
-                                                            } as React.CSSProperties}
-                                                        >
-                                                            {isMute && (
-                                                                <span dangerouslySetInnerHTML={{ __html: svgs.muteOn }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" } as React.CSSProperties} />
-                                                            )}
-
-                                                            {isDeafen && (
-                                                                <span dangerouslySetInnerHTML={{ __html: svgs.deafenOn }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" } as React.CSSProperties} />
-                                                            )}
-
-                                                            {!isMute && !isDeafen && (
-                                                                <SvgPreview icon={icon} enabled={true} />
-                                                            )}
-                                                        </button>
-                                                    </Flex>
-                                                </Flex>
-                                            </div>
-                                        )}
-                                    </div>
-                                </Flex>
-                            </div>
-                        </ModalContent>
-
-                        <ModalFooter>
-                            <Flex gap={8} justifyContent="flex-end" style={{ width: "100%" }}>
-                                {isModified && (
-                                    <Button variant="secondary" onClick={() => resetDefaults({ id: item.id })}>
-                                        Reset to Defaults
-                                    </Button>
-                                )}
-
-                                <div style={{ flex: 1 }} />
-                                <Button variant="primary" onClick={() => modalProps.onClose()}>
-                                    Done
-                                </Button>
-                            </Flex>
-                        </ModalFooter>
-                    </React.Fragment>
-                );
-            })}
-        </ModalRoot>
+        <>
+            {filteredItems.map(item => (
+                <SettingModalItem
+                    key={item.id}
+                    item={item}
+                    label={label}
+                    icon={icon}
+                    modalProps={modalProps}
+                    resetDefaults={resetDefaults}
+                    forceUpdate={forceUpdate}
+                />
+            ))}
+        </>
     );
 }
 
@@ -2132,13 +2488,15 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
     }
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.LARGE}>
-            <ModalHeader separator={false} style={{ padding: "24px 24px 0 24px", display: "flex", flexDirection: "column", position: "relative" }}>
-                <Flex gap={12} alignItems="center" style={{ width: "100%", paddingRight: "36px" }}>
+        <Modal title={
+        <>
+            <Flex gap={12} alignItems="center" style={{ width: "100%", paddingRight: "36px" }}>
                     <div style={{
                         display: "flex", alignItems: "center", justifyContent: "center",
                         width: "40px", height: "40px", borderRadius: "12px",
-                        background: "var(--brand-experiment, var(--background-brand))", color: "white"
+                        background: "linear-gradient(160deg, color-mix(in srgb, var(--brand-experiment, var(--background-brand)) 100%, white 12%), var(--brand-experiment, var(--background-brand)))",
+                        boxShadow: "0 4px 14px -4px color-mix(in srgb, var(--brand-experiment, var(--background-brand)) 65%, transparent)",
+                        color: "white",
                     }}>
                         <PanelLayoutIcon />
                     </div>
@@ -2152,37 +2510,52 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                     </div>
                 </Flex>
 
-                <Flex gap={24} style={{ marginTop: "24px", borderBottom: "1px solid var(--background-modifier-accent, var(--border-muted))", width: "100%" }}>
-                    {tabsList.map(t => (
-                        <div
-                            key={t.id}
-                            onClick={() => setTab(t.id)}
-                            style={{
-                                paddingBottom: "12px",
-                                cursor: "pointer",
-                                borderBottom: tab === t.id ? "2px solid var(--brand-experiment, var(--background-brand))" : "2px solid transparent",
-                                transition: "all 0.15s ease",
-                            }}
-                        >
-                            <BaseText size="md" weight={tab === t.id ? "semibold" : "medium"} color={tab === t.id ? "text-strong" : "text-muted"}>
-                                {t.label}
-                            </BaseText>
-                        </div>
-                    ))}
+                <Flex gap={4} style={{ marginTop: "24px", borderBottom: "1px solid var(--background-modifier-accent, var(--border-muted))", width: "100%" }}>
+                    {tabsList.map(t => {
+                        const Icon = TAB_ICONS[t.id];
+                        const active = tab === t.id;
+                        return (
+                            <div
+                                key={t.id}
+                                onClick={() => setTab(t.id)}
+                                style={{
+                                    display: "flex", alignItems: "center", gap: "6px",
+                                    padding: "8px 12px", marginBottom: "-1px",
+                                    cursor: "pointer", borderRadius: "6px 6px 0 0",
+                                    borderBottom: active ? "2px solid var(--brand-experiment, var(--background-brand))" : "2px solid transparent",
+                                    backgroundColor: "transparent",
+                                    transition: "background-color 0.15s ease, border-color 0.15s ease",
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.backgroundColor = active
+                                        ? "transparent"
+                                        : "var(--background-modifier-hover, var(--background-mod-subtle))";
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.backgroundColor = "transparent";
+                                }}
+                            >
+                                <span style={{ display: "flex", color: active ? "var(--brand-experiment, var(--background-brand))" : "var(--text-muted)", transition: "color 0.15s ease" }}>
+                                    <Icon />
+                                </span>
+                                <BaseText size="md" weight={active ? "semibold" : "medium"} color={active ? "text-strong" : "text-muted"}>
+                                    {t.label}
+                                </BaseText>
+                            </div>
+                        );
+                    })}
                 </Flex>
-            </ModalHeader>
-
-            <ModalContent style={{ padding: "24px" }}>
+        </>} {...modalProps} size="xl">
                 <div className="deracul-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px" }}>
                     <Flex flexDirection="column" gap={16}>
 
                         {tab === "panel" && <>
-                            <Heading tag="h5">Layout Structure</Heading>
+                            <SectionHeading>Layout Structure</SectionHeading>
                             <Card variant="primary">
                                 <Dropdown label="User Panel Alignment" options={PANEL_LAYOUTS} value={s.userPanelLayout} onChange={v => set("userPanelLayout", v)} />
                             </Card>
 
-                            <Heading tag="h5">Component Dimensions</Heading>
+                            <SectionHeading>Component Dimensions</SectionHeading>
                             <Card variant="primary">
                                 <SliderRow label="Button Box Size" value={s.buttonContainerSize} min={24} max={48} onChange={v => set("buttonContainerSize", Math.round(v))} resetKey={resetKey} />
                                 <SliderRow label="Vector Icon Size" value={s.iconSize} min={12} max={28} onChange={v => set("iconSize", Math.round(v))} resetKey={resetKey} />
@@ -2190,7 +2563,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                 <SliderRow label="Idle Opacity" value={s.panelOpacity} min={10} max={100} unit="%" onChange={v => set("panelOpacity", Math.round(v))} resetKey={resetKey} />
                             </Card>
 
-                            <Heading tag="h5">Extra Features</Heading>
+                            <SectionHeading>Extra Features</SectionHeading>
                             <Card variant="primary">
                                 <FormSwitch title="Hide Dropdown Chevrons" description="Removes the tiny arrows next to Mute/Deafen." value={s.hideChevrons} onChange={v => set("hideChevrons", v)} />
                                 <FormSwitch title="Lock Button Position" description="Prevents Mute, Deafen, and Settings buttons from dropping down to a new row when you have a long status or share screen." value={s.lockButtonPosition} onChange={v => set("lockButtonPosition", v)} />
@@ -2200,12 +2573,12 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         </>}
 
                         {tab === "call" && <>
-                            <Heading tag="h5">Action Bar Layout</Heading>
+                            <SectionHeading>Action Bar Layout</SectionHeading>
                             <Card variant="primary">
                                 <Dropdown label="Call Controls Alignment" options={CALL_LAYOUTS} value={s.callControlsLayout} onChange={v => set("callControlsLayout", v)} />
                             </Card>
 
-                            <Heading tag="h5">Voice Settings</Heading>
+                            <SectionHeading>Voice Settings</SectionHeading>
                             <Card variant="primary">
                                 <FormSwitch title="Compact Mode" description="Reduces padding inside call buttons to save space." value={s.callCompact} onChange={v => set("callCompact", v)} />
                                 <FormSwitch title="Hide Disconnect Button" value={s.hideDisconnect} onChange={v => set("hideDisconnect", v)} />
@@ -2215,7 +2588,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         </>}
 
                         {tab === "style" && <>
-                            <Heading tag="h5">Aesthetics</Heading>
+                            <SectionHeading>Aesthetics</SectionHeading>
                             <Card variant="primary">
                                 <Dropdown label="Button Base Style" options={BUTTON_STYLES} value={s.buttonStyle} onChange={v => set("buttonStyle", v)} />
                                 <Dropdown label="Interaction Hover Effect" options={HOVER_EFFECTS} value={s.hoverEffect} onChange={v => set("hoverEffect", v)} />
@@ -2223,30 +2596,32 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         </>}
 
                         {tab === "colors" && <>
-                            <Heading tag="h5">Panel Colors</Heading>
+                            <SectionHeading>Panel Colors</SectionHeading>
                             <Card variant="primary">
-                                <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} />
+                                <div style={{ display: "grid", gap: "8px" }}>
+                                    <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} />
 
-                                {settings.store.hoverEffect === "glow" && <>
-                                    <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} />
-                                </>}
+                                    {settings.store.hoverEffect === "glow" && <>
+                                        <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} />
+                                    </>}
+                                </div>
                             </Card>
 
-                            <Heading tag="h5">Native Buttons</Heading>
+                            <SectionHeading>Native Buttons</SectionHeading>
                             <Card variant="primary">
                                 <FormSwitch title="Force Icon Color" description="Applies the icon color to Discord's native Mute, Deafen, and Settings buttons even when no custom icon color is set in TestcordHelper." value={s.forceNativeButtonColor} onChange={v => set("forceNativeButtonColor", v)} hideBorder />
                             </Card>
                         </>}
 
                         {tab === "hide" && <>
-                            <Heading tag="h5">Standard Buttons</Heading>
+                            <SectionHeading>Standard Buttons</SectionHeading>
                             <Card variant="primary">
                                 <FormSwitch title="Hide Mute" value={s.hideMute} onChange={v => set("hideMute", v)} />
                                 <FormSwitch title="Hide Deafen" value={s.hideDeafen} onChange={v => set("hideDeafen", v)} />
                                 <FormSwitch title="Hide User Settings" value={s.hideSettings} onChange={v => set("hideSettings", v)} hideBorder />
                             </Card>
 
-                            <Heading tag="h5">Call Buttons</Heading>
+                            <SectionHeading>Call Buttons</SectionHeading>
                             <Card variant="primary">
                                 <FormSwitch title="Hide Camera" value={s.hideCamera} onChange={v => set("hideCamera", v)} />
                                 <FormSwitch title="Hide Screen Share" value={s.hideScreenShare} onChange={v => set("hideScreenShare", v)} />
@@ -2255,13 +2630,12 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         </>}
 
                         {tab === "drag" && <>
-                            <Heading tag="h5">Button Order & Hotkeys & Grouping</Heading>
+                            <SectionHeading>Button Order & Hotkeys & Grouping</SectionHeading>
                             <ButtonsDragTab />
                         </>}
 
                     </Flex>
                 </div>
-            </ModalContent>
 
             <ModalFooter>
                 <Flex gap={8} justifyContent="flex-end" style={{ width: "100%" }}>
@@ -2274,7 +2648,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                     </Button>
                 </Flex>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 

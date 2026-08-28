@@ -124,7 +124,7 @@
 
 .ps-badge-blue {
     background: rgb(88 101 242 / 15%);
-    color: var(--brand-experiment, #5865f2);
+    color: var(--background-brand, #5865f2);
 }
 
 /* Neutral state for badges whose feature is off or partially on */
@@ -275,9 +275,9 @@
     align-items: center;
     gap: 8px;
     padding: 9px 11px;
-    border: 1px solid var(--border-subtle);
+    border: 1px solid var(--background-base-low);
     border-radius: 6px;
-    background: var(--background-tertiary);
+    background: var(--background-base-low);
     color: var(--text-normal);
     overflow: hidden;
     transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease;
@@ -336,7 +336,7 @@
     position: relative;
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
-    background: var(--background-tertiary);
+    background: var(--background-base-low);
     color: var(--text-normal);
     cursor: pointer;
     min-height: 30px;
@@ -389,7 +389,7 @@
 }
 
 .ps-summary-badge {
-    background: var(--background-tertiary);
+    background: var(--background-base-low);
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     padding: 3px 8px;
@@ -536,7 +536,7 @@
 }
 
 .ps-custom-select-menu::-webkit-scrollbar-thumb {
-    background: var(--background-secondary, #2b2d31);
+    background: var(--background-secondary-alt, #2b2d31);
     border-radius: 3px;
 }
 
@@ -608,7 +608,7 @@
 }
 
 .ps-terminal-box {
-    background: var(--background-tertiary);
+    background: var(--background-base-low);
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     padding: 8px 10px;
@@ -714,7 +714,7 @@
 }
 
 .ps-tag-pill {
-    background: var(--background-tertiary);
+    background: var(--background-base-low);
     border: 1px solid var(--border-subtle);
     border-radius: 12px;
     padding: 3px 10px;
@@ -823,7 +823,7 @@
 }
 
 .ps-page-btn {
-    background: var(--background-tertiary);
+    background: var(--background-base-low);
     border: 1px solid var(--border-subtle);
     color: var(--text-normal, #dbdee1);
     padding: 2px 7px;
@@ -856,7 +856,7 @@
 
 .ps-page-input {
     width: 36px;
-    background: var(--background-tertiary);
+    background: var(--background-base-low);
     border: 1px solid var(--border-subtle);
     border-radius: 4px;
     color: var(--text-normal, #dbdee1);
@@ -953,49 +953,6 @@
 }
 
 /* Block Detail Modal */
-.ps-block-modal-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background: rgb(0 0 0 / 60%);
-    backdrop-filter: blur(2px);
-    animation: ps-modal-fade 0.12s ease;
-}
-
-@keyframes ps-modal-fade {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-.ps-block-modal {
-    width: 100%;
-    max-width: 560px;
-    max-height: 80vh;
-    display: flex;
-    flex-direction: column;
-    background: var(--background-secondary, #2b2d31);
-    border: 1px solid var(--border-subtle, rgb(255 255 255 / 8%));
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
-    overflow: hidden;
-    animation: ps-modal-pop 0.14s ease;
-}
-
-@keyframes ps-modal-pop {
-    from {
-        opacity: 0;
-        transform: translateY(6px) scale(0.98);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
 
 .ps-block-modal-header {
     display: flex;
@@ -1066,7 +1023,7 @@
     justify-content: space-between;
     gap: 12px;
     padding: 6px 10px;
-    background: var(--background-tertiary, #1e1f22);
+    background: var(--background-base-low, #1e1f22);
     border-radius: 5px;
 }
 
@@ -1154,7 +1111,7 @@
 
 .ps-host-action-clear {
     color: var(--text-muted, #949ba4);
-    background: var(--background-tertiary, #1e1f22);
+    background: var(--background-base-low, #1e1f22);
     border-color: var(--border-subtle, rgb(255 255 255 / 8%));
 }
 
@@ -1168,7 +1125,7 @@
     margin-bottom: 16px;
     border-radius: 8px;
     border: 1px solid color-mix(in srgb, var(--status-danger, #f23f43) 45%, transparent);
-    background: color-mix(in srgb, var(--status-danger, #f23f43) 12%, var(--background-secondary, #2b2d31));
+    background: color-mix(in srgb, var(--status-danger, #f23f43) 12%, var(--background-secondary-alt, #2b2d31));
     overflow: hidden;
 }
 
@@ -1350,7 +1307,7 @@
     font-weight: 600;
     line-height: 1.2;
     color: var(--text-normal, #dbdee1);
-    background: var(--background-tertiary, #1e1f22);
+    background: var(--background-base-low, #1e1f22);
     border: 1px solid var(--border-subtle, rgb(255 255 255 / 8%));
     border-radius: 4px;
     padding: 2px 8px;
@@ -1398,7 +1355,7 @@
 .ps-block-url-full {
     font-size: 11px;
     color: var(--text-normal, #dbdee1);
-    background: var(--background-tertiary, #1e1f22);
+    background: var(--background-base-low, #1e1f22);
     border: 1px solid var(--border-subtle, rgb(255 255 255 / 6%));
     border-radius: 5px;
     padding: 8px 10px;
@@ -1425,8 +1382,8 @@
     justify-content: space-between;
     gap: 16px;
     padding: 10px 12px;
-    background: var(--background-secondary, #2b2d31);
-    border: 1px solid var(--background-tertiary, #1e1f22);
+    background: var(--background-base-low, #2b2d31);
+    border: 1px solid var(--background-base-low, #1e1f22);
     border-radius: 6px;
 }
 
@@ -1510,7 +1467,7 @@
 }
 
 .ps-allowed-modal-body::-webkit-scrollbar-thumb {
-    background: var(--background-tertiary, #1e1f22);
+    background: var(--background-base-low, #1e1f22);
     border-radius: 4px;
 }
 

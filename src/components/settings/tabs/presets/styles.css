@@ -48,7 +48,7 @@
 .vc-presets-row-actions button:focus-visible,
 .vc-presets-modal-actions button:focus-visible,
 .vc-presets-modal-footer button:focus-visible {
-    outline: 2px solid var(--brand, var(--brand-experiment, #5865f2));
+    outline: 2px solid var(--brand, var(--brand-experiment, var(--background-brand)));
     outline-offset: 2px;
 }
 
@@ -134,7 +134,6 @@
 
 .vc-presets-dup-wrap {
     display: inline-flex;
-    overflow: hidden;
     max-width: 200px;
     opacity: 1;
     transition: max-width .25s ease, opacity .2s ease, margin .25s ease;
@@ -199,8 +198,8 @@
 }
 
 .vc-presets-row-drop-target {
-    border-color: var(--brand, var(--brand-experiment, #5865f2));
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 35%, transparent), var(--elevation-medium);
+    border-color: var(--brand, var(--brand-experiment, var(--background-brand)));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 35%, transparent), var(--elevation-medium);
     transform: translateY(-2px) scale(1.01);
 }
 
@@ -217,8 +216,8 @@
     right: 12px;
     height: 3px;
     border-radius: 999px;
-    background: var(--brand, var(--brand-experiment, #5865f2));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, transparent);
+    background: var(--brand, var(--brand-experiment, var(--background-brand)));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 24%, transparent);
 }
 
 .vc-presets-row-drop-before::after {
@@ -231,7 +230,7 @@
 
 .vc-presets-row-drop-merge {
     background:
-        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 18%, transparent), transparent 48%),
+        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 18%, transparent), transparent 48%),
         var(--background-base-lower-alt);
 }
 
@@ -243,7 +242,7 @@
     padding: 4px 8px;
     border-radius: 999px;
     color: #fff;
-    background: var(--brand, var(--brand-experiment, #5865f2));
+    background: var(--brand, var(--brand-experiment, var(--background-brand)));
     font-size: 12px;
     font-weight: 700;
     box-shadow: 0 8px 24px rgb(0 0 0 / 24%);
@@ -489,7 +488,7 @@
 }
 
 .vc-presets-merge-section:hover {
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 24%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 24%, var(--border-subtle));
     box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset;
     transform: translateY(-1px);
 }
@@ -508,7 +507,7 @@
 .vc-presets-merge-output,
 .vc-presets-merge-options {
     background:
-        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 8%, transparent), transparent 48%),
+        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 8%, transparent), transparent 48%),
         var(--background-base-lower-alt);
 }
 
@@ -550,7 +549,7 @@
 }
 
 .vc-presets-merge-list::-webkit-scrollbar-thumb:active {
-    background: var(--brand, var(--brand-experiment, #5865f2));
+    background: var(--brand, var(--brand-experiment, var(--background-brand)));
     background-clip: padding-box;
 }
 
@@ -569,7 +568,7 @@
 }
 
 .vc-presets-merge-chip:hover {
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 35%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 35%, var(--border-subtle));
     background: var(--background-base-lower-alt);
     transform: translateY(-1px);
 }
@@ -583,7 +582,7 @@
     gap: 12px;
     align-items: center;
     padding: 10px;
-    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 18%, var(--border-subtle));
+    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 18%, var(--border-subtle));
     border-radius: 8px;
     background: var(--background-base-low);
     transition: border-color .12s ease, box-shadow .12s ease, transform .12s ease;
@@ -591,7 +590,7 @@
 
 .vc-presets-merge-conflict:hover,
 .vc-presets-merge-conflict:focus-within {
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 42%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 42%, var(--border-subtle));
     box-shadow: var(--elevation-low), 0 1px 0 rgb(255 255 255 / 5%) inset;
     transform: translateY(-1px);
 }
@@ -608,8 +607,8 @@
     width: fit-content;
     padding: 2px 6px;
     border-radius: 999px;
-    color: var(--brand, var(--brand-experiment, #5865f2));
-    background: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 14%, transparent);
+    color: var(--brand, var(--brand-experiment, var(--background-brand)));
+    background: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 14%, transparent);
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
@@ -631,11 +630,11 @@
     width: 100%;
     min-height: 32px;
     padding: 6px 9px;
-    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 18%, var(--border-subtle));
+    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 18%, var(--border-subtle));
     border-radius: 8px;
     color: var(--text-default);
     background:
-        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 13%, transparent), transparent 56%),
+        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 13%, transparent), transparent 56%),
         var(--background-base-lower-alt);
     box-shadow: 0 1px 0 rgb(255 255 255 / 5%) inset, 0 6px 16px rgb(0 0 0 / 10%);
     font: inherit;
@@ -649,14 +648,14 @@
 .vc-presets-merge-dropdown-button:hover,
 .vc-presets-merge-dropdown-button:focus-visible,
 .vc-presets-merge-dropdown-open .vc-presets-merge-dropdown-button {
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 44%, var(--border-subtle));
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 44%, var(--border-subtle));
     box-shadow: var(--elevation-low), 0 1px 0 rgb(255 255 255 / 7%) inset;
     filter: brightness(1.05);
     transform: translateY(-1px);
 }
 
 .vc-presets-merge-dropdown-button:focus-visible {
-    outline: 2px solid var(--brand, var(--brand-experiment, #5865f2));
+    outline: 2px solid var(--brand, var(--brand-experiment, var(--background-brand)));
     outline-offset: 2px;
 }
 
@@ -680,11 +679,9 @@
     flex-direction: column;
     gap: 4px;
     padding: 5px;
-    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 26%, var(--border-subtle));
+    border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 26%, var(--border-subtle));
     border-radius: 10px;
-    background:
-        linear-gradient(135deg, color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 10%, var(--background-base-lower-alt)), var(--background-base-lower-alt) 62%),
-        var(--background-base-lower-alt, #1e1f22);
+    background: var(--background-base-low);
     box-shadow: var(--elevation-high, 0 12px 32px rgb(0 0 0 / 35%));
     transform-origin: top center;
     animation: vc-presets-dropdown-in .14s ease;
@@ -705,17 +702,17 @@
 
 .vc-presets-merge-dropdown-option:hover,
 .vc-presets-merge-dropdown-option:focus-visible {
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 28%, transparent);
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 28%, transparent);
     color: var(--text-default);
-    background: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 14%, var(--background-base-low));
+    background: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 14%, var(--background-base-low));
     outline: none;
     transform: translateX(2px);
 }
 
 .vc-presets-merge-dropdown-option-selected {
-    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 36%, transparent);
+    border-color: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 36%, transparent);
     color: var(--text-default);
-    background: color-mix(in srgb, var(--brand, var(--brand-experiment, #5865f2)) 22%, var(--background-base-low));
+    background: color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 22%, var(--background-base-low));
 }
 
 .vc-presets-merge-clean {
@@ -996,7 +993,7 @@
 .vc-presets-modal-textarea::-webkit-scrollbar-thumb:active,
 .vc-presets-modal-textarea textarea::-webkit-scrollbar-thumb:active,
 .vc-presets-stats::-webkit-scrollbar-thumb:active {
-    background: var(--brand, var(--brand-experiment, #5865f2));
+    background: var(--brand, var(--brand-experiment, var(--background-brand)));
     background-clip: padding-box;
 }
 

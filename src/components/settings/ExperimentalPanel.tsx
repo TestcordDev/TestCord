@@ -6,6 +6,7 @@
 
 import "./PrivacySecurityPanel.css";
 
+import { Card } from "@components/Card";
 import { Switch } from "@components/Switch";
 import { React, useEffect, useState } from "@webpack/common";
 
@@ -98,7 +99,7 @@ export function ExperimentalPanel() {
 
     return (
         <>
-            <section className="ps-card">
+            <Card className="ps-card">
                 <div className="ps-card-header">
                     <div className="ps-header-title-group">
                         <h2 className="ps-card-title-text">Experimental Privacy Protections</h2>
@@ -134,9 +135,9 @@ export function ExperimentalPanel() {
                         );
                     })}
                 </div>
-            </section>
+            </Card>
 
-            <section className="ps-card">
+            <Card className="ps-card">
                 <div className="ps-card-header">
                     <h2 className="ps-card-title-text">Testing Checklist</h2>
                 </div>
@@ -149,7 +150,7 @@ export function ExperimentalPanel() {
                         <span className="ps-toggle-desc">{experiment.test}</span>
                     </div>
                 ))}
-            </section>
+            </Card>
         </>
     );
 }
