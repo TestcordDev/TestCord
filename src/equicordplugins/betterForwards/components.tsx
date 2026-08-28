@@ -6,7 +6,7 @@
 
 import { BaseText } from "@components/BaseText";
 import { Flex, FlexProps } from "@components/Flex";
-import { RightArrow } from "@components/Icons";
+import { AtIcon, RightArrow, TextIcon } from "@components/Icons";
 import { iconsModule } from "@equicordplugins/_core/concatenatedModules";
 import { getGuildAcronym, getIntlMessage } from "@utils/discord";
 import { getUserAvatarUrl } from "@utils/misc";
@@ -114,7 +114,7 @@ export function ChannelName({ guildId, channelId, messageId }: { guildId?: strin
             );
         }
 
-        const Icon = (channel && getChannelIcon(channel)) ?? (guildId ? iconsModule.TextIcon : iconsModule.AtIcon);
+        const Icon = (channel && getChannelIcon(channel)) ?? (guildId ? TextIcon : AtIcon);
         return <Icon size="xs" color="currentColor" />;
     }, [channel, guildId, name]);
 

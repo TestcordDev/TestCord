@@ -338,7 +338,7 @@ export default definePlugin({
 
         // only check for expired attachments if the message is not deleted
         {
-            find: "refreshed_urls",
+            find: ".ATTACHMENTS_REFRESH_URLS,",
             replacement: {
                 match: /\i\.attachments\.some\(\i\)\|\|\i\.embeds\.some/,
                 replace: "!arguments[0].deleted && $&"

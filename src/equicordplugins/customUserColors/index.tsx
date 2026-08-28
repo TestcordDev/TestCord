@@ -48,6 +48,7 @@ const userContextMenuPatch: NavContextMenuPatchCallback = (children, { user }: {
             label="Set Color"
             id="set-color"
             icon={ColorIcon}
+            leadingAccessory={{ type: "icon", icon: ColorIcon }}
             action={async () => {
                 await requireSettingsMenu();
                 openModal(modalProps => <SetColorModal id={user.id} modalProps={modalProps} />);
@@ -66,6 +67,7 @@ const channelContextMenuPatch: NavContextMenuPatchCallback = (children, { channe
             label="Set Color"
             id="set-color"
             icon={ColorIcon}
+            leadingAccessory={{ type: "icon", icon: ColorIcon }}
             action={async () => {
                 await requireSettingsMenu();
                 openModal(modalProps => <SetColorModal id={channel.id} modalProps={modalProps} />);

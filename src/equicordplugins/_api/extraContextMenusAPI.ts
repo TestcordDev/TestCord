@@ -18,8 +18,8 @@ export default definePlugin({
         {
             find: "renderEmptyFavorite",
             replacement: {
-                match: /render\(\){.{1,500}onClick:this\.handleClick,/,
-                replace: "$&onContextMenu: (e) => $self.openContextMenu(e, this),"
+                match: /(render\(\){.{0,500})onContextMenu:this\.handleContextMenu,/,
+                replace: "$1onContextMenu:(e)=>$self.openContextMenu(e,this),"
             }
         }
     ],

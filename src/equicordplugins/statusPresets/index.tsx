@@ -26,7 +26,7 @@ import { proxyLazy } from "@utils/lazy";
 import { useForceUpdater } from "@utils/react";
 import definePlugin, { OptionType, StartAt } from "@utils/types";
 import { extractAndLoadChunksLazy, findComponentByCodeLazy, findModuleId, wreq } from "@webpack";
-import { Menu, openModalLazy,OverridePremiumTypeStore, Toasts } from "@webpack/common";
+import { Menu, openModalLazy, OverridePremiumTypeStore, Toasts } from "@webpack/common";
 
 interface Emoji {
     animated: boolean;
@@ -89,6 +89,10 @@ const StatusSubMenuComponent = () => {
                         action={() => (status.emojiInfo?.id == null || premiumType > 0) && setStatus(status)}
                         icon={status.emojiInfo != null
                             ? () => <EmojiComponent emoji={status.emojiInfo} animate={false} hideTooltip={false} />
+                            : undefined
+                        }
+                        leadingAccessory={status.emojiInfo != null
+                            ? { type: "icon", icon: () => <EmojiComponent emoji={status.emojiInfo} animate={false} hideTooltip={false} /> }
                             : undefined
                         }
                         disabled={status.emojiInfo?.id != null && premiumType === 0}

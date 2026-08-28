@@ -487,6 +487,30 @@ function shouldAnimateNameEffects(isHovered: boolean, isEffectVisible = true): b
     return isHovered || (isEffectVisible && settings.store.alwaysAnimateEffects);
 }
 
+function isNativeGradientGlowActive(
+    styles: DisplayNameStyles | null | undefined,
+    animate: boolean,
+): boolean {
+    return AccessibilityStore.displayNameStylesEnabled
+        && animate
+        && styles?.effectId === DisplayNameEffects.GRADIENT
+        && settings.store.gradientGlow
+        && !AccessibilityStore.useReducedMotion;
+}
+
+function getNativeGradientGlowOverflowClassName(
+    styles: DisplayNameStyles | null | undefined,
+    effectDisplayType: number,
+    className: string,
+): string {
+    return SMYNC(className, {
+        "smyn-native-gradient-glow-overflow": isNativeGradientGlowActive(
+            styles,
+            effectDisplayType === DisplayNameEffectDisplayTypes.ANIMATED,
+        ),
+    });
+}
+
 function getDisplayNameEffectClassName(
     styles: DisplayNameStyles | null | undefined,
     effectDisplayType: number,
@@ -494,18 +518,22 @@ function getDisplayNameEffectClassName(
     const useGradientAnimationOverride = needsGradientAnimationOverride(styles)
         && effectDisplayType === DisplayNameEffectDisplayTypes.ANIMATED
         && !AccessibilityStore.useReducedMotion;
+    const nativeGradientGlowActive = isNativeGradientGlowActive(
+        styles,
+        effectDisplayType === DisplayNameEffectDisplayTypes.ANIMATED,
+    );
 
     return [
         "smyn-native-effect",
         useGradientAnimationOverride && "smyn-native-gradient-animated",
         styles?.effectId === DisplayNameEffects.GRADIENT && settings.store.gradientGlow && "smyn-native-gradient-glow",
-        useGradientAnimationOverride && styles?.effectId === DisplayNameEffects.GRADIENT && settings.store.gradientGlow && "smyn-native-gradient-glow-active",
+        nativeGradientGlowActive && "smyn-native-gradient-glow-active",
         styles?.effectId === DisplayNameEffects.POP && "smyn-native-pop",
         styles?.effectId === DisplayNameEffects.GUMMY && "smyn-native-gummy",
         styles?.effectId === DisplayNameEffects.GUMMY
-            && effectDisplayType === DisplayNameEffectDisplayTypes.ANIMATED
-            && !AccessibilityStore.useReducedMotion
-            && "smyn-native-gummy-animated",
+        && effectDisplayType === DisplayNameEffectDisplayTypes.ANIMATED
+        && !AccessibilityStore.useReducedMotion
+        && "smyn-native-gummy-animated",
     ].filter(Boolean).join(" ");
 }
 
@@ -779,6 +807,7 @@ function renderUsername(
     const shouldAnimatePrimaryGradient = shouldShowGradientGlow && !AccessibilityStore.useReducedMotion;
     const shouldAnimateSecondaryEffects = shouldShowHoverEffects && animateEffects && !ignoreEffects;
     const shouldShowSecondaryDisplayNameEffect = shouldShowDisplayNameEffect && !ignoreEffects;
+    const nativeGradientGlowActive = isNativeGradientGlowActive(authorDisplayNameStyles, shouldShowHoverEffects);
 
     const firstDataText = mentionSymbol + first.name;
     const secondDataText = second && shouldAnimateSecondaryEffects ? second.name : "";
@@ -823,7 +852,7 @@ function renderUsername(
                 ...topLevelStyle,
                 ...(shouldShowDisplayNameEffect ? {} : topRoleStyle?.normal.original || {})
             }}
-            className="smyn-container"
+            className={SMYNC("smyn-container", { "smyn-native-gradient-glow-overflow": nativeGradientGlowActive })}
         >
             {mentionSymbol && <span>{mentionSymbol}</span>}
             {(
@@ -1323,12 +1352,21 @@ export default definePlugin({
             ],
         },
         {
-            // Set Discord's existing friends-row hover state on pointer entry.
+            // Set and expose Discord's existing friends-row hover state.
             find: "handleMouseEnter=()=>{let{isFocused:",
-            replacement: {
-                match: /(?<=handleMouseEnter=\(\)=>\{let\{isFocused:\i,isActive:\i,onOtherHover:\i}=this.props,\{isContextMenuActive:\i}=this.state;this.setState\(\{hovered:)\i(?=}\),)/,
-                replace: "!0"
-            },
+            group: true,
+            replacement: [
+                {
+                    // Treat pointer entry as hover even when the row does not have keyboard focus.
+                    match: /(?<=handleMouseEnter=\(\)=>\{let\{isFocused:\i,isActive:\i,onOtherHover:\i}=this.props,\{isContextMenuActive:\i}=this.state;this.setState\(\{hovered:)\i(?=}\),)/,
+                    replace: "!0"
+                },
+                {
+                    // Mark the active gradient row so its native glow can animate without :has().
+                    match: /(?<=let\{role:\i,\.\.\.\i\}=\i,)(\i)=(\i\(\)\(\i,\i\.\i,null!=\i\?\{\[\i\]:\i\|\|\i\}:null,\{\[\i\.\i\]:\i\|\|\i\}\))(?=;return null!=\i\?)/,
+                    replace: "$1=$self.getNativeGradientGlowOverflowClassName(this.props.user.displayNameStyles,$self.getDisplayNameEffectDisplayType(this.state.hovered||this.props.isActive||this.state.isContextMenuActive,$self.settings.store.styleFriendsList),$2)"
+                }
+            ],
         },
         {
             // Preserve display name styles when SMYN replaces the friends-list name.
@@ -1545,6 +1583,7 @@ export default definePlugin({
     getActiveNowNameElement,
     getDisplayNameEffectClassName,
     getDisplayNameEffectDisplayType,
+    getNativeGradientGlowOverflowClassName,
     shouldAnimateNameEffects,
     getTypingMemberListProfilesReactionsVoiceNameText,
     getTypingMemberListProfilesReactionsVoiceNameElement

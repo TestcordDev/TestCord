@@ -114,10 +114,19 @@ async function applyDownloads(downloads: SyncResponse["downloads"]) {
         } else if (dl.key === "quickCss") {
             await VencordNative.quickCss.set(text);
             settingsChanged = true;
+        } else if (dl.key === "dataStore") {
+            try {
+                const entries = JSON.parse(text);
+                await DataStore.setMany(entries);
+                settingsChanged = true;
+            } catch (e) {
+                logger.error("Failed to apply dataStore download", e);
+            }
         } else if (dl.key.startsWith("dataStore/")) {
             const dsKey = dl.key.slice("dataStore/".length);
             try {
                 await DataStore.set(dsKey, JSON.parse(text));
+                settingsChanged = true;
             } catch (e) {
                 logger.error(`Failed to apply dataStore download for ${dsKey}`, e);
             }

@@ -47,6 +47,7 @@ const addButton = (children, message, url) => {
                 label="Show Embed"
                 action={_ => unfurlEmbed(url, message)}
                 icon={ImageVisible}
+                leadingAccessory={{ type: "icon", icon: ImageVisible }}
                 key="vc-sme-show" />);
     } else if (isUrlInMessage(message, url)) { // check the url is actually in the message text so we know it's one people can actually add back
         children.splice(0, 0,
@@ -55,6 +56,7 @@ const addButton = (children, message, url) => {
                 label="Remove Embed"
                 action={_ => removeEmbed(url, message)}
                 icon={ImageInvisible}
+                leadingAccessory={{ type: "icon", icon: ImageInvisible }}
                 key="vc-sme-remove" />);
     }
 };

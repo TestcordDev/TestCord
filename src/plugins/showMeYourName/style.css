@@ -54,7 +54,8 @@
     font-weight: 500;
 }
 
-.smyn-native-gradient-animated > [data-username-with-effects] {
+.smyn-native-gradient-animated > [data-username-with-effects],
+:where(.smyn-native-gradient-glow-overflow) .smyn-native-gradient-glow > [data-username-with-effects] {
     animation: smyn-animation var(--smyn-gradient-duration, 1.5s) linear infinite;
     background-image: linear-gradient(to right, var(--custom-display-name-styles-gradient-stops), var(--custom-display-name-styles-main-color) 100%) !important;
     background-size: 100px auto !important;
@@ -75,14 +76,21 @@
 }
 
 .smyn-native-gradient-glow-active > [data-username-with-effects],
-:where(span, div):has(> .smyn-native-gradient-glow-active),
-:where(span, div):has(> * > .smyn-native-gradient-glow-active),
-:where(span, div):has(> * > * > .smyn-native-gradient-glow-active) {
+.smyn-native-gradient-glow-overflow,
+.smyn-native-gradient-glow-overflow > .smyn-name-group,
+.smyn-native-gradient-glow-overflow > .smyn-name-group > .smyn-name,
+.smyn-native-gradient-glow-overflow :where(
+    [class^="text_"],
+    [class*=" text_"],
+    [class^="username_"],
+    [class*=" username_"]
+) {
     overflow: visible;
 }
 
-.smyn-native-gradient-glow-active > [data-username-with-effects]::after {
-    opacity: .7;
+.smyn-native-gradient-glow-active > [data-username-with-effects]::after,
+:where(.smyn-native-gradient-glow-overflow) .smyn-native-gradient-glow > [data-username-with-effects]::after {
+    opacity: .7 !important;
     transition: opacity .1s ease-in-out;
 }
 

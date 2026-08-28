@@ -118,21 +118,26 @@ export type VoiceChannelIndicatorProps = {
     userId: string;
     isMessageIndicator?: boolean;
     isProfile?: boolean;
+    isMessage?: boolean;
     isActionButton?: boolean;
     shouldHighlight?: boolean;
 };
 
 const clickTimers = new Map<string, any>();
 
-export const VoiceChannelIndicator = ErrorBoundary.wrap(({ userId, isProfile, isActionButton, shouldHighlight }: VoiceChannelIndicatorProps) => {
-    const voiceState = useStateFromStores([VoiceStateStore], () => VoiceStateStore.getVoiceStateForUser(userId));
-    const channelId = voiceState?.channelId;
+export const VoiceChannelIndicator = ErrorBoundary.wrap(({ userId, isProfile, isMessage, isActionButton, shouldHighlight }: VoiceChannelIndicatorProps) => {
+    const channelId = useStateFromStores([VoiceStateStore], () => VoiceStateStore.getVoiceStateForUser(userId)?.channelId);
+
+    const { isMuted, isDeaf } = useStateFromStores([VoiceStateStore], () => {
+        const voiceState = VoiceStateStore.getVoiceStateForUser(userId);
+        return {
+            isMuted: voiceState?.mute || voiceState?.selfMute || false,
+            isDeaf: voiceState?.deaf || voiceState?.selfDeaf || false
+        };
+    });
 
     const channel = channelId == null ? undefined : ChannelStore.getChannel(channelId);
     if (channel == null) return null;
-
-    const isMuted = voiceState?.mute || voiceState?.selfMute || false;
-    const isDeaf = voiceState?.deaf || voiceState?.selfDeaf || false;
 
     const isDM = channel.isDM() || channel.isMultiUserDM();
     if (!isDM && !PermissionStore.can(PermissionsBits.VIEW_CHANNEL, channel) && !isPluginEnabled(ShowHiddenChannelsPlugin.name)) return null;
@@ -190,7 +195,7 @@ export const VoiceChannelIndicator = ErrorBoundary.wrap(({ userId, isProfile, is
                         isActionButton && shouldHighlight && ActionButtonClasses.highlight,
                         cl(isProfile && "profile-speaker")
                     )}
-                    size={isActionButton ? 20 : 16}
+                    size={(isActionButton || isMessage) ? 20 : 16}
                 />
             )}
         </Tooltip>

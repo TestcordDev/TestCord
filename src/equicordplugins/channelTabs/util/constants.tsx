@@ -139,11 +139,6 @@ export const settings = definePluginSettings({
         type: OptionType.COMPONENT,
         default: {}
     },
-    noPomeloNames: {
-        description: "Use display names instead of usernames for DM's",
-        type: OptionType.BOOLEAN,
-        default: false
-    },
     showStatusIndicators: {
         description: "Show status indicators for DM's",
         type: OptionType.BOOLEAN,

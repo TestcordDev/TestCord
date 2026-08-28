@@ -68,6 +68,7 @@ function EditableSong({ index, song, insert, setSongRef, onDrag, onDrop, onRemov
                             id="copy-link"
                             label="Copy link"
                             icon={LinkIcon}
+                            leadingAccessory={{ type: "icon", icon: LinkIcon }}
                             action={() => render && copyWithToast(render.link)}
                             disabled={!render}
                         />
@@ -76,6 +77,7 @@ function EditableSong({ index, song, insert, setSongRef, onDrag, onDrop, onRemov
                             color="danger"
                             label="Remove song"
                             icon={TrashIcon}
+                            leadingAccessory={{ type: "icon", icon: TrashIcon }}
                             action={() => onRemove(song)}
                         />
                     </Menu.Menu>

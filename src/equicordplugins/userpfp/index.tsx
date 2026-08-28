@@ -120,6 +120,7 @@ export default definePlugin({
                     label="Set Avatar"
                     id="set-avatar"
                     icon={PencilIcon}
+                    leadingAccessory={{ type: "icon", icon: PencilIcon }}
                     action={async () => {
                         await requireSettingsModal();
                         openModal(modalProps => <SetAvatarModal userId={user.id} modalProps={modalProps} />);

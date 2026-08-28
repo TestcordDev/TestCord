@@ -7,7 +7,7 @@
 import "./style.css";
 
 import { DecoratorProps } from "@api/MemberListDecorators";
-import { iconsModule } from "@equicordplugins/_core/concatenatedModules";
+import { FireIcon } from "@components/Icons";
 import { Devs, EquicordDevs } from "@utils/constants";
 import { classNameFactory } from "@utils/css";
 import definePlugin from "@utils/types";
@@ -46,15 +46,13 @@ const StreakBadge = ({ userId }: { userId: string; }) => {
 
     const today = moment().format("YYYY-MM-DD");
     const active = streak.last_streak_date === today;
-
-    const FireIcon = iconsModule?.FireIcon;
     const color = active ? colorFor(streak.count) : "#9ca3af";
 
     return (
         <Tooltip text={`${streak.count} day streak`}>
             {tooltipProps => (
                 <span {...tooltipProps} className={cl("badge")} style={{ color }}>
-                    {FireIcon && <FireIcon size="xs" color={color} />}
+                    {<FireIcon width={16} height={16} fill={color} />}
                     <span className={cl("count")}>{streak.count}</span>
                 </span>
             )}

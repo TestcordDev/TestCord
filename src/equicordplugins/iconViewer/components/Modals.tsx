@@ -179,6 +179,7 @@ function OtherContextMenu({ iconName, Icon, color }: { iconName: string; Icon: I
                 id="log-console"
                 label="Log to Console"
                 icon={BugIcon}
+                leadingAccessory={{ type: "icon", icon: BugIcon }}
                 action={() => logger.info(Icon)}
             />
             <Menu.MenuItem id="save" label="Save As...">

@@ -72,12 +72,14 @@ function SongEntry({ entry, number, isLoaded, isPlaying, big, onClick }: SongEnt
                             id="copy-link"
                             label="Copy link"
                             icon={LinkIcon}
+                            leadingAccessory={{ type: "icon", icon: LinkIcon }}
                             action={() => copyWithToast(entry.link)}
                         />
                         <Menu.MenuItem
                             id="steal-song"
                             label="Steal song"
                             icon={PuzzlePieceIcon}
+                            leadingAccessory={{ type: "icon", icon: PuzzlePieceIcon }}
                             action={async () => {
                                 const self = useSongStore.getState().self?.data ?? [];
                                 if (self.length >= apiConstants.songLimit) {
@@ -186,6 +188,7 @@ function SongInfo({ owned, song, render, big }: SongInfoProps) {
                                                 id="copy-link"
                                                 label="Copy link"
                                                 icon={LinkIcon}
+                                                leadingAccessory={{ type: "icon", icon: LinkIcon }}
                                                 action={() => copyWithToast(render.link)}
                                             />
                                             {!owned
@@ -194,6 +197,7 @@ function SongInfo({ owned, song, render, big }: SongInfoProps) {
                                                         id="steal-song"
                                                         label="Steal song"
                                                         icon={PuzzlePieceIcon}
+                                                        leadingAccessory={{ type: "icon", icon: PuzzlePieceIcon }}
                                                         action={() => {
                                                             const self = useSongStore.getState().self?.data ?? [];
                                                             if (self.length >= apiConstants.songLimit) {
@@ -213,6 +217,7 @@ function SongInfo({ owned, song, render, big }: SongInfoProps) {
                                                         color="danger"
                                                         label="Remove song"
                                                         icon={TrashIcon}
+                                                        leadingAccessory={{ type: "icon", icon: TrashIcon }}
                                                         action={() => {
                                                             const self = useSongStore.getState().self?.data ?? [];
 

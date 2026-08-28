@@ -7,7 +7,7 @@
     padding-left: 0.5em;
 }
 
-.vc-limitlessScreenshare-settings-flex-input > div:has(+ button) div:has(> input) {
+.vc-limitlessScreenshare-settings-flex-input > div:first-child > div > div > div {
     --custom-text-input-height: 2em;
 
     width: 5em;

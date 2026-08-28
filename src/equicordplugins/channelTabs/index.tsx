@@ -8,6 +8,7 @@ import "./style.css";
 
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
 import ErrorBoundary from "@components/ErrorBoundary";
+import { LinkIcon } from "@components/Icons";
 import { Devs, EquicordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
 import { Channel, Message } from "@vencord/discord-types";
@@ -25,6 +26,8 @@ const contextMenuPatch: NavContextMenuPatchCallback = (children, props: { channe
         <Menu.MenuItem
             label="Open in New Tab"
             id="open-link-in-tab"
+            icon={LinkIcon}
+            leadingAccessory={{ type: "icon", icon: LinkIcon }}
             action={() => createTab({
                 guildId: channel.guild_id || "@me", // Normalize for DMs/Group Chats
                 channelId: channel.id

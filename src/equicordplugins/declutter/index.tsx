@@ -325,12 +325,12 @@ export default definePlugin({
                     predicate: () => settings.store.removeShopAboveDms,
                 },
                 {
-                    match: /\.QUEST_HOME\},"quests"\)/,
+                    match: /\.QUEST_HOME\)\},"quests"\)/,
                     replace: "$&&&undefined",
                     predicate: () => settings.store.removeQuestsAboveDms,
                 },
                 {
-                    match: /\.APPLICATION_LIBRARY\},"library"\)/,
+                    match: /\.APPLICATION_LIBRARY\)\},"library"\)/,
                     replace: "$&&&undefined",
                     predicate: () => settings.store.removeLibraryAboveDms,
                 },

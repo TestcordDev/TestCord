@@ -48,6 +48,7 @@ const MessageContextMenuPatch: NavContextMenuPatchCallback = (children, props) =
         id="vc-remix"
         label="Remix"
         icon={PaintbrushIcon}
+        leadingAccessory={{ type: "icon", icon: PaintbrushIcon }}
         action={() => {
             const key = openModal(modalProps =>
                 <RemixModal modalProps={modalProps} close={() => closeModal(key)} url={url} />
