@@ -94,13 +94,16 @@ export default definePlugin({
 
     revealAllAuto() {
         const root = document;
-        // Robust: handle chat, profile, forwarded, embeds, attachments - all live in document
+        // Aggressive: handle chat, profile, forwarded snapshots, embeds, attachments - all in document
+        // Forwarded messages use same spoiler classes but live inside snapshot containers
         const selectors = [
             '[class*="spoilerContent"][class*="hidden"]',
             '[class*="hiddenSpoiler"][class*="hidden"]',
             '[class*="obscured"][class*="hidden"]',
             '[class*="spoilerContainer"][class*="hidden"]',
-            '[aria-expanded="false"][aria-label]'
+            '[aria-expanded="false"][aria-label]',
+            '[class*="forwarded"] [class*="hidden"]',
+            '[class*="snapshot"] [class*="hidden"]'
         ];
         const seen = new Set<Element>();
         for (const sel of selectors) {
@@ -108,23 +111,24 @@ export default definePlugin({
                 if (seen.has(el)) continue;
                 seen.add(el);
                 const cls = (el as HTMLElement).className ?? "";
-                const aria = (el.getAttribute("aria-label") ?? "").toLowerCase();
-                // Skip hiddenVisually (accessibility helpers, not spoilers)
+                const rawAria = el.getAttribute("aria-label") ?? "";
+                const aria = rawAria.toLowerCase();
                 if (cls.includes("hiddenVisually")) continue;
-                // Only reveal spoilers, not explicit/gore unless it's a spoiler
-                const isSpoiler = cls.includes("spoiler") || aria.includes("spoiler");
-                // For aria-expanded selector, must be spoiler
-                if (sel.includes("aria-expanded") && !isSpoiler) continue;
-                if (isSpoiler || sel.includes("spoiler")) {
+                // AutoReveal wants NO spoilers: be permissive for forwarded/profile.
+                // Any hidden spoiler-like element with aria-expanded false or hidden class is a candidate.
+                const isSpoiler = cls.includes("spoiler") || aria.includes("spoiler") || rawAria === "" && cls.includes("hidden");
+                // For generic aria-expanded selector, require some spoiler hint or just hidden
+                if (sel.includes("aria-expanded") && !isSpoiler && !cls.includes("hidden")) continue;
+                // For forwarded/snapshot generic hidden, require spoiler hint
+                if ((sel.includes("forwarded") || sel.includes("snapshot")) && !isSpoiler) continue;
+                if (isSpoiler || sel.includes("spoiler") || aria.includes("spoiler")) {
                     (el as HTMLElement).click();
+                } else if (settings.store.autoReveal && el.getAttribute("aria-expanded") === "false") {
+                    // In auto mode, also nuke any obscured hidden (covers forwarded edge cases)
+                    const isObscured = cls.includes("obscured") || cls.includes("hidden");
+                    if (isObscured) (el as HTMLElement).click();
                 }
             }
-        }
-        // Extra: forwarded messages render snapshots inside .forwardedMessage or .messageSnapshot
-        // They still use same spoiler classes, but ensure we also catch any hidden inside them
-        for (const el of root.querySelectorAll('[class*="forwarded"] [class*="hidden"][aria-label], [class*="snapshot"] [class*="hidden"][aria-label]')) {
-            const aria = (el.getAttribute("aria-label") ?? "").toLowerCase();
-            if (aria.includes("spoiler")) (el as HTMLElement).click();
         }
     },
 
