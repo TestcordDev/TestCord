@@ -377,18 +377,22 @@ export default definePlugin({
         const userId = match?.[1];
         if (!userId) return null;
 
-        if (userId === UserStore.getCurrentUser().id && !settings.store.showOwnTimezone) return null;
+        const currentUserId = (UserStore.getCurrentUser() as User | null | undefined)?.id;
+        if (userId === currentUserId && !settings.store.showOwnTimezone) return null;
 
         return <TimestampComponent userId={userId} type="profile" />;
     },
 
     renderMessageTimezone: (props?: { message?: Message; }) => {
         const { showMessageHeaderTime, recipientTimezoneInDms, showOwnTimezone } = settings.store;
-        if (!showMessageHeaderTime || !props?.message) return null;
+        if (!showMessageHeaderTime || !props?.message?.author?.id) return null;
+
+        const currentUser = UserStore.getCurrentUser() as User | null | undefined;
+        if (!currentUser?.id) return null;
 
         let userId = props.message.author.id;
 
-        if (userId === UserStore.getCurrentUser().id) {
+        if (userId === currentUser.id) {
             const channel = ChannelStore.getChannel(props.message.channel_id);
             const recipientId = channel?.isDM() ? channel.getRecipientId() : null;
 
@@ -399,6 +403,12 @@ export default definePlugin({
             }
         }
 
-        return <TimestampComponent userId={userId} timestamp={props.message.timestamp.toISOString()} type="message" />;
+        const rawTs: any = (props.message as any).timestamp;
+        let iso: string | undefined;
+        try {
+            iso = typeof rawTs === "string" ? rawTs : rawTs?.toISOString?.() ?? new Date(rawTs).toISOString();
+        } catch { return null; }
+        if (!iso) return null;
+        return <TimestampComponent userId={userId} timestamp={iso} type="message" />;
     }
 });

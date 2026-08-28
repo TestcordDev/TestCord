@@ -93,28 +93,38 @@ export default definePlugin({
     },
 
     revealAllAuto() {
-        const wrapper = document.querySelector('[class*="messagesWrapper"]');
-        const root = wrapper ?? document;
+        const root = document;
+        // Robust: handle chat, profile, forwarded, embeds, attachments - all live in document
         const selectors = [
             '[class*="spoilerContent"][class*="hidden"]',
             '[class*="hiddenSpoiler"][class*="hidden"]',
-            '[class*="obscured"][class*="hidden"]'
+            '[class*="obscured"][class*="hidden"]',
+            '[class*="spoilerContainer"][class*="hidden"]',
+            '[aria-expanded="false"][aria-label]'
         ];
+        const seen = new Set<Element>();
         for (const sel of selectors) {
             for (const el of root.querySelectorAll(sel)) {
+                if (seen.has(el)) continue;
+                seen.add(el);
                 const cls = (el as HTMLElement).className ?? "";
                 const aria = (el.getAttribute("aria-label") ?? "").toLowerCase();
-                if (cls.includes("spoiler") || aria.includes("spoiler")) {
+                // Skip hiddenVisually (accessibility helpers, not spoilers)
+                if (cls.includes("hiddenVisually")) continue;
+                // Only reveal spoilers, not explicit/gore unless it's a spoiler
+                const isSpoiler = cls.includes("spoiler") || aria.includes("spoiler");
+                // For aria-expanded selector, must be spoiler
+                if (sel.includes("aria-expanded") && !isSpoiler) continue;
+                if (isSpoiler || sel.includes("spoiler")) {
                     (el as HTMLElement).click();
                 }
             }
         }
-        // Fallback for any hidden with spoiler aria
-        for (const el of root.querySelectorAll('[class*="hidden"][aria-label]')) {
+        // Extra: forwarded messages render snapshots inside .forwardedMessage or .messageSnapshot
+        // They still use same spoiler classes, but ensure we also catch any hidden inside them
+        for (const el of root.querySelectorAll('[class*="forwarded"] [class*="hidden"][aria-label], [class*="snapshot"] [class*="hidden"][aria-label]')) {
             const aria = (el.getAttribute("aria-label") ?? "").toLowerCase();
-            if (aria.includes("spoiler") && !el.className.includes("hiddenVisually")) {
-                (el as HTMLElement).click();
-            }
+            if (aria.includes("spoiler")) (el as HTMLElement).click();
         }
     },
 
