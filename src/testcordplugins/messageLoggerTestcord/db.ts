@@ -55,6 +55,7 @@ export async function applyBatch(records: LogRecord[], deletedIds: string[]) {
         ...records.map((record, index) => transaction.store.put({
             ...record,
             protected: record.protected ?? existingRecords[index]?.protected,
+            hidden: record.hidden ?? existingRecords[index]?.hidden,
             createdAt: existingRecords[index]?.createdAt ?? record.createdAt ?? updatedAt,
             updatedAt
         })),

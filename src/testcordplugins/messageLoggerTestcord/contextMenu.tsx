@@ -9,7 +9,7 @@ import { isPluginEnabled } from "@api/PluginManager";
 import { FluxDispatcher, Menu, MessageActions, React, SortedGuildStore, Toasts, UserStore } from "@webpack/common";
 
 import { silentDeleteMessage } from "./antilog";
-import { getCachedLoggedMessage, invalidateLoggedCaches, localRemoveLoggedMessage } from "./engine";
+import { invalidateLoggedCaches, localRemoveLoggedMessage } from "./engine";
 import { addToOppositeAndList, isInList, type ListType,removeFromList } from "./lists";
 import { openLogs } from "./LogsModal";
 import { osintScanLoggedMessages } from "./osintBridge";
@@ -84,7 +84,10 @@ function buildLoggedMessageItems(props: MenuProps) {
     const { message } = props;
     if (props.navId !== "message" || !message) return null;
     if (!message.deleted && !(message.editHistory?.length > 0)) return null;
-    if (!getCachedLoggedMessage(message.id)) return null;
+
+    // Show removal options for any logged deleted/edited message.
+    // getCachedLoggedMessage is best-effort: after restart, older logs may be primed,
+    // but we still allow removal via DB even if not in memory cache.
 
     return [
         <Menu.MenuSeparator key="sep-remove" />,
@@ -96,7 +99,7 @@ function buildLoggedMessageItems(props: MenuProps) {
                 color="danger"
                 action={async () => {
                     invalidateLoggedCaches(message.id);
-                    await localRemoveLoggedMessage(message.id, false);
+                    await localRemoveLoggedMessage(message.id, false, message.channel_id);
                     Toasts.show({
                         message: "Hidden from chat. It stays in your logs.",
                         type: Toasts.Type.SUCCESS,
@@ -113,9 +116,30 @@ function buildLoggedMessageItems(props: MenuProps) {
                 color="danger"
                 action={async () => {
                     invalidateLoggedCaches(message.id);
-                    await localRemoveLoggedMessage(message.id, true);
+                    await localRemoveLoggedMessage(message.id, true, message.channel_id);
                     Toasts.show({
                         message: "Message deleted from your logs forever.",
+                        type: Toasts.Type.SUCCESS,
+                        id: Toasts.genId()
+                    });
+                }}
+            />
+        ),
+        !message.deleted && (
+            <Menu.MenuItem
+                key="remove-history-temporary"
+                id="testcord-ml-remove-history-temporary"
+                label="Delete Message History (Temporary)"
+                color="danger"
+                action={async () => {
+                    invalidateLoggedCaches(message.id);
+                    (message as any).editHistory = [];
+                    FluxDispatcher.dispatch({
+                        type: "MESSAGE_UPDATE",
+                        message: { id: message.id, channel_id: message.channel_id }
+                    });
+                    Toasts.show({
+                        message: "Hidden from chat. History stays in your logs.",
                         type: Toasts.Type.SUCCESS,
                         id: Toasts.genId()
                     });
@@ -130,11 +154,16 @@ function buildLoggedMessageItems(props: MenuProps) {
                 color="danger"
                 action={async () => {
                     invalidateLoggedCaches(message.id);
-                    await localRemoveLoggedMessage(message.id, true);
-                    message.editHistory = [];
+                    await localRemoveLoggedMessage(message.id, true, message.channel_id);
+                    (message as any).editHistory = [];
                     FluxDispatcher.dispatch({
                         type: "MESSAGE_UPDATE",
                         message: { id: message.id, channel_id: message.channel_id }
+                    });
+                    Toasts.show({
+                        message: "Edit history deleted from your logs forever.",
+                        type: Toasts.Type.SUCCESS,
+                        id: Toasts.genId()
                     });
                 }}
             />
@@ -170,7 +199,7 @@ function buildHideFromLoggersItem(props: MenuProps) {
                         { nonce: message.id }
                     );
                     invalidateLoggedCaches(message.id);
-                    await localRemoveLoggedMessage(message.id, true);
+                    await localRemoveLoggedMessage(message.id, true, message.channel_id);
                     Toasts.show({
                         message: "Message deleted and hidden from other loggers.",
                         type: Toasts.Type.SUCCESS,

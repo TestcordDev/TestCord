@@ -180,7 +180,8 @@ function queueRecord(message: LoggedMessage, status: LogStatus) {
         channel_id: message.channel_id,
         status: finalStatus,
         message,
-        protected: pending?.protected
+        protected: pending?.protected,
+        hidden: pending?.hidden
     });
     scheduleFlush();
 }
@@ -334,7 +335,9 @@ function saveDeletedMessage(payload: MessageDeletePayload) {
     }
 
     if (ghostPinged && settings.store.saveGhostPings) {
+        remember(message);
         queueRecord(message, LogStatus.GHOST_PINGED);
+        invalidateLoggedCaches(message.id);
         if (settings.store.notifyGhostPings) {
             const authorName = message.author.global_name ?? message.author.globalName ?? message.author.username;
             showNotification({
@@ -343,7 +346,11 @@ function saveDeletedMessage(payload: MessageDeletePayload) {
             });
         }
     }
-    else if (settings.store.saveDeletes) queueRecord(message, LogStatus.DELETED);
+    else if (settings.store.saveDeletes) {
+        remember(message);
+        queueRecord(message, LogStatus.DELETED);
+        invalidateLoggedCaches(message.id);
+    }
 }
 
 export function handleMessageDelete(payload: MessageDeletePayload) {
@@ -372,17 +379,28 @@ export async function deleteLog(id: string) {
  * Temporary keeps the record in the database but flags it hidden so it never
  * renders again; Forever deletes the record outright.
  */
-export async function localRemoveLoggedMessage(id: string, permanent: boolean): Promise<string | null> {
+export async function localRemoveLoggedMessage(id: string, permanent: boolean, fallbackChannelId?: string): Promise<string | null> {
     const cached = recentMessages.get(id);
-    const channelId = cached?.channel_id ?? "";
+    const channelId = cached?.channel_id ?? fallbackChannelId ?? "";
 
     recentMessages.delete(id);
+    invalidateLoggedCaches(id);
 
-    if (permanent) await deleteLog(id);
-    else {
+    if (permanent) {
+        await deleteLog(id);
+    } else {
+        // Temp: keep in DB but hide. Ensure any pending write is flushed first so setLogHidden can find it.
         pendingDeletes.delete(id);
+        const pending = pendingWrites.get(id);
+        if (pending) {
+            // Mark pending record as hidden so the upcoming flush persists it correctly
+            pending.hidden = true;
+            pendingWrites.set(id, pending);
+        }
+        await flushQueuedLogs();
         await setLogHidden(id, true);
-        void flushQueuedLogs();
+        // If the record was still pending (not yet in DB), the flush above persisted it as hidden.
+        // setLogHidden will also mark it hidden if it already existed.
     }
 
     if (channelId) {
