@@ -275,6 +275,12 @@ export function getManualProfile(): ManualProfileData {
     };
 }
 
+function parseAccentColor(value: unknown): number | null {
+    if (value == null || value === "") return null;
+    const n = typeof value === "number" ? value : Number(value as string);
+    return Number.isFinite(n) && n >= 0 && n <= 0xffffff ? n : null;
+}
+
 function applyFlair(profile: ManualProfileData, target: Record<string, any>) {
     switch (profile.flair) {
         case "app":
@@ -307,7 +313,7 @@ function createManualUser(profile: ManualProfileData): User {
         publicFlags: profile.publicFlags || (base as any)?.publicFlags || 0,
         flags: profile.publicFlags || (base as any)?.flags || 0,
         premiumType: profile.premiumType || (base as any)?.premiumType || 0,
-        accentColor: profile.accentColor ? Number(profile.accentColor) : ((base as any)?.accentColor ?? null),
+        accentColor: parseAccentColor(profile.accentColor) ?? ((base as any)?.accentColor ?? null),
         usernameNormalized: (profile.username || (base as any)?.username || "").toLowerCase(),
         bot: profile.bot || (base as any)?.bot || false,
         avatarDecorationData: (profile.avatarDecoration || profile.decorationAsset)
@@ -352,8 +358,8 @@ function createManualTarget(profile: ManualProfileData): CachedTarget {
     const id = profile.id || me?.id || "";
     const realProfile = (UserProfileStore.getUserProfile(id) ?? {}) as any;
 
-    const accentColor = profile.accentColor ? Number(profile.accentColor) : (realProfile.accentColor ?? null);
-    const accentColor2 = profile.accentColor2 ? Number(profile.accentColor2) : null;
+    const accentColor = parseAccentColor(profile.accentColor) ?? (realProfile.accentColor ?? null);
+    const accentColor2 = parseAccentColor(profile.accentColor2);
     const themeColors = accentColor != null ? [accentColor, accentColor2 ?? accentColor] : undefined;
 
     const hasNitro = profile.premiumType > 0 || (realProfile.premiumType ?? 0) > 0;

@@ -1325,8 +1325,20 @@ export default definePlugin({
 
         // Gradient theme colors from accentColor2 in manual mode
         if (manual && overrides.accentColor != null) {
-            const c2 = manual.accentColor2 ? Number(manual.accentColor2) : overrides.accentColor;
-            overrides.themeColors = [overrides.accentColor, c2];
+            const raw = manual.accentColor2 ? Number(manual.accentColor2) : overrides.accentColor as number;
+            const c2 = Number.isFinite(raw) && raw >= 0 && raw <= 0xffffff ? raw : overrides.accentColor as number;
+            const c1 = Number.isFinite(overrides.accentColor as number) ? overrides.accentColor as number : null;
+            if (c1 != null) overrides.themeColors = [c1, c2 as number];
+            else delete (overrides as any).themeColors;
+        }
+        // Sanitize any NaN accentColor that might have slipped through
+        if (overrides.accentColor != null && !Number.isFinite(overrides.accentColor as number)) {
+            overrides.accentColor = null;
+            delete (overrides as any).themeColors;
+        }
+        if (Array.isArray(overrides.themeColors)) {
+            overrides.themeColors = (overrides.themeColors as any[]).filter((c: any) => Number.isFinite(c) && c >= 0 && c <= 0xffffff);
+            if ((overrides.themeColors as any[]).length === 0) delete (overrides as any).themeColors;
         }
 
         // Mirror the userProfile sub-object so the popout's display-name section reflects the target.

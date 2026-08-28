@@ -374,18 +374,30 @@ export default definePlugin({
         try {
             if (!Array.isArray(messages)) return messages;
 
-            const validMessages = messages.filter(m => m && typeof m === "object");
+            const validMessages = messages.filter(m => m && typeof m === "object" && typeof m.id === "string");
             if (validMessages.length !== messages.length) {
                 messages.length = 0;
                 messages.push(...validMessages);
             }
 
-            if (messages.extra)
-                reAddDeletedMessages(messages, messages.extra, !payload.hasMoreAfter && !payload.isBefore, !payload.hasMoreBefore && !payload.isAfter);
+            if (Array.isArray(messages.extra)) {
+                const validExtra = (messages.extra as any[]).filter(m => m && typeof m === "object" && typeof m.id === "string");
+                if (validExtra.length !== (messages.extra as any[]).length) {
+                    (messages as any).extra = validExtra;
+                }
+                if (validExtra.length)
+                    reAddDeletedMessages(messages, validExtra, !payload.hasMoreAfter && !payload.isBefore, !payload.hasMoreBefore && !payload.isAfter);
+            }
 
             for (const msg of messages) {
                 if (msg && typeof msg === "object" && Array.isArray(msg.mentions)) {
                     msg.mentions = msg.mentions.filter(m => m && typeof m === "object");
+                }
+                // Guard against Discord's `flags in message` check where message might be a primitive due to corruption
+                if (msg && typeof msg === "object" && msg.flags != null && typeof msg.flags !== "number" && typeof msg.flags !== "bigint") {
+                    // Coerce or drop invalid flags
+                    const parsed = Number(msg.flags);
+                    msg.flags = Number.isFinite(parsed) ? parsed : 0;
                 }
             }
         }

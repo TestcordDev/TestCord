@@ -110,11 +110,15 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
                         if (v === "") return onChange("");
                         if (v.startsWith("#")) {
                             const n = parseInt(v.replace("#", ""), 16);
-                            if (!isNaN(n)) return onChange(String(n));
+                            if (Number.isFinite(n) && n >= 0 && n <= 0xffffff) return onChange(String(n));
+                            return;
                         }
-                        // Fallback: accept decimal string directly
-                        if (/^\d+$/.test(v)) return onChange(v);
-                        onChange(v);
+                        // Fallback: accept decimal string directly (0-16777215)
+                        if (/^\d+$/.test(v)) {
+                            const n = Number(v);
+                            if (Number.isFinite(n) && n >= 0 && n <= 0xffffff) return onChange(v);
+                            return;
+                        }
                     }}
                 />
                 {value && (

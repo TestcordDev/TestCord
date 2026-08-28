@@ -72,9 +72,11 @@ export function reAddDeletedMessages(messages: LoggedMessageJSON[], deletedMessa
     const toInsert: LoggedMessageJSON[] = [];
     for (let i = lowestIDX; i <= highestIDX; i++) {
         const entry = savedIDs[i];
-        if (entry?.message && !existingIds.has(entry.id)) {
-            toInsert.push(entry.message);
-        }
+        if (!entry?.message || typeof entry.message !== "object" || !entry.message.id) continue;
+        if (existingIds.has(entry.id)) continue;
+        // Ensure the message we re-insert is a valid object Discord can handle (must have at least id, and flags if present must be number)
+        if (typeof entry.message !== "object") continue;
+        toInsert.push(entry.message);
     }
     if (!toInsert.length) return;
 
