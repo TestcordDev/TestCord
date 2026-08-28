@@ -1130,7 +1130,11 @@ export default definePlugin({
                 await loadTarget(targetId);
                 if (settings.store.spoofActive) syncSpoofState();
             } catch (e) {
-                logger.warn("Failed to restore cached target", e);
+                logger.warn("Failed to restore cached target, clearing stale ID", e);
+                // Old target ID is invalid (deleted account / bad ID). Clear it so we don't
+                // spam the console on every restart and don't leave spoofActive on with no target.
+                settings.store.targetId = "";
+                settings.store.spoofActive = false;
             }
         }
     },

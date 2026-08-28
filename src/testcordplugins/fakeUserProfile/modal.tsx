@@ -85,7 +85,8 @@ function Field({ label, value, placeholder, onChange, type = "text" }: {
 }
 
 function ColorPicker({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void; }) {
-    const hex = value ? "#" + value : "";
+    const hex = value ? "#" + Number(value).toString(16).padStart(6, "0") : "";
+    const isValidHex = /^#[0-9a-fA-F]{6}$/.test(hex);
     return (
         <div className="fup-field">
             <SectionLabel>{label}</SectionLabel>
@@ -93,7 +94,7 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
                 <input
                     type="color"
                     className="fup-color-swatch"
-                    value={hex || "#5865f2"}
+                    value={isValidHex ? hex : "#5865f2"}
                     onChange={e => {
                         const n = parseInt(e.target.value.replace("#", ""), 16);
                         if (!isNaN(n)) onChange(String(n));
@@ -103,7 +104,18 @@ function ColorPicker({ label, value, onChange }: { label: string; value: string;
                     className="fup-input fup-color-input"
                     placeholder="#5865f2 (decimal)"
                     value={value}
-                    onChange={e => onChange(e.target.value)}
+                    onChange={e => {
+                        const v = e.target.value.trim();
+                        // Allow clearing or entering raw decimal, or paste hex with #
+                        if (v === "") return onChange("");
+                        if (v.startsWith("#")) {
+                            const n = parseInt(v.replace("#", ""), 16);
+                            if (!isNaN(n)) return onChange(String(n));
+                        }
+                        // Fallback: accept decimal string directly
+                        if (/^\d+$/.test(v)) return onChange(v);
+                        onChange(v);
+                    }}
                 />
                 {value && (
                     <button className="fup-clear-btn" onClick={() => onChange("")} title="Clear">

@@ -419,7 +419,7 @@ export async function loadTarget(targetId: string): Promise<CachedTarget> {
         try {
             user = await UserUtils.getUser(targetId);
         } catch (e) {
-            logger.error("Failed to fetch user", e);
+            logger.warn("Failed to fetch user", e);
             throw new Error("Could not load that user. Check the ID.");
         }
     }
@@ -429,7 +429,7 @@ export async function loadTarget(targetId: string): Promise<CachedTarget> {
     try {
         profile = await fetchUserProfile(targetId, undefined, false);
     } catch (e) {
-        logger.warn("Failed to fetch profile, falling back to user only", e);
+        logger.debug("Failed to fetch profile, falling back to user only", e);
         profile = UserProfileStore.getUserProfile(targetId);
     }
 
