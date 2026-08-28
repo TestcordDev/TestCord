@@ -104,12 +104,6 @@ const oneTimeNotices = [
             {
                 text: "Keep Using Dangerous Questify Settings",
                 variant: "critical-primary",
-                disabledFor: 10,
-                confirmation: {
-                    text: "Are You Sure?",
-                    variant: "critical-secondary",
-                    disabledFor: 5,
-                },
             },
             {
                 text: "Disable Dangerous Questify Settings",

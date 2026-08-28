@@ -141,6 +141,9 @@ export const CspPolicies: PolicyMap = {
     "ipwho.is": ConnectSrc,
     "ip-api.com": ConnectSrc, // OSINTToolkit IP provider
     "huskapi.nin0.dev": ConnectSrc,
+    "placeholder.nin0.dev": ImageSrc,
+    "images-ext-1.discordapp.net": ImageSrc,
+    "images-ext-2.discordapp.net": ImageSrc,
     "lrclib.net": ConnectSrc,
     "nekos.best": ConnectSrc,
     "openpgpjs.org": ConnectSrc,
