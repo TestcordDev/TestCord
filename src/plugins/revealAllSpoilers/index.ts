@@ -45,6 +45,7 @@ export default definePlugin({
     ],
 
     reveal(event: MouseEvent) {
+        if ((this as any)._isAutoRevealing) return;
         const { ctrlKey, metaKey, shiftKey, target } = event;
 
         if (!settings.store.autoReveal && !(IS_MAC ? metaKey : ctrlKey)) return;
@@ -67,68 +68,89 @@ export default definePlugin({
 
         let revealed = 0;
         const seen = new Set<Element>();
+        const doClick = (el: Element) => (el as HTMLElement).dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+        // Save scroll for shift-global case to avoid yeeting to bottom
+        const shouldPreserveScroll = shiftKey;
+        const scrollers = shouldPreserveScroll ? [...document.querySelectorAll<HTMLElement>('[class*="messagesWrapper"], [class*="scrollerBase"], [class*="scroller"]')] : [];
+        const scrollStates = scrollers.map(s => ({ el: s, top: s.scrollTop, left: s.scrollLeft }));
+        const winX = window.scrollX, winY = window.scrollY;
         for (const sel of selectors) {
             for (const el of parent.querySelectorAll(sel)) {
                 if (seen.has(el)) continue;
                 seen.add(el);
                 const cls = (el as HTMLElement).className ?? "";
                 const aria = (el.getAttribute("aria-label") ?? "").toLowerCase();
-                // Only reveal spoiler obscurities, not explicit/gore filters unless they also look like spoilers
                 if (cls.includes("spoiler") || aria.includes("spoiler") || sel.includes("spoiler")) {
-                    (el as HTMLElement).click();
+                    doClick(el);
                     revealed++;
                 }
             }
         }
-        // Fallback: generic hidden elements with spoiler aria-label inside parent
         if (revealed === 0) {
             for (const el of parent.querySelectorAll('[class*="hidden"][aria-label]')) {
                 const aria = (el.getAttribute("aria-label") ?? "").toLowerCase();
                 if (aria.includes("spoiler")) {
-                    (el as HTMLElement).click();
+                    doClick(el);
                     revealed++;
                 }
             }
         }
+        if (shouldPreserveScroll) {
+            scrollStates.forEach(({ el, top, left }) => {
+                el.scrollTop = top;
+                el.scrollLeft = left;
+            });
+            window.scrollTo(winX, winY);
+        }
     },
 
     revealAllAuto() {
-        const root = document;
-        // Aggressive: handle chat, profile, forwarded snapshots, embeds, attachments - all in document
-        // Forwarded messages use same spoiler classes but live inside snapshot containers
-        const selectors = [
-            '[class*="spoilerContent"][class*="hidden"]',
-            '[class*="hiddenSpoiler"][class*="hidden"]',
-            '[class*="obscured"][class*="hidden"]',
-            '[class*="spoilerContainer"][class*="hidden"]',
-            '[aria-expanded="false"][aria-label]',
-            '[class*="forwarded"] [class*="hidden"]',
-            '[class*="snapshot"] [class*="hidden"]'
-        ];
-        const seen = new Set<Element>();
-        for (const sel of selectors) {
-            for (const el of root.querySelectorAll(sel)) {
-                if (seen.has(el)) continue;
-                seen.add(el);
-                const cls = (el as HTMLElement).className ?? "";
-                const rawAria = el.getAttribute("aria-label") ?? "";
-                const aria = rawAria.toLowerCase();
+        if (!settings.store.autoReveal) return;
+        const fastCheck = document.querySelector('[aria-expanded="false"][aria-label], [class*="spoilerContent"][class*="hidden"]');
+        if (!fastCheck) return;
+        if ((this as any)._isAutoRevealing) return;
+        (this as any)._isAutoRevealing = true;
+        try {
+            const revealNoScroll = (el: HTMLElement) => {
+                // Try fiber setState first - no focus/scroll/highlight
+                try {
+                    const fiberKey = Object.keys(el).find(k => k.startsWith("__reactFiber"));
+                    let fiber: any = fiberKey ? (el as any)[fiberKey] : null;
+                    let tries = 0;
+                    while (fiber && tries < 12) {
+                        const sn = fiber.stateNode;
+                        if (sn && sn.state && typeof sn.state.visible === "boolean" && typeof sn.setState === "function") {
+                            if (!sn.state.visible) sn.setState({ visible: true });
+                            return;
+                        }
+                        fiber = fiber.return;
+                        tries++;
+                    }
+                } catch {}
+                // Fallback: dispatch click without focusing
+                el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+                // Blur to remove highlight
+                try { (el as HTMLElement).blur(); } catch {}
+            };
+
+            const root = document;
+            const hidden = root.querySelectorAll<HTMLElement>('[aria-expanded="false"]');
+            for (const el of hidden) {
+                const cls = el.className ?? "";
                 if (cls.includes("hiddenVisually")) continue;
-                // AutoReveal wants NO spoilers: be permissive for forwarded/profile.
-                // Any hidden spoiler-like element with aria-expanded false or hidden class is a candidate.
-                const isSpoiler = cls.includes("spoiler") || aria.includes("spoiler") || rawAria === "" && cls.includes("hidden");
-                // For generic aria-expanded selector, require some spoiler hint or just hidden
-                if (sel.includes("aria-expanded") && !isSpoiler && !cls.includes("hidden")) continue;
-                // For forwarded/snapshot generic hidden, require spoiler hint
-                if ((sel.includes("forwarded") || sel.includes("snapshot")) && !isSpoiler) continue;
-                if (isSpoiler || sel.includes("spoiler") || aria.includes("spoiler")) {
-                    (el as HTMLElement).click();
-                } else if (settings.store.autoReveal && el.getAttribute("aria-expanded") === "false") {
-                    // In auto mode, also nuke any obscured hidden (covers forwarded edge cases)
-                    const isObscured = cls.includes("obscured") || cls.includes("hidden");
-                    if (isObscured) (el as HTMLElement).click();
+                const aria = el.getAttribute("aria-label") ?? "";
+                if (cls.includes("spoiler") || aria.toLowerCase().includes("spoiler")) {
+                    revealNoScroll(el);
                 }
             }
+            const hiddenSpoilers = root.querySelectorAll<HTMLElement>('[class*="spoilerContent"][class*="hidden"]');
+            for (const el of hiddenSpoilers) {
+                if ((el as HTMLElement).getAttribute("aria-expanded") === "false") continue;
+                if (el.className.includes("hiddenVisually")) continue;
+                if (el.className.includes("spoiler")) revealNoScroll(el);
+            }
+        } finally {
+            (this as any)._isAutoRevealing = false;
         }
     },
 
@@ -144,11 +166,10 @@ export default definePlugin({
         };
         document.addEventListener("click", this._clickHandler, true);
 
-        // Auto-reveal interval: when enabled, nuke every spoiler in view every 400ms
+        // Auto-reveal interval: when enabled, nuke every spoiler in view
         this._autoInterval = setInterval(() => {
-            if (!settings.store.autoReveal) return;
             this.revealAllAuto();
-        }, 400);
+        }, 800);
         // One immediate pass if already enabled
         if (settings.store.autoReveal) this.revealAllAuto();
     },
