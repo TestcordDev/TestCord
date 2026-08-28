@@ -57,6 +57,7 @@ export function handleHintKey(e: KeyboardEvent): boolean {
         e.preventDefault();
         e.stopPropagation();
         deactivateHints();
+        (document.activeElement as HTMLElement)?.blur?.();
         return true;
     }
 
