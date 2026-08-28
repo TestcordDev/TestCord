@@ -229,7 +229,13 @@ function getTestcordTabDescriptors(entries: SettingsLayoutNode[]): TestcordTabDe
     return entries.map(entry => ({
         key: entry.key!,
         title: entry.useTitle!(),
-        Icon: entry.icon ? (() => entry.icon!()) as ComponentType<IconProps> : undefined,
+        Icon: entry.icon ? ((props: any) => {
+            try {
+                return entry.icon!() as any;
+            } catch {
+                return null;
+            }
+        }) as ComponentType<IconProps> : undefined,
         locked: entry.key === TESTCORD_MAIN_ENTRY_KEY
     }));
 }
@@ -679,7 +685,7 @@ export default definePlugin({
             key,
             type: LayoutTypes.SIDEBAR_ITEM,
             useTitle: () => title,
-            icon: () => <Icon width={20} height={20} />,
+            icon: Icon ? () => <Icon width={20} height={20} /> : undefined,
             buildLayout: () => [panel]
         });
     },

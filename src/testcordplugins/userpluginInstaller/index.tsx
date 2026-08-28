@@ -8,10 +8,13 @@ import "./misc/style.css";
 
 import { showNotification } from "@api/Notifications";
 import { definePluginSettings } from "@api/Settings";
-import plSettings from "@plugins/_core/settings";
-import { Devs } from "@utils/constants";
-import definePlugin, { OptionType, PluginNative } from "@utils/types";
-import { findByPropsLazy, findComponentByCodeLazy } from "@webpack";
+import { Button } from "@components/Button";
+import { PluginsIcon } from "@components/Icons";
+import SettingsPlugin from "@plugins/_core/settings";
+import { Devs, TestcordDevs } from "@utils/constants";
+import { removeFromArray } from "@utils/misc";
+import definePlugin, { OptionType, PluginNative, StartAt } from "@utils/types";
+import { findByPropsLazy } from "@webpack";
 
 import SettingsTab from "./components/SettingsTab";
 import UserpluginInstallButton from "./components/UserpluginInstallButton";
@@ -19,9 +22,10 @@ import { CLONE_LINK_REGEX } from "./misc/constants";
 import { VariableWithCallbacks } from "./VariableWithCallbacks";
 
 // @ts-ignore
-export const Native = VencordNative.pluginHelpers.UserpluginInstaller as PluginNative<typeof import("./native")>;
+export const Native: PluginNative<typeof import("./native")> = new Proxy({} as any, {
+    get: (_, prop: string) => (VencordNative.pluginHelpers as any)?.UserpluginInstaller?.[prop]
+});
 export const OpenSettingsModule = findByPropsLazy("openUserSettings");
-const AppsIcon = findComponentByCodeLazy("2.95H20a2 2 0");
 
 export const settings = definePluginSettings({
     allowlistedChannels: {
@@ -32,6 +36,19 @@ export const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Show a Vencord notification if UserPlugins need to be updated",
         default: true
+    },
+    neverNotifyForPlugins: {
+        type: OptionType.STRING,
+        description: "Never show update notifications for these plugins (comma separated)",
+        default: ""
+    },
+    setGitPath: {
+        type: OptionType.COMPONENT,
+        component: () => <Button onClick={() => {
+            Native?.openGitPathModal?.();
+        }} variant="secondary">
+            Set Git path
+        </Button>
     }
 });
 
@@ -39,16 +56,42 @@ export default definePlugin({
     name: "UserpluginInstaller",
     description: "Install userplugins with a simple button click",
     tags: ["Utility", "Developers"],
+    authors: [Devs.nin0dev, TestcordDevs.sirphantom89],
+    dependencies: ["Settings"],
+    startAt: StartAt.WebpackReady,
+    settings,
+
+    plugins: new VariableWithCallbacks<{
+        name: string;
+        description: string;
+        usesPreSend: boolean;
+        usesNative: boolean;
+        directory: string;
+        remote: string;
+    }[]>([]),
+
+    pluginsWithUpdates: new VariableWithCallbacks<{
+        finished: boolean;
+        plugins: string[];
+    }>({
+        finished: false,
+        plugins: []
+    }),
+
     async checkPluginUpdates() {
         for (const p of this.plugins.value()) {
-            if (await Native.isUpdateAvailableForPlugin(p.directory!)) {
-                const t = this.pluginsWithUpdates.value().plugins;
-                t.push(p.directory!);
-                this.pluginsWithUpdates.value({
-                    finished: false,
-                    plugins: t
-                });
-            }
+            try {
+                if (await Native?.isUpdateAvailableForPlugin?.(p.directory!)) {
+                    const t = this.pluginsWithUpdates.value().plugins;
+                    if (!t.includes(p.directory!)) {
+                        t.push(p.directory!);
+                        this.pluginsWithUpdates.value({
+                            finished: false,
+                            plugins: t
+                        });
+                    }
+                }
+            } catch { }
         }
         const t = this.pluginsWithUpdates.value().plugins;
         this.pluginsWithUpdates.value({
@@ -56,18 +99,34 @@ export default definePlugin({
             plugins: t
         });
     },
-    section: {
-        key: "vencord_userplugins",
-        title: "UserPlugins",
-        panelTitle: "UserPlugins",
-        Component: SettingsTab,
-        Icon: AppsIcon
+
+    start() {
+        if (!SettingsPlugin.customEntries.some(e => e.key === "vencord_userplugins")) {
+            SettingsPlugin.customEntries.push({
+                key: "vencord_userplugins",
+                title: "UserPlugins",
+                Component: SettingsTab,
+                Icon: PluginsIcon
+            });
+        }
+
+        this.initBackground();
     },
-    async start() {
-        plSettings.customEntries.push(this.section);
+
+    stop() {
+        removeFromArray(SettingsPlugin.customEntries, e => e.key === "vencord_userplugins");
+    },
+
+    async initBackground() {
+        try {
+            await Native?.ensurePluginsDirectory?.();
+        } catch { }
 
         this.pluginsWithUpdates.registerCallback((value, id) => {
-            if (value.plugins.length === 0) return;
+            if (!value?.plugins || value.plugins.length === 0) return;
+            const neverList = (settings.store.neverNotifyForPlugins || "").split(",").map(t => t.trim().toLowerCase());
+            if (neverList.includes(value.plugins[value.plugins.length - 1]?.toLowerCase()))
+                return;
             this.pluginsWithUpdates.deregisterCallback(id);
             if (settings.store.notifyIfUpdate)
                 showNotification({
@@ -80,32 +139,17 @@ export default definePlugin({
                     },
                 });
         });
-        const pls = await Native.getUserplugins();
-        // @ts-ignore :trolley:
-        this.plugins.value(pls);
-        await this.checkPluginUpdates();
+
+        try {
+            const pls = await Native?.getUserplugins?.();
+            if (pls && Array.isArray(pls)) {
+                // @ts-ignore :trolley:
+                this.plugins.value(pls);
+                await this.checkPluginUpdates();
+            }
+        } catch { }
     },
-    stop() {
-        // @ts-ignore
-        plSettings.customEntries.splice(plSettings.customEntries.indexOf(this.section), 1);
-    },
-    plugins: new VariableWithCallbacks<{
-        name: string;
-        description: string;
-        usesPreSend: boolean;
-        usesNative: boolean;
-        directory: string;
-        remote: string;
-    }[]>([]),
-    pluginsWithUpdates: new VariableWithCallbacks<{
-        finished: boolean;
-        plugins: string[];
-    }>({
-        finished: false,
-        plugins: []
-    }),
-    settings,
-    authors: [Devs.nin0dev],
+
     renderMessageAccessory: props => {
         if (!props?.message?.content) return null;
         if (!CLONE_LINK_REGEX.test(props.message.content)) return null;

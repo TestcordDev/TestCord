@@ -444,6 +444,9 @@ export const commonOpts = {
     sourcemap: watch ? "inline" : "external",
     legalComments: "linked",
     banner,
+    loader: {
+        ".html": "text",
+    },
     plugins: [fileUrlPlugin, gitHashPlugin, gitRemotePlugin, stylePlugin],
     external: ["~plugins", "~git-hash", "~git-remote", "/assets/*"],
     inject: [join(dirname(fileURLToPath(import.meta.url)), "inject/react.mjs")],

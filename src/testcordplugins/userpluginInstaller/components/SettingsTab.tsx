@@ -40,12 +40,12 @@ function UserPluginsTab() {
         loadPlugins(true);
         const cid2 = plgobj.registerCallback(value => setPlugins(value));
 
-        const setPWU = value => {
-            const pwu = value.plugins.map(pg => ({
+        const setPWU = (value: { finished: boolean; plugins: string[] }) => {
+            const pwu = (value?.plugins || []).map(pg => ({
                 [pg]: plgobj.value().find(pfjh => pfjh.directory === pg)?.name
             }));
             setPluginsWithUpdates(Object.assign({}, ...pwu));
-            loadUpdates(value.finished);
+            loadUpdates(Boolean(value?.finished));
         };
         const cid = pwug.registerCallback(value => {
             setPWU(value);
@@ -58,8 +58,10 @@ function UserPluginsTab() {
         };
     }, []);
 
+    const enabledCount = plugins.filter(p => Boolean((Vencord as any)?.Settings?.plugins?.[p.name]?.enabled)).length;
+
     return (
-        <STab {...{ title: `UserPlugins${pluginsLoaded ? ` (${plugins.length}, ${plugins.filter(p => (Vencord as any).Settings.plugins[p.name].enabled).length} enabled)` : ""}` } as any as React.PropsWithChildren<{ title: string }>}>
+        <STab {...{ title: `UserPlugins${pluginsLoaded ? ` (${plugins.length}, ${enabledCount} enabled)` : ""}` } as any as React.PropsWithChildren<{ title: string }>}>
             <div className={cl("update-check-container")}>
                 {
                     isObjectEmpty(pluginsWithUpdates) ? (!updatesLoaded && <BaseText>Checking for updates...</BaseText>) : <Card className={classes(cl("info-card"), "vc-warning-card")}>
@@ -84,8 +86,8 @@ function UserPluginsTab() {
                 <Paragraph className={cl("install-desc")}>You can install a plugin from GitHub, GitLab, Codeberg, git.nin0.dev, or plugins.nin0.dev by pasting its clone URL here.</Paragraph>
                 <div className={cl("install-field")}>
                     <CheckedTextInput {...{
-                        onChange: t => setUrl(t),
-                        validate: t => {
+                        onChange: (t: string) => setUrl(t),
+                        validate: (t: string) => {
                             const match = t.match(CLONE_LINK_REGEX);
                             if (match) {
                                 const idpl = match.includes("plugins.nin0.dev") ? 1 : 0;
@@ -107,17 +109,19 @@ function UserPluginsTab() {
                 </div>
                 <div className={cl("button-container")}>
                     <Button disabled={!valid} className={cl("install-button")} onClick={async () => {
-                        const gitLink = url.match(CLONE_LINK_REGEX)!;
+                        const gitLink = url.match(CLONE_LINK_REGEX);
+                        if (!gitLink) return;
                         const idpl = gitLink.includes("plugins.nin0.dev") ? 1 : 0;
                         try {
-                            const { name, native } = JSON.parse(await Native.initPluginInstall(gitLink[0], gitLink[[1, 4][idpl]], gitLink[[2, 5][idpl]], gitLink[[3, 6][idpl]]));
+                            const res = await Native.initPluginInstall(gitLink[0], gitLink[[1, 4][idpl]], gitLink[[2, 5][idpl]], gitLink[[3, 6][idpl]]);
+                            const { name, native } = JSON.parse(res);
                             showInstallFinishedAlert(name, native);
                         }
                         catch (e: any) {
-                            if (e.toString().includes("silentStop")) return;
+                            if (e?.message?.includes?.("silentStop") || String(e).includes("silentStop")) return;
                             Alerts.show({
                                 title: "Install error",
-                                body: e.toString()
+                                body: e?.message || String(e)
                             });
                         }
                     }}>
@@ -136,68 +140,98 @@ function UserPluginsTab() {
                                 const [aa, bb] = [updatePendingNames.includes(a.directory!) ? 1000 : 0, updatePendingNames.includes(b.directory!) ? 1000 : 0];
                                 return bb - aa;
                             }).map(plugin => {
-                                const ReworkedAddonCard = PluginCard({
-                                    plugin: Vencord.Plugins.plugins[plugin.name],
-                                    disabled: false,
-                                    onRestartNeeded() {
-                                        Toasts.show({
-                                            id: Toasts.genId(),
-                                            type: Toasts.Type.MESSAGE,
-                                            message: "Restart to apply changes!"
-                                        });
-                                    }
-                                });
-                                ReworkedAddonCard.props.footer = <div className={cl("plugin-footer")}>
-                                    {
-                                        Object.keys(pluginsWithUpdates).includes(plugin.directory!) && <Button size="small" onClick={async () => {
+                                const pl = Vencord.Plugins.plugins[plugin.name] || {
+                                    name: plugin.name,
+                                    description: plugin.description || "User plugin",
+                                    authors: [],
+                                    tags: ["UserPlugin"]
+                                } as any;
+
+                                const footer = (
+                                    <div className={cl("plugin-footer")}>
+                                        {
+                                            Object.keys(pluginsWithUpdates).includes(plugin.directory!) && <Button size="small" onClick={async () => {
+                                                try {
+                                                    await Native.updatePlugin(plugin.directory!);
+                                                    const oldPWU = userpluginInstaller.pluginsWithUpdates.value().plugins;
+                                                    oldPWU.splice(oldPWU.indexOf(plugin.directory!), 1);
+                                                    userpluginInstaller.pluginsWithUpdates.value({
+                                                        finished: true,
+                                                        plugins: oldPWU
+                                                    });
+                                                    Alerts.show({
+                                                        title: "Done!",
+                                                        body: `${plugin.name} has been updated. A ${plugin.usesNative ? "restart" : "refresh"} is needed to apply the update.`,
+                                                        confirmText: plugin.usesNative ? "Restart" : "Refresh",
+                                                        cancelText: "Later",
+                                                        onConfirm() {
+                                                            plugin.usesNative ? relaunch() : window.location.reload();
+                                                        }
+                                                    });
+                                                }
+                                                catch (e: any) {
+                                                    if (e?.message?.includes?.("silentStop") || String(e).includes("silentStop")) return;
+                                                    Alerts.show({
+                                                        title: "Update error",
+                                                        body: e?.message || String(e)
+                                                    });
+                                                }
+                                            }}>
+                                                Update
+                                            </Button>
+                                        }
+                                        <Button variant="secondary" size="small" disabled={!plugin.remote} onClick={() => VencordNative.native.openExternal(plugin.remote)}>
+                                            Source
+                                        </Button>
+                                        <Button variant="dangerSecondary" size="small" onClick={async () => {
                                             try {
-                                                await Native.updatePlugin(plugin.directory!);
-                                                const oldPWU = userpluginInstaller.pluginsWithUpdates.value().plugins;
-                                                oldPWU.splice(oldPWU.indexOf(plugin.directory!), 1);
-                                                userpluginInstaller.pluginsWithUpdates.value({
-                                                    finished: true,
-                                                    plugins: oldPWU
-                                                });
+                                                await Native.rmPlugin(plugin.directory!);
                                                 Alerts.show({
                                                     title: "Done!",
-                                                    body: `${plugin.name} has been updated. A ${plugin.usesNative ? "restart" : "refresh"} is needed to apply the update.`,
+                                                    body: `${plugin.name} has been uninstalled. A ${plugin.usesNative ? "restart" : "refresh"} is needed to fully remove the plugin.`,
                                                     confirmText: plugin.usesNative ? "Restart" : "Refresh",
                                                     cancelText: "Later",
                                                     onConfirm() {
                                                         plugin.usesNative ? relaunch() : window.location.reload();
                                                     }
                                                 });
-                                            }
-                                            catch (e: any) {
-                                                if (e.toString().includes("silentStop")) return;
+                                            } catch (e: any) {
                                                 Alerts.show({
-                                                    title: "Update error",
-                                                    body: e.toString()
+                                                    title: "Uninstall error",
+                                                    body: e?.message || String(e)
                                                 });
                                             }
                                         }}>
-                                            Update
+                                            Uninstall
                                         </Button>
+                                    </div>
+                                );
+
+                                try {
+                                    const ReworkedAddonCard = PluginCard({
+                                        plugin: pl,
+                                        disabled: false,
+                                        onRestartNeeded() {
+                                            Toasts.show({
+                                                id: Toasts.genId(),
+                                                type: Toasts.Type.MESSAGE,
+                                                message: "Restart to apply changes!"
+                                            });
+                                        }
+                                    });
+                                    if (ReworkedAddonCard && ReworkedAddonCard.props) {
+                                        ReworkedAddonCard.props.footer = footer;
                                     }
-                                    <Button variant="secondary" size="small" disabled={plugin.remote === ""} onClick={() => VencordNative.native.openExternal(plugin.remote)}>
-                                        Source
-                                    </Button>
-                                    <Button variant="dangerSecondary" size="small" onClick={async () => {
-                                        await Native.rmPlugin(plugin.directory!);
-                                        Alerts.show({
-                                            title: "Done!",
-                                            body: `${plugin.name} has been uninstalled. A ${plugin.usesNative ? "restart" : "refresh"} is needed to fully remove the plugin.`,
-                                            confirmText: plugin.usesNative ? "Restart" : "Refresh",
-                                            cancelText: "Later",
-                                            onConfirm() {
-                                                plugin.usesNative ? relaunch() : window.location.reload();
-                                            }
-                                        });
-                                    }}>
-                                        Uninstall
-                                    </Button>
-                                </div>;
-                                return ReworkedAddonCard;
+                                    return ReworkedAddonCard;
+                                } catch {
+                                    return (
+                                        <Card key={plugin.name} className={cl("info-card")}>
+                                            <HeadingTertiary>{plugin.name}</HeadingTertiary>
+                                            <Paragraph>{plugin.description}</Paragraph>
+                                            {footer}
+                                        </Card>
+                                    );
+                                }
                             })
                         }
                     </div> : <BaseText>Loading plugins...</BaseText>

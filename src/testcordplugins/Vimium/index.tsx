@@ -102,9 +102,23 @@ export default definePlugin({
 
     onKeydown(e: KeyboardEvent) {
         if (e.ctrlKey || e.altKey || e.metaKey) return;
-        if (settings.store.disableWhileTyping && isTypingTarget(e.target)) return;
 
         if (handleHintKey(e)) return;
+
+        if (e.key === "Escape") {
+            const typingEl = (e.target instanceof Element
+                ? e.target.closest<HTMLElement>("input, textarea, [contenteditable='true'], [role='textbox']")
+                : null) ?? (isTypingTarget(document.activeElement) ? (document.activeElement as HTMLElement) : null);
+
+            if (typingEl) {
+                typingEl.blur();
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+        }
+
+        if (settings.store.disableWhileTyping && isTypingTarget(e.target)) return;
 
         const key = e.key.toLowerCase();
 
