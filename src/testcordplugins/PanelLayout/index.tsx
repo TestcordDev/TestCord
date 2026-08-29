@@ -2495,7 +2495,6 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         display: "flex", alignItems: "center", justifyContent: "center",
                         width: "40px", height: "40px", borderRadius: "12px",
                         background: "linear-gradient(160deg, color-mix(in srgb, var(--brand-experiment, var(--background-brand)) 100%, white 12%), var(--brand-experiment, var(--background-brand)))",
-                        boxShadow: "0 4px 14px -4px color-mix(in srgb, var(--brand-experiment, var(--background-brand)) 65%, transparent)",
                         color: "white",
                     }}>
                         <PanelLayoutIcon />
@@ -2590,8 +2589,10 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         {tab === "style" && <>
                             <SectionHeading>Aesthetics</SectionHeading>
                             <Card variant="primary">
-                                <Dropdown label="Button Base Style" options={BUTTON_STYLES} value={s.buttonStyle} onChange={v => set("buttonStyle", v)} />
-                                <Dropdown label="Interaction Hover Effect" options={HOVER_EFFECTS} value={s.hoverEffect} onChange={v => set("hoverEffect", v)} />
+                                <div style={{ display: "grid", gap: "8px" }}>
+                                    <Dropdown label="Button Base Style" options={BUTTON_STYLES} value={s.buttonStyle} onChange={v => set("buttonStyle", v)} />
+                                    <Dropdown label="Interaction Hover Effect" options={HOVER_EFFECTS} value={s.hoverEffect} onChange={v => set("hoverEffect", v)} />
+                                </div>
                             </Card>
                         </>}
 
