@@ -39,8 +39,10 @@ export function GalleryGrid(props: {
     onRetry(): void;
     onLoadMore(): void;
     onSelect(index: number): void;
+    selectedKeys?: Set<string>;
+    onToggleSelect?(index: number): void;
 }) {
-    const { items, showCaptions, isLoading, hasMore, error, onRetry, onLoadMore, onSelect } = props;
+    const { items, showCaptions, isLoading, hasMore, error, onRetry, onLoadMore, onSelect, selectedKeys, onToggleSelect } = props;
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const [viewport, setViewport] = useState({ width: 0, height: 0, scrollTop: 0 });
@@ -133,6 +135,7 @@ export function GalleryGrid(props: {
                     const idx = startIndex + i;
                     const row = Math.floor(idx / columns);
                     const col = idx % columns;
+                    const isSelected = selectedKeys?.has(item.key) ?? false;
 
                     return (
                         <button
@@ -147,7 +150,10 @@ export function GalleryGrid(props: {
                                 padding: 0,
                                 border: "none",
                                 background: "transparent",
-                                cursor: "pointer"
+                                cursor: "pointer",
+                                outline: isSelected ? "2px solid var(--brand-500)" : "none",
+                                outlineOffset: isSelected ? -2 : 0,
+                                borderRadius: 10
                             }}
                         >
                             <div
@@ -156,15 +162,51 @@ export function GalleryGrid(props: {
                                     height: cell,
                                     borderRadius: 10,
                                     overflow: "hidden",
-                                    background: "var(--background-secondary)"
+                                    background: "var(--background-secondary)",
+                                    position: "relative",
+                                    boxShadow: isSelected ? "0 0 0 2px var(--brand-500) inset" : "none"
                                 }}
                             >
                                 <img
                                     src={getThumbUrl(item, thumbSize)}
                                     alt={item.filename ?? "Image"}
                                     loading="lazy"
-                                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: isSelected ? 0.92 : 1 }}
                                 />
+                                {onToggleSelect && (
+                                    <span
+                                        role="checkbox"
+                                        aria-checked={isSelected}
+                                        aria-label={isSelected ? "Deselect image" : "Select image"}
+                                        onClick={e => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            onToggleSelect(idx);
+                                        }}
+                                        style={{
+                                            position: "absolute",
+                                            top: 6,
+                                            left: 6,
+                                            width: 22,
+                                            height: 22,
+                                            borderRadius: 6,
+                                            background: isSelected ? "var(--brand-500)" : "rgba(0,0,0,0.55)",
+                                            border: isSelected ? "2px solid var(--brand-500)" : "2px solid rgba(255,255,255,0.9)",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            cursor: "pointer",
+                                            backdropFilter: "blur(2px)",
+                                            boxSizing: "border-box"
+                                        }}
+                                    >
+                                        {isSelected && (
+                                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                                <path d="M2.5 6L4.8 8.3L9.5 3.3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                        )}
+                                    </span>
+                                )}
                             </div>
                             {showCaptions && item.filename && (
                                 <div

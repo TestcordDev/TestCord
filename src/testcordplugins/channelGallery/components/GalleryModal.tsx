@@ -6,7 +6,7 @@
 
 import { Heading } from "@components/Heading";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalProps, ModalRoot, ModalSize } from "@utils/modal";
-import { Button, ChannelStore, MessageStore, React, showToast, Toasts, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { Button, ChannelStore, MessageStore, React, showToast, Toasts, UserStore, useEffect, useMemo, useRef, useState } from "@webpack/common";
 
 import { downloadItemsToFolder } from "../utils/download";
 import { extractImages, GalleryItem } from "../utils/extractImages";
@@ -97,11 +97,32 @@ function getOrCreateCache(channelId: string, settings: PluginSettings): GalleryC
     return created;
 }
 
+function getGalleryTitle(channel: any): string {
+    if (!channel) return "Gallery";
+    if (channel.name) return `Gallery — #${channel.name}`;
+    const recipients: string[] | undefined = channel.recipients ?? channel.rawRecipients;
+    if (recipients?.length) {
+        if (recipients.length === 1) {
+            const user = UserStore?.getUser?.(recipients[0]);
+            const name = (user as any)?.globalName ?? user?.username ?? "Direct Message";
+            return `Gallery — @${name}`;
+        }
+        if (recipients.length > 1) {
+            const names = recipients.slice(0, 3).map(id => UserStore?.getUser?.(id)?.username ?? "Unknown").join(", ");
+            const extra = recipients.length > 3 ? ` +${recipients.length - 3}` : "";
+            return `Gallery — Group DM (${names}${extra})`;
+        }
+    }
+    if (typeof channel.isDM === "function" && channel.isDM()) return "Gallery — Direct Message";
+    if (typeof channel.isGroupDM === "function" && channel.isGroupDM()) return "Gallery — Group DM";
+    return "Gallery";
+}
+
 export function GalleryModal(props: ModalProps & { channelId: string; settings: PluginSettings; }) {
     const { channelId, settings, ...modalProps } = props;
 
     const channel = ChannelStore?.getChannel?.(channelId);
-    const title = channel?.name ? `Gallery — #${channel.name}` : "Gallery";
+    const title = getGalleryTitle(channel);
 
     const cache = useMemo(() => getOrCreateCache(channelId, settings), [channelId, settings]);
 
@@ -111,6 +132,9 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
     const [error, setError] = useState<string | null>(null);
     const [viewerIndex, setViewerIndex] = useState<number | null>(null);
     const [downloadState, setDownloadState] = useState<{ done: number; total: number } | null>(null);
+    const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
+
+    const selectedItems = useMemo(() => items.filter(i => selectedKeys.has(i.key)), [items, selectedKeys]);
 
     const abortRef = useRef<AbortController | null>(null);
 
@@ -180,6 +204,30 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
         void loadNextPages(Math.max(1, Math.floor(settings.preloadPages ?? 2)));
     }, [channelId]);
 
+    useEffect(() => {
+        setSelectedKeys(new Set());
+        setViewerIndex(null);
+    }, [channelId]);
+
+    function toggleSelect(index: number) {
+        const key = items[index]?.key;
+        if (!key) return;
+        setSelectedKeys(prev => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    }
+
+    function handleSelectAll() {
+        setSelectedKeys(new Set(items.map(i => i.key)));
+    }
+
+    function handleClearSelection() {
+        setSelectedKeys(new Set());
+    }
+
     const onCloseAll = () => {
         abortRef.current?.abort();
         modalProps.onClose();
@@ -202,6 +250,21 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
         }
     }
 
+    async function handleDownloadSelected() {
+        if (!selectedItems.length || downloading) return;
+
+        setDownloadState({ done: 0, total: selectedItems.length });
+        try {
+            const { saved, failed } = await downloadItemsToFolder(selectedItems, (done, total) => setDownloadState({ done, total }));
+            showToast(
+                failed ? `Saved ${saved} of ${selectedItems.length} files. ${failed} failed.` : `Saved ${saved} file${saved === 1 ? "" : "s"}.`,
+                failed ? Toasts.Type.FAILURE : Toasts.Type.SUCCESS
+            );
+        } finally {
+            setDownloadState(null);
+        }
+    }
+
     const viewerItem = viewerIndex != null ? items[viewerIndex] : null;
 
     return (
@@ -210,17 +273,59 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
                 <Heading tag="h3" style={{ flex: 1, margin: 0 }}>
                     {title}
                 </Heading>
-                {items.length > 0 && (
-                    <Button
-                        size={Button.Sizes.SMALL}
-                        disabled={downloading}
-                        onClick={handleDownloadAll}
-                    >
-                        {downloading ? `Downloading ${downloadState.done}/${downloadState.total}` : "Download all"}
-                    </Button>
-                )}
                 <ModalCloseButton onClick={onCloseAll} />
             </ModalHeader>
+            {!viewerItem && (
+                <div
+                    style={{
+                        display: "flex",
+                        gap: 8,
+                        padding: "8px 14px",
+                        alignItems: "center",
+                        borderBottom: "1px solid var(--background-modifier-accent)",
+                        background: "var(--background-secondary)",
+                        flexWrap: "wrap"
+                    }}
+                >
+                    <span style={{ flex: "1 1 auto", fontSize: 13, color: "var(--text-muted)" }}>
+                        {selectedKeys.size ? `${selectedKeys.size} selected • ${items.length} images` : `${items.length} images`}
+                        {hasMore ? " • more available" : ""}
+                        {downloading ? ` • Downloading ${downloadState?.done}/${downloadState?.total}` : ""}
+                    </span>
+                    <Button
+                        size={Button.Sizes.SMALL}
+                        color={Button.Colors.PRIMARY}
+                        look={Button.Looks.LINK}
+                        disabled={!items.length || selectedKeys.size === items.length}
+                        onClick={handleSelectAll}
+                    >
+                        Select all
+                    </Button>
+                    <Button
+                        size={Button.Sizes.SMALL}
+                        color={Button.Colors.PRIMARY}
+                        look={Button.Looks.LINK}
+                        disabled={!selectedKeys.size}
+                        onClick={handleClearSelection}
+                    >
+                        Clear
+                    </Button>
+                    <Button
+                        size={Button.Sizes.SMALL}
+                        disabled={!selectedKeys.size || downloading}
+                        onClick={handleDownloadSelected}
+                    >
+                        Download selected{selectedKeys.size ? ` (${selectedKeys.size})` : ""}
+                    </Button>
+                    <Button
+                        size={Button.Sizes.SMALL}
+                        disabled={!items.length || downloading}
+                        onClick={handleDownloadAll}
+                    >
+                        {downloading ? `Downloading ${downloadState!.done}/${downloadState!.total}` : "Download all"}
+                    </Button>
+                </div>
+            )}
             <ModalContent
                 className="vc-channel-gallery-modal"
                 style={{ padding: 0, overflow: "hidden" }}
@@ -244,6 +349,8 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
                         onRetry={() => loadNextPages(1)}
                         onLoadMore={() => loadNextPages(1)}
                         onSelect={setViewerIndex}
+                        selectedKeys={selectedKeys}
+                        onToggleSelect={toggleSelect}
                     />
                 )}
             </ModalContent>

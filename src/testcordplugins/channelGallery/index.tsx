@@ -65,23 +65,22 @@ let modalChannelId: string | null = null;
 function isSupportedChannel(channel: any): boolean {
     if (!channel) return false;
 
-    // Exclude DMs/group DMs explicitly.
-    if (typeof channel.isDM === "function" && channel.isDM()) return false;
-    if (typeof channel.isGroupDM === "function" && channel.isGroupDM()) return false;
-    if (typeof channel.isMultiUserDM === "function" && channel.isMultiUserDM()) return false;
+    if (typeof channel.isDM === "function" && channel.isDM()) return true;
+    if (typeof channel.isGroupDM === "function" && channel.isGroupDM()) return true;
+    if (typeof channel.isMultiUserDM === "function" && channel.isMultiUserDM()) return true;
 
     const { type } = channel;
-    if (ChannelTypes?.DM != null && type === ChannelTypes.DM) return false;
-    if (ChannelTypes?.GROUP_DM != null && type === ChannelTypes.GROUP_DM) return false;
-    if (ChannelTypesSets?.ALL_DMS?.has?.(type)) return false;
+    if (ChannelTypes?.DM != null && type === ChannelTypes.DM) return true;
+    if (ChannelTypes?.GROUP_DM != null && type === ChannelTypes.GROUP_DM) return true;
+    if (ChannelTypesSets?.ALL_DMS?.has?.(type)) return true;
 
     if (typeof channel.isGuildTextual === "function" && channel.isGuildTextual()) return true;
     if (typeof channel.isThread === "function" && channel.isThread()) return true;
 
     if (ChannelTypesSets?.GUILD_TEXTUAL?.has?.(type) || ChannelTypesSets?.THREADS?.has?.(type)) return true;
 
-    // Fallback for numeric channel types: 0 (GUILD_TEXT), 2 (GUILD_VOICE), 5 (ANNOUNCEMENT), 10, 11, 12 (THREADS), 15 (FORUM), 16 (MEDIA)
-    if (typeof type === "number" && [0, 2, 5, 10, 11, 12, 15, 16].includes(type)) return true;
+    // Fallback for numeric channel types: 0 (GUILD_TEXT), 1 (DM), 2 (GUILD_VOICE), 3 (GROUP_DM), 5 (ANNOUNCEMENT), 10, 11, 12 (THREADS), 15 (FORUM), 16 (MEDIA)
+    if (typeof type === "number" && [0, 1, 2, 3, 5, 10, 11, 12, 15, 16].includes(type)) return true;
 
     return false;
 }
@@ -149,7 +148,7 @@ function GalleryToolbarButton() {
 
 export default definePlugin({
     name: "ChannelGallery",
-    description: "Adds a Gallery view for images in the current channel",
+    description: "Adds a Gallery view for images in the current channel and DMs",
     tags: ["Media", "Utility"],
     authors: [EquicordDevs.Benjii, TestcordDevs.x2b],
     dependencies: ["HeaderBarAPI"],

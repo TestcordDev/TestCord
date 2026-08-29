@@ -5,10 +5,12 @@
  */
 
 import { findByPropsLazy } from "@webpack";
-import { Button, React, useEffect } from "@webpack/common";
+import { Button, React, showToast, Toasts, useEffect, useState } from "@webpack/common";
+
+import { downloadItemsToFolder } from "../utils/download";
+import type { GalleryItem } from "../utils/extractImages";
 
 const jumper: any = findByPropsLazy("jumpToMessage");
-import type { GalleryItem } from "../utils/extractImages";
 
 function preload(url: string) {
     const img = new Image();
@@ -58,6 +60,8 @@ export function LightboxViewer(props: {
         if (next?.url) preload(next.url);
     }, [items, nextIndex, prevIndex]);
 
+    const [downloading, setDownloading] = useState(false);
+
     if (!item || !url) return null;
 
     const jump = () => {
@@ -72,6 +76,22 @@ export function LightboxViewer(props: {
             props.onOpenMessage();
         }
     };
+
+    async function handleDownload() {
+        if (downloading) return;
+        setDownloading(true);
+        try {
+            const { saved, failed } = await downloadItemsToFolder([item]);
+            if (saved || failed) {
+                showToast(
+                    failed ? `Saved ${saved} of 1 file. ${failed} failed.` : "Saved 1 file.",
+                    failed ? Toasts.Type.FAILURE : Toasts.Type.SUCCESS
+                );
+            }
+        } finally {
+            setDownloading(false);
+        }
+    }
 
     return (
         <div
@@ -92,12 +112,36 @@ export function LightboxViewer(props: {
                     zIndex: 2
                 }}
             >
+                <Button size={Button.Sizes.SMALL} disabled={downloading} onClick={handleDownload}>
+                    {downloading ? "Downloading…" : "Download"}
+                </Button>
                 <Button size={Button.Sizes.SMALL} onClick={jump}>
                     Open message
                 </Button>
                 <Button size={Button.Sizes.SMALL} onClick={onClose}>
                     Close
                 </Button>
+            </div>
+            <div
+                style={{
+                    position: "absolute",
+                    bottom: 14,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    zIndex: 2,
+                    background: "var(--background-floating)",
+                    border: "1px solid var(--background-modifier-accent)",
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    fontSize: 13,
+                    color: "var(--text-normal)",
+                    maxWidth: "80%",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap"
+                }}
+            >
+                {item.filename ?? "Image"} • {index + 1} / {items.length}
             </div>
 
             <div
