@@ -740,6 +740,7 @@ export default definePlugin({
             buildEntry({
                 key: "equicord_changelog",
                 title: "Changelog",
+                panelTitle: "TestCord Changelog",
                 Component: ChangelogTab,
                 Icon: LogIcon,
             }),
