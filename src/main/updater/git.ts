@@ -20,13 +20,17 @@ import { RendererSettings } from "@main/settings";
 import { IpcEvents } from "@shared/IpcEvents";
 import { execFile as cpExecFile } from "child_process";
 import { ipcMain } from "electron";
+import { existsSync } from "fs";
 import { join } from "path";
 import { promisify } from "util";
 
 import { serializeErrors } from "./common";
 
-const VENCORD_SRC_DIR = join(__dirname, "..");
-const EQUICORD_DIR = join(__dirname, "../../");
+const ROOT_DIR = existsSync(join(__dirname, "../../scripts/build/build.mjs"))
+    ? join(__dirname, "../../")
+    : existsSync(join(__dirname, "../scripts/build/build.mjs"))
+        ? join(__dirname, "..")
+        : __dirname;
 
 const execFile = promisify(cpExecFile);
 
@@ -35,71 +39,150 @@ const isFlatpak = process.platform === "linux" && !!process.env.FLATPAK_ID;
 if (process.platform === "darwin") process.env.PATH = `/usr/local/bin:${process.env.PATH}`;
 
 function git(...args: string[]) {
-    const opts = { cwd: VENCORD_SRC_DIR };
+    const opts = { cwd: ROOT_DIR };
 
     if (isFlatpak) return execFile("flatpak-spawn", ["--host", "git", ...args], opts);
     else return execFile("git", args, opts);
 }
 
 async function getCurrentBranch() {
-    const res = await git("rev-parse", "--abbrev-ref", "HEAD");
-    return res.stdout.trim();
+    try {
+        const res = await git("rev-parse", "--abbrev-ref", "HEAD");
+        return res.stdout.trim();
+    } catch {
+        return "main";
+    }
 }
 
 async function getRepo() {
-    const res = await git("remote", "get-url", "origin");
-    return res.stdout.trim()
-        .replace(/git@(.+):/, "https://$1/")
-        .replace(/\.git$/, "");
+    try {
+        const res = await git("remote", "get-url", "origin");
+        return res.stdout.trim()
+            .replace(/git@(.+):/, "https://$1/")
+            .replace(/\.git$/, "");
+    } catch {
+        return "https://github.com/TestcordDev/Testcord";
+    }
 }
 
-async function calculateGitChanges() {
-    await git("fetch");
-
-    const branch = RendererSettings.store.updaterBranch ?? "main";
-
-    // Only report updates when HEAD is on the configured branch. If the user
-    // switched branches locally, the updater must not list (or apply) updates
-    // from another branch.
-    if (await getCurrentBranch() !== branch) return [];
-
-    const existsOnOrigin = (await git("ls-remote", "origin", branch)).stdout.length > 0;
-    if (!existsOnOrigin) return [];
-
-    const res = await git("log", `HEAD...origin/${branch}`, "--pretty=format:%an/%h/%s");
-
-    const commits = res.stdout.trim();
-    return commits ? commits.split("\n").map(line => {
-        const [author, hash, ...rest] = line.split("/");
-        return {
-            hash, author,
-            message: rest.join("/").split("\n")[0]
-        };
-    }) : [];
+function extractBranch(branchOrEvent?: any, maybeBranch?: string) {
+    if (typeof branchOrEvent === "string" && branchOrEvent) return branchOrEvent;
+    if (typeof maybeBranch === "string" && maybeBranch) return maybeBranch;
+    return RendererSettings.store.updaterBranch ?? "main";
 }
 
-async function pull() {
-    const branch = RendererSettings.store.updaterBranch ?? "main";
-    if (await getCurrentBranch() !== branch) return false;
-    await git("checkout", branch);
-    const res = await git("pull");
-    return res.stdout.includes("Fast-forward");
+async function calculateGitChanges(branchOrEvent?: any, maybeBranch?: string) {
+    const branch = extractBranch(branchOrEvent, maybeBranch);
+
+    try {
+        await git("fetch", "origin", branch, "--prune");
+    } catch {
+        try {
+            await git("fetch", "--all", "--prune");
+        } catch {
+        }
+    }
+
+    try {
+        await git("rev-parse", "--verify", `origin/${branch}`);
+    } catch {
+        return [];
+    }
+
+    const currentBranch = await getCurrentBranch();
+    const headCommit = (await git("rev-parse", "HEAD")).stdout.trim();
+    const remoteCommit = (await git("rev-parse", `origin/${branch}`)).stdout.trim();
+
+    if (currentBranch === branch && headCommit === remoteCommit) {
+        return [];
+    }
+
+    let commitsStr = "";
+    try {
+        const res = await git("log", `HEAD..origin/${branch}`, "--pretty=format:%an/%h/%s");
+        commitsStr = res.stdout.trim();
+    } catch {
+        commitsStr = "";
+    }
+
+    if (commitsStr) {
+        return commitsStr.split("\n").map(line => {
+            const [author, hash, ...rest] = line.split("/");
+            return {
+                hash,
+                author,
+                message: rest.join("/").split("\n")[0]
+            };
+        });
+    }
+    if (currentBranch !== branch || headCommit !== remoteCommit) {
+        try {
+            const res = await git("log", "-n", "5", `origin/${branch}`, "--pretty=format:%an/%h/%s");
+            const commits = res.stdout.trim();
+            if (commits) {
+                return commits.split("\n").map((line, i) => {
+                    const [author, hash, ...rest] = line.split("/");
+                    return {
+                        hash,
+                        author,
+                        message: currentBranch !== branch && i === 0
+                            ? `Switch to ${branch} branch (current: ${currentBranch}): ${rest.join("/").split("\n")[0]}`
+                            : rest.join("/").split("\n")[0]
+                    };
+                });
+            }
+        } catch {
+        }
+    }
+
+    return [];
 }
 
-async function forcePull() {
-    const branch = RendererSettings.store.updaterBranch ?? "main";
-    // Never switch branches or reset/clean the worktree unless HEAD is already
-    // on the configured branch, or local work on another branch gets destroyed.
-    if (await getCurrentBranch() !== branch) return false;
-    await git("fetch", "origin", branch);
-    await git("checkout", branch);
+async function pull(branchOrEvent?: any, maybeBranch?: string) {
+    const branch = extractBranch(branchOrEvent, maybeBranch);
+    try {
+        await git("fetch", "origin", branch, "--prune");
+    } catch {
+
+    }
+
+    const currentBranch = await getCurrentBranch();
+    if (currentBranch !== branch) {
+
+        try {
+            await git("checkout", "-f", "-B", branch, `origin/${branch}`);
+            await git("reset", "--hard", `origin/${branch}`);
+        } catch {
+            await git("checkout", "-B", branch, `origin/${branch}`);
+        }
+        return true;
+    }
+
+    try {
+        const res = await git("pull", "--ff-only", "origin", branch);
+        return res.stdout.includes("Fast-forward") || res.stdout.includes("Already up to date") || res.stdout.includes("Updating");
+    } catch {
+
+        await git("reset", "--hard", `origin/${branch}`);
+        return true;
+    }
+}
+
+async function forcePull(branchOrEvent?: any, maybeBranch?: string) {
+    const branch = extractBranch(branchOrEvent, maybeBranch);
+    try {
+        await git("fetch", "origin", branch, "--prune");
+    } catch {
+
+    }
+    await git("checkout", "-f", "-B", branch, `origin/${branch}`);
     await git("reset", "--hard", `origin/${branch}`);
     await git("clean", "-fd");
     return true;
 }
 
 async function build() {
-    const opts = { cwd: EQUICORD_DIR };
+    const opts = { cwd: ROOT_DIR };
 
     const command = isFlatpak ? "flatpak-spawn" : "node";
     const args = isFlatpak ? ["--host", "node", "scripts/build/build.mjs"] : ["scripts/build/build.mjs"];

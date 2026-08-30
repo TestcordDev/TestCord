@@ -60,11 +60,79 @@ export function Changes({ updates, repo, repoPending }: CommonProps & { updates:
 }
 
 export function Newer(props: CommonProps) {
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [isChecking, setIsChecking] = useState(false);
+
+    function confirmDiscardLocalChanges() {
+        return new Promise<boolean>(resolve => {
+            openModal(modalProps => (
+                <ConfirmModal
+                    {...modalProps}
+                    title="Discard local changes?"
+                    subtitle="This resets your local Testcord files to the selected remote branch and removes untracked files before updating."
+                    confirmText="Discard and Update"
+                    cancelText="Cancel"
+                    variant="primary"
+                    onConfirm={() => resolve(true)}
+                    onCancel={() => resolve(false)}
+                />
+            ));
+        });
+    }
+
     return (
         <>
             <Paragraph>
                 Your local copy has more recent commits than the remote repository. This usually happens when you've made local changes. Please stash or reset them before updating.
             </Paragraph>
+            <Flex className={`${Margins.top8} ${Margins.bottom8}`} gap="8px">
+                <Button
+                    disabled={isUpdating || isChecking}
+                    onClick={runWithDispatch(setIsChecking, async () => {
+                        await checkForUpdates();
+                        Toasts.show({
+                            message: "Checked for updates!",
+                            id: Toasts.genId(),
+                            type: Toasts.Type.MESSAGE,
+                            options: {
+                                position: Toasts.Position.BOTTOM
+                            }
+                        });
+                    })}
+                >
+                    Check for Updates
+                </Button>
+                <Button
+                    size="small"
+                    variant="secondary"
+                    disabled={isUpdating || isChecking}
+                    onClick={runWithDispatch(setIsUpdating, async () => {
+                        if (!await confirmDiscardLocalChanges()) return;
+
+                        if (await forceUpdate()) {
+                            await new Promise<void>(r => {
+                                openModal(modalProps => (
+                                    <ConfirmModal
+                                        {...modalProps}
+                                        title="Update Success!"
+                                        subtitle="Successfully updated. Restart now to apply the changes?"
+                                        confirmText="Restart"
+                                        cancelText="Not now!"
+                                        variant="primary"
+                                        onConfirm={() => {
+                                            relaunch();
+                                            r();
+                                        }}
+                                        onCancel={r}
+                                    />
+                                ));
+                            });
+                        }
+                    })}
+                >
+                    Discard Local Changes & Reset
+                </Button>
+            </Flex>
             <Changes {...props} updates={changes} />
         </>
     );
@@ -76,19 +144,26 @@ export function Updatable(props: CommonProps) {
     const [isUpdating, setIsUpdating] = useState(false);
     const [showDiscardLocalChanges, setShowDiscardLocalChanges] = useState(false);
 
+    React.useEffect(() => {
+        checkForUpdates()
+            .then(outdated => {
+                setUpdates(outdated ? changes : []);
+            })
+            .catch(() => {});
+    }, []);
+
     const isOutdated = (updates?.length ?? 0) > 0;
 
     function showDiscardForError(error: any) {
-        if (!IS_DEV) return;
-        if (typeof error?.cmd === "string" && error.cmd.includes("git"))
+        if (typeof error?.cmd === "string" && error.cmd.includes("git") || error?.message || updateError)
             setShowDiscardLocalChanges(true);
     }
 
     function confirmDiscardLocalChanges() {
         return new Promise<boolean>(resolve => {
-            openModal(props => (
+            openModal(modalProps => (
                 <ConfirmModal
-                    {...props}
+                    {...modalProps}
                     title="Discard local changes?"
                     subtitle="This resets your local Testcord files to the selected remote branch and removes untracked files before updating."
                     confirmText="Discard and Update"
@@ -140,9 +215,9 @@ export function Updatable(props: CommonProps) {
                                 setUpdates([]);
 
                                 await new Promise<void>(r => {
-                                    openModal(props => (
+                                    openModal(modalProps => (
                                         <ConfirmModal
-                                            {...props}
+                                            {...modalProps}
                                             title="Update Success!"
                                             subtitle="Successfully updated. Restart now to apply the changes?"
                                             confirmText="Restart"
@@ -162,7 +237,7 @@ export function Updatable(props: CommonProps) {
                         Update Now
                     </Button>
                 )}
-                {IS_DEV && isOutdated && showDiscardLocalChanges && (
+                {isOutdated && showDiscardLocalChanges && (
                     <Button
                         size="small"
                         variant="secondary"
@@ -175,9 +250,9 @@ export function Updatable(props: CommonProps) {
                                 setUpdates([]);
 
                                 await new Promise<void>(r => {
-                                    openModal(props => (
+                                    openModal(modalProps => (
                                         <ConfirmModal
-                                            {...props}
+                                            {...modalProps}
                                             title="Update Success!"
                                             subtitle="Successfully updated. Restart now to apply the changes?"
                                             confirmText="Restart"

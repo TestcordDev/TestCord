@@ -150,7 +150,7 @@ function Updater() {
             <Divider className={Margins.top20} />
 
             <Heading className={Margins.top20}>Updates</Heading>
-            {isNewer ? <Newer {...commonProps} /> : <Updatable {...commonProps} />}
+            {isNewer ? <Newer {...commonProps} /> : <Updatable key={settings.updaterBranch} {...commonProps} />}
         </SettingsTab>
     );
 }
