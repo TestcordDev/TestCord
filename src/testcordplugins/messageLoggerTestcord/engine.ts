@@ -11,7 +11,7 @@ import { ChannelStore, FluxDispatcher, lodash, MessageStore, SelectedChannelStor
 
 import { applyBatch, clearLogs, clearUnprotectedLogs, getAllLogs, getDatabase, runMaintenance, setLogHidden } from "./db";
 import { invalidateMessageClassCache } from "./render";
-import { ensureAttachmentSaved } from "./saveImage";
+import { ensureAttachmentSaved, ensureDefaultDir } from "./saveImage";
 import { settings } from "./settings";
 import { LoggedMessage, LogRecord, LogStatus, MessageCreatePayload, MessageDeleteBulkPayload, MessageDeletePayload, MessageUpdatePayload } from "./types";
 
@@ -228,6 +228,17 @@ async function performMaintenance() {
 function isCacheGated(payload: MessageCreatePayload) {
     if (settings.store.cacheMessagesFromServers) return false;
 
+    // DMs should still be cached when alwaysLogDirectMessages is on, even if server cache is disabled.
+    if (settings.store.alwaysLogDirectMessages) {
+        const isDm = payload.channelId != null && ChannelStore.getChannel(payload.channelId)?.isDM?.();
+        if (isDm) return false;
+        // Also check guildId-less channels via payload alone if ChannelStore not yet populated
+        if (payload.guildId == null && ChannelStore.getChannel(payload.channelId) == null) {
+            // Unknown channel but likely DM; let shouldIgnore decide, don't gate it here.
+            // Fall through to whitelist check only for guild channels.
+        }
+    }
+
     const set = splitIds(settings.store.whitelistedIds);
     if (set.length === 0) return true;
     return !(set.includes(payload.channelId) || set.includes(payload.message.author?.id) || set.includes(payload.guildId!));
@@ -302,7 +313,7 @@ export function handleMessageUpdate(payload: MessageUpdatePayload) {
     })) queueRecord(message, LogStatus.EDITED);
 }
 
-function saveDeletedMessage(payload: MessageDeletePayload) {
+async function saveDeletedMessage(payload: MessageDeletePayload) {
     const storedMessage = MessageStore.getMessage(payload.channelId, payload.id);
     const cachedMessage = recentMessages.get(payload.id);
     if (!cachedMessage && !storedMessage) return;
@@ -313,8 +324,9 @@ function saveDeletedMessage(payload: MessageDeletePayload) {
     message.deletedTimestamp = new Date().toISOString();
     message.attachments = message.attachments.map(attachment => ({ ...attachment, deleted: true }));
     if (settings.store.saveImages && !IS_WEB) {
-        // Fire and forget: paths land on the record whenever the download settles
-        void Promise.all(message.attachments.map(att => ensureAttachmentSaved(att))).catch(() => { });
+        try {
+            await Promise.all(message.attachments.map(att => ensureAttachmentSaved(att)));
+        } catch { /* ignore individual failures */ }
     }
     const ghostPinged = hasCurrentUserMention(message);
     message.ghostPinged = ghostPinged;
@@ -358,14 +370,14 @@ export function handleMessageDelete(payload: MessageDeletePayload) {
     // mlDeleted = a locally-initiated hide (our context menu). The record itself is
     // managed explicitly by Delete (Temporary)/(Forever), nothing to do here.
     if (payload.mlDeleted) return;
-    saveDeletedMessage(payload);
+    void saveDeletedMessage(payload).catch(e => log.error("Failed to save deleted message", e));
 }
 
 export function handleMessageDeleteBulk(payload: MessageDeleteBulkPayload) {
     if (!active) return;
 
     for (const id of payload.ids) {
-        if (!payload.mlDeleted) saveDeletedMessage({ ...payload, id });
+        if (!payload.mlDeleted) void saveDeletedMessage({ ...payload, id }).catch(e => log.error("Failed to save bulk deleted message", e));
     }
 }
 
@@ -456,6 +468,47 @@ async function primeLoggedCache() {
         }
 
         if (recent.length > 0) log.info(`Primed logged message cache with ${recent.length} records.`);
+
+        // After priming, ensure the current channel re-fetches to inject the restored logs inline.
+        // This covers the cold-start case where the channel was already selected before prime finished.
+        try {
+            const currentId = SelectedChannelStore.getChannelId();
+            if (currentId && recent.some(r => r.channel_id === currentId)) {
+                const store = (MessageStore as any).getMessages?.(currentId);
+                if (store?.hasFetched) {
+                    const { MessageActions } = await import("@webpack/common");
+                    (MessageActions as any).fetchMessages?.({ channelId: currentId, limit: 50 });
+                }
+            }
+        } catch { /* best effort */ }
+
+        // Retroactively save attachments for older logged deletes that missed disk saving (e.g., saveImages was off or race)
+        if (!IS_WEB && settings.store.saveImages) {
+            await ensureDefaultDir().catch(() => { });
+            // Only attempt for the primed set to avoid hammering the CDN on large DBs
+            for (const record of recent) {
+                if (!record.message.attachments?.length) continue;
+                // Only try for deleted/ghost-pinged messages that have attachments without a saved path
+                if (record.status === LogStatus.EDITED) continue;
+                const needsSave = record.message.attachments.some(att => !att.path && att.url);
+                if (!needsSave) continue;
+                try {
+                    await Promise.all(record.message.attachments.filter(att => !att.path && att.url).map(att => ensureAttachmentSaved(att as any)));
+                    // If any path was set, persist the updated message
+                    const hasPathNow = record.message.attachments.some(att => !!att.path);
+                    if (hasPathNow) {
+                        // Queue an update preserving protected/hidden
+                        const existing = pendingWrites.get(record.message_id);
+                        if (!existing) queueRecord(record.message as LoggedMessage, record.status);
+                        else {
+                            existing.message = record.message as LoggedMessage;
+                            pendingWrites.set(record.message_id, existing);
+                            scheduleFlush();
+                        }
+                    }
+                } catch { /* best effort */ }
+            }
+        }
     } catch (error) {
         log.error("Failed to prime the logged message cache.", error);
     }

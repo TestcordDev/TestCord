@@ -131,9 +131,16 @@ export async function downloadAttachment(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
     try {
-        const response = await fetch(url, { redirect: "error", signal: controller.signal });
+        const response = await fetch(url, { redirect: "follow", signal: controller.signal });
         if (!response.ok || !response.body)
             return { success: false, error: `Attachment is gone or unavailable (HTTP ${response.status}).` };
+
+        // Validate final URL host after redirects
+        try {
+            const finalUrl = new URL(response.url || url);
+            if (finalUrl.protocol !== "https:" || !ATTACHMENT_HOSTS.has(finalUrl.hostname))
+                return { success: false, error: "Attachment host is not allowed after redirect." };
+        } catch { /* ignore */ }
 
         const contentLength = Number(response.headers.get("content-length") ?? 0);
         if (contentLength > MAX_ATTACHMENT_BYTES)

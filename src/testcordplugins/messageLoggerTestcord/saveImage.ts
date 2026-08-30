@@ -21,8 +21,24 @@ function isAllowedExtension(ext: string): boolean {
     return raw.split(",").map(e => e.trim()).filter(Boolean).includes(ext);
 }
 
+let defaultDirCache: string | null = null;
+
 export function getAttachmentDir(): string {
-    return settings.store.imageCacheDir || "";
+    if (settings.store.imageCacheDir) return settings.store.imageCacheDir;
+    if (defaultDirCache) return defaultDirCache;
+    return "";
+}
+
+export async function ensureDefaultDir(): Promise<string> {
+    if (settings.store.imageCacheDir) return settings.store.imageCacheDir;
+    if (defaultDirCache) return defaultDirCache;
+    try {
+        const { imageCacheDir } = await Native.getDefaultDirs();
+        if (imageCacheDir) defaultDirCache = imageCacheDir;
+        return settings.store.imageCacheDir || defaultDirCache || "";
+    } catch {
+        return "";
+    }
 }
 
 export async function ensureAttachmentSaved(att: LoggedAttachment): Promise<void> {
@@ -33,7 +49,8 @@ export async function ensureAttachmentSaved(att: LoggedAttachment): Promise<void
     if (!ext || !isAllowedExtension(ext)) return;
     if ((att.size ?? 0) > settings.store.attachmentSizeLimitInMegabytes * 1024 * 1024) return;
 
-    const dir = getAttachmentDir();
+    let dir = getAttachmentDir();
+    if (!dir) dir = await ensureDefaultDir();
     if (!dir) return;
 
     const result = await Native.downloadAttachment({ url: att.url!, id: att.id, ext }, dir);
@@ -50,10 +67,21 @@ export async function getAttachmentBlobUrl(att: LoggedAttachment): Promise<strin
     if (!att.path) await ensureAttachmentSaved(att);
     if (!att.path) return undefined;
 
-    const dir = getAttachmentDir();
+    let dir = getAttachmentDir();
+    if (!dir) dir = await ensureDefaultDir();
     if (!dir) return undefined;
 
-    const bytes = await Native.getImageNative(att.path.split(/[\\/]/).pop() ?? "", dir);
+    // att.path stores absolute path; extract filename for Native call which expects filename + dir
+    const filename = att.path.split(/[\\/]/).pop() ?? "";
+    // Try current dir first; if that fails and att.path contains a different dir, retry with the stored dir segment
+    let bytes = await Native.getImageNative(filename, dir);
+    if (!bytes && (att.path.includes("/") || att.path.includes("\\"))) {
+        const storedDir = att.path.slice(0, -filename.length).replace(/[\\/]$/, "");
+        if (storedDir && storedDir !== dir) {
+            bytes = await Native.getImageNative(filename, storedDir) ?? undefined as any;
+            if (bytes) dir = storedDir;
+        }
+    }
     if (!bytes) return undefined;
 
     const contentType = att.content_type || "application/octet-stream";

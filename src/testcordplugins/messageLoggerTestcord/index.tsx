@@ -14,7 +14,7 @@ import { LogsIcon } from "@components/Icons";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
-import { Alerts, MessageStore, showToast, Toasts } from "@webpack/common";
+import { Alerts, ChannelStore, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts } from "@webpack/common";
 
 import { removeLoggerContextMenus, setupLoggerContextMenus } from "./contextMenu";
 import { getChannelLogsAfter, getDatabase } from "./db";
@@ -34,7 +34,7 @@ import {
 import { importMleLogs, importMleSettings } from "./io";
 import { openLogs } from "./LogsModal";
 import { osintScanLoggedMessages } from "./osintBridge";
-import { restoreAttachmentBlobs } from "./saveImage";
+import { ensureDefaultDir, restoreAttachmentBlobs } from "./saveImage";
 import { settings } from "./settings";
 import type { FetchMessagesResponse, LoadMessagesPayload, LoggedMessage, MessageCreatePayload, MessageDeleteBulkPayload, MessageDeletePayload, MessageUpdatePayload } from "./types";
 import { cl } from "./utils";
@@ -56,11 +56,14 @@ function OpenLogsButton() {
 }
 
 async function processMessageFetch(response: FetchMessagesResponse) {
-    if (!response.ok || response.body.length === 0) return;
+    if (!response.ok || !Array.isArray(response.body) || response.body.length === 0) return;
 
     try {
         const oldestMessage = response.body[response.body.length - 1];
-        const records = await getChannelLogsAfter(oldestMessage.channel_id, oldestMessage.timestamp);
+        if (!oldestMessage?.channel_id || oldestMessage?.timestamp == null) return;
+        // Normalize timestamp to string; getChannelLogsAfter handles Date conversion and hidden filtering
+        const ts = typeof oldestMessage.timestamp === "string" ? oldestMessage.timestamp : new Date(String(oldestMessage.timestamp)).toISOString();
+        const records = await getChannelLogsAfter(oldestMessage.channel_id, ts);
         response.body.extra = records.map(record => record.message);
     } catch (error) {
         log.error("Failed to restore persistent logs into the channel.", error);
@@ -70,20 +73,47 @@ async function processMessageFetch(response: FetchMessagesResponse) {
 function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage[]; }, payload: LoadMessagesPayload) {
     if (!messages.extra?.length || messages.length === 0) return messages;
 
-    const oldestTimestamp = messages[messages.length - 1].timestamp;
-    const newestTimestamp = messages[0].timestamp;
+    const toMs = (t: string) => {
+        const ms = Date.parse(String(t));
+        return Number.isNaN(ms) ? 0 : ms;
+    };
+    const oldestMs = toMs(String(messages[messages.length - 1].timestamp));
+    const newestMs = toMs(String(messages[0].timestamp));
     const includeNewer = !payload.hasMoreAfter && !payload.isBefore;
     const includeOlder = !payload.hasMoreBefore && !payload.isAfter;
     const knownIds = new Set(messages.map(message => message.id));
-    const extra = messages.extra.filter(message =>
-        !knownIds.has(message.id)
-        && (includeNewer || message.timestamp <= newestTimestamp)
-        && (includeOlder || message.timestamp >= oldestTimestamp)
-    );
+    const extra = messages.extra.filter(message => {
+        if (knownIds.has(message.id)) return false;
+        const tsMs = toMs(String(message.timestamp));
+        if (!includeNewer && tsMs > newestMs) return false;
+        if (!includeOlder && tsMs < oldestMs) return false;
+        return true;
+    });
 
     messages.push(...extra);
-    messages.sort((left, right) => right.timestamp.localeCompare(left.timestamp));
+    messages.sort((left, right) => toMs(String(right.timestamp)) - toMs(String(left.timestamp)));
     return messages;
+}
+
+const lastChannelFetch = new Map<string, number>();
+
+function handleChannelSelect(payload: { channelId?: string; }) {
+    const channelId = payload?.channelId;
+    if (channelId == null) return;
+    // Only refetch if we have fetched this channel before and have logged messages for it.
+    const collection = (MessageStore as any).getMessages?.(channelId);
+    if (!collection?.hasFetched) return;
+    const now = Date.now();
+    const last = lastChannelFetch.get(channelId) ?? 0;
+    if (now - last < 30_000) return;
+    // Check if we have any non-hidden deleted/ghost logs for this channel to avoid spamming empty fetches
+    void getChannelLogsAfter(channelId, new Date(0).toISOString()).then(records => {
+        if (records.length === 0) return;
+        lastChannelFetch.set(channelId, now);
+        try {
+            (MessageActions as any).fetchMessages?.({ channelId, limit: 50 });
+        } catch {}
+    }).catch(() => { });
 }
 
 export default definePlugin({
@@ -265,6 +295,7 @@ export default definePlugin({
         MESSAGE_UPDATE: handleMessageUpdate as (payload: MessageUpdatePayload) => void,
         MESSAGE_DELETE: handleMessageDelete as (payload: MessageDeletePayload) => void,
         MESSAGE_DELETE_BULK: handleMessageDeleteBulk as (payload: MessageDeleteBulkPayload) => void,
+        CHANNEL_SELECT: handleChannelSelect as (payload: { channelId?: string }) => void,
     },
 
     getDeleted(m1: any, m2: any) {
@@ -293,6 +324,11 @@ export default definePlugin({
             } catch (e) {
                 log.error("Failed to clear logs on restart", e);
             }
+        }
+
+        // Ensure a default attachment dir is cached for after-restart blob restores
+        if (settings.store.saveImages) {
+            void ensureDefaultDir().catch(() => { });
         }
 
         setupLoggerContextMenus();
