@@ -6,7 +6,7 @@
 
 import { Heading } from "@components/Heading";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalProps, ModalRoot, ModalSize } from "@utils/modal";
-import { Button, ChannelStore, MessageStore, React, showToast, Toasts, UserStore, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { Button, ChannelStore, MessageStore, React, showToast, Toasts, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
 
 import { downloadItemsToFolder } from "../utils/download";
 import { extractImages, GalleryItem } from "../utils/extractImages";

@@ -14,7 +14,7 @@ import { LogsIcon } from "@components/Icons";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
-import { Alerts, ChannelStore, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts, UserStore } from "@webpack/common";
+import { Alerts, MessageActions, MessageStore, showToast, Toasts, UserStore } from "@webpack/common";
 
 import { removeLoggerContextMenus, setupLoggerContextMenus } from "./contextMenu";
 import { getChannelLogsAfter, getDatabase } from "./db";
@@ -238,11 +238,11 @@ export default definePlugin({
             replacement: [
                 {
                     match: /(?<=MESSAGE_DELETE:function\((\i)\)\{)(?=let.{0,100}(\i\.\i)\.getOrCreate)/,
-                    replace: `let cache=$2.getOrCreate($1.channelId);cache=$self.handleStoreDelete(cache,$1,false);$2.commit(cache);return;`
+                    replace: "let cache=$2.getOrCreate($1.channelId);cache=$self.handleStoreDelete(cache,$1,false);$2.commit(cache);return;"
                 },
                 {
                     match: /(?<=MESSAGE_DELETE_BULK:function\((\i)\)\{)(?=let.{0,100}(\i\.\i)\.getOrCreate)/,
-                    replace: `let cache=$2.getOrCreate($1.channelId);cache=$self.handleStoreDelete(cache,$1,true);$2.commit(cache);return;`
+                    replace: "let cache=$2.getOrCreate($1.channelId);cache=$self.handleStoreDelete(cache,$1,true);$2.commit(cache);return;"
                 }
             ]
         },
