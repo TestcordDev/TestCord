@@ -268,12 +268,24 @@ export function handleMessageCreate(payload: MessageCreatePayload) {
 }
 
 export function handleMessageUpdate(payload: MessageUpdatePayload) {
-    if (!active || !settings.store.saveEdits || payload.message.content == null) return;
+    if (!active || !settings.store.saveEdits) return;
+
+    // Allow embed/attachment-only edits — content can be null for those
+    const hasContent = payload.message.content != null;
+    const hasEmbeds = (payload.message as any).embeds != null;
+    const hasAttachments = (payload.message as any).attachments != null;
+    if (!hasContent && !hasEmbeds && !hasAttachments) return;
 
     const storedMessage = MessageStore.getMessage(payload.message.channel_id, payload.message.id);
     const previous = recentMessages.get(payload.message.id) ?? (storedMessage ? snapshotMessage(storedMessage) : undefined);
     if (!previous) return;
-    if (previous.content === payload.message.content) {
+
+    const newContent = hasContent ? payload.message.content : previous.content;
+    const embedsChanged = hasEmbeds && JSON.stringify((payload.message as any).embeds) !== JSON.stringify(previous.embeds);
+    const attachmentsChanged = hasAttachments && JSON.stringify((payload.message as any).attachments) !== JSON.stringify(previous.attachments);
+    const contentChanged = hasContent && previous.content !== payload.message.content;
+
+    if (!contentChanged && !embedsChanged && !attachmentsChanged) {
         if (previous.editHistory?.length && !shouldIgnore({
             channelId: previous.channel_id,
             authorId: previous.author?.id,
@@ -290,6 +302,10 @@ export function handleMessageUpdate(payload: MessageUpdatePayload) {
 
     const message = lodash.cloneDeep(previous);
     Object.assign(message, payload.message);
+    // Preserve embeds/attachments from payload when present, otherwise keep previous
+    if (hasEmbeds) (message as any).embeds = (payload.message as any).embeds;
+    if (hasAttachments) (message as any).attachments = (payload.message as any).attachments;
+    if (hasContent) (message as any).content = payload.message.content;
     message.guildId = payload.guildId ?? previous.guildId;
     message.editHistory = [
         ...(previous.editHistory ?? []),
@@ -303,6 +319,7 @@ export function handleMessageUpdate(payload: MessageUpdatePayload) {
     }
 
     remember(message);
+    invalidateLoggedCaches(message.id);
     if (!shouldIgnore({
         channelId: message.channel_id,
         authorId: message.author?.id,

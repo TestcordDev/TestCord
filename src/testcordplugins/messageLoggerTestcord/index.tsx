@@ -14,7 +14,7 @@ import { LogsIcon } from "@components/Icons";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
-import { Alerts, ChannelStore, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts } from "@webpack/common";
+import { Alerts, ChannelStore, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts, UserStore } from "@webpack/common";
 
 import { removeLoggerContextMenus, setupLoggerContextMenus } from "./contextMenu";
 import { getChannelLogsAfter, getDatabase } from "./db";
@@ -28,6 +28,7 @@ import {
     mergedEditTimestamps as mergedEditTimestampsRef,
     mergedMessageCache as mergedMessageCacheRef,
     runMaintenanceNow,
+    shouldIgnore,
     startEngine,
     stopEngine
 } from "./engine";
@@ -231,6 +232,20 @@ export default definePlugin({
     },
 
     patches: [
+        // Keep deleted messages in the MessageStore cache so they stay visible live instead of disappearing after the dispatch
+        {
+            find: '"MessageStore"',
+            replacement: [
+                {
+                    match: /(?<=MESSAGE_DELETE:function\((\i)\)\{)(?=let.{0,100}(\i\.\i)\.getOrCreate)/,
+                    replace: `let cache=$2.getOrCreate($1.channelId);cache=$self.handleStoreDelete(cache,$1,false);$2.commit(cache);return;`
+                },
+                {
+                    match: /(?<=MESSAGE_DELETE_BULK:function\((\i)\)\{)(?=let.{0,100}(\i\.\i)\.getOrCreate)/,
+                    replace: `let cache=$2.getOrCreate($1.channelId);cache=$self.handleStoreDelete(cache,$1,true);$2.commit(cache);return;`
+                }
+            ]
+        },
         // Restore logged deleted/edited messages when a channel history is fetched
         {
             find: "_tryFetchMessagesCached",
@@ -307,6 +322,62 @@ export default definePlugin({
         if (!settings.store.showEditHistory) return m2?.editHistory;
         const editHistory = m2?.editHistory ?? (m1?.editHistory?.length ? m1.editHistory.map(renderApi.mapTimestamp) : undefined);
         return editHistory;
+    },
+
+    handleStoreDelete(cache: any, data: { channelId: string; id: string; ids?: string[]; mlDeleted?: boolean; }, isBulk: boolean) {
+        try {
+            if (cache == null || (!isBulk && !cache.has(data.id))) return cache;
+            const EPHEMERAL = 64;
+            const mutate = (id: string) => {
+                const msg = cache.get(id);
+                if (!msg) return;
+                if (data.mlDeleted || (msg.flags & EPHEMERAL) === EPHEMERAL) {
+                    cache = cache.remove(id);
+                    return;
+                }
+                // Determine if this bot/ webhook message should be kept: reuse the same ignore logic as the logger.
+                // hasCurrentUserMention check for ghost pings — keep them even if otherwise ignored
+                let ghostPinged = false;
+                try {
+                    const currentUserId = UserStore.getCurrentUser()?.id;
+                    if (currentUserId) {
+                        ghostPinged = !!msg.mention_everyone || (Array.isArray(msg.mentions) && msg.mentions.some((m: any) => (m?.id ?? m) === currentUserId));
+                    }
+                } catch {}
+                const ignored = shouldIgnore({
+                    channelId: msg.channel_id ?? data.channelId,
+                    authorId: msg.author?.id,
+                    guildId: (msg as any).guild_id ?? (msg as any).guildId,
+                    flags: msg.flags,
+                    bot: msg.bot || msg.author?.bot,
+                    ghostPinged,
+                    webhookId: (msg as any).webhookId
+                });
+                if (ignored) {
+                    cache = cache.remove(id);
+                } else {
+                    // Keep the message but mark its attachments/embeds as deleted so the UI tints it correctly.
+                    cache = cache.update(id, (m: any) => {
+                        let next = m.set("deleted", true);
+                        try {
+                            const atts = m.attachments;
+                            if (Array.isArray(atts) || atts?.map) {
+                                next = next.set("attachments", atts.map((a: any) => ((a.deleted = true), a)));
+                            }
+                        } catch {}
+                        return next;
+                    });
+                }
+            };
+            if (isBulk) {
+                for (const id of (data.ids ?? [])) mutate(id);
+            } else {
+                mutate(data.id);
+            }
+        } catch (e) {
+            log.error("Error during handleStoreDelete", e);
+        }
+        return cache;
     },
 
     async start() {
