@@ -1053,13 +1053,13 @@ function isValidHex(v: string): boolean {
 }
 
 const COLOR_PRESETS = [
-    "#5865F2", "#EB459E", "#ED4245", "#FEE75C",
+    "#EB459E", "#ED4245", "#FEE75C",
     "#57F287", "#00C7D9", "#FFFFFF", "#23272A",
 ];
 
 // ─── Custom color picker ──────────────────────────────────────────────────────
 
-function ColorPickerPanel({ value, onChange }: { value: string; onChange: (hex: string) => void; }) {
+function ColorPickerPanel({ value, onChange, preset }: { value: string; onChange: (hex: string) => void; preset: string; }) {
     const hsvRef = React.useRef<[number, number, number]>(rgbToHsv(...hexToRgb(value)));
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const [hexInput, setHexInput] = React.useState(value.toUpperCase());
@@ -1117,7 +1117,6 @@ function ColorPickerPanel({ value, onChange }: { value: string; onChange: (hex: 
                 marginTop: "10px", padding: "12px", borderRadius: "10px",
                 background: "var(--background-secondary, var(--background-base-lower))",
                 border: "1px solid var(--background-modifier-accent, var(--border-muted))",
-                boxShadow: "0 8px 20px -8px rgba(0,0,0,0.35)",
             }}
             onMouseDown={e => e.stopPropagation()}
         >
@@ -1192,6 +1191,21 @@ function ColorPickerPanel({ value, onChange }: { value: string; onChange: (hex: 
             </Flex>
 
             <Flex gap={6} style={{ marginTop: "10px", flexWrap: "wrap" }}>
+                <div
+                    key={preset}
+                    onClick={() => {
+                        hsvRef.current = rgbToHsv(...hexToRgb(preset));
+                        setHexInput(preset.toUpperCase());
+                        onChange(preset);
+                        forceUpdate();
+                    }}
+                    title={preset}
+                    style={{
+                        width: "20px", height: "20px", borderRadius: "5px", cursor: "pointer",
+                        background: preset,
+                    }}
+                />
+
                 {COLOR_PRESETS.map(preset => (
                     <div
                         key={preset}
@@ -1205,9 +1219,6 @@ function ColorPickerPanel({ value, onChange }: { value: string; onChange: (hex: 
                         style={{
                             width: "20px", height: "20px", borderRadius: "5px", cursor: "pointer",
                             background: preset,
-                            border: preset.toLowerCase() === value.toLowerCase()
-                                ? "2px solid var(--brand-experiment, var(--background-brand))"
-                                : "1px solid var(--background-modifier-accent, var(--border-muted))",
                         }}
                     />
                 ))}
@@ -1216,7 +1227,7 @@ function ColorPickerPanel({ value, onChange }: { value: string; onChange: (hex: 
     );
 }
 
-function ColorRow({ label, value, onChange, onBlur }: { label: string; value: string; onChange: (v: string) => void; onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; }) {
+function ColorRow({ label, value, onChange, onBlur, preset }: { label: string; value: string; onChange: (v: string) => void; onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; preset: string; }) {
     const [open, setOpen] = React.useState(false);
     const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -1255,9 +1266,6 @@ function ColorRow({ label, value, onChange, onBlur }: { label: string; value: st
                 <div style={{
                     position: "relative", width: "44px", height: "36px", flexShrink: 0,
                     borderRadius: "8px", overflow: "hidden", background: value,
-                    border: open
-                        ? "2px solid var(--brand-experiment, var(--background-brand))"
-                        : "1px solid var(--background-modifier-accent, var(--border-muted))",
                     boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
                     transition: "border-color 0.15s ease",
                 }} />
@@ -1272,7 +1280,7 @@ function ColorRow({ label, value, onChange, onBlur }: { label: string; value: st
                     {value}
                 </BaseText>
             </Flex>
-            {open && <ColorPickerPanel value={value} onChange={handleRealtimeChange} />}
+            {open && <ColorPickerPanel value={value} onChange={handleRealtimeChange} preset={preset} />}
         </div>
     );
 }
@@ -2207,6 +2215,7 @@ function SettingModalItem({
                                                                     apply();
                                                                 }}
                                                                 onBlur={() => forceUpdate()}
+                                                                preset="#000000"
                                                             />
                                                             <SliderRow
                                                                 label="Opacity"
@@ -2251,6 +2260,7 @@ function SettingModalItem({
                                                                 apply();
                                                             }}
                                                             onBlur={() => forceUpdate()}
+                                                            preset="#5865f2"
                                                         />
                                                         <SliderRow
                                                             label="Opacity"
@@ -2376,10 +2386,6 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
     const [, setResetKey] = React.useState(0);
 
     function resetDefaults({ id }: { id: any }) {
-        for (const partner of getBtnCfg(id).linkedTo ?? []) {
-            toggleGroupLink(id, partner, false);
-        }
-
         setBtnCfg(id, {
             color: "#5865f2",
             opacity: 100,
@@ -2389,7 +2395,6 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
             radiusOff: 10,
             colorfulActiveButton: false,
             colorfulInActiveButton: false,
-            keybind: null,
         });
 
         setResetKey(prev => prev + 1);
@@ -2477,12 +2482,45 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
     function resetDefaults() {
         set("userPanelLayout", "default");
         set("callControlsLayout", "default");
-        set("buttonContainerSize", 36);
         set("iconSize", 20);
+        set("buttonContainerSize", 36);
         set("buttonGap", 6);
         set("panelOpacity", 100);
+        set("buttonStyle", "default");
+        set("hoverEffect", "default");
+        set("panelBackgroundColor", "#0e1852");
+        set("glowColor", "#ffffff");
+        set("forceNativeButtonColor", false);
+        set("hideChevrons", false);
         set("lockButtonPosition", false);
+        set("callCompact", false);
+        set("hideDisconnect", false);
+        set("hideVoiceStatus", false);
+        set("hidePingIcon", false);
+        set("hideMute", false);
+        set("hideDeafen", false);
+        set("hideSettings", false);
+        set("hideCamera", false);
+        set("hideScreenShare", false);
+        set("hideActivity", false);
         set("hideLine", true);
+        set("fixProfileNameplate", false);
+
+        for (const item of getBtnItems()) {
+            const { id } = item;
+            const cfg = getBtnCfg(id);
+
+            for (const partner of cfg?.linkedTo ?? []) {
+                toggleGroupLink(id, partner, false);
+            }
+
+            setBtnCfg(id, {
+                keybind: null,
+                linkedTo: [],
+                hidden: undefined,
+                order: undefined,
+            });
+        }
 
         setResetKey(prev => prev + 1);
     }
@@ -2495,7 +2533,6 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         display: "flex", alignItems: "center", justifyContent: "center",
                         width: "40px", height: "40px", borderRadius: "12px",
                         background: "linear-gradient(160deg, color-mix(in srgb, var(--brand-experiment, var(--background-brand)) 100%, white 12%), var(--brand-experiment, var(--background-brand)))",
-                        boxShadow: "0 4px 14px -4px color-mix(in srgb, var(--brand-experiment, var(--background-brand)) 65%, transparent)",
                         color: "white",
                     }}>
                         <PanelLayoutIcon />
@@ -2590,8 +2627,10 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         {tab === "style" && <>
                             <SectionHeading>Aesthetics</SectionHeading>
                             <Card variant="primary">
-                                <Dropdown label="Button Base Style" options={BUTTON_STYLES} value={s.buttonStyle} onChange={v => set("buttonStyle", v)} />
-                                <Dropdown label="Interaction Hover Effect" options={HOVER_EFFECTS} value={s.hoverEffect} onChange={v => set("hoverEffect", v)} />
+                                <div style={{ display: "grid", gap: "8px" }}>
+                                    <Dropdown label="Button Base Style" options={BUTTON_STYLES} value={s.buttonStyle} onChange={v => set("buttonStyle", v)} />
+                                    <Dropdown label="Interaction Hover Effect" options={HOVER_EFFECTS} value={s.hoverEffect} onChange={v => set("hoverEffect", v)} />
+                                </div>
                             </Card>
                         </>}
 
@@ -2599,10 +2638,10 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <SectionHeading>Panel Colors</SectionHeading>
                             <Card variant="primary">
                                 <div style={{ display: "grid", gap: "8px" }}>
-                                    <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} />
+                                    <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} preset="#0e1852" />
 
                                     {settings.store.hoverEffect === "glow" && <>
-                                        <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} />
+                                        <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} preset="#ffffff" />
                                     </>}
                                 </div>
                             </Card>
