@@ -7,7 +7,10 @@
 import "./UpdateAvailableModal.css";
 
 import { Button } from "@components/Button";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal, type RenderModalProps } from "@utils/modal";
+import { ModalFooter, openModal, type RenderModalProps } from "@utils/modal";
+import { Modal } from "@webpack/common";
+
+import { Flex } from "./Flex";
 
 const UPDATE_ICON = "https://cdn.discordapp.com/icons/1434211283317690502/f560c2b05d0def74e4e631eaffd65c2f.webp?size=1024";
 
@@ -29,15 +32,15 @@ interface UpdateAvailableModalProps {
 
 function UpdateAvailableModal({ commits, modalProps, onConfirm, onUpdate, title, confirmText, updateText = "Update" }: UpdateAvailableModalProps) {
     return (
-        <ModalRoot {...modalProps} className="vc-update-modal-root" size={ModalSize.MEDIUM}>
-            <ModalHeader className="vc-update-modal-header" separator={false}>
-                <img className="vc-update-modal-icon" src={UPDATE_ICON} alt="" />
-                <div className="vc-update-modal-heading">
-                    <h2 className="vc-update-modal-title">{title}</h2>
-                </div>
-                <ModalCloseButton className="vc-update-modal-close" onClick={modalProps.onClose} />
-            </ModalHeader>
-            <ModalContent className="vc-update-modal-content">
+        <div className="vc-update-modal-root">
+            <Modal {...modalProps} title={<>
+                <Flex gap={8}>
+                    <img className="vc-update-modal-icon" src={UPDATE_ICON} alt="" />
+                    <div className="vc-update-modal-heading">
+                        <h2 className="vc-update-modal-title">{title}</h2>
+                    </div>
+                </Flex>
+            </>} size="md">
                 <p className="vc-update-modal-commits-title">New commits</p>
                 {commits.length > 0 ? (
                     <ul className="vc-update-modal-commits">
@@ -54,29 +57,29 @@ function UpdateAvailableModal({ commits, modalProps, onConfirm, onUpdate, title,
                 ) : (
                     <p className="vc-update-modal-empty">No commit details were returned for this update.</p>
                 )}
-            </ModalContent>
-            <ModalFooter className="vc-update-modal-footer">
-                {onUpdate && (
+                <ModalFooter className="vc-update-modal-footer">
+                    {onUpdate && (
+                        <Button
+                            onClick={() => {
+                                modalProps.onClose();
+                                onUpdate();
+                            }}
+                        >
+                            {updateText}
+                        </Button>
+                    )}
                     <Button
+                        variant="secondary"
                         onClick={() => {
                             modalProps.onClose();
-                            onUpdate();
+                            onConfirm();
                         }}
                     >
-                        {updateText}
+                        {confirmText}
                     </Button>
-                )}
-                <Button
-                    variant="secondary"
-                    onClick={() => {
-                        modalProps.onClose();
-                        onConfirm();
-                    }}
-                >
-                    {confirmText}
-                </Button>
-            </ModalFooter>
-        </ModalRoot>
+                </ModalFooter>
+            </Modal>
+        </div>
     );
 }
 

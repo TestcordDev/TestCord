@@ -10,10 +10,10 @@ import { Flex } from "@components/Flex";
 import { providers } from "@equicordplugins/musicControls/spotify/lyrics/api";
 import { lyricsAlternative } from "@equicordplugins/musicControls/spotify/lyrics/providers/store";
 import { copyWithToast } from "@utils/discord";
-import { ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal, RenderModalProps } from "@utils/modal";
+import { ModalFooter, openModal, RenderModalProps } from "@utils/modal";
 import { makeRange } from "@utils/types";
 import { findComponentByCodeLazy } from "@webpack";
-import { Button, FluxDispatcher, Menu, React, Slider } from "@webpack/common";
+import { Button, FluxDispatcher, Menu, Modal, React, Slider } from "@webpack/common";
 
 import { useLyrics } from "./util";
 
@@ -47,11 +47,8 @@ function CustomDelayModal({ modalProps, trackKey, trackName }: { modalProps: Ren
     };
 
     return (
-        <ModalRoot {...modalProps} size="small" class="musicControlsModal">
-            <ModalHeader>
-                <BaseText size="lg" weight="semibold">Custom Lyric Delay</BaseText>
-            </ModalHeader>
-            <ModalContent>
+        <div className="customLyricsModal">
+            <Modal {...modalProps} size="sm" title={<BaseText size="lg" weight="semibold">Custom Lyric Delay</BaseText>}>
                 <Flex flexDirection="column" style={{ padding: "8px 0" }}>
                     <BaseText size="md">Delay for {trackName}: {delay}ms</BaseText>
                     <Slider
@@ -63,16 +60,16 @@ function CustomDelayModal({ modalProps, trackKey, trackName }: { modalProps: Ren
                         onValueChange={handleDelayChange}
                     />
                 </Flex>
-            </ModalContent>
-            <ModalFooter gap={12}>
-                <Button
-                    color={Button.Colors.BRAND}
-                    onClick={() => modalProps.onClose()}
-                >
-                    Close
-                </Button>
-            </ModalFooter>
-        </ModalRoot>
+                <ModalFooter gap={12}>
+                    <Button
+                        color={Button.Colors.BRAND}
+                        onClick={() => modalProps.onClose()}
+                    >
+                        Done
+                    </Button>
+                </ModalFooter>
+            </Modal>
+        </div>
     );
 }
 

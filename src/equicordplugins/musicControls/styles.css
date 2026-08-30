@@ -254,6 +254,6 @@
     }
 }
 
-.musicControlsModal [class*="small__49fc1"] {
-    width: calc(var(--modal-width-large, 440px) + 300px);
+.customLyricsModal [data-mana-component="modal"] {
+    max-width: calc(var(--modal-width-large, 440px) + 300px);
 }

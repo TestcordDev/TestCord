@@ -1,9 +1,8 @@
-.vc-update-modal-root {
+.vc-update-modal-root [data-mana-component="modal"] {
     background:
         linear-gradient(180deg, rgb(88 101 242 / 10%) 0, transparent 104px),
         var(--modal-background, var(--background-primary, #313338));
     border: 1px solid var(--background-modifier-accent, rgb(255 255 255 / 8%));
-    max-width: 456px;
 }
 
 .vc-update-modal-header {
@@ -37,10 +36,6 @@
 .vc-update-modal-close {
     margin-left: auto;
     margin-top: -28px;
-}
-
-.vc-update-modal-content {
-    padding: 0 18px 14px;
 }
 
 .vc-update-modal-commits-title {
