@@ -14,7 +14,8 @@ import { LogsIcon } from "@components/Icons";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
-import { Alerts, MessageActions, MessageStore, showToast, Toasts, UserStore } from "@webpack/common";
+import { findByPropsLazy } from "@webpack";
+import { Alerts, ChannelStore, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts, UserStore } from "@webpack/common";
 
 import { removeLoggerContextMenus, setupLoggerContextMenus } from "./contextMenu";
 import { getChannelLogsAfter, getDatabase } from "./db";
@@ -42,6 +43,7 @@ import { cl } from "./utils";
 
 const log = new Logger("MessageLoggerTestcord");
 const HEADER_SETTINGS = ["showLogsButton"] as const;
+const MessageStoreInternal = findByPropsLazy("getOrCreate", "commit", "has", "get");
 
 // From render.ts
 let renderApi: typeof import("./render");
@@ -57,9 +59,16 @@ function OpenLogsButton() {
 }
 
 async function processMessageFetch(response: FetchMessagesResponse) {
-    if (!response.ok || !Array.isArray(response.body) || response.body.length === 0) return;
+    if (!response.ok || !Array.isArray(response.body)) return;
 
     try {
+        if (response.body.length === 0) {
+            const channelId = SelectedChannelStore.getChannelId();
+            if (!channelId) return;
+            const records = await getChannelLogsAfter(channelId, new Date(0).toISOString());
+            if (records.length) response.body.extra = records.map(record => record.message);
+            return;
+        }
         const oldestMessage = response.body[response.body.length - 1];
         if (!oldestMessage?.channel_id || oldestMessage?.timestamp == null) return;
         // Normalize timestamp to string; getChannelLogsAfter handles Date conversion and hidden filtering
@@ -72,7 +81,13 @@ async function processMessageFetch(response: FetchMessagesResponse) {
 }
 
 function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage[]; }, payload: LoadMessagesPayload) {
-    if (!messages.extra?.length || messages.length === 0) return messages;
+    if (!messages.extra?.length) return messages;
+    if (messages.length === 0) {
+        // Empty channel (e.g. #pending after all accepted) — show all deleted logs for it
+        const sorted = [...messages.extra].sort((a, b) => Date.parse(String(b.timestamp)) - Date.parse(String(a.timestamp)));
+        messages.push(...sorted);
+        return messages;
+    }
 
     const toMs = (t: string) => {
         const ms = Date.parse(String(t));
@@ -234,17 +249,20 @@ export default definePlugin({
     patches: [
         // Keep deleted messages in the MessageStore cache so they stay visible live instead of disappearing after the dispatch
         {
-            find: '"MessageStore"',
+            find: "MESSAGE_DELETE:function",
             replacement: [
                 {
-                    match: /(?<=MESSAGE_DELETE:function\((\i)\)\{)(?=let.{0,100}(\i\.\i)\.getOrCreate)/,
-                    replace: "let cache=$2.getOrCreate($1.channelId);cache=$self.handleStoreDelete(cache,$1,false);$2.commit(cache);return;"
-                },
-                {
-                    match: /(?<=MESSAGE_DELETE_BULK:function\((\i)\)\{)(?=let.{0,100}(\i\.\i)\.getOrCreate)/,
-                    replace: "let cache=$2.getOrCreate($1.channelId);cache=$self.handleStoreDelete(cache,$1,true);$2.commit(cache);return;"
+                    match: /MESSAGE_DELETE:function\((\i)\)\{/,
+                    replace: "MESSAGE_DELETE:function($1){if($self.handleStoreDelete2($1))return;"
                 }
             ]
+        },
+        {
+            find: "MESSAGE_DELETE_BULK:function",
+            replacement: {
+                match: /MESSAGE_DELETE_BULK:function\((\i)\)\{/,
+                replace: "MESSAGE_DELETE_BULK:function($1){if($self.handleStoreDelete2($1,true))return;"
+            }
         },
         // Restore logged deleted/edited messages when a channel history is fetched
         {
@@ -378,6 +396,55 @@ export default definePlugin({
             log.error("Error during handleStoreDelete", e);
         }
         return cache;
+    },
+
+    handleStoreDelete2(data: any, isBulk?: boolean) {
+        try {
+            const Internal: any = (MessageStoreInternal as any);
+            const channelId = data.channelId ?? data.channel_id;
+            const cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
+            if (!cache) return false;
+            const ids: string[] = isBulk ? (data.ids ?? []) : [data.id];
+            if (!isBulk && !cache.has?.(data.id)) return false;
+
+            const EPHEMERAL = 64;
+            // Keep all non-ephemeral, non-mlDeleted messages live (red) regardless of ignore settings.
+            // This ensures pending applications (e.g. appy bot) stay visible when deleted on acceptance,
+            // even if the user has ignoreBots/ignoreWebhooks enabled. Persistence to DB is still gated by shouldIgnore in the flux handler.
+            let shouldKeepAny = false;
+            for (const id of ids) {
+                const msg = cache.get?.(id);
+                if (!msg) continue;
+                if (data.mlDeleted || (msg.flags & EPHEMERAL) === EPHEMERAL) continue;
+                shouldKeepAny = true;
+                break;
+            }
+            if (!shouldKeepAny) return false;
+
+            let newCache: any = cache;
+            for (const id of ids) {
+                const msg = newCache.get?.(id);
+                if (!msg) continue;
+                if (data.mlDeleted || (msg.flags & EPHEMERAL) === EPHEMERAL) continue;
+                try {
+                    newCache = newCache.update(id, (m: any) => {
+                        let next = m.set("deleted", true);
+                        try {
+                            const atts = m.attachments;
+                            if (atts && typeof atts.map === "function") next = next.set("attachments", atts.map((a: any) => ((a.deleted = true), a)));
+                        } catch {}
+                        return next;
+                    });
+                } catch {}
+            }
+            if (newCache !== cache) {
+                try { Internal.commit?.(newCache); } catch { try { (Internal as any).commit?.(newCache); } catch {} }
+                return true;
+            }
+        } catch (e) {
+            log.error("Error during handleStoreDelete2", e);
+        }
+        return false;
     },
 
     async start() {

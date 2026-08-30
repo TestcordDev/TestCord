@@ -228,15 +228,18 @@ async function performMaintenance() {
 function isCacheGated(payload: MessageCreatePayload) {
     if (settings.store.cacheMessagesFromServers) return false;
 
-    // DMs should still be cached when alwaysLogDirectMessages is on, even if server cache is disabled.
+    // DMs and pending/application channels should still be cached even when server cache is disabled.
+    const ch = payload.channelId != null ? ChannelStore.getChannel(payload.channelId) : null;
     if (settings.store.alwaysLogDirectMessages) {
-        const isDm = payload.channelId != null && ChannelStore.getChannel(payload.channelId)?.isDM?.();
+        const isDm = ch?.isDM?.();
         if (isDm) return false;
-        // Also check guildId-less channels via payload alone if ChannelStore not yet populated
-        if (payload.guildId == null && ChannelStore.getChannel(payload.channelId) == null) {
+        if (payload.guildId == null && ch == null) {
             // Unknown channel but likely DM; let shouldIgnore decide, don't gate it here.
-            // Fall through to whitelist check only for guild channels.
         }
+    }
+    if (ch) {
+        const name = (ch as any).name?.toLowerCase?.() ?? "";
+        if (name.includes("pending") || name.includes("application") || name.includes("apply")) return false;
     }
 
     const set = splitIds(settings.store.whitelistedIds);
@@ -348,9 +351,22 @@ async function saveDeletedMessage(payload: MessageDeletePayload) {
     const ghostPinged = hasCurrentUserMention(message);
     message.ghostPinged = ghostPinged;
 
+    // Pending applications (e.g. appy bot in #pending) should always be kept, even if ignoreBots is on
+    let forceKeep = false;
+    try {
+        const ch2: any = ChannelStore.getChannel(message.channel_id);
+        const n = (ch2?.name?.toLowerCase?.() ?? "") as string;
+        if (n.includes("pending") || n.includes("application") || n.includes("apply")) forceKeep = true;
+        const uname = (message.author?.username ?? "").toLowerCase();
+        const gname = ((message.author as any)?.globalName ?? (message.author as any)?.global_name ?? "").toLowerCase();
+        if (uname.includes("appy") || gname.includes("appy")) forceKeep = true;
+        // Also keep any bot embed with title containing application
+        if ((message as any).embeds?.some?.((e: any) => (e.title ?? "").toLowerCase().includes("application") || (e.author?.name ?? "").toLowerCase().includes("appy"))) forceKeep = true;
+    } catch {}
+
     // Ignored messages are dropped from the render cache entirely; logged ones stay
     // cached so they keep rendering inline and the context menu can act on them.
-    if (shouldIgnore({
+    if (!forceKeep && shouldIgnore({
         channelId: message.channel_id,
         authorId: message.author?.id,
         guildId: message.guildId,
