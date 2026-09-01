@@ -27,7 +27,7 @@ const settings = definePluginSettings({
     enableCounterTo: {
         type: OptionType.BOOLEAN,
         description: "Counter attacks that target you or protected users with timeout. When someone uses ,uwulock, ,to, ,kick, ,ban or ,mute on you, automatically send ,to <@attacker> 60s.",
-        default: true
+        default: false
     },
     counterDuration: {
         type: OptionType.NUMBER,
@@ -43,6 +43,11 @@ const settings = definePluginSettings({
         type: OptionType.STRING,
         description: "Only run in these servers (comma separated guild IDs). Leave empty to run in all servers.",
         default: ""
+    },
+    enableCounterLock: {
+        type: OptionType.BOOLEAN,
+        description: "Counter lock attackers. When someone tries to remove your protection or uwulock you, instantly strip their protection and uwulock them back with two fast messages.",
+        default: false
     }
 });
 
@@ -172,6 +177,12 @@ function handleMessage(message: any) {
             // avoid sending multiple counters for same message
             sendBotCommand(message.channel_id, `,to ${attackerMention} ${duration}s`);
         }
+    }
+
+    // 4. Counter lock: remove attacker protection then uwulock them
+    if (settings.store.enableCounterLock && (PROTECT_REMOVE_RE.test(content) || isPlainUwulock(content))) {
+        sendBotCommand(message.channel_id, `,uwulock protect remove ${attackerMention}`);
+        sendBotCommand(message.channel_id, `,uwulock add ${attackerMention}`);
     }
 }
 

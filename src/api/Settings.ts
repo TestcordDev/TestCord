@@ -191,7 +191,7 @@ export const SettingsStore = new SettingsStoreClass(settings, {
                     return (target[key] = setting.default);
 
                 if (setting.type === OptionType.SELECT) {
-                    const def = setting.options.find(o => o.default);
+                    const def = setting.options?.find(o => o.default);
                     if (def)
                         target[key] = def.value;
                     return def?.value;

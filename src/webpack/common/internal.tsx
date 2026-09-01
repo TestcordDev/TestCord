@@ -32,13 +32,11 @@ export function waitForComponent<T extends ComponentType<any> = ComponentType<an
         if (myValue) return myValue;
 
         const error = new Error(`Vencord could not find the ${name} Component`);
-        logger.debug(error.message, "— component will be unavailable; plugin using it may be degraded");
+        logger.error(error);
 
-        if (IS_DEV && fallbackValue) return fallbackValue!;
+        if (IS_DEV) throw error;
 
-        if (fallbackValue) return fallbackValue!;
-
-        return (() => null) as unknown as T;
+        return fallbackValue!;
     }) as LazyComponentWrapper<T>;
 
     waitFor(filter, (v: any) => {
