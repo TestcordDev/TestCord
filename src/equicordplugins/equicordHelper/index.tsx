@@ -15,7 +15,7 @@ import { Devs, EQUICORD_GUILD_ID, EQUICORD_SUPPORT_CHANNEL_ID, EquicordDevs, SUP
 import { isAnyPluginDev, isEquicordGuild } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { StandingState } from "@vencord/discord-types/enums";
-import { findByCodeLazy } from "@webpack";
+import { findByCode } from "@webpack";
 import { Alerts, ApplicationCommandIndexStore, NavigationRouter, React, SafetyHubStore, SettingsRouter, UserGuildSettingsStore, UserStore, useStateFromStores, VoiceStateStore } from "@webpack/common";
 import { ComponentType } from "react";
 
@@ -28,7 +28,28 @@ migratePluginToSettings(true, "EquicordHelper", "GuildTagSettings", "disableAdop
 
 let clicked = false;
 
-const fetchSafetyHub: () => Promise<void> = findByCodeLazy("SAFETY_HUB_FETCH_START");
+let _fetchSafetyHub: (() => Promise<void>) | undefined;
+let _fetchSafetyHubTries = 0;
+function fetchSafetyHub(): Promise<void> {
+    if (_fetchSafetyHub) return _fetchSafetyHub();
+    if (_fetchSafetyHubTries >= 5) return Promise.resolve();
+    _fetchSafetyHubTries++;
+    try {
+        const mod: any = findByCode("SAFETY_HUB_FETCH_START", "getSuspendedUserToken");
+        if (typeof mod === "function") {
+            _fetchSafetyHub = mod;
+            return mod();
+        }
+        if (mod && typeof mod === "object") {
+            const fn = Object.values(mod).find(v => typeof v === "function") as (() => Promise<void>) | undefined;
+            if (fn) {
+                _fetchSafetyHub = fn;
+                return fn();
+            }
+        }
+    } catch { }
+    return Promise.resolve();
+}
 
 const StandingConfig: Record<number, { label: string; hoverColor: string; Icon: ComponentType<any>; }> = {
     [StandingState.ALL_GOOD]: { label: "All good!", hoverColor: "var(--status-positive)", Icon: ShieldIcon },
@@ -39,12 +60,16 @@ const StandingConfig: Record<number, { label: string; hoverColor: string; Icon: 
 };
 
 function StandingButton() {
-    const standing = useStateFromStores([SafetyHubStore], () => SafetyHubStore.getAccountStanding());
-    const isInitialized = useStateFromStores([SafetyHubStore], () => SafetyHubStore.isInitialized());
+    const standing = useStateFromStores([SafetyHubStore], () => SafetyHubStore?.getAccountStanding?.());
+    const isInitialized = useStateFromStores([SafetyHubStore], () => SafetyHubStore?.isInitialized?.() ?? true);
     const [hovered, setHovered] = React.useState(false);
 
     React.useEffect(() => {
-        if (!isInitialized) fetchSafetyHub().catch(() => { });
+        if (!isInitialized) {
+            try {
+                Promise.resolve(fetchSafetyHub()).catch(() => { });
+            } catch { }
+        }
     }, [isInitialized]);
 
     const config = StandingConfig[standing?.state] ?? StandingConfig[StandingState.ALL_GOOD];
@@ -165,7 +190,13 @@ export default definePlugin({
         // render before that. Mounting StandingButton while it's still undefined throws
         // inside the first useStateFromStores and the button stays gone for the session,
         // so gate the mount here instead — a later header re-render picks it up.
-        render: () => (settings.store.accountStandingButton && SafetyHubStore ? <StandingButton /> : null),
+        render: () => {
+            try {
+                return settings.store.accountStandingButton && SafetyHubStore ? <StandingButton /> : null;
+            } catch {
+                return null;
+            }
+        },
     },
     patches: [
         // Fixes Unknown Resolution/FPS Crashing

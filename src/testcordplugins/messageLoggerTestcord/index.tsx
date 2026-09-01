@@ -264,6 +264,15 @@ export default definePlugin({
                 replace: "MESSAGE_DELETE_BULK:function($1){if($self.handleStoreDelete2($1,true))return;"
             }
         },
+        // Fix pagination for channels with many deleted logs (e.g. #pending with 165) — don't drop newer messages when fetching older batches
+        {
+            find: "function F(e,t)",
+            noWarn: true,
+            replacement: {
+                match: /if\((\i)\.hasMoreAfter\)return (\i);/,
+                replace: "if(false&&$1.hasMoreAfter)return $2;"
+            }
+        },
         // Restore logged deleted/edited messages when a channel history is fetched
         {
             find: "_tryFetchMessagesCached",
