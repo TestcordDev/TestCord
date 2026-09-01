@@ -117,6 +117,7 @@
     border-radius: 6px;
     padding: 0.5em;
     transition: all 0.1s ease-out;
+    border: none;
 }
 
 .vc-changelog-new-plugin-card:hover {

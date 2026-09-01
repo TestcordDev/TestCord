@@ -42,9 +42,9 @@ export default {
     },
 
     updater: {
-        getUpdates: () => invoke<IpcRes<Record<"hash" | "author" | "message", string>[]>>(IpcEvents.GET_UPDATES),
-        update: () => invoke<IpcRes<boolean>>(IpcEvents.UPDATE),
-        forceUpdate: () => invoke<IpcRes<boolean>>(IpcEvents.FORCE_UPDATE),
+        getUpdates: (branch?: string) => invoke<IpcRes<Record<"hash" | "author" | "message", string>[]>>(IpcEvents.GET_UPDATES, branch),
+        update: (branch?: string) => invoke<IpcRes<boolean>>(IpcEvents.UPDATE, branch),
+        forceUpdate: (branch?: string) => invoke<IpcRes<boolean>>(IpcEvents.FORCE_UPDATE, branch),
         rebuild: () => invoke<IpcRes<boolean>>(IpcEvents.BUILD),
         getRepo: () => invoke<IpcRes<string>>(IpcEvents.GET_REPO),
     },

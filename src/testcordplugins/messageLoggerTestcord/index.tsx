@@ -15,7 +15,7 @@ import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
 import { findByPropsLazy } from "@webpack";
-import { Alerts, ChannelStore, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts, UserStore } from "@webpack/common";
+import { Alerts, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts, UserStore } from "@webpack/common";
 
 import { removeLoggerContextMenus, setupLoggerContextMenus } from "./contextMenu";
 import { getChannelLogsAfter, getDatabase } from "./db";
@@ -128,7 +128,7 @@ function handleChannelSelect(payload: { channelId?: string; }) {
         lastChannelFetch.set(channelId, now);
         try {
             (MessageActions as any).fetchMessages?.({ channelId, limit: 50 });
-        } catch {}
+        } catch { }
     }).catch(() => { });
 }
 
@@ -337,7 +337,7 @@ export default definePlugin({
         MESSAGE_UPDATE: handleMessageUpdate as (payload: MessageUpdatePayload) => void,
         MESSAGE_DELETE: handleMessageDelete as (payload: MessageDeletePayload) => void,
         MESSAGE_DELETE_BULK: handleMessageDeleteBulk as (payload: MessageDeleteBulkPayload) => void,
-        CHANNEL_SELECT: handleChannelSelect as (payload: { channelId?: string }) => void,
+        CHANNEL_SELECT: handleChannelSelect as (payload: { channelId?: string; }) => void,
     },
 
     getDeleted(m1: any, m2: any) {
@@ -370,7 +370,7 @@ export default definePlugin({
                     if (currentUserId) {
                         ghostPinged = !!msg.mention_everyone || (Array.isArray(msg.mentions) && msg.mentions.some((m: any) => (m?.id ?? m) === currentUserId));
                     }
-                } catch {}
+                } catch { }
                 const ignored = shouldIgnore({
                     channelId: msg.channel_id ?? data.channelId,
                     authorId: msg.author?.id,
@@ -391,7 +391,7 @@ export default definePlugin({
                             if (Array.isArray(atts) || atts?.map) {
                                 next = next.set("attachments", atts.map((a: any) => ((a.deleted = true), a)));
                             }
-                        } catch {}
+                        } catch { }
                         return next;
                     });
                 }
@@ -441,13 +441,13 @@ export default definePlugin({
                         try {
                             const atts = m.attachments;
                             if (atts && typeof atts.map === "function") next = next.set("attachments", atts.map((a: any) => ((a.deleted = true), a)));
-                        } catch {}
+                        } catch { }
                         return next;
                     });
-                } catch {}
+                } catch { }
             }
             if (newCache !== cache) {
-                try { Internal.commit?.(newCache); } catch { try { (Internal as any).commit?.(newCache); } catch {} }
+                try { Internal.commit?.(newCache); } catch { try { (Internal as any).commit?.(newCache); } catch { } }
                 return true;
             }
         } catch (e) {

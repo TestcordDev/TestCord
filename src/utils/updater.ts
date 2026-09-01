@@ -1,22 +1,10 @@
 /*
- * Vencord, a modification for Discord's desktop app
- * Copyright (c) 2022 Vendicated and contributors
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
 
-import gitHash from "~git-hash";
+import { Settings } from "@api/Settings";
 
 import { Logger } from "./Logger";
 import { relaunch } from "./native";
@@ -37,24 +25,18 @@ async function Unwrap<T>(p: Promise<IpcRes<T>>) {
     throw res.error;
 }
 
-export async function checkForUpdates() {
-    changes = await Unwrap(VencordNative.updater.getUpdates());
-
-    // we only want to check this for the git updater, not the http updater
-    if (!IS_STANDALONE) {
-        if (changes.some(c => c.hash === gitHash)) {
-            isNewer = true;
-            return (isOutdated = false);
-        }
-    }
-
-    return (isOutdated = changes.length > 0);
+export async function checkForUpdates(branch?: string) {
+    const targetBranch = branch ?? Settings.updaterBranch;
+    changes = await Unwrap(VencordNative.updater.getUpdates(targetBranch));
+    isNewer = false;
+    return (isOutdated = (changes?.length ?? 0) > 0);
 }
 
-export async function update() {
+export async function update(branch?: string) {
     if (!isOutdated) return true;
 
-    const res = await Unwrap(VencordNative.updater.update());
+    const targetBranch = branch ?? Settings.updaterBranch;
+    const res = await Unwrap(VencordNative.updater.update(targetBranch));
 
     if (res) {
         isOutdated = false;
@@ -65,10 +47,9 @@ export async function update() {
     return res;
 }
 
-export async function forceUpdate() {
-    if (!isOutdated) return true;
-
-    const res = await Unwrap(VencordNative.updater.forceUpdate());
+export async function forceUpdate(branch?: string) {
+    const targetBranch = branch ?? Settings.updaterBranch;
+    const res = await Unwrap(VencordNative.updater.forceUpdate(targetBranch));
 
     if (res) {
         isOutdated = false;
