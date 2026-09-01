@@ -14,7 +14,7 @@ import { Dispatch, ReactNode, SetStateAction } from "react";
 
 import { cl, ManaSearchBarProps, Native, NativeMediaResult, PinterestImageResult, PinterestPickerProps, PinterestSearchPayload, SearchBucketState, SearchKind, SearchTarget, settings } from "./shared";
 
-const ManaSearchBar = findComponentByCodeLazy<ManaSearchBarProps>("#{intl::SEARCH}),ref");
+const ManaSearchBar = findComponentByCodeLazy<ManaSearchBarProps>("MagnifyingGlassIcon", "clearable");
 const logger = new Logger("PinterestSearch");
 
 function createEmptyBucket(): SearchBucketState {
