@@ -43,7 +43,6 @@ export function SelectSetting({ setting, pluginSettings, definedSettings, onChan
         <SettingsSection name={setting.displayName} id={id} description={setting.description} error={error}>
             <Select
                 placeholder={setting.placeholder ?? "Select an option"}
-                options={setting.options}
                 maxVisibleItems={5}
                 closeOnSelect={true}
                 select={handleChange}
@@ -51,6 +50,7 @@ export function SelectSetting({ setting, pluginSettings, definedSettings, onChan
                 serialize={v => String(v)}
                 isDisabled={isSettingDisabled(definedSettings, setting)}
                 {...setting.componentProps}
+                options={setting.componentProps?.options ?? setting.options ?? []}
             />
         </SettingsSection>
     );
