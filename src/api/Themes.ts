@@ -59,6 +59,8 @@ async function toggle(isEnabled: boolean) {
 // for cleanup
 let previousThemeBlobObjectURLs = [] as string[];
 
+const warnedMissingThemes = new Set<string>();
+
 async function initThemes() {
     themesStyle ??= createAndAppendStyle("vencord-themes", userStyleRootNode);
 
@@ -109,7 +111,10 @@ async function initThemes() {
             // A missing file would silently produce a dead @import; surface it instead
             const exists = await VencordNative.themes.getThemeData(theme).then(() => true).catch(() => false);
             if (!exists) {
-                new Logger("Themes").warn(`Enabled theme "${theme}" was not found in the themes folder, skipping`);
+                if (!warnedMissingThemes.has(theme)) {
+                    warnedMissingThemes.add(theme);
+                    new Logger("Themes").warn(`Enabled theme "${theme}" was not found in the themes folder, skipping`);
+                }
                 continue;
             }
             links.add(`vencord:///themes/${theme}?v=${version}`);

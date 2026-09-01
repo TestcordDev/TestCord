@@ -15,7 +15,7 @@ import { Devs, EQUICORD_GUILD_ID, EQUICORD_SUPPORT_CHANNEL_ID, EquicordDevs, SUP
 import { isAnyPluginDev, isEquicordGuild } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { StandingState } from "@vencord/discord-types/enums";
-import { findByCode } from "@webpack";
+import { filters,find } from "@webpack";
 import { Alerts, ApplicationCommandIndexStore, NavigationRouter, React, SafetyHubStore, SettingsRouter, UserGuildSettingsStore, UserStore, useStateFromStores, VoiceStateStore } from "@webpack/common";
 import { ComponentType } from "react";
 
@@ -32,10 +32,18 @@ let _fetchSafetyHub: (() => Promise<void>) | undefined;
 let _fetchSafetyHubTries = 0;
 function fetchSafetyHub(): Promise<void> {
     if (_fetchSafetyHub) return _fetchSafetyHub();
-    if (_fetchSafetyHubTries >= 5) return Promise.resolve();
+    if (_fetchSafetyHubTries >= 5) {
+        // Fallback: dispatch the flux action directly — works even when the helper module moved.
+        try {
+            const { FluxDispatcher } = require("@webpack/common") as typeof import("@webpack/common");
+            FluxDispatcher.dispatch({ type: "SAFETY_HUB_FETCH_START" } as any);
+        } catch { }
+        return Promise.resolve();
+    }
     _fetchSafetyHubTries++;
     try {
-        const mod: any = findByCode("SAFETY_HUB_FETCH_START", "getSuspendedUserToken");
+        // Use isIndirect find so a miss doesn't log an error — Discord renames this module often.
+        const mod: any = find(filters.byCode("SAFETY_HUB_FETCH_START", "getSuspendedUserToken"), { isIndirect: true });
         if (typeof mod === "function") {
             _fetchSafetyHub = mod;
             return mod();
@@ -47,6 +55,12 @@ function fetchSafetyHub(): Promise<void> {
                 return fn();
             }
         }
+        // If module not found yet (chunk not loaded), try flux dispatch as fallback too
+        try {
+            const { FluxDispatcher } = require("@webpack/common") as typeof import("@webpack/common");
+            FluxDispatcher.dispatch({ type: "SAFETY_HUB_FETCH_START" } as any);
+            return Promise.resolve();
+        } catch { }
     } catch { }
     return Promise.resolve();
 }
@@ -60,17 +74,35 @@ const StandingConfig: Record<number, { label: string; hoverColor: string; Icon: 
 };
 
 function StandingButton() {
-    const standing = useStateFromStores([SafetyHubStore], () => SafetyHubStore?.getAccountStanding?.());
-    const isInitialized = useStateFromStores([SafetyHubStore], () => SafetyHubStore?.isInitialized?.() ?? true);
+    const deps = SafetyHubStore ? [SafetyHubStore] as const : [];
+    const standing = useStateFromStores(deps as any, () => SafetyHubStore?.getAccountStanding?.());
+    const isInitialized = useStateFromStores(deps as any, () => SafetyHubStore?.isInitialized?.() ?? false);
     const [hovered, setHovered] = React.useState(false);
 
     React.useEffect(() => {
+        if (!SafetyHubStore) {
+            // Store not loaded yet — try anyway via flux dispatch; waitForStore will populate SafetyHubStore and trigger re-render
+            Promise.resolve(fetchSafetyHub()).catch(() => { });
+            return;
+        }
         if (!isInitialized) {
             try {
                 Promise.resolve(fetchSafetyHub()).catch(() => { });
             } catch { }
+            const t = setTimeout(() => {
+                try {
+                    if (!SafetyHubStore?.isInitialized?.()) Promise.resolve(fetchSafetyHub()).catch(() => { });
+                } catch { }
+            }, 1500);
+            return () => clearTimeout(t);
         }
     }, [isInitialized]);
+
+    React.useEffect(() => {
+        if (standing === undefined) {
+            Promise.resolve(fetchSafetyHub()).catch(() => { });
+        }
+    }, []);
 
     const config = StandingConfig[standing?.state] ?? StandingConfig[StandingState.ALL_GOOD];
 
@@ -186,13 +218,9 @@ export default definePlugin({
     settings,
     headerBarButton: {
         icon: ShieldIcon,
-        // SafetyHubStore resolves asynchronously via waitForStore; the header bar can
-        // render before that. Mounting StandingButton while it's still undefined throws
-        // inside the first useStateFromStores and the button stays gone for the session,
-        // so gate the mount here instead — a later header re-render picks it up.
         render: () => {
             try {
-                return settings.store.accountStandingButton && SafetyHubStore ? <StandingButton /> : null;
+                return settings.store.accountStandingButton ? <StandingButton /> : null;
             } catch {
                 return null;
             }

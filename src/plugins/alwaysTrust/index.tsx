@@ -84,7 +84,7 @@ export default definePlugin({
         {
             find: "deleteGuild",
             replacement: {
-                match: /let\{name:\i\}=(\i)\.guild/,
+                match: /\{name:\i\}\s*=\s*(\i)\.guild/,
                 replace: "$self.HandleGuildDeleteModal($1);$&"
             },
             predicate: () => settings.store.noDeleteSafety

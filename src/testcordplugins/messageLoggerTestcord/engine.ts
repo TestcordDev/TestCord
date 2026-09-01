@@ -6,6 +6,7 @@
 
 import { showNotification } from "@api/Notifications";
 import { Logger } from "@utils/Logger";
+import { sleep } from "@utils/misc";
 import type { Message, MessageJSON } from "@vencord/discord-types";
 import { ChannelStore, FluxDispatcher, lodash, MessageStore, SelectedChannelStore, UserGuildSettingsStore, UserStore } from "@webpack/common";
 
@@ -489,59 +490,74 @@ async function primeLoggedCache() {
     try {
         const records = await getAllLogs();
         const cap = Math.max(settings.store.memoryCacheLimit, 100);
-        const recent = records
-            .sort((a, b) => String(b.message.timestamp).localeCompare(String(a.message.timestamp)))
-            .slice(0, cap);
+        // Sort newest-first then slice; this is O(n log n) but runs off the hot path via yielding.
+        records.sort((a, b) => String(b.message.timestamp).localeCompare(String(a.message.timestamp)));
+        // Yield before slicing/inserting so the UI can paint.
+        await sleep(0);
+        const recent = records.slice(0, cap);
 
-        // Insert oldest-first so the hottest (newest) entries end up last in eviction order
-        for (const record of recent.reverse()) {
-            if (!record.message?.id || record.hidden) continue;
-            if (recentMessages.has(record.message.id)) continue;
-            recentMessages.set(record.message.id, record.message);
+        // Insert oldest-first in chunks so we don't block the main thread with 2000+ Map ops.
+        const reversed = recent.slice().reverse();
+        const CHUNK = 250;
+        for (let i = 0; i < reversed.length; i += CHUNK) {
+            const chunk = reversed.slice(i, i + CHUNK);
+            for (const record of chunk) {
+                if (!record.message?.id || record.hidden) continue;
+                if (recentMessages.has(record.message.id)) continue;
+                recentMessages.set(record.message.id, record.message);
+            }
+            if (i + CHUNK < reversed.length) await sleep(0);
         }
 
         if (recent.length > 0) log.info(`Primed logged message cache with ${recent.length} records.`);
 
-        // After priming, ensure the current channel re-fetches to inject the restored logs inline.
-        // This covers the cold-start case where the channel was already selected before prime finished.
-        try {
-            const currentId = SelectedChannelStore.getChannelId();
-            if (currentId && recent.some(r => r.channel_id === currentId)) {
-                const store = (MessageStore as any).getMessages?.(currentId);
-                if (store?.hasFetched) {
-                    const { MessageActions } = await import("@webpack/common");
-                    (MessageActions as any).fetchMessages?.({ channelId: currentId, limit: 50 });
+        // Defer the rest (re-fetch + attachment backfill) to idle so startup stays interactive.
+        const doPostPrime = async () => {
+            // After priming, ensure the current channel re-fetches to inject the restored logs inline.
+            try {
+                const currentId = SelectedChannelStore.getChannelId();
+                if (currentId && recent.some(r => r.channel_id === currentId)) {
+                    const store = (MessageStore as any).getMessages?.(currentId);
+                    if (store?.hasFetched) {
+                        const { MessageActions } = await import("@webpack/common");
+                        (MessageActions as any).fetchMessages?.({ channelId: currentId, limit: 50 });
+                    }
+                }
+            } catch { /* best effort */ }
+
+            if (!IS_WEB && settings.store.saveImages) {
+                await ensureDefaultDir().catch(() => { });
+                for (let i = 0; i < recent.length; i++) {
+                    const record = recent[i];
+                    if (!record.message.attachments?.length) continue;
+                    if (record.status === LogStatus.EDITED) continue;
+                    const needsSave = record.message.attachments.some(att => !att.path && att.url);
+                    if (!needsSave) continue;
+                    try {
+                        await Promise.all(record.message.attachments.filter(att => !att.path && att.url).map(att => ensureAttachmentSaved(att as any)));
+                        const hasPathNow = record.message.attachments.some(att => !!att.path);
+                        if (hasPathNow) {
+                            const existing = pendingWrites.get(record.message_id);
+                            if (!existing) queueRecord(record.message as LoggedMessage, record.status);
+                            else {
+                                existing.message = record.message as LoggedMessage;
+                                pendingWrites.set(record.message_id, existing);
+                                scheduleFlush();
+                            }
+                        }
+                    } catch { /* best effort */ }
+                    // Yield every few records so we don't starve the event loop on large DBs
+                    if (i % 20 === 0) await sleep(0);
                 }
             }
-        } catch { /* best effort */ }
+        };
 
-        // Retroactively save attachments for older logged deletes that missed disk saving (e.g., saveImages was off or race)
-        if (!IS_WEB && settings.store.saveImages) {
-            await ensureDefaultDir().catch(() => { });
-            // Only attempt for the primed set to avoid hammering the CDN on large DBs
-            for (const record of recent) {
-                if (!record.message.attachments?.length) continue;
-                // Only try for deleted/ghost-pinged messages that have attachments without a saved path
-                if (record.status === LogStatus.EDITED) continue;
-                const needsSave = record.message.attachments.some(att => !att.path && att.url);
-                if (!needsSave) continue;
-                try {
-                    await Promise.all(record.message.attachments.filter(att => !att.path && att.url).map(att => ensureAttachmentSaved(att as any)));
-                    // If any path was set, persist the updated message
-                    const hasPathNow = record.message.attachments.some(att => !!att.path);
-                    if (hasPathNow) {
-                        // Queue an update preserving protected/hidden
-                        const existing = pendingWrites.get(record.message_id);
-                        if (!existing) queueRecord(record.message as LoggedMessage, record.status);
-                        else {
-                            existing.message = record.message as LoggedMessage;
-                            pendingWrites.set(record.message_id, existing);
-                            scheduleFlush();
-                        }
-                    }
-                } catch { /* best effort */ }
-            }
-        }
+        const scheduleIdle = (cb: () => void) => {
+            const ric = (window as any).requestIdleCallback as any;
+            if (ric) (ric as any)(cb, { timeout: 2000 });
+            else setTimeout(cb, 500);
+        };
+        scheduleIdle(() => { void doPostPrime(); });
     } catch (error) {
         log.error("Failed to prime the logged message cache.", error);
     }
@@ -549,10 +565,16 @@ async function primeLoggedCache() {
 
 export function startEngine() {
     active = true;
-    void getDatabase()
-        .then(performMaintenance)
-        .then(primeLoggedCache)
-        .catch(error => log.error("Failed to initialize the log database.", error));
+    // Defer DB/prime work so Discord can paint first; chunking inside primeLoggedCache keeps it off the main thread.
+    const scheduleStart = () => {
+        void getDatabase()
+            .then(performMaintenance)
+            .then(primeLoggedCache)
+            .catch(error => log.error("Failed to initialize the log database.", error));
+    };
+    const ric = (window as any).requestIdleCallback as any;
+    if (ric) (ric as any)(scheduleStart, { timeout: 1500 });
+    else setTimeout(scheduleStart, 800);
     maintenanceInterval = setInterval(() => {
         if (Date.now() - lastMaintenance >= settings.store.maintenanceIntervalMinutes * 60_000) {
             void performMaintenance().catch(error => log.error("Failed to run log maintenance.", error));

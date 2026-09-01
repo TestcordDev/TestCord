@@ -128,7 +128,19 @@ export default definePlugin({
                 Reflect.deleteProperty(Function.prototype, "d");
                 Reflect.deleteProperty(window, "DiscordSentry");
 
-                throw new Error("Sentry successfully disabled");
+                const err = new Error("Sentry successfully disabled");
+                // Prevent the intentional abort error from appearing as an uncaught exception.
+                // The throw is required to abort Sentry's WebpackInstance factory, but we
+                // suppress the global error event so the console stays clean.
+                const suppress = (e: ErrorEvent) => {
+                    if (e.message?.includes("Sentry successfully disabled") || String((e as any).error?.message).includes("Sentry successfully disabled")) {
+                        e.preventDefault();
+                    }
+                };
+                window.addEventListener("error", suppress, { capture: true, once: true });
+                setTimeout(() => window.removeEventListener("error", suppress, { capture: true }), 1000);
+
+                throw err;
             }
         });
 

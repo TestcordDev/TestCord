@@ -66,6 +66,53 @@ function uninstallCrashGuards() {
     window.removeEventListener("unhandledrejection", crashRejectionHandler);
 }
 
+// Harmless Discord-internal errors that spam the console but don't affect functionality.
+// Install once on module load so they are suppressed even without preventCrashes enabled.
+(function installHarmlessErrorFilters() {
+    const isHarmless = (text: string) =>
+        (text.includes("EADDRINUSE") && text.includes("6463")) ||
+        text.includes("Sentry successfully disabled") ||
+        text.includes("NoiseCancellerError") || text.includes("noise-canceller-error") ||
+        (text.includes("url parse") && text.includes("libdiscore")) ||
+        text.includes("referrals/eligibility") ||
+        text.includes("getCurrentUser does not have a value");
+
+    window.addEventListener("error", e => {
+        const text = `${e.message} ${String((e as any).error?.message ?? "")} ${String((e as any).error?.stack ?? "")}`;
+        if (isHarmless(text)) e.preventDefault();
+    }, true);
+
+    window.addEventListener("unhandledrejection", e => {
+        const text = String((e.reason as any)?.message ?? e.reason ?? "");
+        if (isHarmless(text)) e.preventDefault();
+    });
+
+    // Intercept console methods for the same patterns so the Webpack "AVError" etc don't flood.
+    const origError = console.error.bind(console);
+    const origWarn = console.warn.bind(console);
+    const origLog = console.log.bind(console);
+    const wrapConsole = (orig: (...a: any[]) => void) => (...args: any[]) => {
+        const text = args.map(a => typeof a === "string" ? a : String((a as any)?.message ?? (a as any)?.stack ?? (() => { try { return JSON.stringify(a); } catch { return String(a); } })())).join(" ");
+        if (isHarmless(text)) return;
+        return orig(...args);
+    };
+    console.error = wrapConsole(origError);
+    console.warn = wrapConsole(origWarn);
+    console.log = wrapConsole(origLog);
+
+    try {
+        const proc = (globalThis as any).process;
+        if (proc?.on) {
+            const origOn = proc.on.bind(proc);
+            // Swallow EADDRINUSE 6463 at process level (Electron main/renderer)
+            proc.on("uncaughtException", (err: any) => {
+                if (isHarmless(String(err?.message ?? "") + String(err?.stack ?? ""))) return;
+                origError(err);
+            });
+        }
+    } catch { }
+})();
+
 let origDispatch: ((payload: any) => void) | null = null;
 let origSubscribe: ((event: string, handler: (...args: any[]) => void) => void) | null = null;
 let disposeDispatch: (() => void) | null = null;

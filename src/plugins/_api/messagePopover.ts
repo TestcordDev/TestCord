@@ -18,6 +18,7 @@
 
 import { disableStyle, enableStyle, setStyleClassNames } from "@api/Styles";
 import { Devs } from "@utils/constants";
+import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
 import { findCssClassesLazy } from "@webpack";
 
@@ -31,10 +32,20 @@ export default definePlugin({
     authors: [Devs.KingFish, Devs.Ven, Devs.Nuckyz],
 
     start() {
-        setStyleClassNames(style, {
-            messageListItem: messageClasses.messageListItem,
-            message: messageClasses.message
-        });
+        try {
+            const mli = (messageClasses as any)?.messageListItem;
+            const msg = (messageClasses as any)?.message;
+            if (mli || msg) {
+                setStyleClassNames(style, {
+                    messageListItem: mli ?? "messageListItem",
+                    message: msg ?? "message"
+                });
+            } else {
+                new Logger("MessagePopoverAPI").warn("messageListItem/message classes not found, skipping style injection");
+            }
+        } catch (e) {
+            new Logger("MessagePopoverAPI").warn("Failed to resolve message classes:", e);
+        }
         enableStyle(style);
     },
 

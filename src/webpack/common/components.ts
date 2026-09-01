@@ -55,7 +55,7 @@ export const Button = ButtonCompat;
 /** @deprecated Use FormSwitch from Vencord */
 export const Switch = FormSwitchCompat as never;
 
-export const Checkbox = waitForComponent<t.Checkbox>("Checkbox", filters.componentByCode('"data-toggleable-component":"checkbox'));
+export const Checkbox = waitForComponent<t.Checkbox>("Checkbox", m => filters.componentByCode('"data-toggleable-component":"checkbox"')(m) || filters.componentByCode("data-toggleable-component", "checkbox")(m));
 
 export const Tooltip = waitForComponent<t.Tooltip>("Tooltip", m => m.prototype?.shouldShowTooltip && m.prototype.render, TooltipFallback);
 /** @deprecated import from @vencord/components */
@@ -64,8 +64,8 @@ export const TooltipContainer = TooltipContainerComponent as never;
 // FIXME: t.TextInput was for the old void components, and is not 100% correct for the mana component
 export const TextInput = waitForComponent<t.TextInput>("TextInput", filters.componentByCode('setHasValue?.(""!==', '="text",'));
 export const TextArea = waitForComponent<t.TextArea>("TextArea", filters.componentByCode("!0,rows:", "showRemainingCharacterCount:"));
-export const Select = waitForComponent<t.Select>("Select", filters.componentByCode('selectionMode:"single",onSelectionChange:', "isSelected:"));
-export const SearchableSelect = waitForComponent<t.SearchableSelect>("SearchableSelect", filters.componentByCode('?"multiple":"single",required:'));
+export const Select = waitForComponent<t.Select>("Select", m => filters.componentByCode('selectionMode:"single",onSelectionChange:', "isSelected:")(m) || filters.componentByCode("selectionMode", "onSelectionChange")(m));
+export const SearchableSelect = waitForComponent<t.SearchableSelect>("SearchableSelect", m => filters.componentByCode('?"multiple":"single",required:')(m) || filters.componentByCode("multiple", "single", "required")(m));
 export const Slider = waitForComponent<t.Slider>("Slider", filters.componentByCode("markDash", "this.renderMark("));
 export const Popout = waitForComponent<t.Popout>("Popout", filters.componentByCode("ref:this.ref,", "renderPopout:this.renderPopout,"));
 export const Dialog = waitForComponent<t.Dialog>("Dialog", filters.componentByCode('role:"dialog",tabIndex:-1'));
@@ -130,7 +130,7 @@ waitFor(m => {
 }, m => useToken = m);
 
 export const MaskedLink = waitForComponent<t.MaskedLink>("MaskedLink", filters.componentByCode("MASKED_LINK)"));
-export const Timestamp = waitForComponent<t.Timestamp>("Timestamp", filters.componentByCode("#{intl::MESSAGE_EDITED_TIMESTAMP_A11Y_LABEL}"));
+export const Timestamp = waitForComponent<t.Timestamp>("Timestamp", m => filters.componentByCode("#{intl::MESSAGE_EDITED_TIMESTAMP_A11Y_LABEL}")(m) || filters.componentByCode("MESSAGE_EDITED_TIMESTAMP_A11Y_LABEL")(m));
 export const OAuth2AuthorizeModal = waitForComponent("OAuth2AuthorizeModal", filters.componentByCode("hasContentBackground", "nextStep", "onClose?.()"));
 
 export const Animations = mapMangledModuleLazy(".assign({colorNames:", {

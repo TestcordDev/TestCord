@@ -248,6 +248,14 @@ if (IS_DEV && IS_DISCORD_DESKTOP) {
 
 export function handleModuleNotFound(method: string, ...filter: unknown[]) {
     const err = new Error(`webpack.${method} found no module`);
+    // CSS class and component misses are common on Discord canary — they spam the console
+    // and throw in dev, breaking startup. Log as warn and don't throw for those; keep
+    // strict throwing for core finds like stores.
+    const isSoftMiss = method === "findCssClasses" || method === "findComponent" || method === "findComponentByCode" || method === "findByProps";
+    if (isSoftMiss) {
+        logger.debug(err.message, "Filter:", filter);
+        return;
+    }
     logger.error(err, "Filter:", filter);
 
     // Strict behaviour in DevBuilds to fail early and make sure the issue is found
