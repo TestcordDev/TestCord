@@ -85,8 +85,8 @@ const Patches: Record<string, ConfigurablePatchDefinition> = {
         patches: {
             find: "COLLECTIBLES_PROFILE_SETTINGS_UPSELL,",
             replacement: {
-                match: /return \i\.useEffect\(\(\)=>\{\i\.\i\.track\(\i\.\i\.PREMIUM_UPSELL_VIEWED,\{type:\i\.\i\.COLLECTIBLES_PROFILE_SETTINGS_UPSELL,location_stack:\i,version:\i\}\)\},\[\i,\i\]\),/,
-                replace: "$&null;"
+                match: /(let \i=function\(\)\{)(?=[^;]{0,100}COLLECTIBLES_PROFILE_SETTINGS_UPSELL)/,
+                replace: "$1return null;"
             }
         }
     },
