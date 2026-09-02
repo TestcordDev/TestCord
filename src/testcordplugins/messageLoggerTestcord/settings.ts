@@ -125,8 +125,8 @@ export const settings = definePluginSettings({
     },
     memoryCacheLimit: {
         type: OptionType.NUMBER,
-        description: "Maximum number of recent messages kept in memory.",
-        default: 2000,
+        description: "Maximum number of recent messages kept in memory. Lower values save RAM; channel history is still loaded from the database on demand.",
+        default: 500,
         isValid: (value: number) => value >= 100 ? true : "The memory cache limit must be at least 100."
     },
     batchDelayMs: {
