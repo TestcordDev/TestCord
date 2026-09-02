@@ -20,6 +20,7 @@ import { Alerts, MessageActions, MessageStore, SelectedChannelStore, showToast, 
 import { removeLoggerContextMenus, setupLoggerContextMenus } from "./contextMenu";
 import { getChannelLogsAfter, getChannelLogsLimit, getDatabase } from "./db";
 import {
+    cacheChannelMessages,
     clearAllLogs,
     getCachedLoggedMessage,
     handleMessageCreate,
@@ -38,7 +39,7 @@ import { openLogs } from "./LogsModal";
 import { osintScanLoggedMessages } from "./osintBridge";
 import { ensureDefaultDir, restoreAttachmentBlobs } from "./saveImage";
 import { settings } from "./settings";
-import type { FetchMessagesResponse, LoadMessagesPayload, LoggedMessage, MessageCreatePayload, MessageDeleteBulkPayload, MessageDeletePayload, MessageUpdatePayload } from "./types";
+import type { FetchMessagesResponse, LoadMessagesPayload, LoggedMessage, LogRecord, MessageCreatePayload, MessageDeleteBulkPayload, MessageDeletePayload, MessageUpdatePayload } from "./types";
 import { cl } from "./utils";
 
 const log = new Logger("MessageLoggerTestcord");
@@ -110,7 +111,7 @@ function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage
     const includeNewer = !payload.hasMoreAfter && !payload.isBefore;
     const includeOlder = !payload.hasMoreBefore && !payload.isAfter;
     const knownIds = new Set(messages.map(message => message.id));
-    let extra = messages.extra.filter(message => {
+    const extra = messages.extra.filter(message => {
         if (knownIds.has(message.id)) return false;
         const tsMs = toMs(String(message.timestamp));
         if (!includeNewer && tsMs > newestMs) return false;
@@ -209,7 +210,7 @@ function handleChannelSelect(payload: { channelId?: string; }) {
                     // Inject directly into MessageStore so they appear without waiting for fetch
                     try {
                         const Internal: any = (MessageStoreInternal as any);
-                        let cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
+                        const cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
                         if (cache) {
                             let newCache = cache;
                             for (const rec of recs) {

@@ -5,12 +5,16 @@
  */
 
 import { addContextMenuPatch, NavContextMenuPatchCallback, removeContextMenuPatch } from "@api/ContextMenu";
-import { FluxDispatcher, Menu, MessageActions, React, SortedGuildStore, Toasts, UserStore } from "@webpack/common";
+import { updateMessage } from "@api/MessageUpdater";
+import { findStoreLazy } from "@webpack";
+import { FluxDispatcher, Menu, MessageActions, React, Toasts, UserStore } from "@webpack/common";
 
 import { openLogModal } from "../components/LogsModal";
 import { deleteMessageIDB } from "../db";
-import { invalidateMessageCaches, settings } from "../index";
+import { settings } from "../index";
 import { addToXAndRemoveFromOpposite, ListType, removeFromX } from ".";
+
+const SortedGuildStore = findStoreLazy("SortedGuildStore");
 
 const idFunctions = {
     Folder: props =>
@@ -64,10 +68,40 @@ function renderOpenLogs(idType: idKeys, props: any) {
     );
 }
 
+const removeMessageAction = async (props: any) => {
+    try {
+        await deleteMessageIDB(props.message.id);
+        if (props.message.deleted) {
+            FluxDispatcher.dispatch({
+                type: "MESSAGE_DELETE",
+                channelId: props.message.channel_id,
+                id: props.message.id,
+                mlDeleted: true
+            });
+        } else {
+            updateMessage(props.message.channel_id, props.message.id, { editHistory: [] });
+        }
+    } catch (e) {
+        console.error("Failed to remove message", e);
+        Toasts.show({
+            type: Toasts.Type.FAILURE,
+            message: "Failed to remove message. Check console for details.",
+            id: Toasts.genId()
+        });
+    }
+};
+
 export const contextMenuPath: NavContextMenuPatchCallback = (children, props) => {
     if (!props) return;
 
     if (!children.some(child => child?.props?.id === "message-logger")) {
+        if (settings.store.permanentlyRemoveLogByDefault) {
+            const mlRemoveHistory = children.find(c => c?.props?.id === "ml-remove-history");
+            if (mlRemoveHistory) {
+                mlRemoveHistory.props.action = () => removeMessageAction(props);
+            }
+        }
+
         children.push(
             <Menu.MenuSeparator />,
             <Menu.MenuItem
@@ -102,33 +136,7 @@ export const contextMenuPath: NavContextMenuPatchCallback = (children, props) =>
                                 id="remove-message"
                                 label={props.message?.deleted ? "Remove Message (Permanent)" : "Remove Message History (Permanent)"}
                                 color="danger"
-                                action={() =>
-                                    deleteMessageIDB(props.message.id)
-                                        .then(() => {
-                                            invalidateMessageCaches(props.message.channel_id, props.message.id);
-                                            if (props.message.deleted) {
-                                                FluxDispatcher.dispatch({
-                                                    type: "MESSAGE_DELETE",
-                                                    channelId: props.message.channel_id,
-                                                    id: props.message.id,
-                                                    mlDeleted: true
-                                                });
-                                            } else {
-                                                props.message.editHistory = [];
-                                                FluxDispatcher.dispatch({
-                                                    type: "MESSAGE_UPDATE",
-                                                    message: {
-                                                        id: props.message.id,
-                                                        channel_id: props.message.channel_id
-                                                    }
-                                                });
-                                            }
-                                        }).catch(() => Toasts.show({
-                                            type: Toasts.Type.FAILURE,
-                                            message: "Failed to remove message",
-                                            id: Toasts.genId()
-                                        }))
-                                }
+                                action={() => removeMessageAction(props)}
                             />
                         </>
                     )

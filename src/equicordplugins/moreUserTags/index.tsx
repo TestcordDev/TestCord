@@ -72,7 +72,7 @@ export default definePlugin({
             all: true,
             predicate: () => settings.store.noAppsAllowed,
             replacement: {
-                match: /(#{intl::APP_TAG::hash}":\[").*?("\])/,
+                match: /(#{intl::APP_TAG::hash}":\[").{0,30}("\])/,
                 replace: "$1BOT$2",
                 noWarn: true,
             }

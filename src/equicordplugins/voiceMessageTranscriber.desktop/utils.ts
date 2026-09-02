@@ -291,7 +291,9 @@ export class TranscriptionWorker {
         this.onPartial = onPartial;
 
         const blob = new Blob([workerCode], { type: "text/javascript" });
-        this.worker = new Worker(URL.createObjectURL(blob), { type: "module" });
+        const objectUrl = URL.createObjectURL(blob);
+        this.worker = new Worker(objectUrl, { type: "module" });
+        URL.revokeObjectURL(objectUrl);
         this.worker.onmessage = this.handleMessage.bind(this);
     }
 

@@ -16,15 +16,39 @@ import { Heading } from "@components/Heading";
 import ircColors from "@plugins/ircColors";
 import mentionAvatars from "@plugins/mentionAvatars";
 import { Devs, EquicordDevs } from "@utils/constants";
+import { getCurrentChannel, getCurrentGuild } from "@utils/discord";
 import { classNameFactory } from "@utils/index";
 import definePlugin, { OptionType } from "@utils/types";
 import { GuildMember, Message, RenderModalProps, User } from "@vencord/discord-types";
 import { findByCodeLazy, findByPropsLazy, findComponentByCodeLazy } from "@webpack";
-import { AccessibilityStore, ChannelStore, GuildMemberStore, GuildStore, Menu, MessageStore, Modal, openModal, RelationshipStore, StreamerModeStore, TextInput, useEffect, useMemo, UserStore, useState } from "@webpack/common";
+import { AccessibilityStore, ChannelStore, GuildMemberStore, GuildStore, Menu, MessageStore, Modal, openModal, RelationshipStore, StreamerModeStore, TextInput, useEffect, useMemo, UsernameUtils, UserStore, useState } from "@webpack/common";
 import { JSX } from "react";
 
 const SMYNC = classNameFactory();
 const wrapEmojis = findByCodeLazy("lastIndex;return");
+
+interface SearchUserResult {
+    text: string;
+    user: User;
+}
+
+interface UserAutocompleteResult {
+    record: User;
+}
+
+interface UserAutocompleteUtils {
+    queryUsers(options: {
+        query: string;
+        users: User[];
+        limit: number;
+    }): UserAutocompleteResult[];
+}
+
+const AutocompleteUtils: UserAutocompleteUtils = findByPropsLazy(
+    "queryUsers",
+    "queryGuildUsers",
+    "queryChannelUsers"
+);
 
 interface DisplayNameStyles {
     colors: number[];
@@ -345,6 +369,16 @@ function getProcessedNames(
     return { username, display, nick, friend, custom };
 }
 
+interface SearchAutocompleteProps {
+    currentToken?: {
+        getFullMatch(): string | undefined;
+    } | null;
+    maxResults?: number;
+    searchContext: {
+        guildId: string;
+    };
+}
+
 interface mentionProps {
     userId: string;
     channelId?: string;
@@ -365,7 +399,7 @@ interface messageProps {
 
 interface memberListProfileReactionProps {
     user: User | null | undefined;
-    type: "typingIndicator" | "membersList" | "profilesPopout" | "profilesTooltip" | "reactionsTooltip" | "reactionsPopout" | "voiceChannel";
+    type: "typingIndicator" | "membersList" | "profilesPopout" | "profilesTooltip" | "reactionsTooltip" | "reactionsPopout" | "voiceChannel" | "searchAutocomplete" | "searchAutocompleteDropdown";
     guildId?: string;
     tags?: any;
     isHovered?: boolean;
@@ -379,6 +413,63 @@ interface activeNowNameProps {
 
 type colorStringsType = { primaryColor: string | null, secondaryColor: string | null, tertiaryColor: string | null; } | null | undefined;
 
+function wrapFilterResults(options: { id: string, label: string; }[]) {
+    return options.map(item => {
+        const name = getTypingMemberListProfilesReactionsVoiceNameText({ user: UserStore.getUser(item.id), guildId: getCurrentGuild()?.id, type: "searchAutocompleteDropdown" });
+        item.label = name ?? item.label;
+        return item;
+    });
+}
+
+function addCustomNameResults(
+    results: SearchUserResult[],
+    { currentToken, maxResults = 10, searchContext }: SearchAutocompleteProps
+) {
+    const query = currentToken?.getFullMatch()?.trim();
+    if (!query) return results;
+
+    const candidates = new Map(
+        results.map(({ user }) => [user.id, user])
+    );
+
+    let hasCustomCandidates = false;
+
+    for (const userId in customNicknames) {
+        if (!matchableCustomName(userId)) continue;
+        if (!GuildMemberStore.getMember(searchContext.guildId, userId)) continue;
+
+        const user = UserStore.getUser(userId);
+        if (!user || user.isNonUserBot()) continue;
+
+        candidates.set(userId, user);
+        hasCustomCandidates = true;
+    }
+
+    if (!hasCustomCandidates) return results;
+
+    const ranked = AutocompleteUtils.queryUsers({
+        query,
+        users: [...candidates.values()],
+        limit: maxResults
+    });
+
+    const rerankedResults: SearchUserResult[] = [];
+
+    for (const { record: user } of ranked) {
+        const text = UsernameUtils.getUserTag(user);
+        if (text != null) rerankedResults.push({ text, user });
+    }
+
+    const rerankedIds = new Set(
+        rerankedResults.map(({ user }) => user.id)
+    );
+
+    return [
+        ...rerankedResults,
+        ...results.filter(({ user }) => !rerankedIds.has(user.id))
+    ].slice(0, maxResults);
+}
+
 function getTypingMemberListProfilesReactionsVoiceName(
     props: memberListProfileReactionProps,
     forceHookless = false,
@@ -389,10 +480,7 @@ function getTypingMemberListProfilesReactionsVoiceName(
     const guildId = props.guildId || props.tags?.props?.displayProfile?.guildId || null;
     const member = guildId && user ? GuildMemberStore.getMember(guildId, user.id) : null;
     const author = user && member ? { ...user, ...member } : user || member || null;
-    // The text extractor produces a plain string and is invoked inside other components'
-    // render expressions (often within a .map), where renderUsername has no stable component
-    // identity. It must never call hooks, so force hookless for any text-only resolution.
-    const shouldHookless = forceHookless || ["typingIndicator", "reactionsTooltip", "profilesTooltip"].includes(type);
+    const shouldHookless = forceHookless || ["typingIndicator", "reactionsTooltip", "profilesTooltip", "searchAutocompleteDropdown"].includes(type);
     return renderUsername(author, null, null, type, "", shouldHookless, !!guildId, undefined, undefined, props.isHovered);
 }
 
@@ -402,6 +490,12 @@ function getTypingMemberListProfilesReactionsVoiceNameText(props: memberListProf
 
 function getTypingMemberListProfilesReactionsVoiceNameElement(props: memberListProfileReactionProps): JSX.Element | null {
     return getTypingMemberListProfilesReactionsVoiceName(props)[1];
+}
+
+function matchableCustomName(userId: string) {
+    const custom = customNicknames[userId];
+    if (!custom || (settings.store.customNameOnlyInDirectMessages && getCurrentChannel()?.guild_id)) return "";
+    return custom.toLocaleLowerCase();
 }
 
 function getActiveNowNameElement({ user, guildId, isHovered }: activeNowNameProps): JSX.Element | string | null {
@@ -593,7 +687,7 @@ function renderUsername(
     author: User | GuildMember | null,
     channelId: string | null,
     messageId: string | null,
-    type: "messages" | "replies" | "typingIndicator" | "mentions" | "membersList" | "profilesPopout" | "profilesTooltip" | "reactionsTooltip" | "reactionsPopout" | "voiceChannel",
+    type: "messages" | "replies" | "typingIndicator" | "mentions" | "membersList" | "profilesPopout" | "profilesTooltip" | "reactionsTooltip" | "reactionsPopout" | "voiceChannel" | "searchAutocomplete" | "searchAutocompleteDropdown",
     mentionSymbol: string,
     hookless: boolean,
     inGuild: boolean,
@@ -606,14 +700,15 @@ function renderUsername(
     const isMention = type === "mentions";
     const isTyping = type === "typingIndicator";
     const isMember = type === "membersList";
+    const isAutocomplete = ["searchAutocomplete", "searchAutocompleteDropdown"].includes(type);
     const isProfile = type === "profilesPopout";
     const isReactionsPopout = type === "reactionsPopout";
     const isReactionsTooltip = type === "reactionsTooltip";
     const isReaction = isReactionsTooltip || isReactionsPopout;
     const isVoice = type === "voiceChannel";
 
-    const config = hookless ? settings.store : settings.use(["messages", "replies", "mentions", "typingIndicator", "memberList", "styleDirectMessagesList", "styleDirectMessagesMessages", "styleFriendsList", "styleActiveNow", "profilePopout", "reactions", "friendNameOnlyInDirectMessages", "customNameOnlyInDirectMessages", "discriminators", "hideDefaultAtSign", "truncateAllNamesWithStreamerMode", "removeDuplicates", "ignoreEffects", "ignoreFonts", "animateEffects", "alwaysAnimateEffects", "gradientGlow", "includedNames", "customNameColor", "friendNameColor", "nicknameColor", "displayNameColor", "usernameColor", "nameSeparator", "triggerNameRerender"]);
-    const { messages, replies, mentions, typingIndicator, memberList, styleDirectMessagesMessages, profilePopout, reactions, friendNameOnlyInDirectMessages, customNameOnlyInDirectMessages, discriminators, truncateAllNamesWithStreamerMode, removeDuplicates, ignoreEffects, ignoreFonts, animateEffects, includedNames, customNameColor, friendNameColor, nicknameColor, displayNameColor, usernameColor, nameSeparator, triggerNameRerender } = config;
+    const config = hookless ? settings.store : settings.use(["messages", "replies", "mentions", "typingIndicator", "memberList", "searchAutocomplete", "styleDirectMessagesList", "styleDirectMessagesMessages", "styleFriendsList", "styleActiveNow", "profilePopout", "reactions", "friendNameOnlyInDirectMessages", "customNameOnlyInDirectMessages", "discriminators", "hideDefaultAtSign", "truncateAllNamesWithStreamerMode", "removeDuplicates", "ignoreEffects", "ignoreFonts", "animateEffects", "alwaysAnimateEffects", "gradientGlow", "includedNames", "customNameColor", "friendNameColor", "nicknameColor", "displayNameColor", "usernameColor", "nameSeparator", "triggerNameRerender"]);
+    const { messages, replies, mentions, typingIndicator, memberList, searchAutocomplete, styleDirectMessagesMessages, profilePopout, reactions, friendNameOnlyInDirectMessages, customNameOnlyInDirectMessages, discriminators, truncateAllNamesWithStreamerMode, removeDuplicates, ignoreEffects, ignoreFonts, animateEffects, includedNames, customNameColor, friendNameColor, nicknameColor, displayNameColor, usernameColor, nameSeparator, triggerNameRerender } = config;
 
     const channel = channelId ? ChannelStore.getChannel(channelId) || null : null;
     const message = channelId && messageId ? MessageStore.getMessage(channelId, messageId) : null;
@@ -766,6 +861,8 @@ function renderUsername(
     } else if (isTyping && !typingIndicator) {
         return [null, null, null];
     } else if (isMember && !memberList) {
+        return [null, null, null];
+    } else if (isAutocomplete && !searchAutocomplete) {
         return [null, null, null];
     } else if (isProfile && !profilePopout) {
         return [null, null, null];
@@ -1133,29 +1230,10 @@ const settings = definePluginSettings({
         default: true,
         description: "Display the first available name listed in your custom name format in the members list, DMs list, friends list, and Active Now.",
     },
-    styleDirectMessagesList: {
+    searchAutocomplete: {
         type: OptionType.BOOLEAN,
         default: true,
-        displayName: "Style Direct Messages List",
-        description: "Show display name effects on unselected entries without requiring hover. Selected and hovered entries are still styled when disabled.",
-    },
-    styleDirectMessagesMessages: {
-        type: OptionType.BOOLEAN,
-        default: true,
-        displayName: "Style Direct Messages Messages",
-        description: "Show display name effects on message authors without requiring hover. Hovered names are still styled when disabled.",
-    },
-    styleFriendsList: {
-        type: OptionType.BOOLEAN,
-        default: true,
-        displayName: "Style Friends List",
-        description: "Show display name effects without requiring hover. Hovered entries are still styled when disabled.",
-    },
-    styleActiveNow: {
-        type: OptionType.BOOLEAN,
-        default: true,
-        displayName: "Style Active Now",
-        description: "Show display name effects without requiring hover. Hovered entries are still styled when disabled.",
+        description: "Display the first available name listed in your custom name format in mention and search autocomplete.",
     },
     profilePopout: {
         type: OptionType.BOOLEAN,
@@ -1171,6 +1249,26 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         default: true,
         description: "Display the first available name listed in your custom name format in reaction tooltips, and the full name in reaction popouts.",
+    },
+    styleDirectMessagesList: {
+        type: OptionType.BOOLEAN,
+        default: true,
+        description: "Show display name effects on unselected entries without requiring hover. Selected and hovered entries are still styled when disabled.",
+    },
+    styleDirectMessagesMessages: {
+        type: OptionType.BOOLEAN,
+        default: true,
+        description: "Show display name effects on message authors without requiring hover. Hovered names are still styled when disabled.",
+    },
+    styleFriendsList: {
+        type: OptionType.BOOLEAN,
+        default: true,
+        description: "Show display name effects without requiring hover. Hovered entries are still styled when disabled.",
+    },
+    styleActiveNow: {
+        type: OptionType.BOOLEAN,
+        default: true,
+        description: "Show display name effects without requiring hover. Hovered entries are still styled when disabled.",
     },
     discriminators: {
         type: OptionType.BOOLEAN,
@@ -1280,7 +1378,7 @@ const settings = definePluginSettings({
 export default definePlugin({
     name: "ShowMeYourName",
     description: "Display any permutation of custom nicknames, friend nicknames, server nicknames, display names, and usernames in chat.",
-    authors: [EquicordDevs.Etorix, Devs.Rini, Devs.TheKodeToad, Devs.sadan, Devs.prism],
+    authors: [EquicordDevs.Etorix, Devs.Rini, Devs.TheKodeToad, Devs.sadan, Devs.prism, EquicordDevs.penguinwokrs],
     tags: ["Appearance", "Customisation"],
     searchTerms: ["SMYN", "Nicknames", "Custom Nicknames"],
     isModified: true,
@@ -1391,7 +1489,7 @@ export default definePlugin({
             ],
         },
         {
-            find: '("NowPlayingHeader")',
+            find: ".NOW_PLAYING_ITEM_GAME_SECTION)",
             group: true,
             replacement: [
                 {
@@ -1531,6 +1629,56 @@ export default definePlugin({
                 match: /(serverDeaf:\i,)nick:(\i)/,
                 replace: "$1showMeYourNameVoice:$2=$self.getTypingMemberListProfilesReactionsVoiceNameText({user:arguments[0].user,guildId:arguments[0].channel.guild_id,type:\"voiceChannel\"})??(arguments[0].nick)"
             }
+        },
+        {
+            // Allow custom names to be considered in the mention auto complete.
+            find: "queryGuildMentionResults(",
+            group: true,
+            replacement: [
+                {
+                    // Rank a leading match the same as friend names, global names, nicknames, and usernames.
+                    match: /\i&&\i===(\i)\.id\|\|\i\.substring\(0,(\i)\.length\)===\2\|\|/,
+                    replace: "$&$self.matchableCustomName($1.id).startsWith($2)||"
+                },
+                {
+                    // Rank a looser match using the same matcher and tie breaker as friend names, global names, nicknames, and usernames.
+                    match: /\i<50&&\((\i)\(\)\((\i),\i\).{0,120}?(?=\)&&\(\i\.push\(\{type:\i\.\i\.\i,record:(\i),)/,
+                    replace: "$&||$1()($2,$self.matchableCustomName($3.id))"
+                }
+            ]
+        },
+        {
+            // Allow custom names to be considered in the search autocomplete by
+            // inserting custom names into the results and re-sorting them by rank.
+            find: '="SearchAutocompleteStore"',
+            replacement: {
+                match: /(?<=&&!\i\)\i=)\i\(\i\)\.results/,
+                replace: "$self.addCustomNameResults($&,arguments[0])"
+            }
+        },
+        {
+            // Replace names in the search filter suggestions.
+            find: "hasOtherSearchFiltersVisible",
+            replacement: {
+                match: /(\i)=(\i\.\i\.useName\((\i),\i,(\i)\))/,
+                replace: '$1=$self.getTypingMemberListProfilesReactionsVoiceNameText({user:$4,guildId:$3,type:"searchAutocomplete"})??$2'
+            }
+        },
+        {
+            // Replace names in the popup modal search filter suggestions.
+            find: "selectionMode:\"single\",formatOption",
+            replacement: {
+                match: /(?<=trailing:\i}},options:)(\i)(,placeholder)/,
+                replace: "$self.wrapFilterResults($1)$2"
+            }
+        },
+        {
+            // Replace names in the mention autocomplete.
+            find: "#{intl::COMMANDS_OPTIONAL_COUNT}",
+            replacement: {
+                match: /(\i\?\?\i\?\?\i\.\i\.getName\(\i\))/,
+                replace: '$self.getTypingMemberListProfilesReactionsVoiceNameText({user:this.props.user,guildId:this.props.guildId,type:"searchAutocomplete"})??$1'
+            }
         }
     ],
 
@@ -1586,5 +1734,8 @@ export default definePlugin({
     getNativeGradientGlowOverflowClassName,
     shouldAnimateNameEffects,
     getTypingMemberListProfilesReactionsVoiceNameText,
-    getTypingMemberListProfilesReactionsVoiceNameElement
+    getTypingMemberListProfilesReactionsVoiceNameElement,
+    matchableCustomName,
+    addCustomNameResults,
+    wrapFilterResults,
 });

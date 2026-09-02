@@ -8,9 +8,10 @@ import { definePluginSettings, Settings } from "@api/Settings";
 import { Button } from "@components/Button";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { OptionType } from "@utils/types";
-import { Alerts, useState } from "@webpack/common";
+import { useState } from "@webpack/common";
 
-import { clearLogs, Native } from ".";
+import { Native } from ".";
+import { ClearLogsButton } from "./components/ClearLogsButton";
 import { ImageCacheDir, LogsDir } from "./components/FolderSelectInput";
 import { openLogModal } from "./components/LogsModal";
 import { blockedExts } from "./list";
@@ -300,22 +301,7 @@ export const settings = definePluginSettings({
     clearLogs: {
         type: OptionType.COMPONENT,
         description: "Clear Logs",
-        component: () =>
-            <Button
-                variant="dangerPrimary"
-                onClick={() => Alerts.show({
-                    title: "Clear Logs",
-                    body: "Are you sure you want to clear all logs?",
-                    confirmVariant: "critical-primary",
-                    confirmText: "Clear",
-                    cancelText: "Cancel",
-                    onConfirm: async () => {
-                        await clearLogs();
-                    },
-                })}
-            >
-                Clear Logs
-            </Button>
+        component: () => <ClearLogsButton />
     },
 
 });

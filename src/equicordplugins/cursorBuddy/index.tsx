@@ -196,11 +196,11 @@ const settings = definePluginSettings({
     }
 });
 
-let buddyCleanup: (() => void) | null = null;
+let destroyBuddy: (() => void) | undefined;
 
 function unload() {
-    buddyCleanup?.();
-    buddyCleanup = null;
+    destroyBuddy?.();
+    destroyBuddy = undefined;
     document.getElementById("oneko")?.remove();
     document.getElementById("fathorse")?.remove();
 }
@@ -211,7 +211,7 @@ function load() {
 
     switch (settings.store.buddy) {
         case "oneko": {
-            buddyCleanup = oneko({
+            destroyBuddy = oneko({
                 speed: settings.store.speed,
                 fps: settings.store.fps,
                 image: ONEKO_IMAGE,
@@ -222,7 +222,7 @@ function load() {
             break;
         }
         case "fathorse": {
-            buddyCleanup = fathorse({
+            destroyBuddy = fathorse({
                 speed: settings.store.speed,
                 fps: settings.store.fps,
                 size: settings.store.size,

@@ -133,7 +133,12 @@ export async function sendSticker({ channelId, sticker, ctrlKey, shiftKey, ffmpe
         const res = await corsFetch(sticker.image);
         if (!res.ok) throw new Error("Failed to fetch sticker image");
         const blobUrl = URL.createObjectURL(await res.blob());
-        const processed = await resizeImage(blobUrl);
+        let processed: Blob;
+        try {
+            processed = await resizeImage(blobUrl);
+        } finally {
+            URL.revokeObjectURL(blobUrl);
+        }
         const filename = sticker.filename ?? new URL(sticker.image).pathname.split("/").pop()!;
         const mimeType = getMimeFromExtension(filename.split(".").pop());
 

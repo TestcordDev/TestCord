@@ -6,13 +6,12 @@
 
 import { showNotification } from "@api/Notifications";
 import { Logger } from "@utils/Logger";
-import { sleep } from "@utils/misc";
 import type { Message, MessageJSON } from "@vencord/discord-types";
 import { ChannelStore, FluxDispatcher, lodash, MessageStore, SelectedChannelStore, UserGuildSettingsStore, UserStore } from "@webpack/common";
 
-import { applyBatch, clearLogs, clearUnprotectedLogs, getAllLogs, getDatabase, getLogById, runMaintenance, setLogHidden } from "./db";
+import { applyBatch, clearLogs, clearUnprotectedLogs, getDatabase, getLogById, runMaintenance, setLogHidden } from "./db";
 import { invalidateMessageClassCache } from "./render";
-import { ensureAttachmentSaved, ensureDefaultDir } from "./saveImage";
+import { ensureAttachmentSaved } from "./saveImage";
 import { settings } from "./settings";
 import { LoggedMessage, LogRecord, LogStatus, MessageCreatePayload, MessageDeleteBulkPayload, MessageDeletePayload, MessageUpdatePayload } from "./types";
 
