@@ -129,6 +129,17 @@ export function invalidateLoggedCaches(id: string) {
     mergedEditTimestamps.delete(id);
 }
 
+export function clearEditHistoryCache(id: string) {
+    recentMessages.delete(id);
+    channelMessageCache.delete(id);
+    invalidateLoggedCaches(id);
+    // Also clear any pending edit record so it doesn't get re-queued
+    const pending = pendingWrites.get(id);
+    if (pending && pending.status === LogStatus.EDITED) {
+        pendingWrites.delete(id);
+    }
+}
+
 // ── Anti-antilog: block the nonce dedupe exploit so deletions stay visible ──
 
 function stripAntilogNonce(payload: MessageCreatePayload) {

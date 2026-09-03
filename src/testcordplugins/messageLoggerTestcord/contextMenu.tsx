@@ -9,7 +9,7 @@ import { isPluginEnabled } from "@api/PluginManager";
 import { FluxDispatcher, Menu, MessageActions, React, SortedGuildStore, Toasts, UserStore } from "@webpack/common";
 
 import { silentDeleteMessage } from "./antilog";
-import { invalidateLoggedCaches, localRemoveLoggedMessage } from "./engine";
+import { clearEditHistoryCache, invalidateLoggedCaches, localRemoveLoggedMessage } from "./engine";
 import { addToOppositeAndList, isInList, type ListType,removeFromList } from "./lists";
 import { openLogs } from "./LogsModal";
 import { osintScanLoggedMessages } from "./osintBridge";
@@ -132,7 +132,7 @@ function buildLoggedMessageItems(props: MenuProps) {
                 label="Delete Message History (Temporary)"
                 color="danger"
                 action={async () => {
-                    invalidateLoggedCaches(message.id);
+                    clearEditHistoryCache(message.id);
                     (message as any).editHistory = [];
                     FluxDispatcher.dispatch({
                         type: "MESSAGE_UPDATE",

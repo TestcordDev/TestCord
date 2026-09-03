@@ -22,6 +22,7 @@ import { getChannelLogsAfter, getChannelLogsLimit, getDatabase } from "./db";
 import {
     cacheChannelMessages,
     clearAllLogs,
+    clearChannelCache,
     getCachedLoggedMessage,
     handleMessageCreate,
     handleMessageDelete,
@@ -66,28 +67,49 @@ async function processMessageFetch(response: FetchMessagesResponse) {
         if (response.body.length === 0) {
             const channelId = SelectedChannelStore.getChannelId();
             if (!channelId) return;
-            const records = await getChannelLogsLimit(channelId, 30);
-            if (records.length) response.body.extra = records.map(record => record.message);
+            // Empty channel (all deleted) – load all deleted for this channel
+            let records = channelAllDeleted.get(channelId);
+            if (!records) {
+                records = await getChannelLogsAfter(channelId, new Date(0).toISOString());
+                if (records.length) {
+                    channelAllDeleted.set(channelId, records);
+                    try { cacheChannelMessages(records); } catch { }
+                }
+            }
+            if (records?.length) response.body.extra = records.map(record => record.message);
             return;
         }
         const oldestMessage = response.body[response.body.length - 1];
         if (!oldestMessage?.channel_id || oldestMessage?.timestamp == null) return;
         const channelId = oldestMessage.channel_id as string;
-        // Normalize timestamp to string; getChannelLogsAfter handles Date conversion and hidden filtering
+        // Ensure all deleted for this channel are cached (load all on first fetch)
+        let allDeleted = channelAllDeleted.get(channelId);
+        if (!allDeleted) {
+            allDeleted = await getChannelLogsAfter(channelId, new Date(0).toISOString());
+            if (allDeleted.length) {
+                channelAllDeleted.set(channelId, allDeleted);
+                try { cacheChannelMessages(allDeleted); } catch { }
+            }
+        }
         const ts = typeof oldestMessage.timestamp === "string" ? oldestMessage.timestamp : new Date(String(oldestMessage.timestamp)).toISOString();
         const windowRecords = await getChannelLogsAfter(channelId, ts);
-        // Always keep at least 30 newest deleted for this channel visible (prevents unload when a new message arrives in an empty channel)
-        const newestRecords = await getChannelLogsLimit(channelId, 30);
+        // Merge allDeleted (for initial) + window, dedup
         const seen = new Set<string>();
         const extra: typeof windowRecords = [];
-        for (const r of newestRecords) {
+        const source = allDeleted ?? [];
+        for (const r of source) {
             if (!seen.has(r.message_id)) { seen.add(r.message_id); extra.push(r); }
         }
         for (const r of windowRecords) {
             if (!seen.has(r.message_id)) { seen.add(r.message_id); extra.push(r); }
         }
-        if (extra.length) response.body.extra = extra.map(record => record.message);
-        else response.body.extra = windowRecords.map(record => record.message);
+        if (extra.length) {
+            // Cache any new window records that weren't in allDeleted (shouldn't happen, but just in case)
+            try { cacheChannelMessages(extra); } catch { }
+            response.body.extra = extra.map(record => record.message);
+        } else {
+            response.body.extra = windowRecords.map(record => record.message);
+        }
     } catch (error) {
         log.error("Failed to restore persistent logs into the channel.", error);
     }
@@ -119,101 +141,73 @@ function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage
         return true;
     });
 
-    // Always keep at least 30 newest deleted visible even if outside window (prevents unload on new message)
-    // If extra was filtered to empty but we have initial 30 cached, ensure they stay
-    if (extra.length === 0 && messages.extra.length > 0) {
-        // Check if we filtered out initial 30 due to window, but we still want to keep them when at bottom
-        const isAtBottom = !payload.hasMoreAfter && !payload.isBefore;
-        if (isAtBottom) {
-            const channelId = (messages[0] as any)?.channel_id ?? (messages.extra[0] as any)?.channel_id;
-            const cached = channelId ? channelInitialDeleted.get(channelId) : undefined;
-            if (cached) {
-                for (const rec of cached) {
-                    const msg = rec.message;
-                    if (!knownIds.has(msg.id)) {
-                        const tsMs = toMs(String(msg.timestamp));
-                        // At bottom, allow deleted that are older than oldest but within 30 newest
-                        if (tsMs <= newestMs) extra.push(msg);
-                    }
-                }
-            }
-        }
-    }
-
     messages.push(...extra);
     messages.sort((left, right) => toMs(String(right.timestamp)) - toMs(String(left.timestamp)));
-
-    // Unload older beyond 30 when back at bottom for optimization (keep only 30 newest deleted + live)
-    const isAtBottom = !payload.hasMoreAfter && !payload.isBefore && !payload.hasMoreBefore;
-    // Actually hasMoreBefore may be true when at bottom but not scrolled, so check isBefore/isAfter
-    const trulyAtBottom = !payload.isBefore && !payload.isAfter && !payload.hasMoreAfter;
-    if (trulyAtBottom && messages.length > 80) {
-        // Keep 30 newest deleted + all live (non-deleted)
-        const deleted = messages.filter(m => (m as any).deleted);
-        const live = messages.filter(m => !(m as any).deleted);
-        if (deleted.length > 30) {
-            const toKeep = new Set(deleted.slice(0, 30).map(m => m.id));
-            const filtered = messages.filter(m => !(m as any).deleted || toKeep.has(m.id));
-            messages.length = 0;
-            for (const m of filtered) messages.push(m);
-            // Also trim channel cache for that channel to 30
-            const chanId = (messages[0] as any)?.channel_id;
-            if (chanId && channelInitialDeleted.has(chanId)) {
-                const all = channelInitialDeleted.get(chanId)!;
-                if (all.length > 30) {
-                    const keep = all.slice(0, 30);
-                    channelInitialDeleted.set(chanId, keep);
-                    const last = keep[keep.length - 1];
-                    if (last) channelDeletedCursor.set(chanId, { ts: String(last.message.timestamp), id: last.message_id });
-                }
-            }
-        }
-    }
-
     return messages;
 }
 
 const lastChannelFetch = new Map<string, number>();
-const channelDeletedCursor = new Map<string, { ts: string; id: string }>();
-const channelInitialDeleted = new Map<string, LogRecord[]>();
-const initialDeletedInjected = new Set<string>();
+const channelAllDeleted = new Map<string, LogRecord[]>();
+const channelCacheTimeout = new Map<string, ReturnType<typeof setTimeout>>();
 let lastSelectedChannelId: string | null = null;
+
+function scheduleChannelUnload(channelId: string) {
+    const existing = channelCacheTimeout.get(channelId);
+    if (existing) clearTimeout(existing);
+    const timeout = setTimeout(() => {
+        // Unload if not currently viewing this channel
+        if (SelectedChannelStore.getChannelId() !== channelId) {
+            channelAllDeleted.delete(channelId);
+            channelCacheTimeout.delete(channelId);
+            clearChannelCache(channelId);
+            // Also remove from MessageStore cache to free memory
+            try {
+                const Internal: any = (MessageStoreInternal as any);
+                const cache = Internal.get?.(channelId);
+                if (cache) {
+                    const all = channelAllDeleted.get(channelId) ?? [];
+                    // Actually we already deleted, so nothing to do – just clear the cache entries for deleted messages
+                    // For now, just clear the channel's MessageStore cache for deleted messages that are not live
+                    // We keep live messages, but remove deleted that were injected
+                    // Simplest: do nothing, let MessageStore keep them until next fetch overwrites
+                }
+            } catch { }
+        }
+    }, 60_000);
+    channelCacheTimeout.set(channelId, timeout);
+}
 
 function handleChannelSelect(payload: { channelId?: string; }) {
     const channelId = payload?.channelId;
     if (channelId == null) return;
-    // Track last selected for unload optimization
-    if (lastSelectedChannelId && lastSelectedChannelId !== channelId) {
-        // When leaving a channel, keep only 30 newest for that channel in cache (unload older paged)
-        const prev = lastSelectedChannelId;
-        const prevRecords = channelInitialDeleted.get(prev);
-        if (prevRecords && prevRecords.length > 30) {
-            const keep = prevRecords.slice(0, 30);
-            channelInitialDeleted.set(prev, keep);
-            const last = keep[keep.length - 1];
-            if (last) channelDeletedCursor.set(prev, { ts: String(last.message.timestamp), id: last.message_id });
-        }
+    const prev = lastSelectedChannelId;
+    if (prev && prev !== channelId) {
+        // Schedule unload for previous channel after 1min if not revisited
+        scheduleChannelUnload(prev);
     }
     lastSelectedChannelId = channelId;
+    // Cancel unload for this channel if we came back quickly
+    const existingTimeout = channelCacheTimeout.get(channelId);
+    if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        channelCacheTimeout.delete(channelId);
+    }
 
-    // Prime per-channel cache with 30 newest on enter (lazy, not bulk)
-    void (async () => {
-        try {
-            if (!initialDeletedInjected.has(channelId)) {
-                const recs = await getChannelLogsLimit(channelId, 30);
-                if (recs.length) {
-                    try { cacheChannelMessages(recs); } catch { }
-                    const last = recs[recs.length - 1];
-                    if (last) channelDeletedCursor.set(channelId, { ts: String(last.message.timestamp), id: last.message_id });
-                    initialDeletedInjected.add(channelId);
-                    channelInitialDeleted.set(channelId, recs);
-                    // Inject directly into MessageStore so they appear without waiting for fetch
+    // Load all deleted for this channel (if not already cached)
+    if (!channelAllDeleted.has(channelId)) {
+        void (async () => {
+            try {
+                const records = await getChannelLogsAfter(channelId, new Date(0).toISOString());
+                if (records.length) {
+                    channelAllDeleted.set(channelId, records);
+                    try { cacheChannelMessages(records); } catch { }
+                    // Inject into MessageStore for immediate display
                     try {
                         const Internal: any = (MessageStoreInternal as any);
-                        const cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
+                        let cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
                         if (cache) {
                             let newCache = cache;
-                            for (const rec of recs) {
+                            for (const rec of records) {
                                 if (newCache.has?.(rec.message_id)) continue;
                                 const msgClass = (renderApi as any)?.messageJsonToMessageClass?.({ message: rec.message });
                                 if (!msgClass) continue;
@@ -225,9 +219,9 @@ function handleChannelSelect(payload: { channelId?: string; }) {
                         }
                     } catch { }
                 }
-            }
-        } catch { }
-    })();
+            } catch { }
+        })();
+    }
 
     // Only refetch if we have fetched this channel before and have logged messages for it.
     const collection = (MessageStore as any).getMessages?.(channelId);
@@ -235,9 +229,8 @@ function handleChannelSelect(payload: { channelId?: string; }) {
     const now = Date.now();
     const last = lastChannelFetch.get(channelId) ?? 0;
     if (now - last < 30_000) return;
-    // Check if we have any non-hidden deleted/ghost logs for this channel to avoid spamming empty fetches
-    void getChannelLogsLimit(channelId, 1).then(recs => {
-        if (recs.length === 0) return;
+    void getChannelLogsAfter(channelId, new Date(0).toISOString()).then(records => {
+        if (records.length === 0) return;
         lastChannelFetch.set(channelId, now);
         try {
             (MessageActions as any).fetchMessages?.({ channelId, limit: 50 });
@@ -604,14 +597,6 @@ export default definePlugin({
             }
 
             const latestMessage = oldGetMessage!.call(MessageStore, channelId, messageId) as any;
-
-            // Honor manual clears of edit history on the store message
-            if (latestMessage && Array.isArray(latestMessage.editHistory) && latestMessage.editHistory.length === 0 && (loggedMessage.editHistory?.length ?? 0) > 0) {
-                renderApi.invalidateMessageClassCache(messageId);
-                mergedMessageCache.delete(messageId);
-                mergedEditTimestamps.delete(messageId);
-                return latestMessage;
-            }
 
             // Reuse the cached merged object while the message hasn't been edited again
             const cachedMerge = mergedMessageCache.get(messageId);
