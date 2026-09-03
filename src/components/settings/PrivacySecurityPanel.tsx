@@ -9,9 +9,7 @@ import "./PrivacySecurityPanel.css";
 import { useSettings } from "@api/Settings";
 import { Card } from "@components/Card";
 import { SettingsTab } from "@components/settings/tabs/BaseTab";
-import { Modal, openModal, React, TabBar, useEffect, useRef, useState } from "@webpack/common";
-
-import { ExperimentalPanel } from "./ExperimentalPanel";
+import { Modal, openModal, React, useEffect, useRef, useState } from "@webpack/common";
 
 export interface CoveredSurfacesState {
     scienceAnalytics: boolean;
@@ -155,6 +153,9 @@ function getEventTitle(log: BlockedLog): string {
     if (log.category === "tracking") return "Discord analytics event blocked";
     if (log.category === "sentry") return "Sentry telemetry drop intercepted";
     if (log.category === "metrics") return "Metrics reporting disabled";
+    if (log.category === "tracing") return "Discord API tracing blocked";
+    if (log.category === "rtcDiagnostics") return "RTC call diagnostics blocked";
+    if (log.category === "remoteLogging") return "Remote debug log upload blocked";
     if (log.category === "tokens") return "Authorization header stripped";
     if (log.category === "linkTracker") return `Tracking params stripped from ${log.domain}`;
     return `${log.action} on ${log.domain}`;
@@ -190,6 +191,9 @@ function getCategoryLabel(category: string): string {
         case "tracking": return "Tracking";
         case "sentry": return "Sentry";
         case "metrics": return "Metrics";
+        case "tracing": return "Tracing";
+        case "rtcDiagnostics": return "RTC Diag";
+        case "remoteLogging": return "Remote Logs";
         case "webhooks": return "Webhook";
         case "remoteCode": return "Remote Code";
         case "linkTracker": return "Link Tracker";
@@ -203,6 +207,9 @@ function getShieldForCategory(category: string): string {
         case "tracking": return "Science / Analytics";
         case "sentry": return "Sentry";
         case "metrics": return "Metrics";
+        case "tracing": return "Tracing (Experimental)";
+        case "rtcDiagnostics": return "RTC Diagnostics (Experimental)";
+        case "remoteLogging": return "Remote Logs (Experimental)";
         case "webhooks": return "Webhook Guard";
         case "remoteCode": return "Remote Code Guard";
         case "linkTracker": return "Link Tracker Stripper";
@@ -216,6 +223,9 @@ function getCategoryExplanation(category: string): string {
         case "tracking": return "A Discord analytics/science telemetry request was matched and cancelled before it was sent.";
         case "sentry": return "An outbound Sentry error-reporting request was intercepted and dropped.";
         case "metrics": return "A metrics-reporting request was matched and cancelled.";
+        case "tracing": return "A Discord first-party API tracing request (/tracing) was matched and cancelled before it was sent.";
+        case "rtcDiagnostics": return "A Discord call-quality diagnostic report (/rtc/... or /voice/...) was matched and cancelled without affecting voice or video.";
+        case "remoteLogging": return "A Discord remote debug-log collection upload was intercepted and blocked. Local logs remain unaffected.";
         case "webhooks": return "A Discord webhook request was observed and logged for monitoring.";
         case "remoteCode": return "A request that could fetch and execute remote code was blocked.";
         case "linkTracker": return "An outbound request carried known tracking/attribution parameters (utm_*, fbclid, etc.). The guard removed them and redirected to the cleaned URL. Only allowlisted tracking params are stripped; load-bearing params are preserved. This reduces referral-chain leakage but does not stop tracking by the destination site itself.";
@@ -255,7 +265,6 @@ function formatAbsoluteTime(ts: number): string {
 }
 
 export function PrivacySecurityPanel() {
-    const [activeView, setActiveView] = useState<"overview" | "experimental">("overview");
     const [loading, setLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [searchQuery, setSearchQuery] = useState("");
@@ -699,6 +708,43 @@ export function PrivacySecurityPanel() {
         }
     };
 
+    const CORE_SHIELD_KEYS: Array<keyof CoveredSurfacesState> = [
+        "scienceAnalytics", "metrics", "sentry", "tokenGuard",
+        "webhookGuard", "remoteCodeGuard", "fetchXhrBeacon", "linkTrackerGuard"
+    ];
+    const EXPERIMENTAL_SHIELD_KEYS: Array<keyof CoveredSurfacesState> = [
+        "experimentalTracing", "experimentalRtcDiagnostics", "experimentalRemoteLogging"
+    ];
+
+    const coreShieldsOffCount = CORE_SHIELD_KEYS.filter(k => !shields[k]).length;
+    const experimentalEnabledCount = EXPERIMENTAL_SHIELD_KEYS.filter(k => shields[k]).length;
+
+    const EXPERIMENTS: Array<{
+        key: "experimentalTracing" | "experimentalRtcDiagnostics" | "experimentalRemoteLogging";
+        title: string;
+        description: string;
+        test: string;
+    }> = [
+        {
+            key: "experimentalTracing",
+            title: "Block Tracing",
+            description: "Blocks Discord first-party API requests ending in /tracing.",
+            test: "Switch channels, type a message and open context menus."
+        },
+        {
+            key: "experimentalRtcDiagnostics",
+            title: "Block RTC Diagnostics",
+            description: "Blocks call-quality diagnostic reports without blocking voice signaling or media.",
+            test: "Join voice, change input and output devices, then start and stop a stream."
+        },
+        {
+            key: "experimentalRemoteLogging",
+            title: "Block Remote Logs",
+            description: "Blocks Discord remote debug-log uploads. Local logs remain available.",
+            test: "Restart Discord, check for updates and confirm crash recovery still works."
+        }
+    ];
+
     const surfaceTags: Array<{ key: keyof CoveredSurfacesState; title: string; }> = [
         { key: "scienceAnalytics", title: "Science" },
         { key: "scienceAnalytics", title: "Analytics" },
@@ -708,14 +754,16 @@ export function PrivacySecurityPanel() {
         { key: "webhookGuard", title: "Webhook Guard" },
         { key: "remoteCodeGuard", title: "Remote Code Guard" },
         { key: "fetchXhrBeacon", title: "Fetch / XHR / Beacon" },
-        { key: "linkTrackerGuard", title: "Link Tracker Stripper" }
+        { key: "linkTrackerGuard", title: "Link Tracker Stripper" },
+        { key: "experimentalTracing", title: "Tracing (Exp)" },
+        { key: "experimentalRtcDiagnostics", title: "RTC Diag (Exp)" },
+        { key: "experimentalRemoteLogging", title: "Remote Logs (Exp)" }
     ];
 
     const currentProviderObj = dnsProviders[selectedDns] || { doh: "https://cloudflare-dns.com/dns-query", fallback: "1.1.1.1" };
     const totalMappedRoutes = outboundRoutes.length;
     const totalBlockedRoutes = outboundRoutes.reduce((acc, r) => acc + r.blockedCount, 0);
     const dnsFullyActive = dnsActive && dnsEngineEnabled;
-    const shieldsOffCount = Object.values(shields).filter(v => !v).length;
 
     // Search & Pagination calculations for Recent Blocks
     const filteredLogs = logs.filter(log => {
@@ -1139,17 +1187,7 @@ export function PrivacySecurityPanel() {
     return (
         <SettingsTab>
             <div className="ps-command-center">
-                <TabBar
-                    className="vc-settings-tab-bar"
-                    type="top"
-                    selectedItem={activeView}
-                    onItemSelect={setActiveView}
-                >
-                    <TabBar.Item className="vc-settings-tab-bar-item" id="overview">Overview</TabBar.Item>
-                    <TabBar.Item className="vc-settings-tab-bar-item" id="experimental">Experimental</TabBar.Item>
-                </TabBar>
-                {activeView === "experimental" ? <ExperimentalPanel /> : <>
-                    {ipcError && (
+                {ipcError && (
                         <div className="ps-alert-banner" role="alert">
                             <div className="ps-alert-banner-head">
                                 <div className="ps-alert-banner-title">
@@ -1276,6 +1314,62 @@ export function PrivacySecurityPanel() {
                         </div>
                     </div>
                 </Card>
+
+                {/* TOP SECTION: EXPERIMENTAL PRIVACY PROTECTIONS */}
+                <Card className="ps-card">
+                    <div className="ps-card-header">
+                        <div className="ps-header-title-group">
+                            <h2 className="ps-card-title-text">Experimental Privacy Protections</h2>
+                            <span className={`ps-badge ${experimentalEnabledCount > 0 ? "ps-badge-blue" : "ps-badge-muted"}`}>
+                                <span className="ps-badge-dot"></span>
+                                {experimentalEnabledCount} enabled
+                            </span>
+                        </div>
+                    </div>
+                    <div className="ps-card-subtitle">
+                        Advanced telemetry shields. Enable one at a time and test Discord after each change.
+                    </div>
+                    <div className="ps-privacy-toggles">
+                        {EXPERIMENTS.map(experiment => (
+                            <div className="ps-toggle-row" key={experiment.key}>
+                                <div className="ps-toggle-info">
+                                    <span className="ps-toggle-title">{experiment.title}</span>
+                                    <span className="ps-toggle-desc">{experiment.description}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    className={`ps-toggle-switch${shields[experiment.key] ? " ps-toggle-switch-on" : ""}`}
+                                    onClick={() => toggleShield(experiment.key)}
+                                    aria-label={`Toggle ${experiment.title}`}
+                                >
+                                    <span className="ps-toggle-knob" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="ps-sub-section" style={{ marginTop: "4px" }}>
+                        <h4 className="ps-sub-title">TESTING CHECKLIST</h4>
+                        <div className="ps-outbound-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
+                            {EXPERIMENTS.map(experiment => (
+                                <div className="ps-route-card" key={experiment.key}>
+                                    <div className="ps-route-header">
+                                        <span className="ps-route-title">{experiment.title}</span>
+                                        <span className={`ps-badge ps-badge-xs ${shields[experiment.key] ? "ps-badge-blue" : "ps-badge-muted"}`}>
+                                            {shields[experiment.key] ? "Active" : "Disabled"}
+                                        </span>
+                                    </div>
+                                    <div className="ps-route-desc">{experiment.test}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="ps-footer-note">
+                        If something breaks, disable the experiment and restart Discord. Local debug logs and core voice signaling remain unaffected.
+                    </div>
+                </Card>
+
                 <div className="ps-main-layout">
                     {/* LEFT COLUMN: SECURE CONNECT & OUTBOUND SURFACES */}
                     <div className="ps-main-left-col">
@@ -1392,9 +1486,9 @@ export function PrivacySecurityPanel() {
                             <div className="ps-card-header">
                                 <div className="ps-header-title-group">
                                     <h2 className="ps-card-title-text">Outbound Surfaces</h2>
-                                    <span className={`ps-badge ${shieldsOffCount === 0 ? "ps-badge-green" : "ps-badge-muted"}`}>
+                                    <span className={`ps-badge ${coreShieldsOffCount === 0 ? "ps-badge-green" : "ps-badge-muted"}`}>
                                         <span className="ps-badge-dot"></span>
-                                        {shieldsOffCount === 0 ? "Core guards active" : `${shieldsOffCount} shield${shieldsOffCount === 1 ? "" : "s"} off`}
+                                        {coreShieldsOffCount === 0 ? "Core guards active" : `${coreShieldsOffCount} shield${coreShieldsOffCount === 1 ? "" : "s"} off`}
                                     </span>
                                 </div>
                                 <div className="ps-routes-summary">
@@ -1456,9 +1550,9 @@ export function PrivacySecurityPanel() {
                             <div className="ps-card-header">
                                 <div className="ps-header-title-group">
                                     <h2 className="ps-card-title-text">Privacy Suite Protection</h2>
-                                    <span className={`ps-badge ${shieldsOffCount === 0 ? "ps-badge-green" : "ps-badge-muted"}`}>
+                                    <span className={`ps-badge ${coreShieldsOffCount === 0 ? "ps-badge-green" : "ps-badge-muted"}`}>
                                         <span className="ps-badge-dot"></span>
-                                        {shieldsOffCount === 0 ? "Core Active" : "Partial"}
+                                        {coreShieldsOffCount === 0 ? "Core Active" : "Partial"}
                                     </span>
                                 </div>
                             </div>
@@ -1680,7 +1774,6 @@ export function PrivacySecurityPanel() {
                         </Card>
                     </div>
                 </div>
-                </>}
             </div>
         </SettingsTab>
     );
