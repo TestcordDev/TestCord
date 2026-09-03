@@ -98,7 +98,7 @@ const NO_MODULE_DISCLAIMER =
     "was targeting. The plugin likely needs an update from its author. " +
     "If the plugin still works, this entry can be safely dismissed.";
 
-type FilterKey = "all" | "conflict" | "noModule" | "noEffect" | "errored" | "undoingGroup" | "runtime";
+type FilterKey = "all" | "conflict" | "noModule" | "noEffect" | "errored" | "undoingGroup" | "codeChanged" | "runtime";
 
 const FILTER_OPTIONS: Array<{ value: FilterKey; label: string; key: string; }> = [
     { key: "all", value: "all", label: "All issues" },
@@ -107,6 +107,7 @@ const FILTER_OPTIONS: Array<{ value: FilterKey; label: string; key: string; }> =
     { key: "noEffect", value: "noEffect", label: "No effect" },
     { key: "errored", value: "errored", label: "Errored patches" },
     { key: "undoingGroup", value: "undoingGroup", label: "Rolled back groups" },
+    { key: "codeChanged", value: "codeChanged", label: "Source code changes" },
     { key: "runtime", value: "runtime", label: "Runtime errors" }
 ];
 
@@ -129,6 +130,8 @@ const STABILITY_RANK: Record<StabilityScore["badge"], number> = {
 const DB_KEY_BANNER_DISMISSED = "PluginHealthBannerDismissed_v1";
 const DB_KEY_NOTICE_DISMISSED = "PluginHealthNoticeDismissed_v1";
 const DB_KEY_CONFLICTS_HIDDEN = "PluginHealthConflictsHidden_v1";
+const DB_KEY_IGNORE_SOURCE_HEALTH = "PluginHealth_IgnoreSourceHealth_v1";
+const DB_KEY_IGNORE_SOURCE_HISTORY = "PluginHealth_IgnoreSourceHistory_v1";
 
 function filterEntry(entry: PluginHealthEntry, filter: FilterKey): boolean {
     if (filter === "all") return true;
@@ -136,16 +139,20 @@ function filterEntry(entry: PluginHealthEntry, filter: FilterKey): boolean {
     return entry.patchFailures.some(f => f.kind === filter);
 }
 
-// Dismiss only what the user can currently see: honours the active filter and
-// the conflicts-hidden preference instead of wiping the plugin's whole entry.
-function dismissEntry(name: string, filter: FilterKey, conflictsHidden: boolean) {
+// Dismiss only what the user can currently see: honours the active filter,
+// conflicts-hidden preference, and source-changes-hidden preference.
+function dismissEntry(name: string, filter: FilterKey, conflictsHidden: boolean, ignoreSourceHealth = false) {
     if (filter === "runtime") {
         PluginHealth.clearRuntimeErrors(name);
         return;
     }
     if (filter === "all") {
-        if (conflictsHidden) {
-            PluginHealth.clearPatchFailures(name, f => f.kind !== "conflict");
+        if (conflictsHidden || ignoreSourceHealth) {
+            PluginHealth.clearPatchFailures(name, f => {
+                if (conflictsHidden && f.kind === "conflict") return false;
+                if (ignoreSourceHealth && f.kind === "codeChanged") return false;
+                return true;
+            });
             PluginHealth.clearRuntimeErrors(name);
         } else {
             PluginHealth.clear(name);
@@ -348,7 +355,7 @@ function impactBadgeClass(score: number): string {
     return "low";
 }
 
-function buildExportReport(excludeConflicts = false): string {
+function buildExportReport(excludeConflicts = false, excludeSourceChanges = false): string {
     const all = PluginHealth.getAll();
     const currentSession = PluginHealth.getCurrentSession();
     const history = PluginHealth.getHistory();
@@ -373,12 +380,15 @@ function buildExportReport(excludeConflicts = false): string {
         safeMode: PluginHealth.isSafeModeEnabled(),
         quarantinedPlugins: PluginHealth.getQuarantinedPlugins(),
         conflictsExcluded: excludeConflicts,
+        sourceChangesExcluded: excludeSourceChanges,
         plugins: {} as Record<string, unknown>
     };
     for (const [name, entry] of all) {
-        const patchFailures = excludeConflicts
-            ? entry.patchFailures.filter(f => f.kind !== "conflict")
-            : entry.patchFailures;
+        const patchFailures = entry.patchFailures.filter(f => {
+            if (excludeConflicts && f.kind === "conflict") return false;
+            if (excludeSourceChanges && f.kind === "codeChanged") return false;
+            return true;
+        });
         (report.plugins as Record<string, unknown>)[name] = {
             ...entry,
             patchFailures,
@@ -388,9 +398,9 @@ function buildExportReport(excludeConflicts = false): string {
     return JSON.stringify(redactDiagnosticValue(report), null, 2);
 }
 
-function downloadExport() {
+function downloadExport(excludeConflicts = false, excludeSourceChanges = false) {
     try {
-        const json = buildExportReport();
+        const json = buildExportReport(excludeConflicts, excludeSourceChanges);
         const blob = new Blob([json], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -575,7 +585,7 @@ function ExpandableError({ text, max = 400 }: { text: string; max?: number; }) {
     );
 }
 
-function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHidden, onLocate }: { name: string; entry: PluginHealthEntry; expanded: boolean; onToggle: () => void; filter: FilterKey; conflictsHidden: boolean; onLocate?: (find: string) => void; }) {
+function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHidden, ignoreSourceHealth, onLocate }: { name: string; entry: PluginHealthEntry; expanded: boolean; onToggle: () => void; filter: FilterKey; conflictsHidden: boolean; ignoreSourceHealth: boolean; onLocate?: (find: string) => void; }) {
     const plugin = Plugins[name];
     const showPatchFailures = filter !== "runtime";
     const showRuntimeErrors = filter === "all" || filter === "runtime";
@@ -590,7 +600,7 @@ function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHi
 
     const openReport = () => {
         try {
-            const body = generateGitHubIssueBody({ pluginName: name, excludeConflicts: conflictsHidden });
+            const body = generateGitHubIssueBody({ pluginName: name, excludeConflicts: conflictsHidden, excludeSourceChanges: ignoreSourceHealth });
             const url = buildIssueUrl(`[${name}] Bug report`, body, ["bug"]);
             VencordNative.native.openExternal(url);
         } catch (e) {
@@ -606,7 +616,7 @@ function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHi
 
     const copyReport = async () => {
         try {
-            const body = generateGitHubIssueBody({ pluginName: name, excludeConflicts: conflictsHidden });
+            const body = generateGitHubIssueBody({ pluginName: name, excludeConflicts: conflictsHidden, excludeSourceChanges: ignoreSourceHealth });
             await navigator.clipboard.writeText(body);
             Toasts.show({
                 id: Toasts.genId(),
@@ -627,7 +637,7 @@ function PluginHealthCard({ name, entry, expanded, onToggle, filter, conflictsHi
 
     const handleDismiss = () => {
         setDismissing(true);
-        setTimeout(() => dismissEntry(name, filter, conflictsHidden), 250);
+        setTimeout(() => dismissEntry(name, filter, conflictsHidden, ignoreSourceHealth), 250);
     };
 
     return (
@@ -777,9 +787,14 @@ function HealthSummaryBar({ total, broken }: { total: number; broken: number; })
     );
 }
 
-function SessionRow({ session, isCurrent }: { session: SessionRecord; isCurrent: boolean; }) {
+function SessionRow({ session, isCurrent, ignoreSourceHistory }: { session: SessionRecord; isCurrent: boolean; ignoreSourceHistory: boolean; }) {
     const brokenNames = Object.entries(session.plugins || {})
-        .filter(([, counts]) => counts.patchFailures > 0 || counts.runtimeErrors > 0)
+        .filter(([, counts]) => {
+            const hasPatch = counts.patchFailures > 0;
+            const hasRuntime = counts.runtimeErrors > 0;
+            const hasSource = !ignoreSourceHistory && (counts.sourceChanges ?? 0) > 0;
+            return hasPatch || hasRuntime || hasSource;
+        })
         .map(([name]) => name)
         .sort();
     const [expanded, setExpanded] = useState(false);
@@ -814,7 +829,8 @@ function SessionRow({ session, isCurrent }: { session: SessionRecord; isCurrent:
                         const counts = session.plugins[name];
                         const detail = [
                             counts.patchFailures > 0 && `${counts.patchFailures} patch`,
-                            counts.runtimeErrors > 0 && `${counts.runtimeErrors} runtime`
+                            counts.runtimeErrors > 0 && `${counts.runtimeErrors} runtime`,
+                            !ignoreSourceHistory && (counts.sourceChanges ?? 0) > 0 && `${counts.sourceChanges} source change${counts.sourceChanges === 1 ? "" : "s"}`
                         ].filter(Boolean).join(", ");
                         return (
                             <span key={name} className="vc-plugin-health-session-broken-item" title={detail}>
@@ -828,7 +844,7 @@ function SessionRow({ session, isCurrent }: { session: SessionRecord; isCurrent:
     );
 }
 
-function SessionHistoryPanel() {
+function SessionHistoryPanel({ ignoreSourceHistory }: { ignoreSourceHistory: boolean; }) {
     const [tick, setTick] = useState(0);
     useEffect(() => {
         void PluginHealth.loadHistory();
@@ -874,6 +890,7 @@ function SessionHistoryPanel() {
                         key={session.id}
                         session={session}
                         isCurrent={session.id === PluginHealth.getCurrentSession().id}
+                        ignoreSourceHistory={ignoreSourceHistory}
                     />
                 ))}
             </ul>
@@ -1136,6 +1153,8 @@ function HealthTab() {
     const [bannerDismissed, setBannerDismissed] = useState(true);
     const [noticeDismissed, setNoticeDismissed] = useState(true);
     const [conflictsHidden, setConflictsHidden] = useState(true);
+    const [ignoreSourceHealth, setIgnoreSourceHealth] = useState(PluginHealth.isIgnoreSourceHealth());
+    const [ignoreSourceHistory, setIgnoreSourceHistory] = useState(PluginHealth.isIgnoreSourceHistory());
 
     // Diagnostic & profiling states
     const [diagSearchQuery, setDiagSearchQuery] = useState("");
@@ -1229,6 +1248,10 @@ function HealthTab() {
         void DataStore.get<boolean>(DB_KEY_CONFLICTS_HIDDEN).then(v => {
             setConflictsHidden(v ?? true);
         });
+        void PluginHealth.loadSourceSettings().then(settings => {
+            setIgnoreSourceHealth(settings.ignoreHealth);
+            setIgnoreSourceHistory(settings.ignoreHistory);
+        });
 
         return () => {
             unsubHealth();
@@ -1240,14 +1263,18 @@ function HealthTab() {
         const out: Array<[string, PluginHealthEntry]> = [];
         for (const [name, rawEntry] of PluginHealth.getAll()) {
             if (Plugins[name]?.required) continue;
-            const patchFailures = conflictsHidden
-                ? rawEntry.patchFailures.filter(f => f.kind !== "conflict")
-                : rawEntry.patchFailures;
+            let { patchFailures } = rawEntry;
+            if (conflictsHidden) {
+                patchFailures = patchFailures.filter(f => f.kind !== "conflict");
+            }
+            if (ignoreSourceHealth) {
+                patchFailures = patchFailures.filter(f => f.kind !== "codeChanged");
+            }
             if (!patchFailures.length && !rawEntry.runtimeErrors.length) continue;
             out.push([name, { patchFailures, runtimeErrors: rawEntry.runtimeErrors }]);
         }
         return out;
-    }, [tick, conflictsHidden]);
+    }, [tick, conflictsHidden, ignoreSourceHealth]);
 
     const filtered = useMemo(() => {
         let result = snapshot;
@@ -1342,7 +1369,7 @@ function HealthTab() {
         ));
         const rating = score >= 90 ? "healthy" : score >= 70 ? "fair" : score >= 40 ? "degraded" : "poor";
         return { score, rating, unstable, flaky, quarantined, crashesDay, unstablePlugins, flakyPlugins };
-    }, [tick, enabledSet]);
+    }, [tick, enabledSet, ignoreSourceHistory]);
 
     // Startup timeline from PluginManager's per-plugin start measurements.
     const startTimings = useMemo(() => {
@@ -1360,7 +1387,10 @@ function HealthTab() {
     const sinceHealthy = useMemo(() => {
         const past = PluginHealth.getHistory();
         const lastHealthy = [...past].reverse().find(s =>
-            !Object.values(s.plugins ?? {}).some(c => (c.patchFailures + c.runtimeErrors) > 0)
+            !Object.values(s.plugins ?? {}).some(c => {
+                const source = !ignoreSourceHistory ? (c.sourceChanges ?? 0) : 0;
+                return (c.patchFailures + c.runtimeErrors + source) > 0;
+            })
         );
         if (!lastHealthy) return null;
         // Session records include required (always-on) plugins; the current
@@ -1378,7 +1408,7 @@ function HealthTab() {
             .sort();
         if (!added.length && !removed.length && !newlyBroken.length) return null;
         return { at: lastHealthy.startedAt, added, removed, newlyBroken };
-    }, [tick, enabledSet, snapshot]);
+    }, [tick, enabledSet, snapshot, ignoreSourceHistory]);
 
     const handleBannerToggle = (show: boolean) => {
         setBannerDismissed(!show);
@@ -1393,6 +1423,16 @@ function HealthTab() {
     const handleConflictsToggle = (show: boolean) => {
         setConflictsHidden(!show);
         void DataStore.set(DB_KEY_CONFLICTS_HIDDEN, !show);
+    };
+
+    const handleIgnoreSourceHealthToggle = async (ignore: boolean) => {
+        setIgnoreSourceHealth(ignore);
+        await PluginHealth.setIgnoreSourceHealth(ignore);
+    };
+
+    const handleIgnoreSourceHistoryToggle = async (ignore: boolean) => {
+        setIgnoreSourceHistory(ignore);
+        await PluginHealth.setIgnoreSourceHistory(ignore);
     };
 
     const handleToggleSafeMode = async (enabled: boolean) => {
@@ -1420,7 +1460,7 @@ function HealthTab() {
 
     const dismissAll = () => {
         for (const [name] of filtered) {
-            dismissEntry(name, filter, conflictsHidden);
+            dismissEntry(name, filter, conflictsHidden, ignoreSourceHealth);
         }
         Toasts.show({
             id: Toasts.genId(),
@@ -1432,7 +1472,7 @@ function HealthTab() {
 
     const copyAllReports = async () => {
         try {
-            const json = buildExportReport(conflictsHidden);
+            const json = buildExportReport(conflictsHidden, ignoreSourceHealth);
             await navigator.clipboard.writeText(json);
             Toasts.show({
                 id: Toasts.genId(),
@@ -1622,6 +1662,40 @@ function HealthTab() {
                         <div className="vc-plugin-health-notice-settings-divider" />
                         <div className="vc-plugin-health-notice-settings-row">
                             <div>
+                                <HeadingSecondary>Ignore source changes in health</HeadingSecondary>
+                                <Paragraph color="text-subtle">
+                                    Do not count Discord module source code changes as patch failures or mark plugins as broken in current session health.
+                                </Paragraph>
+                            </div>
+                            <label className="vc-plugin-health-toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={ignoreSourceHealth}
+                                    onChange={e => handleIgnoreSourceHealthToggle(e.target.checked)}
+                                />
+                                <span className="vc-plugin-health-toggle-slider" />
+                            </label>
+                        </div>
+                        <div className="vc-plugin-health-notice-settings-divider" />
+                        <div className="vc-plugin-health-notice-settings-row">
+                            <div>
+                                <HeadingSecondary>Ignore source changes in past history</HeadingSecondary>
+                                <Paragraph color="text-subtle">
+                                    Do not count Discord module source code changes as broken sessions in past history or penalize plugin stability scores.
+                                </Paragraph>
+                            </div>
+                            <label className="vc-plugin-health-toggle">
+                                <input
+                                    type="checkbox"
+                                    checked={ignoreSourceHistory}
+                                    onChange={e => handleIgnoreSourceHistoryToggle(e.target.checked)}
+                                />
+                                <span className="vc-plugin-health-toggle-slider" />
+                            </label>
+                        </div>
+                        <div className="vc-plugin-health-notice-settings-divider" />
+                        <div className="vc-plugin-health-notice-settings-row">
+                            <div>
                                 <HeadingSecondary>In-tab update banner</HeadingSecondary>
                                 <Paragraph color="text-subtle">
                                     Show the warning banner at the top of this tab when 3+ plugins have missing modules.
@@ -1718,7 +1792,7 @@ function HealthTab() {
                                     <Button
                                         size="small"
                                         variant="secondary"
-                                        onClick={downloadExport}
+                                        onClick={() => downloadExport(conflictsHidden, ignoreSourceHealth)}
                                     >
                                         Export
                                     </Button>
@@ -1748,6 +1822,7 @@ function HealthTab() {
                                         onToggle={() => toggleCard(name)}
                                         filter={filter}
                                         conflictsHidden={conflictsHidden}
+                                        ignoreSourceHealth={ignoreSourceHealth}
                                         onLocate={locateInFinder}
                                     />
                                 ))
@@ -1783,7 +1858,7 @@ function HealthTab() {
                     )}
 
                     <Divider className={Margins.top20 + " " + Margins.bottom16} />
-                    <SessionHistoryPanel />
+                    <SessionHistoryPanel ignoreSourceHistory={ignoreSourceHistory} />
 
                     <Divider className={Margins.top20 + " " + Margins.bottom16} />
                     <CrashRecoveryPanel />
@@ -2208,6 +2283,7 @@ function HealthTab() {
                                 <li><code>errored</code>: Exception thrown during patch execution.</li>
                                 <li><code>undoingGroup</code>: Webpack transaction group rolled back.</li>
                                 <li><code>conflict</code>: Multiple plugins patching the exact same code location.</li>
+                                <li><code>codeChanged</code>: Discord updated the underlying module source code between sessions.</li>
                             </ul>
                         </Card>
 

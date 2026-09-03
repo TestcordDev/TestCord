@@ -104,6 +104,7 @@ export interface SessionRecord {
     plugins: Record<string, {
         patchFailures: number;
         runtimeErrors: number;
+        sourceChanges?: number;
     }>;
 }
 
@@ -145,6 +146,8 @@ const DB_KEY_SAFE_MODE = "TestCord_SafeMode_v1";
 const DB_KEY_QUARANTINE = "TestCord_Quarantine_v1";
 const DB_KEY_CRASH_LOGS = "TestCord_CrashLogs_v1";
 const DB_KEY_PLUGIN_CHANGES = "TestCord_PluginChanges_v1";
+const DB_KEY_IGNORE_SOURCE_HEALTH = "PluginHealth_IgnoreSourceHealth_v1";
+const DB_KEY_IGNORE_SOURCE_HISTORY = "PluginHealth_IgnoreSourceHistory_v1";
 
 let safeModeEnabled = false;
 let safeModeLoaded = false;
@@ -154,6 +157,9 @@ let crashHistory: CrashLogEntry[] = [];
 let crashLogsLoaded = false;
 let pluginStateChanges: PluginStateChangeEntry[] = [];
 let pluginChangesLoaded = false;
+let ignoreSourceHealth = false;
+let ignoreSourceHistory = false;
+let sourceSettingsLoaded = false;
 
 const DB_KEY_HISTORY = "PluginHealthHistory_v1";
 
@@ -202,10 +208,10 @@ function push<T>(list: T[], value: T) {
     if (list.length > MAX_ENTRIES_PER_PLUGIN) list.shift();
 }
 
-function bumpSessionCounter(plugin: string, kind: "patchFailures" | "runtimeErrors") {
+function bumpSessionCounter(plugin: string, kind: "patchFailures" | "runtimeErrors" | "sourceChanges") {
     if (!plugin || plugin === "Unknown source") return;
-    const existing = currentSession.plugins[plugin] ??= { patchFailures: 0, runtimeErrors: 0 };
-    existing[kind]++;
+    const existing = currentSession.plugins[plugin] ??= { patchFailures: 0, runtimeErrors: 0, sourceChanges: 0 };
+    existing[kind] = (existing[kind] ?? 0) + 1;
     currentSession.endedAt = Date.now();
     scheduleFlush();
 }
@@ -220,9 +226,27 @@ function notify() {
     }
 }
 
+async function loadSourceSettings(): Promise<{ ignoreHealth: boolean; ignoreHistory: boolean }> {
+    if (!sourceSettingsLoaded) {
+        try {
+            const [health, hist] = await Promise.all([
+                DataStore.get<boolean>(DB_KEY_IGNORE_SOURCE_HEALTH),
+                DataStore.get<boolean>(DB_KEY_IGNORE_SOURCE_HISTORY)
+            ]);
+            if (typeof health === "boolean") ignoreSourceHealth = health;
+            if (typeof hist === "boolean") ignoreSourceHistory = hist;
+        } catch (err) {
+            console.warn("[PluginHealth] Failed to load source change settings:", err);
+        }
+        sourceSettingsLoaded = true;
+    }
+    return { ignoreHealth: ignoreSourceHealth, ignoreHistory: ignoreSourceHistory };
+}
+
 async function loadHistory() {
     if (historyLoaded) return;
     historyLoaded = true; // set optimistically to avoid re-entrant loads
+    void loadSourceSettings();
 
     try {
         const stored = await DataStore.get<SessionRecord[]>(DB_KEY_HISTORY);
@@ -270,7 +294,7 @@ async function flushNow() {
     }
 }
 
-function computeStability(plugin: string): StabilityScore {
+function computeStability(plugin: string, options?: { excludeSourceChanges?: boolean }): StabilityScore {
     let sessionsSeen = 0;
     let sessionsBroken = 0;
 
@@ -287,8 +311,14 @@ function computeStability(plugin: string): StabilityScore {
         const seen = session.enabledPlugins?.includes(plugin) || counts != null;
         if (!seen) continue;
         sessionsSeen++;
-        if (counts && (counts.patchFailures > 0 || counts.runtimeErrors > 0)) {
-            sessionsBroken++;
+        if (counts) {
+            const excludeSource = options?.excludeSourceChanges ?? ignoreSourceHistory;
+            const hasPatch = counts.patchFailures > 0;
+            const hasRuntime = counts.runtimeErrors > 0;
+            const hasSource = !excludeSource && (counts.sourceChanges ?? 0) > 0;
+            if (hasPatch || hasRuntime || hasSource) {
+                sessionsBroken++;
+            }
         }
     }
 
@@ -356,7 +386,7 @@ export const PluginHealth = {
             error: failure.error ? truncate(failure.error) : undefined,
             at: Date.now()
         });
-        bumpSessionCounter(plugin, "patchFailures");
+        bumpSessionCounter(plugin, failure.kind === "codeChanged" ? "sourceChanges" : "patchFailures");
         notify();
     },
 
@@ -424,16 +454,25 @@ export const PluginHealth = {
     },
 
     /** Whether the given plugin has any recorded issues. */
-    hasIssues(plugin: string): boolean {
+    hasIssues(plugin: string, options?: { excludeSourceChanges?: boolean }): boolean {
         const entry = registry.get(plugin);
-        return !!entry && (entry.patchFailures.length > 0 || entry.runtimeErrors.length > 0);
+        if (!entry) return false;
+        const excludeSource = options?.excludeSourceChanges ?? ignoreSourceHealth;
+        const patchFailures = excludeSource
+            ? entry.patchFailures.filter(f => f.kind !== "codeChanged")
+            : entry.patchFailures;
+        return patchFailures.length > 0 || entry.runtimeErrors.length > 0;
     },
 
     /** Total number of plugins with recorded issues. */
-    totalUnhealthyPlugins(): number {
+    totalUnhealthyPlugins(options?: { excludeSourceChanges?: boolean }): number {
+        const excludeSource = options?.excludeSourceChanges ?? ignoreSourceHealth;
         let count = 0;
         for (const entry of registry.values()) {
-            if (entry.patchFailures.length || entry.runtimeErrors.length) count++;
+            const patchFailures = excludeSource
+                ? entry.patchFailures.filter(f => f.kind !== "codeChanged")
+                : entry.patchFailures;
+            if (patchFailures.length || entry.runtimeErrors.length) count++;
         }
         return count;
     },
@@ -486,8 +525,8 @@ export const PluginHealth = {
      * Compute the stability score for a plugin across the rolling session
      * window (including the current session).
      */
-    getStability(plugin: string): StabilityScore {
-        return computeStability(plugin);
+    getStability(plugin: string, options?: { excludeSourceChanges?: boolean }): StabilityScore {
+        return computeStability(plugin, options);
     },
 
     /** Snapshot of the recorded session history (oldest first). */
@@ -532,6 +571,42 @@ export const PluginHealth = {
 
     setRuntimeHookProvider(provider: ((plugin: string) => RuntimeHookEvidence[]) | null) {
         runtimeHookProvider = provider;
+        notify();
+    },
+
+    // ─── Source Change Settings ─────────────────────────────
+
+    async loadSourceSettings(): Promise<{ ignoreHealth: boolean; ignoreHistory: boolean; }> {
+        return loadSourceSettings();
+    },
+
+    isIgnoreSourceHealth(): boolean {
+        return ignoreSourceHealth;
+    },
+
+    async setIgnoreSourceHealth(ignore: boolean): Promise<void> {
+        ignoreSourceHealth = ignore;
+        sourceSettingsLoaded = true;
+        try {
+            await DataStore.set(DB_KEY_IGNORE_SOURCE_HEALTH, ignore);
+        } catch (err) {
+            console.warn("[PluginHealth] Failed to persist ignoreSourceHealth state:", err);
+        }
+        notify();
+    },
+
+    isIgnoreSourceHistory(): boolean {
+        return ignoreSourceHistory;
+    },
+
+    async setIgnoreSourceHistory(ignore: boolean): Promise<void> {
+        ignoreSourceHistory = ignore;
+        sourceSettingsLoaded = true;
+        try {
+            await DataStore.set(DB_KEY_IGNORE_SOURCE_HISTORY, ignore);
+        } catch (err) {
+            console.warn("[PluginHealth] Failed to persist ignoreSourceHistory state:", err);
+        }
         notify();
     },
 
