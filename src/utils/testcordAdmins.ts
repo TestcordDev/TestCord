@@ -7,6 +7,7 @@
 export interface TestcordAdmin {
     name: string;
     id: bigint;
+    github?: string;
 }
 
 export const TestcordAdmins = Object.freeze({
@@ -48,7 +49,8 @@ export const TestcordAdmins = Object.freeze({
     },
     Aviv: {
         name: "Aviv",
-        id: 752564054593110016n
+        id: 752564054593110016n,
+        github: "ZimbaZombie"
     }
 } satisfies Record<string, TestcordAdmin>);
 
@@ -130,7 +132,8 @@ export const TestcordDevelopers = Object.freeze({
     },
     Aviv: {
         name: "Aviv",
-        id: 752564054593110016n
+        id: 752564054593110016n,
+        github: "ZimbaZombie"
     },
     reid: {
         name: "reid",
