@@ -129,10 +129,15 @@ export function invalidateLoggedCaches(id: string) {
     mergedEditTimestamps.delete(id);
 }
 
+const tempClearedEditIds = new Set<string>();
+export function isEditHistoryTempCleared(id: string) { return tempClearedEditIds.has(id); }
+export function clearTempClearedEdits() { tempClearedEditIds.clear(); }
+
 export function clearEditHistoryCache(id: string) {
     recentMessages.delete(id);
     channelMessageCache.delete(id);
     invalidateLoggedCaches(id);
+    tempClearedEditIds.add(id);
     // Also clear any pending edit record so it doesn't get re-queued
     const pending = pendingWrites.get(id);
     if (pending && pending.status === LogStatus.EDITED) {
