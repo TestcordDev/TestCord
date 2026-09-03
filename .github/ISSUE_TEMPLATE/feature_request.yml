@@ -42,4 +42,6 @@ body:
               - label: I've searched existing issues and this hasn't been suggested before
               - label: This is a **core modification feature**, not a plugin request (those go in Discord)
               - label: This feature would benefit most users, not just a specific use case
+              - label: I understand that if any of the above conditions are not met, this issue will be deleted and I will be banned from creating future issues without further warning
+                required: true
               - label: I am willing to work on this myself

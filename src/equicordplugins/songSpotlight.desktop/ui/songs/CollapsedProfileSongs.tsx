@@ -34,9 +34,10 @@ interface CollapsedProfileSongsProps {
     data?: UserData;
     user: User;
     isSideBar: boolean;
+    isRedesignEnabled?: boolean;
 }
 
-export default function CollapsedProfileSongs({ data, user, isSideBar }: CollapsedProfileSongsProps) {
+export default function CollapsedProfileSongs({ data, user, isSideBar, isRedesignEnabled = false }: CollapsedProfileSongsProps) {
     const [renders, setRenders] = useState(new Map<string, RenderSongInfo>());
     const previews = useMemo(() => data?.slice(0, shownSongs), [data]);
     const userId = user?.id;
@@ -115,7 +116,7 @@ export default function CollapsedProfileSongs({ data, user, isSideBar }: Collaps
         </section>
     );
 
-    return isSideBar
+    return isSideBar && !isRedesignEnabled
         ? <div className={DMSideBarClasses.widgetPreviews}>{songsSection}</div>
         : songsSection;
 }

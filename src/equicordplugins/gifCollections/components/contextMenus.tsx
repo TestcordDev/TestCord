@@ -69,7 +69,7 @@ export const addCollectionContextMenuPatch: NavContextMenuPatchCallback = (child
     group.push(AddToCollectionMenu(gif));
 };
 
-export function RemoveItemContextMenuItems({ type, nameOrId, instance }: { type: "collection" | "gif"; nameOrId: string; instance: { forceUpdate: () => void; }; }) {
+export function RemoveItemContextMenuItems({ type, nameOrId }: { type: "collection" | "gif"; nameOrId: string; }) {
     return (
         <Menu.MenuGroup key={`remove-item-${nameOrId}`}>
             {type === "collection" && (
@@ -132,7 +132,7 @@ export function RemoveItemContextMenuItems({ type, nameOrId, instance }: { type:
                     const doDelete = async () => {
                         if (type === "collection") {
                             deleteCollection(nameOrId);
-                            instance.forceUpdate();
+                            FluxDispatcher.dispatch({ type: "GIF_PICKER_QUERY", query: "" });
                         } else {
                             const collectionName = getItemCollectionNameFromId(nameOrId);
                             await removeFromCollection(nameOrId);

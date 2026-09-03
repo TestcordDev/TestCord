@@ -155,20 +155,23 @@ export default function fathorse(cfg) {
 
     if (config.shake) document.body.style.willChange = "transform";
 
-    const moveListener = ev => {
+    function handleMouseMove(ev) {
         mousePos.x = ev.clientX;
         mousePos.y = ev.clientY;
 
         nextMove = Date.now() + freeroamStart;
         isRoaming = false;
-    };
-    window.addEventListener("mousemove", moveListener);
+    }
+    window.addEventListener("mousemove", handleMouseMove);
 
     const rafId = requestAnimationFrame(lifecycle);
 
-    return function cleanup() {
-        window.removeEventListener("mousemove", moveListener);
-        cancelAnimationFrame(rafId);
-        if (config.shake) document.body.style.transform = "";
+    return function destroy() {
+        window.removeEventListener("mousemove", handleMouseMove);
+        if (config.shake) {
+            document.body.style.willChange = "";
+            document.body.style.transform = "";
+        }
+        fathorse.remove();
     };
 };

@@ -10,8 +10,8 @@ import { Flex } from "@components/Flex";
 import { InfoIcon } from "@components/Icons";
 import { copyWithToast, openUserProfile } from "@utils/discord";
 import { LazyComponent } from "@utils/react";
-import { RenderModalProps, type User } from "@vencord/discord-types";
-import { find, findByCode, findByCodeLazy } from "@webpack";
+import { Channel, RenderModalProps, type User } from "@vencord/discord-types";
+import { find, findByCodeLazy } from "@webpack";
 import { Alerts, ChannelStore, closeAllModals, ContextMenuApi, FluxDispatcher, GuildStore, Menu, Modal, NavigationRouter, openModal, React, TabBar, TextInput, Tooltip, useMemo, useRef, useState } from "@webpack/common";
 
 import { DBMessageRecord, deleteMessageIDB, deleteMessagesBulkIDB } from "../db";
@@ -25,33 +25,14 @@ export interface MessagePreviewProps {
     className: string;
     author: User;
     message: LoggedMessage;
+    channel: Channel,
     compact: boolean;
     isGroupStart: boolean;
     hideSimpleEmbedContent: boolean;
-
-    childrenAccessories: any;
-}
-
-export interface ChildrenAccProops {
-    channelMessageProps: {
-        compact: boolean;
-        channel: any;
-        message: LoggedMessage;
-        groupId: string;
-        id: string;
-        isLastItem: boolean;
-        isHighlight: boolean;
-        renderContentOnly: boolean;
-    };
-    hasSpoilerEmbeds: boolean;
-    isInteracting: boolean;
-    isAutomodBlockedMessage: boolean;
-    showClydeAiEmbeds: boolean;
 }
 
 const PrivateChannelRecord = findByCodeLazy(".is_message_request_timestamp,");
 const MessagePreview = LazyComponent<MessagePreviewProps>(() => find(m => m?.type?.toString().includes("previewLinkTarget:") && !m?.type?.toString().includes("HAS_THREAD")));
-const ChildrenAccessories = LazyComponent<ChildrenAccProops>(() => findByCode("channelMessageProps:{message:"));
 
 export enum LogTabs {
     DELETED = "Deleted",
@@ -414,28 +395,10 @@ function LMessage({ log, isGroupStart, reset, }: LMessageProps) {
                 className={`${cl("modal-msg-preview")} ${message.deleted ? "messagelogger-deleted" : ""}`}
                 author={message.author}
                 message={message}
+                channel={ChannelStore.getChannel(message.channel_id) || new PrivateChannelRecord({ id: "" })}
                 compact={false}
                 isGroupStart={isGroupStart}
                 hideSimpleEmbedContent={false}
-
-                childrenAccessories={
-                    <ChildrenAccessories
-                        channelMessageProps={{
-                            channel: ChannelStore.getChannel(message.channel_id) || new PrivateChannelRecord({ id: "" }),
-                            message,
-                            compact: false,
-                            groupId: "1",
-                            id: message.id,
-                            isLastItem: false,
-                            isHighlight: false,
-                            renderContentOnly: false,
-                        }}
-                        hasSpoilerEmbeds={false}
-                        isInteracting={false}
-                        showClydeAiEmbeds={true}
-                        isAutomodBlockedMessage={false}
-                    />
-                }
             />
             {settings.store.ShowWhereMessageIsFrom && channel?.isDM() && message?.author && (
                 <span className={`${cl("modal-from")} ${message.deleted ? cl("modal-from-deleted") : cl("modal-from-edited")}`}>From {message.author.username}'s DMs</span>

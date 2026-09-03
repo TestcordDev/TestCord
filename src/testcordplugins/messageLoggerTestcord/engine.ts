@@ -6,18 +6,18 @@
 
 import { showNotification } from "@api/Notifications";
 import { Logger } from "@utils/Logger";
-import { sleep } from "@utils/misc";
 import type { Message, MessageJSON } from "@vencord/discord-types";
 import { ChannelStore, FluxDispatcher, lodash, MessageStore, SelectedChannelStore, UserGuildSettingsStore, UserStore } from "@webpack/common";
 
-import { applyBatch, clearLogs, clearUnprotectedLogs, getAllLogs, getDatabase, runMaintenance, setLogHidden } from "./db";
+import { applyBatch, clearLogs, clearUnprotectedLogs, getDatabase, getLogById, runMaintenance, setLogHidden } from "./db";
 import { invalidateMessageClassCache } from "./render";
-import { ensureAttachmentSaved, ensureDefaultDir } from "./saveImage";
+import { ensureAttachmentSaved } from "./saveImage";
 import { settings } from "./settings";
 import { LoggedMessage, LogRecord, LogStatus, MessageCreatePayload, MessageDeleteBulkPayload, MessageDeletePayload, MessageUpdatePayload } from "./types";
 
 const log = new Logger("MessageLoggerTestcord");
 const recentMessages = new Map<string, LoggedMessage>();
+const channelMessageCache = new Map<string, LoggedMessage>();
 const pendingWrites = new Map<string, LogRecord>();
 const pendingDeletes = new Set<string>();
 const STATUS_PRIORITY: Record<LogStatus, number> = {
@@ -45,6 +45,8 @@ function hasToJS(message: Message | MessageJSON): message is Message & MessageWi
 function snapshotMessage(message: Message | MessageJSON): LoggedMessage {
     const raw = hasToJS(message) ? message.toJS() : message;
     const copy = lodash.cloneDeep(raw) as LoggedMessage;
+    const rawAny = raw as any;
+    const copyAny = copy as any;
     const { timestamp } = copy;
 
     copy.timestamp = new Date(String(timestamp)).toISOString();
@@ -52,6 +54,12 @@ function snapshotMessage(message: Message | MessageJSON): LoggedMessage {
     copy.embeds ??= [];
     copy.mentions ??= [];
     copy.editHistory ??= [];
+    // Normalize snake_case vs camelCase fields Discord may emit in different payloads
+    copyAny.webhookId = copyAny.webhookId ?? rawAny.webhook_id ?? copyAny.webhook_id ?? null;
+    copyAny.webhook_id = copyAny.webhookId;
+    copyAny.guildId = copyAny.guildId ?? rawAny.guild_id ?? rawAny.guildId ?? copyAny.guild_id;
+    copyAny.guild_id = copyAny.guildId;
+    copyAny.channel_id = copyAny.channel_id ?? rawAny.channel_id ?? rawAny.channelId ?? copyAny.channelId;
     if (copy.author) {
         delete copy.author.email;
         delete copy.author.phone;
@@ -73,10 +81,41 @@ function remember(message: LoggedMessage) {
 
     recentMessages.delete(message.id);
     recentMessages.set(message.id, message);
+    // Keep channel cache in sync for per-channel DB fallback (supports reduced global cache)
+    if ((message as any).channel_id) {
+        channelMessageCache.set(message.id, message);
+        while (channelMessageCache.size > 5000) {
+            const first = channelMessageCache.keys().next().value;
+            if (!first) break;
+            channelMessageCache.delete(first);
+        }
+    }
 }
 
 export function getCachedLoggedMessage(id: string) {
-    return recentMessages.get(id);
+    return recentMessages.get(id) ?? channelMessageCache.get(id);
+}
+
+export function cacheChannelMessages(records: LogRecord[]) {
+    for (const rec of records) {
+        if (rec.hidden) continue;
+        if (rec.message?.id) channelMessageCache.set(rec.message.id, rec.message);
+    }
+    while (channelMessageCache.size > 5000) {
+        const first = channelMessageCache.keys().next().value;
+        if (!first) break;
+        channelMessageCache.delete(first);
+    }
+}
+
+export function clearChannelCache(channelId?: string) {
+    if (channelId) {
+        for (const [id, msg] of [...channelMessageCache.entries()]) {
+            if ((msg as any).channel_id === channelId) channelMessageCache.delete(id);
+        }
+    } else {
+        channelMessageCache.clear();
+    }
 }
 
 // ── Render caches shared with the MessageStore override in index.tsx ──
@@ -88,6 +127,17 @@ export function invalidateLoggedCaches(id: string) {
     invalidateMessageClassCache(id);
     mergedMessageCache.delete(id);
     mergedEditTimestamps.delete(id);
+}
+
+export function clearEditHistoryCache(id: string) {
+    recentMessages.delete(id);
+    channelMessageCache.delete(id);
+    invalidateLoggedCaches(id);
+    // Also clear any pending edit record so it doesn't get re-queued
+    const pending = pendingWrites.get(id);
+    if (pending && pending.status === LogStatus.EDITED) {
+        pendingWrites.delete(id);
+    }
 }
 
 // ── Anti-antilog: block the nonce dedupe exploit so deletions stay visible ──
@@ -191,6 +241,7 @@ function queueDelete(id: string) {
     pendingWrites.delete(id);
     pendingDeletes.add(id);
     recentMessages.delete(id);
+    channelMessageCache.delete(id);
     scheduleFlush();
 }
 
@@ -260,18 +311,18 @@ export function handleMessageCreate(payload: MessageCreatePayload) {
     snapshot.guildId = payload.guildId;
     snapshot.ourCache = true;
     if (shouldIgnore({
-        channelId: snapshot.channel_id,
+        channelId: (snapshot as any).channel_id ?? (snapshot as any).channelId,
         authorId: snapshot.author?.id,
         guildId: payload.guildId,
         flags: snapshot.flags,
-        bot: snapshot.bot || snapshot.author?.bot,
-        webhookId: snapshot.webhookId
+        bot: (snapshot as any).bot || snapshot.author?.bot,
+        webhookId: (snapshot as any).webhookId ?? (snapshot as any).webhook_id
     })) return;
 
     remember(snapshot);
 }
 
-export function handleMessageUpdate(payload: MessageUpdatePayload) {
+export async function handleMessageUpdate(payload: MessageUpdatePayload) {
     if (!active || !settings.store.saveEdits) return;
 
     // Allow embed/attachment-only edits — content can be null for those
@@ -280,8 +331,23 @@ export function handleMessageUpdate(payload: MessageUpdatePayload) {
     const hasAttachments = (payload.message as any).attachments != null;
     if (!hasContent && !hasEmbeds && !hasAttachments) return;
 
-    const storedMessage = MessageStore.getMessage(payload.message.channel_id, payload.message.id);
-    const previous = recentMessages.get(payload.message.id) ?? (storedMessage ? snapshotMessage(storedMessage) : undefined);
+    let previous: LoggedMessage | undefined = recentMessages.get(payload.message.id) ?? channelMessageCache.get(payload.message.id);
+    if (!previous) {
+        const storedMessage = MessageStore.getMessage(payload.message.channel_id, payload.message.id);
+        if (storedMessage) {
+            previous = snapshotMessage(storedMessage);
+        } else {
+            // DB fallback for edits to old messages not in memory (cache reduced to 500, or after restart, or bot/webhook history)
+            try {
+                const rec = await getLogById(payload.message.id);
+                if (rec?.message) previous = rec.message as LoggedMessage;
+                if (!previous) {
+                    const pending = pendingWrites.get(payload.message.id);
+                    if (pending?.message) previous = pending.message;
+                }
+            } catch { }
+        }
+    }
     if (!previous) return;
 
     const newContent = hasContent ? payload.message.content : previous.content;
@@ -291,12 +357,12 @@ export function handleMessageUpdate(payload: MessageUpdatePayload) {
 
     if (!contentChanged && !embedsChanged && !attachmentsChanged) {
         if (previous.editHistory?.length && !shouldIgnore({
-            channelId: previous.channel_id,
+            channelId: (previous as any).channel_id ?? (previous as any).channelId,
             authorId: previous.author?.id,
-            guildId: payload.guildId ?? previous.guildId,
+            guildId: payload.guildId ?? (previous as any).guildId ?? (previous as any).guild_id,
             flags: previous.flags,
-            bot: previous.bot || previous.author?.bot,
-            webhookId: previous.webhookId
+            bot: (previous as any).bot || previous.author?.bot,
+            webhookId: (previous as any).webhookId ?? (previous as any).webhook_id
         })) {
             remember(previous);
             queueRecord(previous, LogStatus.EDITED);
@@ -305,11 +371,20 @@ export function handleMessageUpdate(payload: MessageUpdatePayload) {
     }
 
     const message = lodash.cloneDeep(previous);
-    Object.assign(message, payload.message);
-    // Preserve embeds/attachments from payload when present, otherwise keep previous
-    if (hasEmbeds) (message as any).embeds = (payload.message as any).embeds;
-    if (hasAttachments) (message as any).attachments = (payload.message as any).attachments;
-    if (hasContent) (message as any).content = payload.message.content;
+    const payloadAny = payload.message as any;
+    // Assign payload fields but don't clobber content/embeds/attachments when payload didn't include them
+    for (const [k, v] of Object.entries(payloadAny)) {
+        if (k === "content" && !hasContent) continue;
+        if (k === "embeds" && !hasEmbeds) continue;
+        if (k === "attachments" && !hasAttachments) continue;
+        if (v !== undefined) (message as any)[k] = v;
+    }
+    if (hasEmbeds) (message as any).embeds = payloadAny.embeds;
+    if (hasAttachments) (message as any).attachments = payloadAny.attachments;
+    if (hasContent) (message as any).content = payloadAny.content;
+    else (message as any).content = previous.content;
+    if (!hasEmbeds) (message as any).embeds = previous.embeds;
+    if (!hasAttachments) (message as any).attachments = previous.attachments;
     message.guildId = payload.guildId ?? previous.guildId;
     message.editHistory = [
         ...(previous.editHistory ?? []),
@@ -325,21 +400,45 @@ export function handleMessageUpdate(payload: MessageUpdatePayload) {
     remember(message);
     invalidateLoggedCaches(message.id);
     if (!shouldIgnore({
-        channelId: message.channel_id,
+        channelId: (message as any).channel_id ?? (message as any).channelId,
         authorId: message.author?.id,
-        guildId: message.guildId,
+        guildId: (message as any).guildId ?? (message as any).guild_id,
         flags: message.flags,
-        bot: message.bot || message.author?.bot,
-        webhookId: message.webhookId
+        bot: (message as any).bot || message.author?.bot,
+        webhookId: (message as any).webhookId ?? (message as any).webhook_id
     })) queueRecord(message, LogStatus.EDITED);
 }
 
 async function saveDeletedMessage(payload: MessageDeletePayload) {
-    const storedMessage = MessageStore.getMessage(payload.channelId, payload.id);
-    const cachedMessage = recentMessages.get(payload.id);
-    if (!cachedMessage && !storedMessage) return;
+    const raw: any = payload as any;
+    const channelId: string | undefined = raw.channelId ?? raw.channel_id;
+    const guildId: string | undefined = raw.guildId ?? raw.guild_id;
+    const messageId: string | undefined = raw.id ?? raw.messageId;
+    if (!messageId) return;
+    const cachedMessage = recentMessages.get(messageId);
+    const storedMessage = channelId ? MessageStore.getMessage(channelId, messageId) : undefined;
+    let dbFallback: LoggedMessage | undefined;
+    if (!cachedMessage && !storedMessage) {
+        const chanCached = channelMessageCache.get(messageId);
+        if (chanCached) dbFallback = chanCached;
+        if (!dbFallback) {
+            try {
+                const rec = await getLogById(messageId);
+                if (rec?.message) dbFallback = rec.message as LoggedMessage;
+                if (!dbFallback) {
+                    const pending = pendingWrites.get(messageId);
+                    if (pending?.message) dbFallback = pending.message;
+                }
+            } catch { }
+        }
+        if (!dbFallback) return;
+    }
 
-    const message = snapshotMessage((cachedMessage ?? storedMessage!) as unknown as MessageJSON);
+    const source = (cachedMessage ?? storedMessage ?? dbFallback!) as unknown as MessageJSON;
+    const message = dbFallback && !cachedMessage && !storedMessage
+        ? lodash.cloneDeep(dbFallback)
+        : snapshotMessage(source);
+    (message as any).guildId = guildId ?? (message as any).guildId;
     message.guildId = payload.guildId ?? message.guildId;
     message.deleted = true;
     message.deletedTimestamp = new Date().toISOString();
@@ -368,15 +467,16 @@ async function saveDeletedMessage(payload: MessageDeletePayload) {
     // Ignored messages are dropped from the render cache entirely; logged ones stay
     // cached so they keep rendering inline and the context menu can act on them.
     if (!forceKeep && shouldIgnore({
-        channelId: message.channel_id,
+        channelId: (message as any).channel_id ?? (message as any).channelId ?? channelId,
         authorId: message.author?.id,
-        guildId: message.guildId,
+        guildId: (message as any).guildId ?? (message as any).guild_id,
         flags: message.flags,
-        bot: message.bot || message.author?.bot,
+        bot: (message as any).bot || message.author?.bot,
         ghostPinged,
-        webhookId: message.webhookId
+        webhookId: (message as any).webhookId ?? (message as any).webhook_id
     })) {
-        recentMessages.delete(payload.id);
+        if (messageId) recentMessages.delete(messageId);
+        if (messageId) channelMessageCache.delete(messageId);
         return;
     }
 
@@ -426,10 +526,11 @@ export async function deleteLog(id: string) {
  * renders again; Forever deletes the record outright.
  */
 export async function localRemoveLoggedMessage(id: string, permanent: boolean, fallbackChannelId?: string): Promise<string | null> {
-    const cached = recentMessages.get(id);
-    const channelId = cached?.channel_id ?? fallbackChannelId ?? "";
+    const cached = recentMessages.get(id) ?? channelMessageCache.get(id);
+    const channelId = (cached as any)?.channel_id ?? fallbackChannelId ?? "";
 
     recentMessages.delete(id);
+    channelMessageCache.delete(id);
     invalidateLoggedCaches(id);
 
     if (permanent) {
@@ -488,70 +589,27 @@ export async function runMaintenanceNow() {
  */
 async function primeLoggedCache() {
     try {
-        const records = await getAllLogs();
-        const cap = Math.max(settings.store.memoryCacheLimit, 100);
-        // Sort newest-first then slice; this is O(n log n) but runs off the hot path via yielding.
-        records.sort((a, b) => String(b.message.timestamp).localeCompare(String(a.message.timestamp)));
-        // Yield before slicing/inserting so the UI can paint.
-        await sleep(0);
-        const recent = records.slice(0, cap);
-
-        // Insert oldest-first in chunks so we don't block the main thread with 2000+ Map ops.
-        const reversed = recent.slice().reverse();
-        const CHUNK = 250;
-        for (let i = 0; i < reversed.length; i += CHUNK) {
-            const chunk = reversed.slice(i, i + CHUNK);
-            for (const record of chunk) {
-                if (!record.message?.id || record.hidden) continue;
-                if (recentMessages.has(record.message.id)) continue;
-                recentMessages.set(record.message.id, record.message);
-            }
-            if (i + CHUNK < reversed.length) await sleep(0);
-        }
-
-        if (recent.length > 0) log.info(`Primed logged message cache with ${recent.length} records.`);
-
-        // Defer the rest (re-fetch + attachment backfill) to idle so startup stays interactive.
+        // Per user request: don't bulk-load old logs at startup (prevents lag). Cache only live messages, lazy-load per-channel on demand.
+        log.info("Skipped bulk prime (per-channel lazy loading).");
         const doPostPrime = async () => {
-            // After priming, ensure the current channel re-fetches to inject the restored logs inline.
             try {
                 const currentId = SelectedChannelStore.getChannelId();
-                if (currentId && recent.some(r => r.channel_id === currentId)) {
+                if (!currentId) return;
+                const { getChannelLogsLimit } = await import("./db");
+                const records = await getChannelLogsLimit(currentId, 30);
+                if (records.length) {
+                    for (const rec of records) {
+                        if (rec.hidden) continue;
+                        channelMessageCache.set(rec.message.id, rec.message);
+                    }
                     const store = (MessageStore as any).getMessages?.(currentId);
                     if (store?.hasFetched) {
                         const { MessageActions } = await import("@webpack/common");
                         (MessageActions as any).fetchMessages?.({ channelId: currentId, limit: 50 });
                     }
                 }
-            } catch { /* best effort */ }
-
-            if (!IS_WEB && settings.store.saveImages) {
-                await ensureDefaultDir().catch(() => { });
-                for (let i = 0; i < recent.length; i++) {
-                    const record = recent[i];
-                    if (!record.message.attachments?.length) continue;
-                    if (record.status === LogStatus.EDITED) continue;
-                    const needsSave = record.message.attachments.some(att => !att.path && att.url);
-                    if (!needsSave) continue;
-                    try {
-                        await Promise.all(record.message.attachments.filter(att => !att.path && att.url).map(att => ensureAttachmentSaved(att as any)));
-                        const hasPathNow = record.message.attachments.some(att => !!att.path);
-                        if (hasPathNow) {
-                            const existing = pendingWrites.get(record.message_id);
-                            if (!existing) queueRecord(record.message as LoggedMessage, record.status);
-                            else {
-                                existing.message = record.message as LoggedMessage;
-                                pendingWrites.set(record.message_id, existing);
-                                scheduleFlush();
-                            }
-                        }
-                    } catch { /* best effort */ }
-                    // Yield every few records so we don't starve the event loop on large DBs
-                    if (i % 20 === 0) await sleep(0);
-                }
-            }
+            } catch { }
         };
-
         const scheduleIdle = (cb: () => void) => {
             const ric = (window as any).requestIdleCallback as any;
             if (ric) (ric as any)(cb, { timeout: 2000 });
@@ -589,5 +647,6 @@ export function stopEngine() {
         maintenanceInterval = undefined;
     }
     recentMessages.clear();
+    channelMessageCache.clear();
     void flushQueuedLogs();
 }

@@ -118,6 +118,31 @@ export async function getChannelLogsAfter(channelId: string, timestamp: string) 
     return records;
 }
 
+export async function getLogById(messageId: string) {
+    const database = await getDatabase();
+    return database.get("messages", messageId);
+}
+
+export async function getChannelLogsLimit(channelId: string, limit: number, beforeTimestamp?: string): Promise<LogRecord[]> {
+    const database = await getDatabase();
+    const index = database.transaction("messages").store.index("by_timestamp_and_message_id");
+    let range: IDBKeyRange;
+    if (beforeTimestamp) {
+        let normalized: string;
+        try { normalized = new Date(String(beforeTimestamp)).toISOString(); } catch { normalized = String(beforeTimestamp); }
+        range = IDBKeyRange.bound([channelId, ""], [channelId, normalized], false, true);
+    } else {
+        range = IDBKeyRange.bound([channelId, ""], [channelId, "\uffff"]);
+    }
+    const records: LogRecord[] = [];
+    let cursor = await index.openCursor(range, "prev");
+    while (cursor && records.length < limit) {
+        if (cursor.value.status !== LogStatus.EDITED && !cursor.value.hidden) records.push(cursor.value);
+        cursor = await cursor.continue();
+    }
+    return records;
+}
+
 async function getOldestIds(limit: number, cutoff?: string, preservedChannelId?: string) {
     if (limit <= 0) return [];
 

@@ -121,6 +121,19 @@ const imageContextMenuPatch: NavContextMenuPatchCallback = (children, props) => 
     );
 };
 
+const gifPickerContextMenuPatch: NavContextMenuPatchCallback = (children, props) => {
+    if (!props?.src) return;
+
+    children.push(
+        <Menu.MenuItem
+            id="gif-maker-edit"
+            key="gif-maker-edit"
+            label="Edit GIF"
+            action={() => openGifMakerFromItem(props)}
+        />
+    );
+};
+
 interface SelectOption {
     key: string;
     label: string;
@@ -485,22 +498,11 @@ export default definePlugin({
     managedStyle: css,
     contextMenus: {
         "message": messageContextMenuPatch,
-        "image-context": imageContextMenuPatch
+        "image-context": imageContextMenuPatch,
+        "gif-picker": gifPickerContextMenuPatch
     },
 
     start() {
         void fetchAllGoogleFonts();
-    },
-
-    gifPickerContextMenu(instance, _e: React.MouseEvent) {
-        if (!instance?.props?.item?.src) return null;
-        return (
-            <Menu.MenuItem
-                id="gif-maker-edit"
-                key="gif-maker-edit"
-                label="Edit GIF"
-                action={() => openGifMakerFromItem(instance?.props?.item)}
-            />
-        );
     },
 });

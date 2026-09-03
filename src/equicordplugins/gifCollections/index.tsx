@@ -6,9 +6,11 @@
 
 import "./style.css";
 
+import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { EquicordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
-import { FluxDispatcher, React } from "@webpack/common";
+import { ContextMenuApi, FluxDispatcher, Menu } from "@webpack/common";
+import type { MouseEvent } from "react";
 
 import { addCollectionContextMenuPatch, getGifPickerContextMenuItems, RemoveItemContextMenuItems } from "./components/contextMenus";
 import { settings, SortingOptions } from "./settings";
@@ -23,6 +25,26 @@ let GIF_ITEM_PREFIX: string;
 let refreshingUrls = false;
 let oldTrendingCat: Category[] | null = null;
 
+const gifPickerContextMenuPatch: NavContextMenuPatchCallback = (children, props) => {
+    if (!props) return;
+    const { name, id } = props;
+
+    if (name?.startsWith(GIF_COLLECTION_PREFIX)) {
+        children.push(RemoveItemContextMenuItems({ type: "collection", nameOrId: name }));
+        return;
+    }
+
+    if (id?.startsWith(GIF_ITEM_PREFIX)) {
+        children.push(RemoveItemContextMenuItems({ type: "gif", nameOrId: id }));
+        return;
+    }
+
+    const { src, url, height, width } = props;
+    if (!src || !url || !height || !width) return;
+
+    children.push(getGifPickerContextMenuItems(src, url, height, width));
+};
+
 export default definePlugin({
     name: "GifCollections",
     description: "Allows you to create collections of gifs.",
@@ -31,6 +53,7 @@ export default definePlugin({
     settings,
     contextMenus: {
         "message": addCollectionContextMenuPatch,
+        "gif-picker": gifPickerContextMenuPatch,
     },
 
     patches: [
@@ -60,6 +83,13 @@ export default definePlugin({
                 match: /(function \i\(.{1,10}\){)(.{1,200}.GIFS_SEARCH,query:)/,
                 replace: "$1if($self.shouldStopFetch(arguments[0])) return;$2",
             },
+        },
+        {
+            find: "#{intl::CATEGORY_FAVORITE}),icon:",
+            replacement: {
+                match: /(\i)\.name\),renderExtras:this\.renderCategoryExtras,/,
+                replace: "$&onContextMenu:(e)=>$self.openCategoryContextMenu(e,$1),"
+            }
         },
     ],
 
@@ -164,23 +194,19 @@ export default definePlugin({
         return query.startsWith(GIF_COLLECTION_PREFIX) && cache_collections.some(c => c.name === query);
     },
 
-    gifPickerContextMenu(instance, e: React.MouseEvent) {
-        const item = instance?.props?.item;
-        if (!item) return;
+    openCategoryContextMenu(e: MouseEvent, item: any) {
+        if (!item?.name?.startsWith(GIF_COLLECTION_PREFIX)) return;
 
-        const { name, id } = item;
+        const children = [RemoveItemContextMenuItems({ type: "collection", nameOrId: item.name })];
 
-        if (name?.startsWith(GIF_COLLECTION_PREFIX)) {
-            return RemoveItemContextMenuItems({ type: "collection", nameOrId: name, instance });
-        }
-
-        if (id?.startsWith(GIF_ITEM_PREFIX)) {
-            return RemoveItemContextMenuItems({ type: "gif", nameOrId: id, instance });
-        }
-
-        const { src, url, height, width } = item;
-        if (!src || !url || !height || !width) return;
-
-        return getGifPickerContextMenuItems(src, url, height, width);
-    }
+        ContextMenuApi.openContextMenu(e, () =>
+            <Menu.Menu
+                navId="gif-picker-category"
+                onClose={() => FluxDispatcher.dispatch({ type: "CONTEXT_MENU_CLOSE" })}
+                aria-label="GIF Picker Category Options"
+            >
+                {children}
+            </Menu.Menu>
+        );
+    },
 });

@@ -22,19 +22,17 @@ export default definePlugin({
         },
         // dm sidebar
         {
-            find: "SIDEBAR,disableToolbar:",
-            replacement: {
-                match: /widgets:\i\.widgets,onOpenUserProfileModal:\i\}\)\}\)(?=,)/,
-                replace: "$&,Vencord.Api.ProfileCollections.renderProfileCollectionsForUser(n.id,true)"
-            }
-        },
-        // user profile popout — message/member list popup
-        {
-            find: '"UserProfilePopout"',
-            replacement: {
-                match: /onOpenUserProfileModal:\i}\)(?=,)/,
-                replace: "$&,Vencord.Api.ProfileCollections.renderProfileCollections({user:i,displayProfile:n,isSideBar:false})"
-            }
+            find: ".SIDEBAR,disableToolbar:",
+            replacement: [
+                {
+                    match: /user:\i,widgets:.{0,100}?\}\),(?=.{0,100}user:\i,currentUser:\i)/,
+                    replace: "$&arguments[0]?.isRedesignEnabled&&Vencord.Api.ProfileCollections.renderProfileCollections({...arguments[0],isSideBar:true}),"
+                },
+                {
+                    match: /user:\i,widgets:.{0,100}?\}\),(?=.{0,100}unownedWishlistItems:\i,wishlistId:\i)/,
+                    replace: "$&!arguments[0]?.isRedesignEnabled&&Vencord.Api.ProfileCollections.renderProfileCollections({...arguments[0],isSideBar:true}),"
+                }
+            ]
         }
     ]
 });

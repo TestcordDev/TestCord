@@ -27,7 +27,9 @@ import { migrateOldLyrics } from "./spotify/lyrics/api";
 import { SpotifyLyrics } from "./spotify/lyrics/components/lyrics";
 import { SpotifyPlayer } from "./spotify/PlayerComponent";
 import { TidalLyrics } from "./tidal/lyrics/components/lyrics";
+import { stopTidalLrcStore } from "./tidal/lyrics/providers/store";
 import { TidalPlayer } from "./tidal/TidalPlayer";
+import { stopTidalStore } from "./tidal/TidalStore";
 
 let isToggled = false;
 let isCtrlHeld = false;
@@ -221,5 +223,7 @@ export default definePlugin({
         window.removeEventListener("keyup", handleKeyUp);
         window.removeEventListener("blur", handleWindowBlur);
         resetCtrlState();
+        stopTidalLrcStore();
+        stopTidalStore();
     },
 });

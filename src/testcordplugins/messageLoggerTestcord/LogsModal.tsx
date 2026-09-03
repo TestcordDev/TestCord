@@ -72,6 +72,24 @@ function LogEntry({ record, onDelete, onProtect }: LogEntryProps) {
             <div className={cl("content")}>
                 {message.content ? Parser.parse(message.content) : <span className={cl("muted")}>No text content.</span>}
             </div>
+            {message.embeds && message.embeds.length > 0 && (
+                <div className={cl("embeds")}>
+                    {message.embeds.map((embed: any, i: number) => (
+                        <div key={i} className={cl("embed")}>
+                            {embed.title && <div className={cl("embed-title")}><strong>{embed.title}</strong></div>}
+                            {embed.description && <div className={cl("embed-description")}>{Parser.parse(embed.description)}</div>}
+                            {embed.fields?.map((f: any, j: number) => (
+                                <div key={j} className={cl("embed-field")}><strong>{f.name}</strong>: {f.value ? Parser.parse(f.value) : null}</div>
+                            ))}
+                            {embed.image?.url && <img src={embed.image.url} alt="" style={{ maxWidth: "100%", borderRadius: 4, marginTop: 4 }} />}
+                            {embed.thumbnail?.url && <img src={embed.thumbnail.url} alt="" style={{ maxWidth: 80, borderRadius: 4, marginTop: 4 }} />}
+                            {embed.url && !embed.title && !embed.description && (
+                                <MaskedLink href={embed.url}>{embed.url}</MaskedLink>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
             {message.attachments.length > 0 && (
                 <div className={cl("attachments")}>
                     {message.attachments.map((attachment, i) => (

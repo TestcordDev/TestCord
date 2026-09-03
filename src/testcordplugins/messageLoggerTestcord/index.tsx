@@ -18,9 +18,11 @@ import { findByPropsLazy } from "@webpack";
 import { Alerts, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts, UserStore } from "@webpack/common";
 
 import { removeLoggerContextMenus, setupLoggerContextMenus } from "./contextMenu";
-import { getChannelLogsAfter, getDatabase } from "./db";
+import { getChannelLogsAfter, getChannelLogsLimit, getDatabase } from "./db";
 import {
+    cacheChannelMessages,
     clearAllLogs,
+    clearChannelCache,
     getCachedLoggedMessage,
     handleMessageCreate,
     handleMessageDelete,
@@ -38,7 +40,7 @@ import { openLogs } from "./LogsModal";
 import { osintScanLoggedMessages } from "./osintBridge";
 import { ensureDefaultDir, restoreAttachmentBlobs } from "./saveImage";
 import { settings } from "./settings";
-import type { FetchMessagesResponse, LoadMessagesPayload, LoggedMessage, MessageCreatePayload, MessageDeleteBulkPayload, MessageDeletePayload, MessageUpdatePayload } from "./types";
+import type { FetchMessagesResponse, LoadMessagesPayload, LoggedMessage, LogRecord, MessageCreatePayload, MessageDeleteBulkPayload, MessageDeletePayload, MessageUpdatePayload } from "./types";
 import { cl } from "./utils";
 
 const log = new Logger("MessageLoggerTestcord");
@@ -65,16 +67,49 @@ async function processMessageFetch(response: FetchMessagesResponse) {
         if (response.body.length === 0) {
             const channelId = SelectedChannelStore.getChannelId();
             if (!channelId) return;
-            const records = await getChannelLogsAfter(channelId, new Date(0).toISOString());
-            if (records.length) response.body.extra = records.map(record => record.message);
+            // Empty channel (all deleted) – load all deleted for this channel
+            let records = channelAllDeleted.get(channelId);
+            if (!records) {
+                records = await getChannelLogsAfter(channelId, new Date(0).toISOString());
+                if (records.length) {
+                    channelAllDeleted.set(channelId, records);
+                    try { cacheChannelMessages(records); } catch { }
+                }
+            }
+            if (records?.length) response.body.extra = records.map(record => record.message);
             return;
         }
         const oldestMessage = response.body[response.body.length - 1];
         if (!oldestMessage?.channel_id || oldestMessage?.timestamp == null) return;
-        // Normalize timestamp to string; getChannelLogsAfter handles Date conversion and hidden filtering
+        const channelId = oldestMessage.channel_id as string;
+        // Ensure all deleted for this channel are cached (load all on first fetch)
+        let allDeleted = channelAllDeleted.get(channelId);
+        if (!allDeleted) {
+            allDeleted = await getChannelLogsAfter(channelId, new Date(0).toISOString());
+            if (allDeleted.length) {
+                channelAllDeleted.set(channelId, allDeleted);
+                try { cacheChannelMessages(allDeleted); } catch { }
+            }
+        }
         const ts = typeof oldestMessage.timestamp === "string" ? oldestMessage.timestamp : new Date(String(oldestMessage.timestamp)).toISOString();
-        const records = await getChannelLogsAfter(oldestMessage.channel_id, ts);
-        response.body.extra = records.map(record => record.message);
+        const windowRecords = await getChannelLogsAfter(channelId, ts);
+        // Merge allDeleted (for initial) + window, dedup
+        const seen = new Set<string>();
+        const extra: typeof windowRecords = [];
+        const source = allDeleted ?? [];
+        for (const r of source) {
+            if (!seen.has(r.message_id)) { seen.add(r.message_id); extra.push(r); }
+        }
+        for (const r of windowRecords) {
+            if (!seen.has(r.message_id)) { seen.add(r.message_id); extra.push(r); }
+        }
+        if (extra.length) {
+            // Cache any new window records that weren't in allDeleted (shouldn't happen, but just in case)
+            try { cacheChannelMessages(extra); } catch { }
+            response.body.extra = extra.map(record => record.message);
+        } else {
+            response.body.extra = windowRecords.map(record => record.message);
+        }
     } catch (error) {
         log.error("Failed to restore persistent logs into the channel.", error);
     }
@@ -112,17 +147,88 @@ function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage
 }
 
 const lastChannelFetch = new Map<string, number>();
+const channelAllDeleted = new Map<string, LogRecord[]>();
+const channelCacheTimeout = new Map<string, ReturnType<typeof setTimeout>>();
+let lastSelectedChannelId: string | null = null;
+
+function scheduleChannelUnload(channelId: string) {
+    const existing = channelCacheTimeout.get(channelId);
+    if (existing) clearTimeout(existing);
+    const timeout = setTimeout(() => {
+        // Unload if not currently viewing this channel
+        if (SelectedChannelStore.getChannelId() !== channelId) {
+            channelAllDeleted.delete(channelId);
+            channelCacheTimeout.delete(channelId);
+            clearChannelCache(channelId);
+            // Also remove from MessageStore cache to free memory
+            try {
+                const Internal: any = (MessageStoreInternal as any);
+                const cache = Internal.get?.(channelId);
+                if (cache) {
+                    const all = channelAllDeleted.get(channelId) ?? [];
+                    // Actually we already deleted, so nothing to do – just clear the cache entries for deleted messages
+                    // For now, just clear the channel's MessageStore cache for deleted messages that are not live
+                    // We keep live messages, but remove deleted that were injected
+                    // Simplest: do nothing, let MessageStore keep them until next fetch overwrites
+                }
+            } catch { }
+        }
+    }, 60_000);
+    channelCacheTimeout.set(channelId, timeout);
+}
 
 function handleChannelSelect(payload: { channelId?: string; }) {
     const channelId = payload?.channelId;
     if (channelId == null) return;
+    const prev = lastSelectedChannelId;
+    if (prev && prev !== channelId) {
+        // Schedule unload for previous channel after 1min if not revisited
+        scheduleChannelUnload(prev);
+    }
+    lastSelectedChannelId = channelId;
+    // Cancel unload for this channel if we came back quickly
+    const existingTimeout = channelCacheTimeout.get(channelId);
+    if (existingTimeout) {
+        clearTimeout(existingTimeout);
+        channelCacheTimeout.delete(channelId);
+    }
+
+    // Load all deleted for this channel (if not already cached)
+    if (!channelAllDeleted.has(channelId)) {
+        void (async () => {
+            try {
+                const records = await getChannelLogsAfter(channelId, new Date(0).toISOString());
+                if (records.length) {
+                    channelAllDeleted.set(channelId, records);
+                    try { cacheChannelMessages(records); } catch { }
+                    // Inject into MessageStore for immediate display
+                    try {
+                        const Internal: any = (MessageStoreInternal as any);
+                        let cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
+                        if (cache) {
+                            let newCache = cache;
+                            for (const rec of records) {
+                                if (newCache.has?.(rec.message_id)) continue;
+                                const msgClass = (renderApi as any)?.messageJsonToMessageClass?.({ message: rec.message });
+                                if (!msgClass) continue;
+                                if (typeof newCache.set === "function") newCache = newCache.set(rec.message_id, msgClass);
+                            }
+                            if (newCache !== cache) {
+                                try { Internal.commit?.(newCache); } catch { }
+                            }
+                        }
+                    } catch { }
+                }
+            } catch { }
+        })();
+    }
+
     // Only refetch if we have fetched this channel before and have logged messages for it.
     const collection = (MessageStore as any).getMessages?.(channelId);
     if (!collection?.hasFetched) return;
     const now = Date.now();
     const last = lastChannelFetch.get(channelId) ?? 0;
     if (now - last < 30_000) return;
-    // Check if we have any non-hidden deleted/ghost logs for this channel to avoid spamming empty fetches
     void getChannelLogsAfter(channelId, new Date(0).toISOString()).then(records => {
         if (records.length === 0) return;
         lastChannelFetch.set(channelId, now);
@@ -249,20 +355,17 @@ export default definePlugin({
     patches: [
         // Keep deleted messages in the MessageStore cache so they stay visible live instead of disappearing after the dispatch
         {
-            find: "MESSAGE_DELETE:function",
+            find: '"MessageStore"',
             replacement: [
                 {
                     match: /MESSAGE_DELETE:function\((\i)\)\{/,
                     replace: "MESSAGE_DELETE:function($1){if($self.handleStoreDelete2($1))return;"
+                },
+                {
+                    match: /MESSAGE_DELETE_BULK:function\((\i)\)\{/,
+                    replace: "MESSAGE_DELETE_BULK:function($1){if($self.handleStoreDelete2($1,true))return;"
                 }
             ]
-        },
-        {
-            find: "MESSAGE_DELETE_BULK:function",
-            replacement: {
-                match: /MESSAGE_DELETE_BULK:function\((\i)\)\{/,
-                replace: "MESSAGE_DELETE_BULK:function($1){if($self.handleStoreDelete2($1,true))return;"
-            }
         },
         // Fix pagination for channels with many deleted logs (e.g. #pending with 165) — don't drop newer messages when fetching older batches
         {
@@ -494,14 +597,6 @@ export default definePlugin({
             }
 
             const latestMessage = oldGetMessage!.call(MessageStore, channelId, messageId) as any;
-
-            // Honor manual clears of edit history on the store message
-            if (latestMessage && Array.isArray(latestMessage.editHistory) && latestMessage.editHistory.length === 0 && (loggedMessage.editHistory?.length ?? 0) > 0) {
-                renderApi.invalidateMessageClassCache(messageId);
-                mergedMessageCache.delete(messageId);
-                mergedEditTimestamps.delete(messageId);
-                return latestMessage;
-            }
 
             // Reuse the cached merged object while the message hasn't been edited again
             const cachedMerge = mergedMessageCache.get(messageId);

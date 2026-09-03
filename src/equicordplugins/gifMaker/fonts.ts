@@ -64,9 +64,10 @@ async function loadFontFace(family: string, url: string, descriptors: FontFaceDe
             document.fonts.add(font);
             return true;
         } catch {
+            return false;
+        } finally {
             URL.revokeObjectURL(objectUrl);
             fontObjectUrls.delete(objectUrl);
-            return false;
         }
     } catch {
         return false;
