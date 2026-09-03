@@ -18,7 +18,7 @@ import { findByPropsLazy } from "@webpack";
 import { Alerts, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts, UserStore } from "@webpack/common";
 
 import { removeLoggerContextMenus, setupLoggerContextMenus } from "./contextMenu";
-import { getChannelLogsAfter, getChannelLogsLimit, getDatabase } from "./db";
+import { getChannelLogsAfter, getDatabase } from "./db";
 import {
     cacheChannelMessages,
     clearAllLogs,
@@ -204,7 +204,7 @@ function handleChannelSelect(payload: { channelId?: string; }) {
                     // Inject into MessageStore for immediate display
                     try {
                         const Internal: any = (MessageStoreInternal as any);
-                        let cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
+                        const cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
                         if (cache) {
                             let newCache = cache;
                             for (const rec of records) {
