@@ -12,6 +12,13 @@ export default definePlugin({
     description: "API to add collections to the user profile panel like discords game collection.",
     authors: [Devs.thororen],
     patches: [
+        {
+            find: "n?.widgets!=null&&n.widgets.length>0",
+            replacement: {
+                match: /user:\i,widgets:\i\?\.\i+,onOpenUserProfileModal:\i\}\)/,
+                replace: "$&,Vencord.Api.ProfileCollections.renderProfileCollections(arguments[0])",
+            },
+        },
         // user panel popout — inject after Discord's widgets component
         {
             find: '"UserProfileAccountPopout"',
