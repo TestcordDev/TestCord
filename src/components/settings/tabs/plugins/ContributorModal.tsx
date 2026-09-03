@@ -38,12 +38,12 @@ function ContributorModal({ user, modalProps }: { user: User; modalProps: Render
             void fetchUserProfile(user.id).catch(() => { });
     }, [user.id, user.bot, profile]);
 
-    const githubName = profile?.connectedAccounts?.find(a => a.type === "github")?.name;
+    const dev = VencordDevsById[user.id] || EquicordDevsById[user.id] || TestcordDevsById[user.id];
+    const githubName = profile?.connectedAccounts?.find(a => a.type === "github")?.name || dev?.github;
     const website = profile?.connectedAccounts?.find(a => a.type === "domain")?.name;
 
     const plugins = useMemo(() => {
         const allPlugins = Object.values(Plugins);
-        const dev = VencordDevsById[user.id] || EquicordDevsById[user.id] || TestcordDevsById[user.id];
         const pluginsByAuthor = dev
             ? allPlugins.filter(p => p.authors?.includes(dev))
             : allPlugins.filter(p =>

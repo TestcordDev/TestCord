@@ -289,13 +289,13 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    background: var(--background-base-low);
+    background: var(--card-background-default);
     border-color: var(--border-subtle);
     box-shadow: none;
 }
 
 .vc-plugins-grid .vc-addon-card:hover {
-    background: var(--background-surface-high);
+    background-color: var(--background-mod-subtle);
     transform: none;
     box-shadow: var(--elevation-low);
 }

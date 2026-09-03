@@ -1595,7 +1595,8 @@ export const TestcordDevs = /* #__PURE__*/ Object.freeze({
     },
     Aviv: {
         name: "Aviv",
-        id: 752564054593110016n
+        id: 752564054593110016n,
+        github: "ZimbaZombie"
     },
     Su4o: {
         name: "Su4o",

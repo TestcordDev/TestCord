@@ -192,16 +192,7 @@ export default definePlugin({
         return <Layer {...props} />;
     },
 
-    _transformCache: null as ReactNode[] | null,
-    _transformCacheKey: "" as string,
-    _transformCacheTime: 0 as number,
     transformSettingsEntries(list: ReactElement<any>[]): ReactNode[] {
-        // cache for 2s to avoid rebuilding 470-plugin menu on every hover/click of the cog
-        const now = Date.now();
-        const key = list.length + ":" + (list[0] as any)?.key + ":" + (list[list.length - 1] as any)?.key;
-        if (this._transformCache && this._transformCacheKey === key && now - this._transformCacheTime < 2000) {
-            return this._transformCache;
-        }
         const items: ReactNode[] = [];
         const SECTION_NAMES: Record<string, string> = {
             user_section: getIntlMessage("USER_SETTINGS"),
@@ -247,12 +238,6 @@ export default definePlugin({
         }
 
         if (logout) items.push(logout);
-        // only cache top-level calls (children recursion has different shape via nested keys)
-        if (list.length > 5) {
-            this._transformCache = items;
-            this._transformCacheKey = key;
-            this._transformCacheTime = now;
-        }
         return items;
     }
 });
