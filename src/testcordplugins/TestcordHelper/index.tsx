@@ -36,6 +36,7 @@ const NativeHelper = VencordNative.pluginHelpers.TestcordHelper as PluginNative<
 import plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
 
 import { hexToInt, ICON_COLOR_FALLBACK, IconColorSettingKey, IconColorSettings, intToHex, isIconColorInputValid } from "./iconColors";
+import { cleanupTcpAutocomplete, initTcpAutocomplete } from "./tcpAutocomplete";
 
 const logger = new Logger("TestcordHelper");
 
@@ -527,6 +528,18 @@ function getMemoryUsage(): string {
 }
 
 const settings = definePluginSettings({
+    tcpAutocomplete: {
+        type: OptionType.BOOLEAN,
+        description: "Show an extend-up autocomplete panel when typing tcp: in chat to reference plugins",
+        default: true,
+        onChange: (val: boolean) => {
+            if (val) {
+                initTcpAutocomplete();
+            } else {
+                cleanupTcpAutocomplete();
+            }
+        }
+    },
     enableCustomBadges: {
         type: OptionType.BOOLEAN,
         description: "Enable custom testcord badges from tbadges GitHub repository",
@@ -1794,6 +1807,10 @@ export default definePlugin({
 
         this.pronounsBadgeListener = () => this.syncPronounsBadge();
         SettingsStore.addChangeListener("plugins.TestcordHelper.pronounsBadge", this.pronounsBadgeListener);
+
+        if (settings.store.tcpAutocomplete !== false) {
+            initTcpAutocomplete();
+        }
     },
 
     stop() {
@@ -1801,6 +1818,7 @@ export default definePlugin({
         uninstallDebugInstrumentation();
         uninstallConsoleCapture();
         stopLiveFixServer();
+        cleanupTcpAutocomplete();
         if (hotkeyHandler) {
             document.removeEventListener("keydown", hotkeyHandler, true);
             hotkeyHandler = null;
