@@ -79,7 +79,7 @@ export default definePlugin({
         {
             find: '"LocalActivityStore"',
             replacement: {
-                match: /\i\(\i\)\{.{0,25}activity:(\i).*?\}=\i;/,
+                match: /function\(\i\)\{.{0,40}activity:(\i).*?\i\[\i\];/,
                 replace: "$&$self.patchActivity($1);",
             }
         }

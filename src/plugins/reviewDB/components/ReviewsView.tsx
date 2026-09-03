@@ -125,7 +125,7 @@ function ReviewList({ refetch, reviews, hideOwnReview, profileId, type }: { refe
 }
 
 export function ReviewsInputComponent(
-    { discordId, isAuthor, refetch, name, modalKey, repliesTo }: { discordId: string, name: string; isAuthor: boolean; refetch(): void; modalKey?: string; repliesTo?: number; }
+    { discordId, isAuthor, refetch, name, modalKey }: { discordId: string, name: string; isAuthor: boolean; refetch(): void; modalKey?: string; }
 ) {
     const { token } = Auth;
     const editorRef = useRef<any>(null);
@@ -148,10 +148,9 @@ export function ReviewsInputComponent(
                     placeholder={
                         !token
                             ? "You need to authorize to review users!"
-                            : repliesTo ? `Reply to @${name}`
-                                : isAuthor
-                                    ? `Update review for @${name}`
-                                    : `Review @${name}`
+                            : isAuthor
+                                ? `Update review for @${name}`
+                                : `Review @${name}`
                     }
                     type={inputType}
                     disableThemedBackground={true}
@@ -160,12 +159,9 @@ export function ReviewsInputComponent(
                     textValue=""
                     onSubmit={
                         async res => {
-                            // I know this naming is deranged, but for compatibility it has to stay this way
-
                             const response = await addReview({
                                 userid: discordId,
                                 comment: res.value,
-                                repliesto: repliesTo,
                             });
 
                             if (response) {

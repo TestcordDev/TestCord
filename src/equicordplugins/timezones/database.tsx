@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { openModal } from "@utils/index";
-import { OAuth2AuthorizeModal, showToast, Toasts } from "@webpack/common";
+import { OAuth2AuthorizeModal, openModal, showToast, Toasts } from "@webpack/common";
 
 import { settings } from ".";
 

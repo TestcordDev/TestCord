@@ -22,7 +22,7 @@ import {
 import { openSettingsModal } from "@equicordplugins/songSpotlight.desktop/ui/settings";
 import { sid } from "@song-spotlight/api/util";
 import { copyWithToast } from "@utils/discord";
-import { classes } from "@utils/index";
+import { classes } from "@utils/misc";
 import { User } from "@vencord/discord-types";
 import {
     ContextMenuApi,

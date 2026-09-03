@@ -12,8 +12,8 @@ import { Divider } from "@components/Divider";
 import { HeadingSecondary } from "@components/Heading";
 import { Notice } from "@components/Notice";
 import decor from "@plugins/decor";
+import { Devs, EquicordDevs } from "@utils/constants";
 import { classNameFactory } from "@utils/css";
-import { Devs, EquicordDevs } from "@utils/index";
 import definePlugin, { OptionType } from "@utils/types";
 
 migratePluginSetting("Declutter", "removeShopAboveDms", "removeShopAboveDM");

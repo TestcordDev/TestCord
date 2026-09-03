@@ -377,10 +377,12 @@ export default definePlugin({
                 const guildFolder = getGuildFolder(data.guildId);
 
                 if (guildFolder?.folderId) {
-                    if (settings.store.forceOpen && !ExpandedGuildFolderStore.isFolderExpanded(guildFolder.folderId)) {
+                    const wasExpanded = ExpandedGuildFolderStore.isFolderExpanded(guildFolder.folderId);
+
+                    if (settings.store.forceOpen && !wasExpanded) {
                         FolderUtils.toggleGuildFolderExpand(guildFolder.folderId);
                     }
-                    if (settings.store.closeServerFolder && ExpandedGuildFolderStore.isFolderExpanded(guildFolder.folderId)) {
+                    if (settings.store.closeServerFolder && wasExpanded) {
                         FolderUtils.toggleGuildFolderExpand(guildFolder.folderId);
                     }
                 } else if (settings.store.closeAllFolders) {
