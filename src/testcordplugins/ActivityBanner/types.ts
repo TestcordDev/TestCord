@@ -35,6 +35,7 @@ export interface ActivityInfoProps {
     application?: Application;
     isCurrentlyRunningGame: boolean;
     onClickNotSharing?: () => void;
+    TitleComponent?: React.ComponentType<{ name?: string; applicationId?: string; }>;
     defaultTitle: React.ReactNode;
     defaultStatus: React.ReactNode;
 }
@@ -45,6 +46,13 @@ export interface ActivityIconProps {
     game?: any;
     isStreaming: boolean;
     ref?: any;
+    IconComponent?: React.ComponentType<{
+        name?: string;
+        application?: Application;
+        game?: any;
+        isStreaming?: boolean;
+        ref?: any;
+    }>;
     defaultIcon: React.ReactNode;
 }
 

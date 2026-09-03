@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { isPluginEnabled } from "@api/PluginManager";
 import { Activity } from "@vencord/discord-types";
 import { React, UserStore, useStateFromStores } from "@webpack/common";
 
@@ -47,6 +48,16 @@ function useTimerTick(hasTimer: boolean): void {
     }, [hasTimer]);
 }
 
+function isSongActivity(act: Activity): boolean {
+    return (
+        act.type === 2 ||
+        act.name?.toLowerCase() === "spotify" ||
+        act.name?.toLowerCase() === "tidal" ||
+        Boolean((act as { sync_id?: string; }).sync_id) ||
+        Boolean(act.party?.id?.startsWith("spotify:"))
+    );
+}
+
 export function getUserActivities(): Activity[] {
     const currentUser = UserStore.getCurrentUser();
     const selfPres: Activity[] = SelfPresenceStore?.getActivities?.(currentUser?.id) ?? [];
@@ -56,13 +67,34 @@ export function getUserActivities(): Activity[] {
     const combined = [...selfPres, ...localActs, ...presenceActs];
     const seen = new Set<string>();
     const unique: Activity[] = [];
+    const musicControlsOn = isPluginEnabled("MusicControls");
 
     for (const act of combined) {
         if (!act || act.type === 4) continue;
+        if (musicControlsOn && isSongActivity(act)) continue;
         const key = `${act.application_id ?? ""}:${act.name}`;
         if (!seen.has(key)) {
             seen.add(key);
             unique.push(act);
+        }
+    }
+
+    const visibleGame = RunningGameStore?.getVisibleGame?.();
+    if (visibleGame && !(musicControlsOn && visibleGame.name?.toLowerCase() === "spotify")) {
+        const gameIdx = unique.findIndex(a =>
+            (visibleGame.id && a.application_id === visibleGame.id) ||
+            a.name?.toLowerCase() === visibleGame.name?.toLowerCase()
+        );
+        if (gameIdx > 0) {
+            const [gameAct] = unique.splice(gameIdx, 1);
+            unique.unshift(gameAct);
+        } else if (gameIdx === -1) {
+            unique.unshift({
+                type: 0,
+                name: visibleGame.name,
+                application_id: visibleGame.id,
+                timestamps: visibleGame.start ? { start: visibleGame.start } : undefined
+            } as Activity);
         }
     }
 
@@ -71,25 +103,30 @@ export function getUserActivities(): Activity[] {
 
 export function ActivityIcon({
     name,
-    application,
-    game,
+    IconComponent,
     defaultIcon
 }: ActivityIconProps) {
-    const activities = useStateFromStores([LocalActivityStore, SelfPresenceStore, PresenceStore], getUserActivities);
+    const activities = useStateFromStores([LocalActivityStore, SelfPresenceStore, PresenceStore, RunningGameStore], getUserActivities);
     const [carouselIndex] = useCarouselIndex(activities.length);
 
     if (activities.length === 0) {
         return <>{defaultIcon}</>;
     }
 
-    const appId = application?.id ?? game?.id;
-    const currentActivity = activities.find(a => a.application_id === appId || a.name.toLowerCase() === name?.toLowerCase())
-        ?? activities[carouselIndex]
-        ?? activities[0];
-
+    const currentActivity = activities[carouselIndex] ?? activities[0];
     const data = resolveActivityData(currentActivity);
 
     if (!data.largeImage?.src) {
+        if (IconComponent && currentActivity.name?.toLowerCase() !== name?.toLowerCase()) {
+            return (
+                <IconComponent
+                    name={currentActivity.name}
+                    application={data.application}
+                    game={{ id: currentActivity.application_id, name: currentActivity.name }}
+                    isStreaming={false}
+                />
+            );
+        }
         return <>{defaultIcon}</>;
     }
 
@@ -135,19 +172,15 @@ export function ActivityIcon({
 
 export function ActivityInfo({
     name,
-    application,
+    TitleComponent,
     defaultTitle,
     defaultStatus
 }: ActivityInfoProps) {
-    const activities = useStateFromStores([LocalActivityStore, SelfPresenceStore, PresenceStore], getUserActivities);
+    const activities = useStateFromStores([LocalActivityStore, SelfPresenceStore, PresenceStore, RunningGameStore], getUserActivities);
     const visibleGame = useStateFromStores([RunningGameStore], () => RunningGameStore?.getVisibleGame?.());
     const [carouselIndex, stepCarousel] = useCarouselIndex(activities.length);
 
-    const appId = application?.id;
-    const currentActivity = activities.find(a => a.application_id === appId || a.name.toLowerCase() === name?.toLowerCase())
-        ?? activities[carouselIndex]
-        ?? activities[0];
-
+    const currentActivity = activities[carouselIndex] ?? activities[0];
     const data = currentActivity ? resolveActivityData(currentActivity) : undefined;
     const hasTimestamps = Boolean(data?.timestamps?.start || data?.timestamps?.end || visibleGame?.start);
     useTimerTick(hasTimestamps);
@@ -171,27 +204,39 @@ export function ActivityInfo({
         );
     }
 
+    const isRunningGame = Boolean(name && currentActivity.name?.toLowerCase() === name.toLowerCase());
     const formattedTime = (data.timestamps?.start || data.timestamps?.end)
         ? formatDuration(data.timestamps.start, data.timestamps.end)
-        : (visibleGame?.start ? formatDuration(visibleGame.start) : undefined);
+        : (isRunningGame && visibleGame?.start ? formatDuration(visibleGame.start) : undefined);
+
+    const titleElement = TitleComponent ? (
+        <TitleComponent name={currentActivity.name} applicationId={currentActivity.application_id} />
+    ) : (
+        isRunningGame ? defaultTitle : <span>{currentActivity.name}</span>
+    );
 
     return (
         <>
             <div className="vc-actbanner-header-row">
                 <div className="vc-actbanner-title-wrapper">
-                    {defaultTitle}
+                    {titleElement}
                 </div>
                 {activities.length > 1 && (
                     <div
                         className="vc-actbanner-carousel"
                         onClick={e => e.stopPropagation()}
+                        onMouseDown={e => e.stopPropagation()}
                         role="toolbar"
                         aria-label="Activity switcher"
                     >
                         <button
                             type="button"
                             className="vc-actbanner-carousel-btn"
-                            onClick={() => stepCarousel(-1)}
+                            onClick={e => {
+                                e.stopPropagation();
+                                stepCarousel(-1);
+                            }}
+                            onMouseDown={e => e.stopPropagation()}
                             aria-label="Previous activity"
                             title="Previous activity"
                         >
@@ -203,7 +248,11 @@ export function ActivityInfo({
                         <button
                             type="button"
                             className="vc-actbanner-carousel-btn"
-                            onClick={() => stepCarousel(1)}
+                            onClick={e => {
+                                e.stopPropagation();
+                                stepCarousel(1);
+                            }}
+                            onMouseDown={e => e.stopPropagation()}
                             aria-label="Next activity"
                             title="Next activity"
                         >
@@ -231,7 +280,7 @@ export function ActivityInfo({
                 </div>
             )}
 
-            {defaultStatus}
+            {isRunningGame && defaultStatus}
         </>
     );
 }

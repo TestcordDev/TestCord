@@ -6,6 +6,7 @@
 
 import "./styles.css";
 
+import { isPluginEnabled } from "@api/PluginManager";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
@@ -61,7 +62,7 @@ export default definePlugin({
             replacement: [
                 {
                     match: /children:\[null!=(\i)\?\(0,(\i)\.jsx\)\((\i),{name:\1,applicationId:(\i)\?\.id}\):null,\(0,\2\.jsx\)\((\i),{isCurrentlyRunningGame:(\i),onClickNotSharing:(\i)}\)\]/,
-                    replace: "children:$self.renderActivityInfo({name:$1,application:$4,isCurrentlyRunningGame:$6,onClickNotSharing:$7,defaultTitle:null!=$1?(0,$2.jsx)($3,{name:$1,applicationId:$4?.id}):null,defaultStatus:(0,$2.jsx)($5,{isCurrentlyRunningGame:$6,onClickNotSharing:$7})})"
+                    replace: "children:$self.renderActivityInfo({name:$1,application:$4,isCurrentlyRunningGame:$6,onClickNotSharing:$7,TitleComponent:$3,defaultTitle:null!=$1?(0,$2.jsx)($3,{name:$1,applicationId:$4?.id}):null,defaultStatus:(0,$2.jsx)($5,{isCurrentlyRunningGame:$6,onClickNotSharing:$7})})"
                 },
                 {
                     match: /getId\(\)\),(\i)=\(0,(\i\.\i)\)\(\[(\i\.\i),(\i\.\i)\],\(\)=>(\(0,\i\.\i\)\([^)]+\))\)/,
@@ -69,7 +70,7 @@ export default definePlugin({
                 },
                 {
                     match: /\(0,(\i)\.jsx\)\((\i),{name:(\i),application:(\i),game:(\i),isStreaming:(\i),ref:(\i)}\)/,
-                    replace: "$self.renderActivityIcon({name:$3,application:$4,game:$5,isStreaming:$6,ref:$7,defaultIcon:(0,$1.jsx)($2,{name:$3,application:$4,game:$5,isStreaming:$6,ref:$7})})"
+                    replace: "$self.renderActivityIcon({name:$3,application:$4,game:$5,isStreaming:$6,ref:$7,IconComponent:$2,defaultIcon:(0,$1.jsx)($2,{name:$3,application:$4,game:$5,isStreaming:$6,ref:$7})})"
                 },
                 {
                     match: /(\i)\?(\i)\((\i),(\i),{isGameRunning:!0}\)/,
@@ -84,6 +85,9 @@ export default definePlugin({
     ],
 
     getVisibleGameOrRpc(game: unknown): unknown {
+        if (isPluginEnabled("MusicControls") && game && (game as { name?: string; }).name?.toLowerCase() === "spotify") {
+            game = null;
+        }
         if (game) return game;
         const activities = getUserActivities();
         if (activities.length === 0) return null;
