@@ -11,9 +11,7 @@ import { OptionType } from "@utils/types";
 import { SafeChooseImageCacheDir, SafeChooseLogsDir, SafeOpenAttachmentsFolder, SafeSaveLogsBackup } from "./settingsComponents";
 
 const antilogPremiumEnabled = () => isPluginEnabled("AntilogPremium");
-const antiAntilogEnabled = () => isPluginEnabled("AntiAntilog");
 const silentDeleteOff = () => antilogPremiumEnabled() || !settings.store.enableSilentDelete;
-const antiAntilogCovered = () => antiAntilogEnabled();
 
 export const settings = definePluginSettings({
     // Capture
@@ -256,12 +254,31 @@ export const settings = definePluginSettings({
         hidden: () => !settings.store.hideFromOtherLoggers
     },
 
-    // Anti-antilog (AntiAntilog-style)
+    // Anti-antilog (merged from AntiAntilog)
     blockAntilogNonce: {
         type: OptionType.BOOLEAN,
         description: "Block the nonce based antilog exploit so antilogged messages still get logged as deletions here.",
-        default: true,
-        hidden: antiAntilogCovered
+        default: true
+    },
+    includeOwnMessages: {
+        type: OptionType.BOOLEAN,
+        description: "Apply anti-antilogging to your own messages when anti-antilogged. Keep off to avoid exposing yourself on stream.",
+        default: false
+    },
+    preserveRemovedEmbeds: {
+        type: OptionType.BOOLEAN,
+        description: "Keep image and video embeds visible when someone removes the embed from their message.",
+        default: true
+    },
+    preserveRemovedAttachments: {
+        type: OptionType.BOOLEAN,
+        description: "Keep attachments visible when they are stripped from a message via edit.",
+        default: true
+    },
+    logAntiAntilogActivity: {
+        type: OptionType.BOOLEAN,
+        description: "Log every blocked antilog attempt to the developer console.",
+        default: false
     },
 
     // Logs modal
