@@ -10,9 +10,9 @@ import { HeaderBarButton } from "@api/HeaderBar";
 import { DataStore } from "@api/index";
 import { classNameFactory } from "@utils/css";
 import { copyWithToast } from "@utils/discord";
-import { closeModal, ModalCloseButton, ModalContent, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
+import { closeModal, ModalContent, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
-import { moment, React, useEffect, useRef, useState } from "@webpack/common";
+import { Modal, moment, React, useEffect, useRef, useState } from "@webpack/common";
 
 const cl = classNameFactory("vc-cal-");
 
@@ -331,11 +331,7 @@ function CalendarModal(props: any) {
         : null;
 
     return (
-        <ModalRoot {...props} size={ModalSize.LARGE} className={cl("modal-root")}>
-            <ModalHeader className={cl("modal-header")}>
-                <span className={cl("modal-title")}>Calendar</span>
-                <ModalCloseButton onClick={props.onClose} />
-            </ModalHeader>
+        <Modal {...props} size="lg" title="Calendar" className={cl("modal-root")}>
             <ModalContent className={cl("modal-content")}>
                 <div className={cl("layout")}>
                     <div className={cl("calendar-side")}>
@@ -380,7 +376,7 @@ function CalendarModal(props: any) {
                     </div>
                 </div>
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }
 

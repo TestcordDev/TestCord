@@ -9,10 +9,10 @@ import "./style.css";
 import { HeaderBarButton } from "@api/HeaderBar";
 import { ErrorBoundary } from "@components/index";
 import { TestcordDevs } from "@utils/constants";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal } from "@utils/modal";
+import { ModalContent, ModalFooter, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
 import { findComponentByCodeLazy } from "@webpack";
-import { Button, Forms, NavigationRouter, React, RestAPI, TextInput } from "@webpack/common";
+import { Button, Forms, Modal, NavigationRouter, React, RestAPI, TextInput } from "@webpack/common";
 const FormText = Forms.FormText as any;
 
 const UserIcon = (props: any) => (
@@ -88,12 +88,7 @@ function DirectMessageModal(props: any) {
     };
 
     return (
-        <ModalRoot {...props} title="">
-            <ModalHeader>
-                <Forms.FormTitle tag="h4">Open Direct Message</Forms.FormTitle>
-                <ModalCloseButton onClick={props.onClose} />
-            </ModalHeader>
-
+        <Modal {...props} size="sm" title="Open Direct Message">
             <ModalContent>
                 <Forms.FormTitle tag="h5" style={{ marginTop: "10px" }}>
                     User ID
@@ -106,6 +101,11 @@ function DirectMessageModal(props: any) {
                     value={userId}
                     onChange={setUserId}
                     disabled={loading}
+                    onKeyDown={(e: React.KeyboardEvent) => {
+                        if (e.key === "Enter" && !loading && userId.trim()) {
+                            openDM();
+                        }
+                    }}
                 />
                 {error && (
                     <FormText type={"description" as any} style={{ color: "var(--text-danger)", marginTop: "10px" }}>
@@ -131,7 +131,7 @@ function DirectMessageModal(props: any) {
                     Cancel
                 </Button>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 

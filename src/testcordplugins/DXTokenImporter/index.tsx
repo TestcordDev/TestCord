@@ -18,12 +18,12 @@ import { classNameFactory } from "@utils/css";
 import { copyWithToast } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import { identity, sleep } from "@utils/misc";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal, type RenderModalProps } from "@utils/modal";
+import { ModalContent, ModalFooter, openModal, type RenderModalProps } from "@utils/modal";
 import { formatDurationMs } from "@utils/text";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { chooseFile, saveFile } from "@utils/web";
 import { findByProps } from "@webpack";
-import { Button, FluxDispatcher, Forms, IconUtils, React, Select, showToast, TextArea, Toasts, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
+import { Button, FluxDispatcher, Forms, IconUtils, Modal, React, Select, showToast, TextArea, Toasts, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
 
 import { type CheckTokenUser, isEncryptedPayload, TOKEN_REGEX_SOURCE } from "./common";
 
@@ -530,11 +530,7 @@ function RemoveInvalidModal({ rootProps, invalidAccounts, onConfirm }: {
     onConfirm: () => void;
 }) {
     return (
-        <ModalRoot {...rootProps} size="small">
-            <ModalHeader separator={false}>
-                <Forms.FormTitle tag="h4" style={{ margin: 0, flex: 1 }}>Remove invalid tokens?</Forms.FormTitle>
-                <ModalCloseButton onClick={rootProps.onClose} />
-            </ModalHeader>
+        <Modal {...rootProps} size="sm" title="Remove invalid tokens?">
             <ModalContent>
                 <Forms.FormText style={{ marginBottom: 12 }}>
                     {invalidAccounts.length} account{invalidAccounts.length !== 1 ? "s" : ""} had invalid or revoked tokens:
@@ -552,7 +548,7 @@ function RemoveInvalidModal({ rootProps, invalidAccounts, onConfirm }: {
                 <Button onClick={() => rootProps.onClose()} color={Button.Colors.TRANSPARENT}>Keep them</Button>
                 <Button onClick={() => { onConfirm(); rootProps.onClose(); }} color={Button.Colors.RED}>Remove invalid</Button>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 
@@ -950,13 +946,15 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
     const invalidCount = results.filter(r => r.status === "invalid").length;
 
     return (
-        <ModalRoot {...rootProps} size="medium">
-            <ModalHeader separator={false}>
-                <Forms.FormTitle tag="h4" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8, flex: 1 }}>
+        <Modal
+            {...rootProps}
+            size="md"
+            title={
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <FolderIcon width={16} height={16} /> DX Token Importer
-                </Forms.FormTitle>
-                <ModalCloseButton onClick={rootProps.onClose} />
-            </ModalHeader>
+                </div>
+            }
+        >
             <ModalContent className={cl("content")}>
                 <div className={cl("tabs")}>
                     <button className={cl("tab", tab === "saved" && "tab-active")} onClick={() => setTab("saved")}>
@@ -1194,7 +1192,7 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
                     </div>
                 )}
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }
 
@@ -1208,11 +1206,7 @@ const DANGEROUS_SETTING_BLURBS: Record<DangerousSetting, string> = {
 
 function DangerousAckModal({ rootProps, settingKey, onConfirm }: { rootProps: RenderModalProps; settingKey: DangerousSetting; onConfirm: () => void; }) {
     return (
-        <ModalRoot {...rootProps} size="small">
-            <ModalHeader separator={false}>
-                <Forms.FormTitle tag="h4" style={{ margin: 0, flex: 1 }}>Enable "{settingKey}"?</Forms.FormTitle>
-                <ModalCloseButton onClick={rootProps.onClose} />
-            </ModalHeader>
+        <Modal {...rootProps} size="sm" title={`Enable "${settingKey}"?`}>
             <ModalContent>
                 <Forms.FormText style={{ marginBottom: 12 }}>
                     {DANGEROUS_SETTING_BLURBS[settingKey]}
@@ -1225,7 +1219,7 @@ function DangerousAckModal({ rootProps, settingKey, onConfirm }: { rootProps: Re
                 <Button onClick={() => rootProps.onClose()} color={Button.Colors.TRANSPARENT}>Cancel</Button>
                 <Button onClick={() => { onConfirm(); rootProps.onClose(); }} color={Button.Colors.RED}>I understand, enable it</Button>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 
@@ -1301,11 +1295,7 @@ function UnlockModal({ rootProps }: { rootProps: RenderModalProps; }) {
     }
 
     return (
-        <ModalRoot {...rootProps} size="small">
-            <ModalHeader separator={false}>
-                <Forms.FormTitle tag="h4" style={{ margin: 0, flex: 1 }}>DXTokenImporter is locked</Forms.FormTitle>
-                <ModalCloseButton onClick={rootProps.onClose} />
-            </ModalHeader>
+        <Modal {...rootProps} size="sm" title="DXTokenImporter is locked">
             <ModalContent>
                 <input
                     autoFocus
@@ -1325,7 +1315,7 @@ function UnlockModal({ rootProps }: { rootProps: RenderModalProps; }) {
                 <Button color={Button.Colors.TRANSPARENT} onClick={rootProps.onClose}>Cancel</Button>
                 <Button color={Button.Colors.BRAND} disabled={busy || passphrase.length === 0} onClick={submit}>{busy ? "Checking..." : "Unlock"}</Button>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 
@@ -1389,11 +1379,7 @@ function PassphraseModal({ rootProps, title, confirmField = false, warnText, onC
     }
 
     return (
-        <ModalRoot {...rootProps} size="small">
-            <ModalHeader separator={false}>
-                <Forms.FormTitle tag="h4" style={{ margin: 0, flex: 1 }}>{title}</Forms.FormTitle>
-                <ModalCloseButton onClick={rootProps.onClose} />
-            </ModalHeader>
+        <Modal {...rootProps} size="sm" title={title}>
             <ModalContent>
                 {warnText && <Forms.FormText style={{ marginBottom: 12 }}>{warnText}</Forms.FormText>}
                 <input
@@ -1424,7 +1410,7 @@ function PassphraseModal({ rootProps, title, confirmField = false, warnText, onC
                 <Button color={Button.Colors.TRANSPARENT} onClick={rootProps.onClose}>Cancel</Button>
                 <Button color={Button.Colors.BRAND} disabled={busy} onClick={submit}>{busy ? "Working..." : "Continue"}</Button>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 
@@ -1921,11 +1907,7 @@ function QuickSwitcherModal({ rootProps }: { rootProps: RenderModalProps; }) {
     }
 
     return (
-        <ModalRoot {...rootProps} size="small">
-            <ModalHeader separator={false}>
-                <Forms.FormTitle tag="h4" style={{ margin: 0, flex: 1 }}>Quick switcher</Forms.FormTitle>
-                <ModalCloseButton onClick={rootProps.onClose} />
-            </ModalHeader>
+        <Modal {...rootProps} size="sm" title="Quick switcher">
             <ModalContent className={cl("qs-content")}>
                 <input
                     autoFocus
@@ -1962,7 +1944,7 @@ function QuickSwitcherModal({ rootProps }: { rootProps: RenderModalProps; }) {
                     )}
                 </div>
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }
 
