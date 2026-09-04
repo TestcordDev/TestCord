@@ -47,9 +47,38 @@ export const ModalHeader = LazyComponent(() => (Modals as any).ModalHeader) as a
 export const ModalContent = LazyComponent(() => (Modals as any).ModalContent) as any;
 /** @deprecated Migrate to new Modals */
 export const ModalFooter = LazyComponent(() => (Modals as any).ModalFooter) as any;
+const DiscordCloseButton = findComponentByCodeLazy("CLOSE_BUTTON_LABEL");
+
+export function CloseButton(props: { onClick?: () => void; className?: string; style?: any; [key: string]: any; }) {
+    const Component = DiscordCloseButton as any;
+    if (Component && typeof Component === "function") {
+        try {
+            const res = Component(props);
+            if (res) return res;
+        } catch {}
+    }
+    const { onClick, className, style, ...rest } = props;
+    return (
+        <button
+            type="button"
+            aria-label="Close"
+            className={className}
+            onClick={onClick}
+            style={style}
+            {...rest}
+        >
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" role="img">
+                <path
+                    fill="currentColor"
+                    d="M17.3 18.7a1 1 0 0 0 1.4-1.4L13.42 12l5.3-5.3a1 1 0 0 0-1.42-1.4L12 10.58l-5.3-5.3a1 1 0 0 0-1.4 1.42L10.58 12l-5.3 5.3a1 1 0 1 0 1.42 1.4L12 13.42l5.3 5.3Z"
+                />
+            </svg>
+        </button>
+    );
+}
+
 /** @deprecated Migrate to new Modals */
-export const ModalCloseButton = LazyComponent(() => (Modals as any).ModalCloseButton) as any;
-export const CloseButton = findComponentByCodeLazy("CLOSE_BUTTON_LABEL");
+export const ModalCloseButton = CloseButton;
 
 /** @deprecated Migrate to new Modals */
 export const ModalAPI = {

@@ -6,9 +6,9 @@
 
 import { showNotification } from "@api/Notifications";
 import { classNameFactory } from "@utils/css";
-import { ModalContent, RenderModalProps } from "@utils/modal";
+import { ModalContent, ModalHeader, ModalRoot, ModalSize, RenderModalProps } from "@utils/modal";
 import { saveFile } from "@utils/web";
-import { ChannelStore, GuildStore, IconUtils, Modal, NavigationRouter, React, SelectedChannelStore, SelectedGuildStore, useCallback, useEffect, useRef, UserStore, useState } from "@webpack/common";
+import { ChannelStore, GuildStore, IconUtils, NavigationRouter, React, SelectedChannelStore, SelectedGuildStore, useCallback, useEffect, useRef, UserStore, useState } from "@webpack/common";
 
 import { settings } from "./index";
 import { deepSearch, FilterState, loadLastQuery, saveLastQuery, SearchResult, SearchTarget } from "./search";
@@ -387,25 +387,32 @@ export function DeepSearchModal({ rootProps }: { rootProps: RenderModalProps; })
     }).length;
 
     return (
-        <Modal
-            {...rootProps}
-            size="lg"
-            className={cl("modal-root")}
-            title={
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span className={cl("header-title")}>Deep Search</span>
-                    {targetGuildId ? (
-                        <span className={cl("header-guild")}>
-                            {GuildStore.getGuild(targetGuildId)?.name || "Server"}
-                        </span>
-                    ) : targetChannelId ? (
-                        <span className={cl("header-guild")}>
-                            #{ChannelStore.getChannel(targetChannelId)?.name || "Direct Message"}
-                        </span>
-                    ) : null}
-                </div>
-            }
-        >
+        <ModalRoot {...rootProps} size={ModalSize.LARGE} className={cl("modal-root")}>
+            <ModalHeader className={cl("header")}>
+                <span className={cl("header-title")}>Deep Search</span>
+                {targetGuildId ? (
+                    <span className={cl("header-guild")}>
+                        {GuildStore.getGuild(targetGuildId)?.name || "Server"}
+                    </span>
+                ) : targetChannelId ? (
+                    <span className={cl("header-guild")}>
+                        #{ChannelStore.getChannel(targetChannelId)?.name || "Direct Message"}
+                    </span>
+                ) : null}
+                <button
+                    type="button"
+                    aria-label="Close"
+                    className={cl("close-btn")}
+                    onClick={rootProps.onClose}
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" role="img">
+                        <path
+                            fill="currentColor"
+                            d="M17.3 18.7a1 1 0 0 0 1.4-1.4L13.42 12l5.3-5.3a1 1 0 0 0-1.42-1.4L12 10.58l-5.3-5.3a1 1 0 0 0-1.4 1.42L10.58 12l-5.3 5.3a1 1 0 1 0 1.42 1.4L12 13.42l5.3 5.3Z"
+                        />
+                    </svg>
+                </button>
+            </ModalHeader>
             <ModalContent className={cl("content")}>
                 <div className={cl("container")}>
                     <div className={cl("search-section")}>
@@ -573,6 +580,6 @@ export function DeepSearchModal({ rootProps }: { rootProps: RenderModalProps; })
                     </div>
                 </div>
             </ModalContent>
-        </Modal>
+        </ModalRoot>
     );
 }

@@ -1,4 +1,33 @@
 /* Works around a very strange issue where *something* (electron?) will inject body { app-region: drag } when using online themes */
 body {
+    -webkit-app-region: no-drag;
     app-region: no-drag;
 }
+
+/* Modern Discord Visual Refresh Close Button styles */
+.vc-modal-close-btn,
+button[class*="closeButton"],
+button[class*="closeWithCircleBackground"],
+button[aria-label="Close"],
+button[aria-label="Close Modal"] {
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.vc-modal-close-btn:hover,
+button[class*="closeButton"]:hover,
+button[class*="closeWithCircleBackground"]:hover,
+button[aria-label="Close"]:hover,
+button[aria-label="Close Modal"]:hover {
+    background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+}
+
+.vc-modal-close-btn:active,
+button[class*="closeButton"]:active,
+button[class*="closeWithCircleBackground"]:active,
+button[aria-label="Close"]:active,
+button[aria-label="Close Modal"]:active {
+    background-color: var(--background-modifier-active, rgba(255, 255, 255, 0.16));
+}
+
