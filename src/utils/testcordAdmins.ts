@@ -141,6 +141,13 @@ export const TestcordDevelopers = Object.freeze({
     }
 } satisfies Record<string, TestcordAdmin>);
 
+export const TestcordArtists = Object.freeze({
+    grandesorciere: {
+        name: "grandesorciere",
+        id: 756967256180654090n
+    }
+} satisfies Record<string, TestcordAdmin>);
+
 // Lookup by ID for easy access
 export const TestcordAdminsById = Object.freeze(Object.fromEntries(
     Object.entries(TestcordAdmins).map(([_, v]) => [v.id.toString(), v] as const)
@@ -152,6 +159,10 @@ export const TestcordOwnersById = Object.freeze(Object.fromEntries(
 
 export const TestcordDevelopersById = Object.freeze(Object.fromEntries(
     Object.entries(TestcordDevelopers).map(([_, v]) => [v.id.toString(), v] as const)
+)) as Record<string, TestcordAdmin>;
+
+export const TestcordArtistsById = Object.freeze(Object.fromEntries(
+    Object.entries(TestcordArtists).map(([_, v]) => [v.id.toString(), v] as const)
 )) as Record<string, TestcordAdmin>;
 
 // Check if a user ID is a testcord admin
@@ -167,6 +178,11 @@ export function isTestcordOwner(userId: string): boolean {
 // Check if a user ID is a testcord developer
 export function isTestcordDeveloper(userId: string): boolean {
     return Object.hasOwn(TestcordDevelopersById, userId);
+}
+
+// Check if a user ID is a testcord artist
+export function isTestcordArtist(userId: string): boolean {
+    return Object.hasOwn(TestcordArtistsById, userId);
 }
 
 // btw fuck me for making such stupid mistakes.

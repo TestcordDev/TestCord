@@ -20,7 +20,7 @@ import { User } from "@vencord/discord-types";
 import { ChannelStore, GuildMemberStore, IconUtils } from "@webpack/common";
 
 import { EQUICORD_GUILD_ID, EQUICORD_HELPERS, EquicordDevsById, KNOWN_ISSUES_CHANNEL_ID, SUPPORT_CHANNEL_ID, TESTCORD_GUILD_ID, TestcordDevsById, VencordDevsById } from "./constants";
-import { TestcordAdminsById } from "./testcordAdmins";
+import { TestcordAdminsById, TestcordArtistsById } from "./testcordAdmins";
 
 /**
  * Calls .join(" ") on the arguments
@@ -90,6 +90,9 @@ export const shouldShowTestcordContributorBadge = (id: string) => isTestcordPlug
 
 export const isTestcordAdmin = (id: string) => Object.hasOwn(TestcordAdminsById, id);
 export const shouldShowTestcordAdminBadge = (id: string) => isTestcordAdmin(id);
+
+export const isTestcordArtist = (id: string) => Object.hasOwn(TestcordArtistsById, id);
+export const shouldShowTestcordArtistBadge = (id: string) => isTestcordArtist(id);
 
 export const isAnyPluginDev = (id: string) => Object.hasOwn(VencordDevsById, id) || Object.hasOwn(EquicordDevsById, id) || Object.hasOwn(TestcordDevsById, id);
 
