@@ -19,7 +19,6 @@
         "noImplicitAny": false,
         "target": "ESNEXT",
         "jsx": "preserve",
-        "baseUrl": ".",
         "paths": {
             "@main/*": [
                 "./src/main/*"
