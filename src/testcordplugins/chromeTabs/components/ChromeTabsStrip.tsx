@@ -11,19 +11,16 @@ import { ChannelRTCStore, ContextMenuApi, FluxDispatcher, useCallback, useEffect
 
 import { PlusIcon } from "../util/icons";
 import { MIN_TAB_WIDTH, settings } from "../util/settings";
-import { activateTabByIndex, closeTab, createTabAfter, cycleTab, getActiveTab, getActiveTabId, getTabs, initTabs, moveTab, subscribe } from "../util/store";
+import { activateTabByIndex, closeTab, createTabAfter, cycleTab, getActiveTab, getActiveTabId, getTabs, initTabs, moveTab, reopenClosedTab, subscribe } from "../util/store";
 import { TabTarget } from "../util/types";
 import { ChromeTab } from "./ChromeTab";
+import { cancelChromeTabSwitcher, cycleChromeTabSwitcher, handleSwitcherKeyDown, handleSwitcherKeyUp, isChromeTabSwitcherOpen } from "./ChromeTabSwitcher";
 import { StripContextMenu } from "./ContextMenus";
 
 const cl = classNameFactory("tc-chrometabs-");
 
-/** Width reserved for the "+" button so tabs never overlap it */
 const NEW_TAB_BUTTON_WIDTH = 34;
-
-/** Below this width tabs drop their label (kept in sync with style.css) */
 export const NARROW_TAB_WIDTH = 88;
-/** Below this width tabs also drop the close button */
 export const TINY_TAB_WIDTH = 66;
 
 function matchesKeybind(e: KeyboardEvent) {
@@ -33,6 +30,7 @@ function matchesKeybind(e: KeyboardEvent) {
     const key = e.key.toLowerCase();
 
     if (key === "t" && !e.shiftKey) return "new" as const;
+    if (key === "t" && e.shiftKey) return "reopen" as const;
     if (key === "w" && !e.shiftKey) return "close" as const;
     if (key === "tab") return e.shiftKey ? "prev" as const : "next" as const;
 
@@ -43,7 +41,6 @@ function matchesKeybind(e: KeyboardEvent) {
 }
 
 export interface ChromeTabsStripProps extends TabTarget {
-    /** compact styling for mounting inside Discord's title bar */
     titleBar?: boolean;
 }
 
@@ -56,20 +53,15 @@ export function ChromeTabsStrip({ guildId, channelId, titleBar }: ChromeTabsStri
     const stripRef = useRef<HTMLDivElement>(null);
     const [tabWidth, setTabWidth] = useState(maxTabWidth);
 
-    // drag-reorder state; indices refer to positions in the tab array
     const [dragIndex, setDragIndex] = useState<number | null>(null);
 
-    // hide the strip in fullscreen video calls, where Discord takes the whole window
     const isFullscreen = useStateFromStores([ChannelRTCStore], () => ChannelRTCStore.isFullscreenInContext() ?? false);
 
-    // keep the newest navigation target around without re-running effects on every change
     const targetRef = useRef({ guildId, channelId });
     targetRef.current = { guildId, channelId };
 
-    // re-render whenever the tab store changes
     useEffect(() => subscribe(forceUpdate), [forceUpdate]);
 
-    // build the strip once the user is known, and again if the account changes
     useEffect(() => {
         const onReady = () => {
             const user = UserStore.getCurrentUser();
@@ -87,10 +79,6 @@ export function ChromeTabsStrip({ guildId, channelId, titleBar }: ChromeTabsStri
     const activeId = getActiveTabId();
     const tabCount = tabs.length;
 
-    /**
-     * Chrome divides the strip evenly between tabs, capping at a comfortable width
-     * and refusing to shrink past a floor (after which the strip scrolls instead).
-     */
     const recalculateTabWidth = useCallback(() => {
         const strip = stripRef.current;
         if (!strip || tabCount === 0) return;
@@ -98,7 +86,6 @@ export function ChromeTabsStrip({ guildId, channelId, titleBar }: ChromeTabsStri
         const available = strip.clientWidth - NEW_TAB_BUTTON_WIDTH;
         if (available <= 0) return;
 
-        // tabs overlap by 1px so their curves meet, matching Chrome
         const ideal = Math.floor(available / tabCount);
         setTabWidth(Math.max(MIN_TAB_WIDTH, Math.min(maxTabWidth, ideal)));
     }, [tabCount, maxTabWidth]);
@@ -116,29 +103,30 @@ export function ChromeTabsStrip({ guildId, channelId, titleBar }: ChromeTabsStri
 
     const openNewTab = useCallback(() => {
         const active = getActiveTab();
-        const target = targetRef.current;
+        const target = active
+            ? { guildId: active.guildId, channelId: active.channelId }
+            : targetRef.current;
 
         if (active) createTabAfter(active.id, target, true);
     }, []);
 
-    // keyboard shortcuts, captured before Discord's own handlers see them
     useEffect(() => {
         if (!enableKeybinds) return;
 
         const onKeyDown = (e: KeyboardEvent) => {
-            const target = e.target as HTMLElement | null;
-            if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
-            // Discord uses role="textbox" on some editable surfaces (quick switcher, chat bar variants)
-            if (target?.closest?.('[role="textbox"], select, [contenteditable="true"]')) return;
+            if (isChromeTabSwitcherOpen()) {
+                if (handleSwitcherKeyDown(e)) return;
+            }
 
             const action = matchesKeybind(e);
             if (!action) return;
 
             if (typeof action === "object") {
-                // like Chrome: Ctrl+9 always jumps to the last tab
                 const index = action.jump === 9 ? getTabs().length - 1 : action.jump - 1;
                 if (getTabs()[index]) {
                     e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
                     activateTabByIndex(index);
                 }
                 return;
@@ -147,13 +135,24 @@ export function ChromeTabsStrip({ guildId, channelId, titleBar }: ChromeTabsStri
             switch (action) {
                 case "new":
                     e.preventDefault();
-                    e.stopPropagation(); // otherwise Discord opens the quick switcher
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
                     openNewTab();
+                    break;
+                case "reopen":
+                    if (settings.store.reopenTabKeybind) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                        reopenClosedTab();
+                    }
                     break;
                 case "close": {
                     const active = getActiveTab();
                     if (active && getTabs().length > 1) {
                         e.preventDefault();
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
                         closeTab(active.id);
                     }
                     break;
@@ -161,14 +160,38 @@ export function ChromeTabsStrip({ guildId, channelId, titleBar }: ChromeTabsStri
                 case "next":
                 case "prev":
                     e.preventDefault();
-                    e.stopPropagation(); // Discord uses Ctrl+Tab for guild switching
-                    cycleTab(action === "next" ? 1 : -1);
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    if (settings.store.ctrlTabSwitcher && getTabs().length > 1) {
+                        cycleChromeTabSwitcher(action === "next" ? 1 : -1);
+                    } else {
+                        cycleTab(action === "next" ? 1 : -1);
+                    }
                     break;
             }
         };
 
-        document.addEventListener("keydown", onKeyDown, true);
-        return () => document.removeEventListener("keydown", onKeyDown, true);
+        const onKeyUp = (e: KeyboardEvent) => {
+            if (isChromeTabSwitcherOpen()) {
+                handleSwitcherKeyUp(e);
+            }
+        };
+
+        const onBlur = () => {
+            if (isChromeTabSwitcherOpen()) {
+                cancelChromeTabSwitcher();
+            }
+        };
+
+        window.addEventListener("keydown", onKeyDown, true);
+        window.addEventListener("keyup", onKeyUp, true);
+        window.addEventListener("blur", onBlur);
+        return () => {
+            window.removeEventListener("keydown", onKeyDown, true);
+            window.removeEventListener("keyup", onKeyUp, true);
+            window.removeEventListener("blur", onBlur);
+            cancelChromeTabSwitcher();
+        };
     }, [enableKeybinds, openNewTab]);
 
     const handleDragStart = useCallback((index: number) => setDragIndex(index), []);

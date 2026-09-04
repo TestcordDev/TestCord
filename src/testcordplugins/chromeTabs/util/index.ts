@@ -9,3 +9,4 @@ export * from "./settings";
 export * from "./store";
 export * from "./types";
 export * from "./unread";
+export * from "../components/ChromeTabSwitcher";

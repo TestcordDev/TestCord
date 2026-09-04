@@ -65,8 +65,11 @@ declare global {
     export var VesktopNative: any;
     export var unsafeWindow: any;
     export var webpackChunkdiscord_app: any;
+    export var GLOBAL_ENV: any;
 
-    interface Window extends Record<PropertyKey, any> { }
+    interface Window extends Record<PropertyKey, any> {
+        GLOBAL_ENV?: any;
+    }
 
     interface MediaTrackConstraintSet {
         restrictOwnAudio?: boolean;

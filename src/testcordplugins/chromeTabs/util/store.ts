@@ -91,6 +91,41 @@ export function getActiveTab(): Tab | undefined {
     return tabs.find(tab => tab.id === activeId);
 }
 
+export function getActivationHistory(): readonly number[] {
+    return activationHistory;
+}
+
+export function getMRUTabs(order: "mru" | "strip" = "mru"): Tab[] {
+    if (order === "strip") {
+        return [...tabs];
+    }
+
+    const currentTabs = tabs;
+    const tabMap = new Map<number, Tab>(currentTabs.map(t => [t.id, t]));
+    const result: Tab[] = [];
+    const seen = new Set<number>();
+
+    // Traverse activationHistory in reverse (newest to oldest)
+    for (let i = activationHistory.length - 1; i >= 0; i--) {
+        const id = activationHistory[i];
+        const tab = tabMap.get(id);
+        if (tab && !seen.has(id)) {
+            result.push(tab);
+            seen.add(id);
+        }
+    }
+
+    // Any tabs that have not been activated in this session
+    for (const tab of currentTabs) {
+        if (!seen.has(tab.id)) {
+            result.push(tab);
+            seen.add(tab.id);
+        }
+    }
+
+    return result;
+}
+
 export function hasClosedTabs(): boolean {
     return closedTabs.length > 0;
 }

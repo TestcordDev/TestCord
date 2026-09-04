@@ -15,6 +15,7 @@ import { ChannelStore, Menu } from "@webpack/common";
 import { JSX } from "react";
 
 import { ChromeTabsStrip } from "./components/ChromeTabsStrip";
+import { removeChromeTabSwitcher } from "./components/ChromeTabSwitcher";
 import { getSyntheticPageIdForPath, handleNavigation, isSelfNavigation, openTarget, settings } from "./util";
 import * as ChromeTabsStore from "./util/store";
 
@@ -47,6 +48,9 @@ export default definePlugin({
     dependencies: ["ContextMenuAPI"],
 
     settings,
+    stop() {
+        removeChromeTabSwitcher();
+    },
 
     contextMenus: {
         "channel-context": openInNewTab,
@@ -56,7 +60,6 @@ export default definePlugin({
     },
 
     patches: [
-        // mount the tab strip alongside the app view (top/bottom modes)
         {
             find: '"AppView"',
             predicate: () => settings.store.tabBarPosition !== "titlebar",
@@ -65,9 +68,7 @@ export default definePlugin({
                 replace: "$self.render,{currentTarget:$1,"
             }
         },
-        // mount the tab strip inside Discord's main title bar, right before the
-        // window controls — matching Discord's upcoming native tabs layout:
-        // [trailing buttons] [our tabs] [+] [min/max/close]
+
         {
             find: '"data-window-chrome"',
             predicate: () => settings.store.tabBarPosition === "titlebar",
@@ -76,7 +77,6 @@ export default definePlugin({
                 replace: "$self.renderTitleBarTabs(),$&"
             }
         },
-        // ctrl+click an inbox mention to open it in a new tab
         {
             find: ".deleteRecentMention(",
             replacement: {
@@ -84,7 +84,6 @@ export default definePlugin({
                 replace: "$1 => { if ($1?.ctrlKey) $self.openMessage($3); else $2 }"
             }
         },
-        // ctrl+click a search result to open it in a new tab
         {
             find: "__invalid_searchResultFocusRing",
             replacement: {
@@ -96,7 +95,6 @@ export default definePlugin({
 
     flux: {
         CHANNEL_SELECT({ channelId, guildId }: { channelId: string | null; guildId: string | null; }) {
-            // a tab click drove this navigation; the store is already correct
             if (isSelfNavigation()) {
                 ChromeTabsStore.endSelfNavigation();
                 return;
@@ -107,7 +105,6 @@ export default definePlugin({
                 return;
             }
 
-            // no channel id means a non-channel page (Friends, Shop, Quests, ...)
             const syntheticId = getSyntheticPageIdForPath(window.location.pathname);
             if (syntheticId) handleNavigation({ guildId: "@me", channelId: syntheticId });
         }
@@ -133,7 +130,6 @@ export default definePlugin({
             : <>{strip}{children}</>;
     },
 
-    /** Injected into the title bar by the data-window-chrome patch */
     renderTitleBarTabs() {
         return (
             <ErrorBoundary noop>
@@ -142,7 +138,6 @@ export default definePlugin({
         );
     },
 
-    /** Ctrl+click handler shared by the inbox and search patches */
     openMessage(message: Message) {
         const channel = ChannelStore.getChannel(message.channel_id);
 
