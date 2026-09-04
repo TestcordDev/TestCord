@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
+import { ModalContent, openModal } from "@utils/modal";
 import { Guild, RenderModalProps } from "@vencord/discord-types";
 import { findByPropsLazy } from "@webpack";
-import { Forms, GuildStore, React, TabBar, Text, useState } from "@webpack/common";
+import { Forms, GuildStore, Modal, React, TabBar, Text, useState } from "@webpack/common";
 
 import { ChannelsTab } from "./tabs/ChannelsTab";
 import { EmojisTab } from "./tabs/EmojisTab";
@@ -45,8 +45,11 @@ function XRayModal({ guild: bareGuild, ...props }: RenderModalProps & { guild: G
     });
 
     return (
-        <ModalRoot {...props} size={ModalSize.LARGE} className="guild-toolkit-modal">
-            <ModalHeader className="guild-toolkit-header">
+        <Modal
+            {...props}
+            size="lg"
+            className="guild-toolkit-modal"
+            title={
                 <div className="guild-toolkit-header-content">
                     {iconUrl && <img src={iconUrl} alt="" className="guild-toolkit-icon" />}
                     <div>
@@ -56,8 +59,8 @@ function XRayModal({ guild: bareGuild, ...props }: RenderModalProps & { guild: G
                         </Text>
                     </div>
                 </div>
-                <ModalCloseButton onClick={props.onClose} />
-            </ModalHeader>
+            }
+        >
 
             <TabBar
                 type="top"
@@ -84,6 +87,6 @@ function XRayModal({ guild: bareGuild, ...props }: RenderModalProps & { guild: G
                 {tab === Tab.Permissions && <PermissionsTab guild={guild} />}
                 {tab === Tab.Webhooks && <WebhooksTab guild={guild} />}
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }

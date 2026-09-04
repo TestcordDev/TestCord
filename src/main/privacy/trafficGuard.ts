@@ -538,9 +538,9 @@ class TrafficGuardEngine {
             const isScienceTrack = isDiscordApi && (path.includes("/science") || path.includes("/track"));
             const isMetrics = isDiscordApi && path.includes("/metrics");
             const isSentry = url.includes("sentry.io");
-            const isTracing = isDiscordApi && path.endsWith("/tracing");
-            const isRtcDiagnostics = isDiscordApi && /\/(?:rtc|voice)\/(?:quality-report|diagnostics)\/?$/.test(path);
-            const isRemoteLogging = isDiscordApi && /\/debug-logs(?:\/|$)/.test(path);
+            const isTracing = isDiscordApi && /\/tracing(?:\/|$)/.test(path);
+            const isRtcDiagnostics = isDiscordApi && /\/(?:rtc|voice)\/(?:quality-report|diagnostics)(?:\/|$)/.test(path);
+            const isRemoteLogging = isDiscordApi && /\/debug-logs?(?:\/|$)/.test(path);
             const isResidualPattern = !isSentry && !isMetrics && !isScienceTrack && (
                 BLOCKED_PATTERN_SUBSTRINGS.some(p => url.includes(p))
                 || BLOCKED_PATTERN_REGEXES.some(re => re.test(url))

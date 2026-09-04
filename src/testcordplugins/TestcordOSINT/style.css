@@ -609,3 +609,24 @@
 .vc-osint-root .vc-btn-base.vc-btn-secondary.vc-btn-medium {
     border-color: var(--control-primary-border-default);
 }
+
+.vc-osint-root button[class*="closeButton"],
+button[class*="closeButton"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.vc-osint-root button[class*="closeButton"]:hover,
+button[class*="closeButton"]:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.vc-osint-root button[class*="closeButton"]:active,
+button[class*="closeButton"]:active {
+    background-color: var(--background-modifier-active);
+}
+

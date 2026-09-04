@@ -6,7 +6,7 @@
 
 import { showNotification } from "@api/Notifications";
 import { classNameFactory } from "@utils/css";
-import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, ModalSize, RenderModalProps } from "@utils/modal";
+import { ModalContent, ModalHeader, ModalRoot, ModalSize, RenderModalProps } from "@utils/modal";
 import { saveFile } from "@utils/web";
 import { ChannelStore, GuildStore, IconUtils, NavigationRouter, React, SelectedChannelStore, SelectedGuildStore, useCallback, useEffect, useRef, UserStore, useState } from "@webpack/common";
 
@@ -399,7 +399,19 @@ export function DeepSearchModal({ rootProps }: { rootProps: RenderModalProps; })
                         #{ChannelStore.getChannel(targetChannelId)?.name || "Direct Message"}
                     </span>
                 ) : null}
-                <ModalCloseButton onClick={rootProps.onClose} />
+                <button
+                    type="button"
+                    aria-label="Close"
+                    className={cl("close-btn")}
+                    onClick={rootProps.onClose}
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" role="img">
+                        <path
+                            fill="currentColor"
+                            d="M17.3 18.7a1 1 0 0 0 1.4-1.4L13.42 12l5.3-5.3a1 1 0 0 0-1.42-1.4L12 10.58l-5.3-5.3a1 1 0 0 0-1.4 1.42L10.58 12l-5.3 5.3a1 1 0 1 0 1.42 1.4L12 13.42l5.3 5.3Z"
+                        />
+                    </svg>
+                </button>
             </ModalHeader>
             <ModalContent className={cl("content")}>
                 <div className={cl("container")}>

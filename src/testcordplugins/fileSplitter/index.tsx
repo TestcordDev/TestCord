@@ -4,23 +4,22 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import "./style.css";
+
 import { definePluginSettings } from "@api/Settings";
 import { BaseText } from "@components/BaseText";
 import { Flex } from "@components/Flex";
 import { TestcordDevs } from "@utils/constants";
 import {
-    ModalCloseButton,
     ModalContent,
     ModalFooter,
-    ModalHeader,
     ModalProps,
-    ModalRoot,
-    ModalSize,
     openModal,
 } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import {
     Button,
+    Modal,
     React,
     useState,
 } from "@webpack/common";
@@ -163,13 +162,7 @@ pause`;
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.LARGE}>
-            <ModalHeader>
-                <BaseText size="lg" weight="semibold" style={{ flexGrow: 1 }}>
-                    🔪 File Splitter
-                </BaseText>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+        <Modal {...modalProps} size="lg" title="🔪 File Splitter">
             <ModalContent>
                 <div style={{ padding: "16px" }}>
                     <BaseText size="md" style={{ marginBottom: "16px" }}>
@@ -305,7 +298,7 @@ pause`;
                     </Button>
                 </Flex>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 

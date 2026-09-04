@@ -32,16 +32,18 @@ import { buildIssueUrl, generateGitHubIssueBody } from "@utils/debugReport";
 import { proxyLazy } from "@utils/lazy";
 import { Margins } from "@utils/margins";
 import { classes, isObjectEmpty } from "@utils/misc";
+import { getPluginWarning } from "@utils/pluginWarnings";
 import { OptionType, Plugin, PluginTag } from "@utils/types";
 import { RenderModalProps, User } from "@vencord/discord-types";
 import { findComponentByCodeLazy, findCssClassesLazy } from "@webpack";
 import { Clickable, FluxDispatcher, Modal, openModal, React, Text, Toasts, Tooltip, useEffect, useMemo, UserStore, UserUtils, useState } from "@webpack/common";
 import { Constructor } from "type-fest";
 
-import { PluginMeta } from "~plugins";
+import Plugins, { PluginMeta } from "~plugins";
 
 import { OptionComponentMap } from "./components";
 import { openContributorModal } from "./ContributorModal";
+import { jumpToPlugin } from "./jumpToPlugin";
 import { FavoriteButton, GithubButton, WebsiteButton } from "./PluginModalButtons";
 
 const cl = classNameFactory("vc-plugin-modal-");
@@ -55,6 +57,24 @@ const UserRecord = proxyLazy(() => UserStore.getCurrentUser().constructor) as Co
 interface PluginModalProps extends RenderModalProps {
     plugin: Plugin;
     onRestartNeeded(key: string): void;
+}
+
+export function findPluginByName(name: string): Plugin | undefined {
+    const norm = name.trim().toLowerCase().replace(/[\s\-_]/g, "");
+    let match = Object.values(Plugins).find(p => {
+        if (!p?.name) return false;
+        return p.name.trim().toLowerCase().replace(/[\s\-_]/g, "") === norm;
+    });
+    if (match) return match;
+
+    match = Plugins[name] ?? Object.entries(Plugins).find(([k]) => k.trim().toLowerCase().replace(/[\s\-_]/g, "") === norm)?.[1];
+    if (match) return match;
+
+    return Object.values(Plugins).find(p => {
+        if (!p?.name) return false;
+        const pNorm = p.name.trim().toLowerCase().replace(/[\s\-_]/g, "");
+        return pNorm.startsWith(norm) || norm.startsWith(pNorm);
+    });
 }
 
 export function makeDummyUser(user: { username: string; id?: string; avatar?: string; }) {
@@ -172,6 +192,19 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
 
     const pluginMeta = PluginMeta[plugin.name];
     const isEquicordPlugin = pluginMeta.folderName.startsWith("src/equicordplugins/") ?? false;
+    const warning = getPluginWarning(plugin);
+
+    const warningTooltipText = warning
+        ? warning.replacementPlugin
+            ? `${warning.title}: Replaced by ${warning.replacementPlugin} (Click to jump to it)`
+            : `${warning.title}: ${warning.description}`
+        : "";
+
+    const handleWarningReplacementClick = () => {
+        if (!warning?.replacementPlugin) return;
+        onClose();
+        jumpToPlugin(warning.replacementPlugin);
+    };
 
     return (
         <Modal
@@ -181,6 +214,31 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
             title={
                 <div className={cl("header")}>
                     <BaseText tag="h1" weight="semibold" size="lg">{plugin.name}</BaseText>
+                    {warning && (
+                        <Tooltip text={warningTooltipText}>
+                            {({ onMouseEnter, onMouseLeave }) => (
+                                <span
+                                    className={classes(
+                                        cl("warning-badge"),
+                                        cl(`warning-${warning.type}`),
+                                        warning.replacementPlugin && cl("warning-clickable")
+                                    )}
+                                    onMouseEnter={onMouseEnter}
+                                    onMouseLeave={onMouseLeave}
+                                    onClick={warning.replacementPlugin ? handleWarningReplacementClick : undefined}
+                                    role={warning.replacementPlugin ? "button" : undefined}
+                                    tabIndex={warning.replacementPlugin ? 0 : undefined}
+                                >
+                                    <img
+                                        src={warning.icon}
+                                        alt={warning.label}
+                                        className={cl("warning-icon")}
+                                    />
+                                    <span>{warning.label}</span>
+                                </span>
+                            )}
+                        </Tooltip>
+                    )}
                 </div>
             }
             subtitle={
@@ -192,6 +250,27 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
                 </div>
             }
         >
+            {warning && (
+                <div className={classes(Margins.top16, cl("warning-banner"), cl(`warning-banner-${warning.type}`))}>
+                    <img src={warning.icon} alt={warning.label} className={cl("warning-banner-icon")} />
+                    <div className={cl("warning-banner-text")}>
+                        <strong className={cl("warning-banner-title")}>{warning.title}</strong>
+                        <Paragraph size="sm" className={cl("warning-banner-desc")}>{warning.description}</Paragraph>
+                        {warning.replacementPlugin && (
+                            <div className={cl("warning-banner-action")}>
+                                <Button
+                                    size="small"
+                                    variant="secondary"
+                                    className={cl("replacement-btn")}
+                                    onClick={handleWarningReplacementClick}
+                                >
+                                    Jump to {warning.replacementPlugin}
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
             {!!plugin.settingsAboutComponent && (
                 <div className={classes(Margins.top16, cl("about-box"))}>
                     <section>

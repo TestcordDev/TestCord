@@ -18,18 +18,22 @@ import { findByPropsLazy } from "@webpack";
 import { Alerts, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts, UserStore } from "@webpack/common";
 
 import { removeLoggerContextMenus, setupLoggerContextMenus } from "./contextMenu";
-import { getChannelLogsAfter, getChannelLogsLimit, getDatabase } from "./db";
+import { getAllEditedForChannel, getChannelEditedLogsAfter, getChannelLogsAfter, getDatabase } from "./db";
 import {
     cacheChannelMessages,
     clearAllLogs,
     clearChannelCache,
+    clearTempClearedEdits,
     getCachedLoggedMessage,
     handleMessageCreate,
     handleMessageDelete,
     handleMessageDeleteBulk,
     handleMessageUpdate,
+    isEditHistoryTempCleared,
+    maybeStripAntilogNonce,
     mergedEditTimestamps as mergedEditTimestampsRef,
     mergedMessageCache as mergedMessageCacheRef,
+    preserveRemovedMedia,
     runMaintenanceNow,
     shouldIgnore,
     startEngine,
@@ -76,7 +80,27 @@ async function processMessageFetch(response: FetchMessagesResponse) {
                     try { cacheChannelMessages(records); } catch { }
                 }
             }
-            if (records?.length) response.body.extra = records.map(record => record.message);
+            if (records?.length) {
+                for (const rec of records) {
+                    if (rec.message.attachments?.length) {
+                        try { await restoreAttachmentBlobs(rec.message.attachments as any); } catch { }
+                    }
+                }
+                response.body.extra = records.map(record => record.message);
+            }
+            // Also cache edited logs for this channel so getMessage merge works even in empty view
+            try {
+                let editedAll = channelAllEdited.get(channelId);
+                if (!editedAll) {
+                    editedAll = await getAllEditedForChannel(channelId);
+                    if (editedAll.length) {
+                        channelAllEdited.set(channelId, editedAll);
+                        try { cacheChannelMessages(editedAll.filter(r => !isEditHistoryTempCleared(r.message_id))); } catch { }
+                    }
+                } else {
+                    try { cacheChannelMessages(editedAll.filter(r => !isEditHistoryTempCleared(r.message_id))); } catch { }
+                }
+            } catch { }
             return;
         }
         const oldestMessage = response.body[response.body.length - 1];
@@ -106,10 +130,82 @@ async function processMessageFetch(response: FetchMessagesResponse) {
         if (extra.length) {
             // Cache any new window records that weren't in allDeleted (shouldn't happen, but just in case)
             try { cacheChannelMessages(extra); } catch { }
+            for (const rec of extra) {
+                if (rec.message.attachments?.length) {
+                    try { await restoreAttachmentBlobs(rec.message.attachments as any); } catch { }
+                }
+            }
             response.body.extra = extra.map(record => record.message);
         } else {
+            for (const rec of windowRecords) {
+                if (rec.message.attachments?.length) {
+                    try { await restoreAttachmentBlobs(rec.message.attachments as any); } catch { }
+                }
+            }
             response.body.extra = windowRecords.map(record => record.message);
         }
+        // Attach editHistory to live messages so they render with history after fetch
+        try {
+            let editedAll = channelAllEdited.get(channelId);
+            if (!editedAll) {
+                editedAll = await getAllEditedForChannel(channelId);
+                if (editedAll.length) {
+                    // Filter out temporarily cleared edits
+                    const filtered = editedAll.filter(r => !isEditHistoryTempCleared(r.message_id));
+                    channelAllEdited.set(channelId, editedAll);
+                    try { cacheChannelMessages(filtered); } catch { }
+                }
+            } else {
+                // Ensure cache respects temp cleared
+                try { cacheChannelMessages(editedAll.filter(r => !isEditHistoryTempCleared(r.message_id))); } catch { }
+            }
+            if (editedAll?.length || (await getChannelEditedLogsAfter(channelId, ts)).length) {
+                // Use cached all-edited for fast lookup, but also ensure window is covered
+                const editedMap = new Map<string, LogRecord>();
+                for (const r of (editedAll ?? [])) if (!isEditHistoryTempCleared(r.message_id)) editedMap.set(r.message_id, r);
+                // Also fetch window-specific in case allDeleted load missed due to timing
+                if (!editedAll?.length) {
+                    const windowEdited = await getChannelEditedLogsAfter(channelId, ts);
+                    for (const r of windowEdited) if (!isEditHistoryTempCleared(r.message_id)) editedMap.set(r.message_id, r);
+                    if (windowEdited.length) try { cacheChannelMessages(windowEdited.filter(r => !isEditHistoryTempCleared(r.message_id))); } catch { }
+                }
+                for (const msg of response.body) {
+                    if (isEditHistoryTempCleared((msg as any).id)) continue;
+                    const rec = editedMap.get((msg as any).id);
+                    if (rec?.message?.editHistory?.length) {
+                        (msg as any).editHistory = rec.message.editHistory;
+                        try { renderApi?.invalidateMessageClassCache((msg as any).id); mergedMessageCache.delete((msg as any).id); mergedEditTimestamps.delete((msg as any).id); } catch { }
+                    }
+                }
+                // Also handle messages that arrived as extra (deleted) may have editHistory
+                if (response.body.extra?.length) {
+                    for (const msg of response.body.extra) {
+                        if (isEditHistoryTempCleared((msg as any).id)) continue;
+                        const rec = editedMap.get((msg as any).id);
+                        if (rec?.message?.editHistory?.length && !(msg as any).editHistory?.length) {
+                            (msg as any).editHistory = rec.message.editHistory;
+                            try { renderApi?.invalidateMessageClassCache((msg as any).id); mergedMessageCache.delete((msg as any).id); mergedEditTimestamps.delete((msg as any).id); } catch { }
+                        }
+                    }
+                }
+            } else {
+                // Window-only fallback
+                const windowEdited = await getChannelEditedLogsAfter(channelId, ts);
+                const filteredWindow = windowEdited.filter(r => !isEditHistoryTempCleared(r.message_id));
+                if (filteredWindow.length) {
+                    try { cacheChannelMessages(filteredWindow); } catch { }
+                    const editedMap = new Map(filteredWindow.map(r => [r.message_id, r] as const));
+                    for (const msg of response.body) {
+                        if (isEditHistoryTempCleared((msg as any).id)) continue;
+                        const rec = editedMap.get((msg as any).id);
+                        if (rec?.message?.editHistory?.length) {
+                            (msg as any).editHistory = rec.message.editHistory;
+                            try { renderApi?.invalidateMessageClassCache((msg as any).id); mergedMessageCache.delete((msg as any).id); mergedEditTimestamps.delete((msg as any).id); } catch { }
+                        }
+                    }
+                }
+            }
+        } catch { }
     } catch (error) {
         log.error("Failed to restore persistent logs into the channel.", error);
     }
@@ -148,6 +244,7 @@ function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage
 
 const lastChannelFetch = new Map<string, number>();
 const channelAllDeleted = new Map<string, LogRecord[]>();
+const channelAllEdited = new Map<string, LogRecord[]>();
 const channelCacheTimeout = new Map<string, ReturnType<typeof setTimeout>>();
 let lastSelectedChannelId: string | null = null;
 
@@ -158,6 +255,7 @@ function scheduleChannelUnload(channelId: string) {
         // Unload if not currently viewing this channel
         if (SelectedChannelStore.getChannelId() !== channelId) {
             channelAllDeleted.delete(channelId);
+            channelAllEdited.delete(channelId);
             channelCacheTimeout.delete(channelId);
             clearChannelCache(channelId);
             // Also remove from MessageStore cache to free memory
@@ -201,10 +299,16 @@ function handleChannelSelect(payload: { channelId?: string; }) {
                 if (records.length) {
                     channelAllDeleted.set(channelId, records);
                     try { cacheChannelMessages(records); } catch { }
+                    // Ensure saved attachments have blob URLs before injecting
+                    for (const rec of records) {
+                        if (rec.message.attachments?.length) {
+                            try { await restoreAttachmentBlobs(rec.message.attachments as any); } catch { }
+                        }
+                    }
                     // Inject into MessageStore for immediate display
                     try {
                         const Internal: any = (MessageStoreInternal as any);
-                        let cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
+                        const cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
                         if (cache) {
                             let newCache = cache;
                             for (const rec of records) {
@@ -222,6 +326,33 @@ function handleChannelSelect(payload: { channelId?: string; }) {
             } catch { }
         })();
     }
+    // Load edited history for this channel so MessageStore.getMessage can merge it
+    if (!channelAllEdited.has(channelId)) {
+        void (async () => {
+            try {
+                const edited = await getAllEditedForChannel(channelId);
+                if (edited.length) {
+                    channelAllEdited.set(channelId, edited);
+                    const toCache = edited.filter(r => !isEditHistoryTempCleared(r.message_id));
+                    try { cacheChannelMessages(toCache); } catch { }
+                    // Invalidate any cached MessageClass so re-render picks up editHistory
+                    for (const rec of toCache) {
+                        try { (renderApi as any)?.invalidateMessageClassCache?.(rec.message_id); } catch { }
+                        try { mergedMessageCache.delete(rec.message_id); mergedEditTimestamps.delete(rec.message_id); } catch { }
+                    }
+                }
+            } catch { }
+        })();
+    } else {
+        // Refresh cache for existing channel, respecting temp cleared
+        try {
+            const existing = channelAllEdited.get(channelId);
+            if (existing?.length) {
+                const toCache = existing.filter(r => !isEditHistoryTempCleared(r.message_id));
+                try { cacheChannelMessages(toCache); } catch { }
+            }
+        } catch { }
+    }
 
     // Only refetch if we have fetched this channel before and have logged messages for it.
     const collection = (MessageStore as any).getMessages?.(channelId);
@@ -229,8 +360,11 @@ function handleChannelSelect(payload: { channelId?: string; }) {
     const now = Date.now();
     const last = lastChannelFetch.get(channelId) ?? 0;
     if (now - last < 30_000) return;
-    void getChannelLogsAfter(channelId, new Date(0).toISOString()).then(records => {
-        if (records.length === 0) return;
+    void Promise.all([
+        getChannelLogsAfter(channelId, new Date(0).toISOString()),
+        getAllEditedForChannel(channelId)
+    ]).then(([deleted, edited]) => {
+        if (deleted.length === 0 && edited.length === 0) return;
         lastChannelFetch.set(channelId, now);
         try {
             (MessageActions as any).fetchMessages?.({ channelId, limit: 50 });
@@ -247,7 +381,7 @@ export default definePlugin({
     settings,
     settingsAboutComponent: () => (
         <div>
-            <p>MessageLoggerEnhanced must remain disabled while MessageLoggerTestcord is enabled. The Silent Delete options defer to AntilogPremium, and the antilog protections defer to AntiAntilog when those plugins are enabled.</p>
+            <p>MessageLoggerEnhanced must remain disabled while MessageLoggerTestcord is enabled. The Silent Delete options defer to AntilogPremium when that plugin is enabled. AntiAntilog is now merged into this plugin (nonce blocking and media preservation). Saved attachments from preserved messages are downloaded to disk and restored after restart, so you can disable the standalone AntiAntilog plugin.</p>
             <div className={cl("actions")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 <button className="vc-testcord-ml-btn" onClick={() => openLogs()}>Open logs</button>
                 <button
@@ -367,6 +501,20 @@ export default definePlugin({
                 }
             ]
         },
+        // Anti-antilog: block nonce dedupe and preserve removed embeds/attachments (merged from AntiAntilog)
+        {
+            find: '"MessageStore"',
+            replacement: [
+                {
+                    match: /(?<=MESSAGE_CREATE:function\((\i)\)\{)/,
+                    replace: "$self.maybeStripAntilogNonce($1);"
+                },
+                {
+                    match: /(?<=MESSAGE_UPDATE:function\((\i)\)\{)/,
+                    replace: "$self.preserveRemovedMedia($1);"
+                }
+            ]
+        },
         // Fix pagination for channels with many deleted logs (e.g. #pending with 165) — don't drop newer messages when fetching older batches
         {
             find: "function F(e,t)",
@@ -434,6 +582,8 @@ export default definePlugin({
 
     processMessageFetch,
     mergeLoadedMessages,
+    maybeStripAntilogNonce,
+    preserveRemovedMedia,
 
     flux: {
         MESSAGE_CREATE: handleMessageCreate as (payload: MessageCreatePayload) => void,
@@ -590,6 +740,12 @@ export default definePlugin({
             if (!loggedMessage) {
                 return oldGetMessage!.call(MessageStore, channelId, messageId);
             }
+            // Respect temporary per-session hide of edit history (context menu → Delete History Temporary)
+            if (isEditHistoryTempCleared(messageId) && !loggedMessage.deleted) {
+                const latest = oldGetMessage!.call(MessageStore, channelId, messageId) as any;
+                if (latest) return latest;
+                return oldGetMessage!.call(MessageStore, channelId, messageId);
+            }
 
             if (loggedMessage.deleted && settings.store.showDeletedMessages) {
                 void restoreAttachmentBlobs(loggedMessage.attachments).catch(() => { });
@@ -605,7 +761,64 @@ export default definePlugin({
                 return renderApi.messageJsonToMessageClass({ message: cachedMerge });
             }
 
-            const merged = { ...loggedMessage, ...(latestMessage ?? {}) } as unknown as LoggedMessage;
+            const merged: any = { ...loggedMessage, ...(latestMessage ?? {}) } as unknown as LoggedMessage;
+            // Preserve logger's edit history when Discord's fresh message has none (prevents flash-then-vanish on channel switch)
+            if (Array.isArray((loggedMessage as any).editHistory) && (loggedMessage as any).editHistory.length) {
+                const latestEH: any = (latestMessage as any)?.editHistory;
+                if (!Array.isArray(latestEH) || latestEH.length === 0 || latestEH.length < (loggedMessage as any).editHistory.length) {
+                    merged.editHistory = (loggedMessage as any).editHistory;
+                }
+            }
+            if ((loggedMessage as any).deleted && !merged.deleted) merged.deleted = true;
+            if ((loggedMessage as any).ghostPinged && !merged.ghostPinged) merged.ghostPinged = true;
+            if ((loggedMessage as any).deletedTimestamp && !merged.deletedTimestamp) merged.deletedTimestamp = (loggedMessage as any).deletedTimestamp;
+
+            // Anti-antilog: restore stripped media even after restart / stale MessageStore cache
+            try {
+                if (latestMessage) {
+                    if (settings.store.preserveRemovedAttachments && Array.isArray(loggedMessage.attachments) && loggedMessage.attachments.length) {
+                        const latestAtts: any[] = latestMessage.attachments ?? [];
+                        if (!latestMessage.attachments || latestAtts.length < loggedMessage.attachments.length) {
+                            const seen = new Set(latestAtts.map((a: any) => a?.id));
+                            const missing = (loggedMessage.attachments as any[]).filter((a: any) => !seen.has(a?.id));
+                            if (missing.length) {
+                                void restoreAttachmentBlobs(missing as any).catch(() => { });
+                                merged.attachments = latestAtts.length ? [...latestAtts, ...missing] : [...(loggedMessage.attachments as any[])];
+                            } else if (!latestMessage.attachments) {
+                                void restoreAttachmentBlobs(loggedMessage.attachments as any).catch(() => { });
+                                merged.attachments = loggedMessage.attachments;
+                            }
+                        } else if ((merged.attachments as any[])?.some((a: any) => a?.path && !a?.blobUrl)) {
+                            void restoreAttachmentBlobs(merged.attachments as any).catch(() => { });
+                        }
+                    }
+                    if (settings.store.preserveRemovedEmbeds && Array.isArray(loggedMessage.embeds) && (loggedMessage.embeds as any[]).length) {
+                        const latestEmbeds: any[] = latestMessage.embeds ?? [];
+                        const oldEmbeds: any[] = loggedMessage.embeds as any[];
+                        if (!latestMessage.embeds || latestEmbeds.length < oldEmbeds.length) {
+                            const fp = (e: any) => `${e?.type ?? ""}|${e?.url ?? ""}|${e?.timestamp ?? ""}|${e?.image?.url ?? ""}|${e?.thumbnail?.url ?? ""}`;
+                            const seen = new Set(latestEmbeds.map(fp));
+                            const missing = oldEmbeds.filter((e: any) => !seen.has(fp(e)));
+                            if (missing.length) merged.embeds = latestEmbeds.length ? [...latestEmbeds, ...missing] : [...oldEmbeds];
+                            else if (!latestMessage.embeds) merged.embeds = [...oldEmbeds];
+                        }
+                        const SUPPRESS = 1 << 2;
+                        const oldFlags = (loggedMessage as any).flags ?? 0;
+                        const newFlags = latestMessage.flags ?? oldFlags;
+                        if ((oldFlags & SUPPRESS) === 0 && (newFlags & SUPPRESS) !== 0) {
+                            merged.flags = newFlags & ~SUPPRESS;
+                            if (!merged.embeds || merged.embeds.length === 0) merged.embeds = oldEmbeds;
+                        }
+                    }
+                    if (Array.isArray(merged.attachments) && merged.attachments.length) {
+                        const needsBlob = (merged.attachments as any[]).some((a: any) => a?.path && !a?.blobUrl);
+                        if (needsBlob) void restoreAttachmentBlobs(merged.attachments as any).catch(() => { });
+                    }
+                } else if (Array.isArray(merged.attachments) && merged.attachments.some((a: any) => a?.path)) {
+                    void restoreAttachmentBlobs(merged.attachments as any).catch(() => { });
+                }
+            } catch { }
+
             mergedMessageCache.set(messageId, merged);
             mergedEditTimestamps.set(messageId, latestEditTS);
             renderApi.invalidateMessageClassCache(messageId);
@@ -624,5 +837,11 @@ export default definePlugin({
         }
         mergedMessageCache.clear();
         mergedEditTimestamps.clear();
+        channelAllDeleted.clear();
+        channelAllEdited.clear();
+        for (const t of channelCacheTimeout.values()) clearTimeout(t);
+        channelCacheTimeout.clear();
+        lastChannelFetch.clear();
+        try { clearTempClearedEdits(); } catch { }
     },
 });

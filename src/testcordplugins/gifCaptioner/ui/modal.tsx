@@ -4,19 +4,14 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
 import { classNameFactory } from "@utils/css";
 import {
-    ModalCloseButton,
     ModalContent,
     ModalFooter,
-    ModalHeader,
-    ModalProps as VencordModalProps,
-    ModalRoot,
-    ModalSize
+    ModalProps as VencordModalProps
 } from "@utils/modal";
-import { useState } from "@webpack/common";
+import { Modal as DiscordModal, useState } from "@webpack/common";
 
 import type { CaptionMedia, GifTransform, OnSubmit } from "../types";
 import Captioner from "./captioner";
@@ -53,19 +48,7 @@ export default function Modal({ media, onCancel, onConfirm, onSubmit, ...modalPr
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM}>
-            <ModalHeader separator={false} className={cl("modal-header")}>
-                <BaseText
-                    size="lg"
-                    weight="semibold"
-                    color="text-strong"
-                    tag="h1"
-                    className={cl("modal-title")}
-                >
-                    Edit GIF
-                </BaseText>
-                <ModalCloseButton onClick={handleClose} />
-            </ModalHeader>
+        <DiscordModal {...modalProps} onClose={handleClose} size="md" title="Edit GIF">
             <ModalContent className={cl("modal-content")}>
                 <Captioner
                     media={media}
@@ -79,6 +62,6 @@ export default function Modal({ media, onCancel, onConfirm, onSubmit, ...modalPr
                 <Button variant="secondary" onClick={handleClose}>Cancel</Button>
                 <Button onClick={handleApply}>Apply</Button>
             </ModalFooter>
-        </ModalRoot>
+        </DiscordModal>
     );
 }

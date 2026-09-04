@@ -6,19 +6,16 @@
 
 import { FormSwitch } from "@components/FormSwitch";
 import {
-    ModalCloseButton,
     ModalContent,
     ModalFooter,
-    ModalHeader,
     ModalProps,
-    ModalRoot,
-    ModalSize,
     openModal,
 } from "@utils/modal";
 import {
     Button,
     Forms,
     GuildStore,
+    Modal,
     React,
     Select,
     Text,
@@ -155,14 +152,13 @@ function CopyModal({ modalProps, guild }: { modalProps: ModalProps; guild: AnyGu
     }
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.LARGE} className="guild-toolkit-modal">
-            <ModalHeader className="guild-toolkit-header">
-                <Forms.FormTitle tag="h2" style={{ marginBottom: 0 }}>
-                    Duplicate Server — {guild.name}
-                </Forms.FormTitle>
-                <ModalCloseButton onClick={closeModal} />
-            </ModalHeader>
-
+        <Modal
+            {...modalProps}
+            onClose={closeModal}
+            size="lg"
+            className="guild-toolkit-modal"
+            title={`Duplicate Server — ${guild.name}`}
+        >
             <ModalContent className="guild-toolkit-content">
                 <Forms.FormSection title="Target">
                     <div className="gt-target-toggle">
@@ -278,6 +274,6 @@ function CopyModal({ modalProps, guild }: { modalProps: ModalProps; guild: AnyGu
                     </Button>
                 </div>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }

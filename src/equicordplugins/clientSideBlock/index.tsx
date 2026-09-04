@@ -188,8 +188,8 @@ export default definePlugin({
         {
             find: "peopleListItemRef.current.componentWillLeave",
             replacement: {
-                match: /\i}=this.state;/,
-                replace: "$&if($self.shouldHideUser(this.props.user.id)) return null; "
+                match: /return \i===\i\.\i\.FRIEND_ANNIVERSARY/,
+                replace: "if($self.shouldHideUser(this.props.user.id)) return null;$&"
             }
         },
         // member list

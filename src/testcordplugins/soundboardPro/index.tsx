@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import "./style.css";
+
 import { playAudio } from "@api/AudioPlayer";
 import { showNotification } from "@api/Notifications";
 import { definePluginSettings } from "@api/Settings";
@@ -11,18 +13,14 @@ import { BaseText } from "@components/BaseText";
 import { Flex } from "@components/Flex";
 import { TestcordDevs } from "@utils/constants";
 import {
-    ModalCloseButton,
     ModalContent,
     ModalFooter,
-    ModalHeader,
     ModalProps,
-    ModalRoot,
-    ModalSize,
     openModal,
 } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import { findComponentByCodeLazy } from "@webpack";
-import { Button, React, useRef, useState } from "@webpack/common";
+import { Button, Modal, React, useRef, useState } from "@webpack/common";
 
 // Types for sounds
 interface Sound {
@@ -556,14 +554,7 @@ function SoundboardModal({ modalProps }: { modalProps: ModalProps; }) {
     };
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.LARGE}>
-            <ModalHeader>
-                <BaseText size="lg" weight="semibold" style={{ flexGrow: 1 }}>
-                    🔊 Soundboard Pro - Permission Bypass
-                </BaseText>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
-
+        <Modal {...modalProps} size="lg" title="🔊 Soundboard Pro - Permission Bypass">
             <ModalContent>
                 <BaseText
                     size="md"
@@ -732,7 +723,7 @@ function SoundboardModal({ modalProps }: { modalProps: ModalProps; }) {
                     }, "Close")
                 )}
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 

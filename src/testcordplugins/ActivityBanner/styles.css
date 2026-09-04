@@ -1,0 +1,111 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+.vc-actbanner-icon-slot {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    min-height: 40px;
+    max-width: 40px;
+    max-height: 40px;
+    flex-shrink: 0;
+}
+
+.vc-actbanner-large-cover {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    object-fit: cover;
+    display: block;
+}
+
+.vc-actbanner-small-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid var(--background-secondary-alt, #232428);
+    object-fit: cover;
+}
+
+.vc-actbanner-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
+    gap: 4px;
+}
+
+.vc-actbanner-title-wrapper {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-actbanner-title-wrapper > * {
+    color: var(--header-primary, #ffffff) !important;
+}
+
+.vc-actbanner-line {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.vc-actbanner-details {
+    color: var(--header-primary, #f2f3f5) !important;
+    font-weight: 500;
+}
+
+.vc-actbanner-state {
+    color: var(--text-normal, #dbdee1) !important;
+}
+
+.vc-actbanner-timer {
+    font-size: 11px;
+    line-height: 14px;
+    color: var(--text-muted, #949ba4) !important;
+    font-variant-numeric: tabular-nums;
+}
+
+.vc-actbanner-carousel {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 6px;
+    flex-shrink: 0;
+}
+
+.vc-actbanner-carousel-btn {
+    background: transparent;
+    border: none;
+    color: var(--interactive-normal, #b5bac1);
+    cursor: pointer;
+    font-size: 9px;
+    padding: 1px 3px;
+    border-radius: 3px;
+    line-height: 1;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.vc-actbanner-carousel-btn:hover {
+    color: var(--interactive-active, #ffffff);
+    background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.07));
+}
+
+.vc-actbanner-carousel-count {
+    font-size: 10px;
+    color: var(--text-muted, #949ba4);
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+}

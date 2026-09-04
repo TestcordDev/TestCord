@@ -87,16 +87,31 @@
     color: var(--interactive-normal, #b5bac1);
     cursor: pointer;
     padding: 4px;
-    border-radius: 4px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.1s ease, background-color 0.1s ease;
+    transition: color 0.15s ease, background-color 0.15s ease;
 }
 
-.fakedm-close-btn:hover {
+.fakedm-close-btn:hover,
+button[class*="closeButton"]:hover {
     color: var(--interactive-hover, #fff);
     background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+}
+
+.fakedm-close-btn:active,
+button[class*="closeButton"]:active {
+    background: var(--background-modifier-active, rgba(255, 255, 255, 0.16));
+}
+
+button[class*="closeButton"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 /* Tabs */

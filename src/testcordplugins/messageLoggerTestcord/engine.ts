@@ -129,10 +129,15 @@ export function invalidateLoggedCaches(id: string) {
     mergedEditTimestamps.delete(id);
 }
 
+const tempClearedEditIds = new Set<string>();
+export function isEditHistoryTempCleared(id: string) { return tempClearedEditIds.has(id); }
+export function clearTempClearedEdits() { tempClearedEditIds.clear(); }
+
 export function clearEditHistoryCache(id: string) {
     recentMessages.delete(id);
     channelMessageCache.delete(id);
     invalidateLoggedCaches(id);
+    tempClearedEditIds.add(id);
     // Also clear any pending edit record so it doesn't get re-queued
     const pending = pendingWrites.get(id);
     if (pending && pending.status === LogStatus.EDITED) {
@@ -140,19 +145,154 @@ export function clearEditHistoryCache(id: string) {
     }
 }
 
-// ── Anti-antilog: block the nonce dedupe exploit so deletions stay visible ──
+// ── Anti-antilog: merged from AntiAntilog ──
+const SUPPRESS_EMBEDS = 1 << 2;
 
-function stripAntilogNonce(payload: MessageCreatePayload) {
-    const raw = payload.message as any;
-    const nonce = raw?.nonce;
-    if (!nonce || raw.id === nonce) return;
+function isLegitimateOptimisticConfirmation(payload: MessageCreatePayload): boolean {
+    const action: any = payload as any;
+    if (action.optimistic) return true;
 
-    const existing = MessageStore.getMessage(payload.channelId ?? raw.channel_id, nonce);
-    if (existing) {
-        // A message with this nonce already exists: this payload is a dedupe trick.
-        // Strip the nonce so the follow-up delete cannot be swallowed.
+    const message: any = action?.message;
+    const nonce = message?.nonce;
+    const channelId = action.channelId ?? message?.channel_id ?? payload.channelId;
+
+    if (channelId && nonce) {
+        const existing = MessageStore.getMessage(channelId, nonce) as any;
+        if (existing && (existing.state === "SENDING" || existing.isPending?.() === true)) {
+            return true;
+        }
+    }
+
+    const currentUserId = UserStore.getCurrentUser()?.id;
+    if (!currentUserId) return true;
+
+    if (message?.author?.id === currentUserId && !settings.store.includeOwnMessages) {
+        return true;
+    }
+
+    return false;
+}
+
+export function maybeStripAntilogNonce(payload: MessageCreatePayload) {
+    try {
+        if (!settings.store.blockAntilogNonce) return;
+
+        const raw: any = (payload as any).message;
+        if (!raw || !raw.nonce) return;
+        if (raw.id === raw.nonce) return;
+
+        const channelId = (payload as any).channelId ?? raw.channel_id;
+        if (!channelId) return;
+
+        if (isLegitimateOptimisticConfirmation(payload)) return;
+
+        const antilogNonce = raw.nonce;
+        raw.nonce = null;
         delete raw.nonce;
-        log.info(`Blocked antilog nonce dedupe in ${payload.channelId} (${raw.id} reused nonce ${nonce}).`);
+
+        if (settings.store.logAntiAntilogActivity) {
+            log.info(`Blocked antilog nonce dedupe for ${channelId} (incoming ${raw.id} → antilog nonce ${antilogNonce}).`);
+        }
+    } catch (error) {
+        log.error("Failed to evaluate incoming MESSAGE_CREATE for antilog.", error);
+    }
+}
+
+// kept for internal calls
+function stripAntilogNonce(payload: MessageCreatePayload) {
+    return maybeStripAntilogNonce(payload);
+}
+
+export function preserveRemovedMedia(payload: MessageUpdatePayload) {
+    try {
+        const newMsg: any = (payload as any).message;
+        if (!newMsg?.id || !newMsg?.channel_id) return;
+
+        const old: any = MessageStore.getMessage(newMsg.channel_id, newMsg.id);
+        if (!old) return;
+
+        let updated: any = null;
+        const ensureClone = () => {
+            if (!updated) updated = { ...newMsg };
+            return updated;
+        };
+
+        let restoredAttachments: any[] = [];
+
+        if (settings.store.preserveRemovedEmbeds) {
+            const oldEmbeds = old.embeds ?? [];
+            if (oldEmbeds.length > 0) {
+                const incomingEmbeds = newMsg.embeds;
+                const oldFlags = old.flags ?? 0;
+                const incomingFlags = newMsg.flags ?? oldFlags;
+                const wasSuppressed = (oldFlags & SUPPRESS_EMBEDS) === SUPPRESS_EMBEDS;
+                const nowSuppressed = (incomingFlags & SUPPRESS_EMBEDS) === SUPPRESS_EMBEDS;
+
+                let removed: any[] = [];
+                let baseEmbeds: any[] = incomingEmbeds ?? oldEmbeds;
+
+                if (!wasSuppressed && nowSuppressed) {
+                    removed = oldEmbeds;
+                    baseEmbeds = incomingEmbeds ?? [];
+                } else if (incomingEmbeds !== undefined && incomingEmbeds.length < oldEmbeds.length) {
+                    const fingerprint = (e: any) => `${e?.type ?? ""}|${e?.url ?? ""}|${e?.timestamp ?? ""}`;
+                    const seen = new Set(incomingEmbeds.map(fingerprint));
+                    removed = oldEmbeds.filter((e: any) => !seen.has(fingerprint(e)));
+                    baseEmbeds = incomingEmbeds;
+                }
+
+                if (removed.length > 0) {
+                    const target = ensureClone();
+                    target.embeds = [...baseEmbeds, ...removed];
+                    if (nowSuppressed) {
+                        target.flags = incomingFlags & ~SUPPRESS_EMBEDS;
+                    }
+                    if (settings.store.logAntiAntilogActivity) {
+                        log.info(`Restored ${removed.length} removed embed(s) for ${newMsg.channel_id}/${newMsg.id}.`);
+                    }
+                }
+            }
+        }
+
+        if (settings.store.preserveRemovedAttachments) {
+            const oldAttachments = old.attachments ?? [];
+            const incomingAttachments = newMsg.attachments;
+
+            if (incomingAttachments !== undefined && oldAttachments.length > incomingAttachments.length) {
+                const seenIds = new Set(incomingAttachments.map((a: any) => a?.id));
+                const removed = oldAttachments.filter((a: any) => !seenIds.has(a?.id));
+
+                if (removed.length > 0) {
+                    const target = ensureClone();
+                    target.attachments = [...incomingAttachments, ...removed];
+                    restoredAttachments = removed;
+                    if (settings.store.logAntiAntilogActivity) {
+                        log.info(`Restored ${removed.length} removed attachment(s) for ${newMsg.channel_id}/${newMsg.id}.`);
+                    }
+                }
+            }
+        }
+
+        if (updated) {
+            (payload as any).message = updated;
+            // Ensure anti-antilogg'd attachments are saved to disk immediately so they survive CDN expiry
+            if (restoredAttachments.length > 0 && settings.store.saveImages && !IS_WEB) {
+                for (const att of restoredAttachments) {
+                    try {
+                        // Attach blobUrl/path handling is async; fire-and-forget and also update cached snapshot
+                        void ensureAttachmentSaved(att as any).catch(() => { });
+                        // Also ensure the cached loggedMessage's attachment gets path if already cached
+                        const cached = recentMessages.get(newMsg.id) ?? channelMessageCache.get(newMsg.id);
+                        if (cached) {
+                            const existing = cached.attachments?.find((a: any) => a.id === att.id);
+                            if (existing && att.path) existing.path = att.path;
+                        }
+                    } catch { }
+                }
+            }
+        }
+    } catch (error) {
+        log.error("Failed to preserve removed media on MESSAGE_UPDATE.", error);
     }
 }
 
@@ -304,7 +444,7 @@ export function handleMessageCreate(payload: MessageCreatePayload) {
 
     const message = payload.message as any;
     if (!message?.id || !message?.channel_id) return;
-    if (settings.store.blockAntilogNonce) stripAntilogNonce(payload);
+    maybeStripAntilogNonce(payload);
     if (isCacheGated(payload)) return;
 
     const snapshot = snapshotMessage(payload.message);
@@ -323,7 +463,26 @@ export function handleMessageCreate(payload: MessageCreatePayload) {
 }
 
 export async function handleMessageUpdate(payload: MessageUpdatePayload) {
-    if (!active || !settings.store.saveEdits) return;
+    if (!active) return;
+
+    // Preserve removed media before any other handling so the logger cache doesn't lose images
+    try {
+        if (settings.store.preserveRemovedEmbeds || settings.store.preserveRemovedAttachments) {
+            preserveRemovedMedia(payload);
+        }
+    } catch { }
+
+    // Ensure anti-antilogg'd attachments are saved to disk even when edit logging is off or when AntiAntilog already restored them
+    if (settings.store.saveImages && !IS_WEB) {
+        const maybeAtts: any = (payload as any).message?.attachments;
+        if (Array.isArray(maybeAtts) && maybeAtts.length) {
+            for (const att of maybeAtts) {
+                if (att && !att.path) void ensureAttachmentSaved(att as any).catch(() => { });
+            }
+        }
+    }
+
+    if (!settings.store.saveEdits) return;
 
     // Allow embed/attachment-only edits — content can be null for those
     const hasContent = payload.message.content != null;
@@ -399,6 +558,12 @@ export async function handleMessageUpdate(payload: MessageUpdatePayload) {
 
     remember(message);
     invalidateLoggedCaches(message.id);
+    // Ensure anti-antilogg'd and edited attachments are saved to disk before the record is flushed
+    if (settings.store.saveImages && !IS_WEB) {
+        try {
+            await Promise.all(message.attachments.map(att => ensureAttachmentSaved(att as any)));
+        } catch { }
+    }
     if (!shouldIgnore({
         channelId: (message as any).channel_id ?? (message as any).channelId,
         authorId: message.author?.id,

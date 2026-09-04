@@ -30,6 +30,7 @@
 .vc-dsa-warnings-sidebar {
     min-width: 0;
     max-width: 100%;
+    margin: 0;
 }
 
 .vc-dsa-warnings-header {

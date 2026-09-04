@@ -96,6 +96,10 @@ function enrolledIncompleteButton(args: { quest: Quest, size: string; }): JSX.El
     );
 }
 
+function wrapOrbsBalance(balance: String): JSX.Element {
+    return (<span style={{ fontSize: "90%" }}>{balance}</span>);
+}
+
 export default definePlugin({
     name: "Questify",
     description: "Enhance specific Quest features, disable annoyances, or completely remove Quests.",
@@ -137,6 +141,7 @@ export default definePlugin({
     sortQuests,
     stopQuestAutoComplete,
     useQuestRerender,
+    wrapOrbsBalance,
 
     patches: [
         {
@@ -224,7 +229,7 @@ export default definePlugin({
             predicate: () => !getQuestifySettings().disableQuestsEverything && getQuestifySettings().disableOrbsAndQuestsBadges,
             replacement: [
                 {
-                    match: /(,\{badges:\i)(?=,displayProfile:\i)/,
+                    match: /(,{badges:\i)(?=,overflowCount:\i,displayProfile:\i)/,
                     replace: '$1.filter(badge=>!["quest_completed","orb_profile_badge"].includes(badge.id))',
                 }
             ]
@@ -275,7 +280,7 @@ export default definePlugin({
             }
         },
         {
-            // Formats the Orbs balance on the Quests page with locale string formatting.
+            // Formats the Orbs balance in the default balance counter on the Quests page with locale string formatting.
             find: '("BalanceCounter")',
             predicate: () => !getQuestifySettings().disableQuestsEverything,
             replacement: [
@@ -284,8 +289,19 @@ export default definePlugin({
                     replace: "$1+($2>=1e6?0.8:$2>=1e3?0.4:0)"
                 },
                 {
-                    match: /(?<=children:\i.to\(\i=>`\${\i).toFixed\(0\)/,
+                    match: /(?<=children:\i.to\(\i=>`\${\i)(.toFixed\(0\))/,
                     replace: ".toLocaleString(undefined,{maximumFractionDigits:0})"
+                }
+            ]
+        },
+        {
+            // Formats the Orbs balance in the balance popout on the Quests page with locale string formatting.
+            find: "PremiumTenureRewardsOrbsBalancePopover",
+            predicate: () => !getQuestifySettings().disableQuestsEverything,
+            replacement: [
+                {
+                    match: /(?<=children:)(\i\?\?0)/,
+                    replace: "$self.wrapOrbsBalance(($1).toLocaleString(undefined,{maximumFractionDigits:0}))"
                 }
             ]
         },

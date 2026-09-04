@@ -16,7 +16,7 @@ import {
 import { RenderSongInfo } from "@song-spotlight/api/handlers";
 import { UserData } from "@song-spotlight/api/structs";
 import { sid } from "@song-spotlight/api/util";
-import { classes } from "@utils/index";
+import { classes } from "@utils/misc";
 import { User } from "@vencord/discord-types";
 import {
     SelectedChannelStore,

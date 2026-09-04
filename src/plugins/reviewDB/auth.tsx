@@ -50,7 +50,7 @@ export function authorize(callback?: () => void) {
             permissions={0n}
             clientId="915703782174752809"
             cancelCompletesFlow={false}
-            callback={async (response: { location: string }) => {
+            callback={async (response: { location: string; }) => {
                 try {
                     const url = new URL(response.location);
                     url.searchParams.append("clientMod", "vencord");

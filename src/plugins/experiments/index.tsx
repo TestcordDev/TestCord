@@ -117,11 +117,21 @@ export default definePlugin({
                 replace: "$&if($1==null)return;"
             }
         },
+        // Enable playground embed on sent playground links
+        // dev://playground/mana, dev://playground/payments, dev://playground/virtual-currency,
+        // dev://playground/nitro, dev://playground/mfa, dev://playground/cms, dev://playground/void
+        {
+            find: ".useComponentPlaygroundConfigs)()",
+            replacement: {
+                match: /"Revenue".{0,250}getCurrentUser\(\);return/,
+                replace: "$& true||"
+            }
+        },
         {
             // Expands the experiment regex to allow negative numbers as well as text in the last segment of the URL.
             find: '"^dev://experiment/',
             replacement: {
-                match: /(\[0-9\]\+)/,
+                match: /\[0-9\]\+(?=\)\)\?\$")/,
                 replace: "[a-zA-Z0-9-]+"
             }
         },

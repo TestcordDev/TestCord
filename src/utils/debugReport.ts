@@ -72,11 +72,11 @@ function formatDate(ts: number): string {
     return new Date(ts).toISOString();
 }
 
-function formatPluginHealth(pluginName: string, entry: PluginHealthEntry, excludeConflicts = false): string {
+function formatPluginHealth(pluginName: string, entry: PluginHealthEntry, excludeConflicts = false, excludeSourceChanges = false): string {
     const lines: string[] = [];
-    const patchFailures = excludeConflicts
-        ? entry.patchFailures.filter(f => f.kind !== "conflict")
-        : entry.patchFailures;
+    let { patchFailures } = entry;
+    if (excludeConflicts) patchFailures = patchFailures.filter(f => f.kind !== "conflict");
+    if (excludeSourceChanges) patchFailures = patchFailures.filter(f => f.kind !== "codeChanged");
     if (patchFailures.length) {
         lines.push("Patch failures:");
         for (const f of patchFailures) {
@@ -120,6 +120,11 @@ export interface DebugReportOptions {
      * them in the UI expect them hidden in the copied report too.
      */
     excludeConflicts?: boolean;
+    /**
+     * If true, patch failures of kind `codeChanged` are omitted from the report,
+     * mirroring the health tab's "Ignore source changes in health" toggle.
+     */
+    excludeSourceChanges?: boolean;
 }
 
 /**
@@ -177,7 +182,7 @@ export function generateGitHubIssueBody(options: DebugReportOptions = {}): strin
         if (health) {
             lines.push("## Recorded issues");
             lines.push("");
-            lines.push(formatPluginHealth(options.pluginName, health, options.excludeConflicts));
+            lines.push(formatPluginHealth(options.pluginName, health, options.excludeConflicts, options.excludeSourceChanges));
             lines.push("");
         }
     } else {
@@ -186,7 +191,7 @@ export function generateGitHubIssueBody(options: DebugReportOptions = {}): strin
             lines.push("## Unhealthy plugins");
             lines.push("");
             for (const [name, entry] of allHealth) {
-                lines.push(formatPluginHealth(name, entry, options.excludeConflicts));
+                lines.push(formatPluginHealth(name, entry, options.excludeConflicts, options.excludeSourceChanges));
                 lines.push("");
             }
         }

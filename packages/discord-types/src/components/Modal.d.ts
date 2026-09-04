@@ -16,6 +16,7 @@ export interface ModalAction {
  * Modal with all options: https://files.catbox.moe/c8qxt0.png
  */
 export interface ModalProps extends RenderModalProps {
+    className?: string;
     size?: ModalSize;
     role?: "alertdialog" | "dialog";
 

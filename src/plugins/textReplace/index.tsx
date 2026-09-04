@@ -27,7 +27,7 @@ import { Paragraph } from "@components/Paragraph";
 import { Span } from "@components/Span";
 import { TooltipContainer } from "@components/TooltipContainer";
 import { Devs, EquicordDevs, SUPPORT_CHANNEL_IDS } from "@utils/constants";
-import { classNameFactory } from "@utils/index";
+import { classNameFactory } from "@utils/css";
 import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
 import { Message } from "@vencord/discord-types";

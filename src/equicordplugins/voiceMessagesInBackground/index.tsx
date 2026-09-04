@@ -6,6 +6,7 @@
 
 import "./style.css";
 
+import { migratePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { EquicordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
@@ -20,8 +21,9 @@ interface PlaybackRateUpdate {
 
 const WrappedVoiceMessagesInBackgroundPlayer = ErrorBoundary.wrap(VoiceMessagesInBackgroundPlayer, { noop: true });
 
+migratePluginSettings("VoiceMessagesInBackground", "Voice Messages In-Background");
 export default definePlugin({
-    name: "Voice Messages In-Background",
+    name: "VoiceMessagesInBackground",
     description: "Keeps voice messages playing across chats with a synchronized mini player.",
     authors: [EquicordDevs.ELJoOker],
     tags: ["Voice", "Media", "Chat"],

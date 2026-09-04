@@ -7,6 +7,7 @@
 export interface TestcordAdmin {
     name: string;
     id: bigint;
+    github?: string;
 }
 
 export const TestcordAdmins = Object.freeze({
@@ -48,7 +49,8 @@ export const TestcordAdmins = Object.freeze({
     },
     Aviv: {
         name: "Aviv",
-        id: 752564054593110016n
+        id: 752564054593110016n,
+        github: "ZimbaZombie"
     }
 } satisfies Record<string, TestcordAdmin>);
 
@@ -130,11 +132,19 @@ export const TestcordDevelopers = Object.freeze({
     },
     Aviv: {
         name: "Aviv",
-        id: 752564054593110016n
+        id: 752564054593110016n,
+        github: "ZimbaZombie"
     },
     reid: {
         name: "reid",
         id: 1069127117247361085n
+    }
+} satisfies Record<string, TestcordAdmin>);
+
+export const TestcordArtists = Object.freeze({
+    grandesorciere: {
+        name: "grandesorciere",
+        id: 756967256180654090n
     }
 } satisfies Record<string, TestcordAdmin>);
 
@@ -151,6 +161,10 @@ export const TestcordDevelopersById = Object.freeze(Object.fromEntries(
     Object.entries(TestcordDevelopers).map(([_, v]) => [v.id.toString(), v] as const)
 )) as Record<string, TestcordAdmin>;
 
+export const TestcordArtistsById = Object.freeze(Object.fromEntries(
+    Object.entries(TestcordArtists).map(([_, v]) => [v.id.toString(), v] as const)
+)) as Record<string, TestcordAdmin>;
+
 // Check if a user ID is a testcord admin
 export function isTestcordAdmin(userId: string): boolean {
     return Object.hasOwn(TestcordAdminsById, userId);
@@ -164,6 +178,11 @@ export function isTestcordOwner(userId: string): boolean {
 // Check if a user ID is a testcord developer
 export function isTestcordDeveloper(userId: string): boolean {
     return Object.hasOwn(TestcordDevelopersById, userId);
+}
+
+// Check if a user ID is a testcord artist
+export function isTestcordArtist(userId: string): boolean {
+    return Object.hasOwn(TestcordArtistsById, userId);
 }
 
 // btw fuck me for making such stupid mistakes.

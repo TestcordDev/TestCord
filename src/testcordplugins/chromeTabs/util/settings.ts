@@ -67,7 +67,25 @@ export const settings = definePluginSettings({
     },
     enableKeybinds: {
         type: OptionType.BOOLEAN,
-        description: "Enable Ctrl+T (new tab), Ctrl+W (close tab), Ctrl+Tab (cycle) and Ctrl+1-9 (jump to tab)",
+        description: "Enable tab shortcuts (Ctrl+T for new tab, Ctrl+Shift+T to reopen, Ctrl+W to close, Ctrl+Tab to cycle, and Ctrl+1-9 to jump)",
         default: true
+    },
+    reopenTabKeybind: {
+        type: OptionType.BOOLEAN,
+        description: "Reopen closed tab with Ctrl+Shift+T (prevents Discord's New Message modal)",
+        default: true
+    },
+    ctrlTabSwitcher: {
+        type: OptionType.BOOLEAN,
+        description: "Show a switcher popup when pressing Ctrl+Tab (similar to RecentChannelSwitcher / Chrome)",
+        default: true
+    },
+    ctrlTabOrder: {
+        type: OptionType.SELECT,
+        description: "Order of tabs in the Ctrl+Tab switcher",
+        options: [
+            { label: "Recently opened order (MRU)", value: "mru", default: true },
+            { label: "Tab strip order (left to right)", value: "strip" }
+        ]
     }
 });

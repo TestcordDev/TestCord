@@ -6,10 +6,10 @@
 
 import { Divider } from "@components/Divider";
 import { FormSwitch } from "@components/FormSwitch";
-import { HeadingPrimary, HeadingSecondary } from "@components/Heading";
+import { HeadingSecondary } from "@components/Heading";
 import { Margins } from "@utils/margins";
-import { ModalCloseButton, ModalContent, ModalHeader, ModalProps, ModalRoot } from "@utils/modal";
-import { SearchableSelect, useMemo } from "@webpack/common";
+import { ModalContent, ModalProps } from "@utils/modal";
+import { Modal, SearchableSelect, useMemo } from "@webpack/common";
 
 import { settings } from "./settings";
 import { cl, getLanguages } from "./utils";
@@ -55,11 +55,7 @@ function AutoTranslateToggle() {
 
 export function TranslateModal({ rootProps }: { rootProps: ModalProps; }) {
     return (
-        <ModalRoot {...rootProps}>
-            <ModalHeader className={cl("modal-header")}>
-                <HeadingPrimary className={cl("modal-title")}>NativeTranslate</HeadingPrimary>
-                <ModalCloseButton onClick={rootProps.onClose} />
-            </ModalHeader>
+        <Modal {...rootProps} size="md" title="NativeTranslate">
             <ModalContent className={cl("modal-content")}>
                 {LanguageSettingKeys.map(s => (
                     <LanguageSelect key={s} settingsKey={s} includeAuto={s.endsWith("Input")} />
@@ -67,6 +63,6 @@ export function TranslateModal({ rootProps }: { rootProps: ModalProps; }) {
                 <Divider className={Margins.bottom16} />
                 <AutoTranslateToggle />
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }

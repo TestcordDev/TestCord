@@ -1,22 +1,7 @@
-/*
- * Chrome-style tab strip.
- *
- * The Chrome look comes from three things:
- *   1. tabs whose outer bottom corners curve *away* from the tab (concave),
- *      so the active tab appears fused to the content area below it
- *   2. only the active tab has a filled background; the rest are bare
- *   3. thin vertical separators between inactive tabs, hidden around the active one
- *
- * The curve is an inline SVG per tab (.tc-chrometabs-shape) rather than CSS
- * pseudo-elements, because concave corners can't be done with border-radius and
- * the tab width is dynamic.
- */
-
 .tc-chrometabs-container {
-    /* strip background = the "browser chrome" behind the tabs */
+
     --tc-strip-bg: var(--background-base-lower, var(--background-tertiary));
 
-    /* active tab background must match the app content below it */
     --tc-tab-active-bg: var(--background-base-low, var(--background-primary));
     --tc-tab-hover-bg: var(--background-mod-subtle, rgb(255 255 255 / 4%));
     --tc-tab-height: 34px;
@@ -28,15 +13,12 @@
     padding: 6px 8px 0;
     background-color: var(--tc-strip-bg);
 
-    /* the strip sits in Discord's notice grid area, above the app content */
     grid-area: notice;
     z-index: 102;
 
-    /* let the window still be dragged by the strip background, but not the tabs */
     -webkit-app-region: drag;
 }
 
-/* Discord shows notices in this same grid area; yield to them when one appears */
 [class*="notice"] + .tc-chrometabs-container {
     z-index: 1;
     height: var(--tc-tab-height);
@@ -52,7 +34,6 @@
     overflow-x: auto;
     overflow-y: hidden;
 
-    /* room for the tab shadow so it isn't clipped by the scroll box */
     scrollbar-width: none;
 }
 
@@ -60,7 +41,6 @@
     display: none;
 }
 
-/* #region tab */
 
 .tc-chrometabs-tab {
     position: relative;
@@ -72,7 +52,6 @@
     height: var(--tc-tab-height);
     padding: 0;
 
-    /* tabs overlap by 1px so adjacent curves meet cleanly, like Chrome */
     margin-right: -1px;
     background: none;
     border: none;
@@ -81,7 +60,6 @@
     -webkit-app-region: no-drag;
 }
 
-/* the curved tab body */
 .tc-chrometabs-shape {
     position: absolute;
     inset: 0;
@@ -100,7 +78,6 @@
     fill: var(--tc-tab-active-bg);
 }
 
-/* the active tab must paint over its neighbours' separators and curves */
 .tc-chrometabs-tab-active {
     z-index: 2;
 }
@@ -109,10 +86,6 @@
     z-index: 3;
     opacity: 0.75;
 }
-
-/* #endregion */
-
-/* #region tab contents */
 
 .tc-chrometabs-content {
     position: relative;
@@ -124,7 +97,6 @@
     width: 100%;
     min-width: 0;
 
-    /* matches the SVG's 14px inset so text starts inside the curve */
     padding: 0 8px 0 14px;
     overflow: hidden;
 }
@@ -152,7 +124,6 @@
     text-align: center;
 }
 
-/* the #/voice glyph Discord renders next to a guild icon */
 .tc-chrometabs-channel-glyph {
     display: flex;
     align-items: center;
@@ -182,10 +153,6 @@
     color: var(--text-default);
 }
 
-/* Chrome hides the label entirely once tabs get very narrow.
-   The width classes are computed in the strip (single source of truth) instead
-   of container queries — per-tab size containment makes every resize re-run
-   layout for all tabs. */
 .tc-chrometabs-tab-narrow .tc-chrometabs-label,
 .tc-chrometabs-tab-narrow .tc-chrometabs-channel-glyph {
     display: none;
@@ -196,9 +163,6 @@
     padding: 0 6px;
 }
 
-/* #endregion */
-
-/* #region badge */
 
 .tc-chrometabs-badge {
     display: flex;
@@ -221,17 +185,12 @@
     background-color: var(--status-danger, #f23f42);
 }
 
-/* unread with no count: a plain dot, as Discord does in the channel list */
 .tc-chrometabs-badge.tc-chrometabs-dot {
     min-width: 8px;
     width: 8px;
     height: 8px;
     padding: 0;
 }
-
-/* #endregion */
-
-/* #region close button */
 
 .tc-chrometabs-close {
     display: flex;
@@ -250,7 +209,6 @@
     transition: opacity 0.12s ease, background-color 0.12s ease;
 }
 
-/* Chrome only shows the X on hover, or on the active tab */
 .tc-chrometabs-tab:hover .tc-chrometabs-close,
 .tc-chrometabs-tab-active .tc-chrometabs-close {
     opacity: 1;
@@ -265,14 +223,10 @@
     background-color: var(--background-mod-stronger, rgb(255 255 255 / 16%));
 }
 
-/* narrow tabs drop the X so the favicon stays visible */
 .tc-chrometabs-tab-tiny .tc-chrometabs-close {
     display: none;
 }
 
-/* #endregion */
-
-/* #region separators */
 
 .tc-chrometabs-separator {
     position: absolute;
@@ -286,19 +240,12 @@
     transition: opacity 0.12s ease;
 }
 
-/* no separator beside the active tab, or on the last tab.
-   `tab-before-active` is set from JS — a :has() sibling selector here would
-   force expensive style recalculation across all tabs on every hover change. */
 .tc-chrometabs-tab-active .tc-chrometabs-separator,
 .tc-chrometabs-tab:last-of-type .tc-chrometabs-separator,
 .tc-chrometabs-tab-before-active .tc-chrometabs-separator,
 .tc-chrometabs-tab:hover .tc-chrometabs-separator {
     opacity: 0;
 }
-
-/* #endregion */
-
-/* #region new tab button */
 
 .tc-chrometabs-new-tab {
     display: flex;
@@ -327,15 +274,7 @@
     background-color: var(--background-mod-strong, rgb(255 255 255 / 10%));
 }
 
-/* #endregion */
 
-/* #region title bar mode */
-
-/*
- * Compact variant mounted inside Discord's title bar, matching the upcoming
- * native tabs: flat rounded rectangles with a gap between them, subtle hover,
- * slightly brighter active tab. The fused Chrome curve is dropped entirely.
- */
 .tc-chrometabs-container.tc-chrometabs-container-titlebar {
     --tc-tab-height: 28px;
 
@@ -346,7 +285,6 @@
     background: none;
     grid-area: auto;
 
-    /* don't let a wide strip shove the window controls around */
     max-width: 50vw;
 }
 
@@ -355,14 +293,14 @@
     gap: 4px;
 }
 
-/* the fused-curve SVG only makes sense against a strip background */
+
 .tc-chrometabs-container-titlebar .tc-chrometabs-shape {
     display: none;
 }
 
 .tc-chrometabs-container-titlebar .tc-chrometabs-tab {
     height: var(--tc-tab-height);
-    margin-right: 0; /* the strip's flex gap handles spacing here */
+    margin-right: 0;
     border-radius: 8px;
     background-color: transparent;
     transition: background-color 0.12s ease;
@@ -381,7 +319,6 @@
     gap: 6px;
 }
 
-/* separators are a Chrome-look detail; upcoming native tabs use spacing instead */
 .tc-chrometabs-container-titlebar .tc-chrometabs-separator {
     display: none;
 }
@@ -393,14 +330,330 @@
     border-radius: 8px;
 }
 
-/* #endregion */
 
 @media (prefers-reduced-motion: reduce) {
+
     .tc-chrometabs-shape,
     .tc-chrometabs-label,
     .tc-chrometabs-close,
     .tc-chrometabs-separator,
-    .tc-chrometabs-new-tab {
+    .tc-chrometabs-new-tab,
+    .tc-chrometabs-switcher-preview,
+    .tc-chrometabs-switcher-card {
         transition: none;
     }
+}
+
+
+.tc-chrometabs-switcher-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+}
+
+.tc-chrometabs-switcher-shell {
+    width: 460px;
+    max-width: calc(100vw - 32px);
+    max-height: min(480px, 80vh);
+    background: var(--modal-background, var(--background-secondary, #222225));
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    border-radius: 8px;
+    box-shadow: var(--elevation-high, 0 8px 24px rgba(0, 0, 0, 0.4));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: var(--font-primary, "gg sans", "Noto Sans", "Helvetica Neue", Helvetica, Arial, sans-serif);
+    color: var(--text-normal, #dbdee1);
+}
+
+.tc-chrometabs-switcher-header {
+    padding: 12px 14px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.04));
+}
+
+.tc-chrometabs-switcher-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--header-secondary, #949ba4);
+}
+
+.tc-chrometabs-switcher-count {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted, #80848e);
+}
+
+.tc-chrometabs-switcher-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 340px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thin-thumb, rgba(255, 255, 255, 0.15)) transparent;
+}
+
+.tc-chrometabs-switcher-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.tc-chrometabs-switcher-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.tc-chrometabs-switcher-list::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thin-thumb, rgba(255, 255, 255, 0.15));
+    border-radius: 3px;
+}
+
+.tc-chrometabs-switcher-row {
+    height: 38px;
+    padding: 0 10px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-normal, #dbdee1);
+    transition: background-color 0.06s ease;
+    user-select: none;
+    position: relative;
+}
+
+.tc-chrometabs-switcher-row:hover {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.07));
+}
+
+.tc-chrometabs-switcher-row.tc-chrometabs-switcher-row-selected {
+    background: var(--background-modifier-selected, rgba(255, 255, 255, 0.12));
+}
+
+.tc-chrometabs-switcher-icon-wrap {
+    position: relative;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 22px;
+}
+
+.tc-chrometabs-switcher-icon-img {
+    width: 22px;
+    height: 22px;
+    object-fit: cover;
+}
+
+.tc-chrometabs-switcher-icon-circle {
+    border-radius: 50%;
+}
+
+.tc-chrometabs-switcher-icon-guild {
+    border-radius: 5px;
+}
+
+.tc-chrometabs-switcher-status-dot {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 2px solid var(--background-floating, #111214);
+    box-sizing: content-box;
+}
+
+.tc-chrometabs-switcher-status-dot.status-online {
+    background-color: var(--status-positive, #23a55a);
+}
+
+.tc-chrometabs-switcher-status-dot.status-idle {
+    background-color: var(--status-warning, #f0b232);
+}
+
+.tc-chrometabs-switcher-status-dot.status-dnd {
+    background-color: var(--status-danger, #f23f42);
+}
+
+.tc-chrometabs-switcher-status-dot.status-offline {
+    background-color: var(--status-offline, #80848e);
+}
+
+.tc-chrometabs-switcher-hash-icon {
+    width: 18px;
+    height: 18px;
+    color: var(--channel-icon, #80848e);
+    flex-shrink: 0;
+}
+
+.tc-chrometabs-switcher-icon-glyph {
+    width: 18px;
+    height: 18px;
+    color: var(--channel-icon, #80848e);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tc-chrometabs-switcher-icon-acronym {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    background: var(--background-modifier-accent, rgba(255, 255, 255, 0.08));
+    color: var(--text-normal, #dbdee1);
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tc-chrometabs-switcher-row-content {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    gap: 6px;
+}
+
+.tc-chrometabs-switcher-row-name {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-normal, #dbdee1);
+    flex: 0 1 auto;
+}
+
+.tc-chrometabs-switcher-row.tc-chrometabs-switcher-row-selected .tc-chrometabs-switcher-row-name {
+    color: var(--interactive-active, #ffffff);
+    font-weight: 600;
+}
+
+.tc-chrometabs-switcher-row-sub {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-muted, #949ba4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tc-chrometabs-switcher-row-sub.tc-sub-channel {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.tc-chrometabs-switcher-row-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.tc-chrometabs-switcher-row-guild {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-muted, #949ba4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 130px;
+}
+
+.tc-chrometabs-switcher-unread {
+    min-width: 16px;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: var(--status-danger, #f23f42);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+}
+
+.tc-chrometabs-switcher-action-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--interactive-normal, #80848e);
+    opacity: 0;
+    transition: opacity 0.1s ease, background-color 0.1s ease, color 0.1s ease;
+    cursor: pointer;
+}
+
+.tc-chrometabs-switcher-row:hover .tc-chrometabs-switcher-action-btn,
+.tc-chrometabs-switcher-row.tc-chrometabs-switcher-row-selected .tc-chrometabs-switcher-action-btn {
+    opacity: 1;
+}
+
+.tc-chrometabs-switcher-action-btn:hover {
+    background: var(--background-modifier-hover, rgba(255, 255, 255, 0.1));
+    color: var(--interactive-active, #ffffff);
+}
+
+.tc-chrometabs-switcher-footer {
+    background: var(--modal-footer-background, var(--background-secondary-alt, #202024));
+    padding: 8px 14px;
+    border-radius: 0 0 8px 8px;
+    border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 auto;
+}
+
+.tc-chrometabs-switcher-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.tc-chrometabs-switcher-sep {
+    opacity: 0.4;
+    margin: 0 2px;
+}
+
+.tc-chrometabs-keycap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 5px;
+    background: var(--background-modifier-accent, rgba(255, 255, 255, 0.08));
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.12));
+    border-radius: 3px;
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.tc-chrometabs-switcher-empty {
+    padding: 24px 16px;
+    text-align: center;
+    color: var(--text-muted, #949ba4);
+    font-size: 13px;
 }
