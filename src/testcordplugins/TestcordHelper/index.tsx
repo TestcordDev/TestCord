@@ -454,10 +454,10 @@ const RenderEmbeds = getUserSettingLazy<boolean>("textAndImages", "renderEmbeds"
 const MESSAGE_LIMIT = 1900;
 const MB = 1024 * 1024;
 
-const PLUGIN_PATTERN = /(?:testcordplugin|tcp):([^\s,;\n]+)/gi;
-const PLUGIN_MATCH_PATTERN = /(?:testcordplugin|tcp):([^\s,;\n]+)/i;
+const PLUGIN_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp):([^\s,;\n]+)/gi;
+const PLUGIN_MATCH_PATTERN = /(testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp):([^\s,;\n]+)/i;
 const PLUGIN_LINK_PATTERN = /\[([^\]]+)]\(<?https:\/\/github\.com\/TestcordDev\/Testcord\/tree\/main\/src\/(?:plugins|equicordplugins|testcordplugins)\/[^>)]+>?\)/gi;
-const PLUGIN_CARD_MARKER_PATTERN = /(?:testcordplugin|tcp):|github\.com\/TestcordDev\/Testcord\/tree\/main\/src\/(?:plugins|equicordplugins|testcordplugins)\//i;
+const PLUGIN_CARD_MARKER_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp):|github\.com\/TestcordDev\/Testcord\/tree\/main\/src\/(?:plugins|equicordplugins|testcordplugins)\//i;
 const PLUGIN_RESOLVE_CACHE_LIMIT = 500;
 const pluginResolveCache = new Map<string, string | null>();
 const USER_PATTERN = /dcp:([^\s,;\n]+)/gi;
@@ -513,6 +513,7 @@ interface PluginSearchEntry {
     acronym: string;
     searchTerms?: string[];
     description?: string;
+    folderName?: string;
 }
 
 let pluginSearchData: PluginSearchEntry[] | undefined;
@@ -530,7 +531,7 @@ function getMemoryUsage(): string {
 const settings = definePluginSettings({
     tcpAutocomplete: {
         type: OptionType.BOOLEAN,
-        description: "Show an extend-up autocomplete panel when typing tcp: in chat to reference plugins",
+        description: "Show an extend-up autocomplete panel when typing tcp:, vcp:, or eqp: in chat to reference plugins",
         default: true,
         onChange: (val: boolean) => {
             if (val) {
@@ -743,6 +744,7 @@ function getPluginSearchData() {
         acronym: name.match(/[A-Z]/g)?.join("").toLowerCase() ?? "",
         searchTerms: plugins[name].searchTerms?.map(t => t.toLowerCase()),
         description: plugins[name].description?.toLowerCase(),
+        folderName: PluginMeta[name]?.folderName ?? "",
     }));
 
     return pluginSearchData;
@@ -952,12 +954,21 @@ function ChatPluginCard({ pluginName, description }: { pluginName: string; descr
     );
 }
 
-function resolvePluginName(search: string) {
+function getCategoryFolder(prefix?: string): string | undefined {
+    if (!prefix) return undefined;
+    const lower = prefix.toLowerCase();
+    if (lower === "tcp" || lower === "testcordplugin") return "src/testcordplugins/";
+    if (lower === "vcp" || lower === "vencordplugin") return "src/plugins/";
+    if (lower === "eqp" || lower === "equicordplugin") return "src/equicordplugins/";
+    return undefined;
+}
+
+function resolvePluginName(search: string, prefix?: string) {
     if (isPluginCardCacheEnabled()) {
-        const cacheKey = search.toLowerCase();
+        const cacheKey = `${prefix ? prefix.toLowerCase() + ":" : ""}${search.toLowerCase()}`;
         if (pluginResolveCache.has(cacheKey)) return pluginResolveCache.get(cacheKey) ?? undefined;
 
-        const pluginName = resolvePluginNameCached(search);
+        const pluginName = resolvePluginNameCached(search, prefix);
         pluginResolveCache.set(cacheKey, pluginName ?? null);
         if (pluginResolveCache.size > PLUGIN_RESOLVE_CACHE_LIMIT) {
             const oldest = pluginResolveCache.keys().next().value;
@@ -967,45 +978,67 @@ function resolvePluginName(search: string) {
         return pluginName;
     }
 
-    return resolvePluginNameOriginal(search);
+    return resolvePluginNameOriginal(search, prefix);
 }
 
-function resolvePluginNameOriginal(search: string) {
-    const pluginNames = Object.keys(plugins);
+function resolvePluginNameOriginal(search: string, prefix?: string) {
+    const categoryFolder = getCategoryFolder(prefix);
+    const allNames = Object.keys(plugins);
     const words = search.trim().replace(/[.!?)]*$/, "").split(/\s+/);
 
-    for (let i = words.length; i > 0; i--) {
-        const query = words.slice(0, i).join(" ").toLowerCase();
-        const normalizedQuery = query.replace(/\s+/g, "");
+    const findInNames = (names: string[]) => {
+        for (let i = words.length; i > 0; i--) {
+            const query = words.slice(0, i).join(" ").toLowerCase();
+            const normalizedQuery = query.replace(/\s+/g, "");
 
-        const pluginName = pluginNames.find(name => name.toLowerCase() === normalizedQuery)
-            ?? pluginNames.find(name => name.toLowerCase().startsWith(normalizedQuery))
-            ?? pluginNames.find(name => name.match(/[A-Z]/g)?.join("").toLowerCase().includes(normalizedQuery))
-            ?? pluginNames.find(name => name.toLowerCase().includes(normalizedQuery))
-            ?? pluginNames.find(name => plugins[name].searchTerms?.some(t => t.toLowerCase().includes(query)))
-            ?? pluginNames.find(name => plugins[name].description?.toLowerCase().includes(query));
+            const pluginName = names.find(name => name.toLowerCase() === normalizedQuery)
+                ?? names.find(name => name.toLowerCase().startsWith(normalizedQuery))
+                ?? names.find(name => name.match(/[A-Z]/g)?.join("").toLowerCase().includes(normalizedQuery))
+                ?? names.find(name => name.toLowerCase().includes(normalizedQuery))
+                ?? names.find(name => plugins[name]?.searchTerms?.some(t => t.toLowerCase().includes(query)))
+                ?? names.find(name => plugins[name]?.description?.toLowerCase().includes(query));
 
-        if (pluginName) return pluginName;
+            if (pluginName) return pluginName;
+        }
+    };
+
+    if (categoryFolder) {
+        const categoryNames = allNames.filter(name => PluginMeta[name]?.folderName?.startsWith(categoryFolder));
+        const matched = findInNames(categoryNames);
+        if (matched) return matched;
     }
+
+    return findInNames(allNames);
 }
 
-function resolvePluginNameCached(search: string) {
-    const pluginSearchData = getPluginSearchData();
+function resolvePluginNameCached(search: string, prefix?: string) {
+    const categoryFolder = getCategoryFolder(prefix);
+    const allData = getPluginSearchData();
     const words = search.trim().replace(/[.!?)]*$/, "").split(/\s+/);
 
-    for (let i = words.length; i > 0; i--) {
-        const query = words.slice(0, i).join(" ").toLowerCase();
-        const normalizedQuery = query.replace(/\s+/g, "");
+    const findInData = (data: PluginSearchEntry[]) => {
+        for (let i = words.length; i > 0; i--) {
+            const query = words.slice(0, i).join(" ").toLowerCase();
+            const normalizedQuery = query.replace(/\s+/g, "");
 
-        const pluginName = pluginSearchData.find(p => p.lower === normalizedQuery)?.name
-            ?? pluginSearchData.find(p => p.lower.startsWith(normalizedQuery))?.name
-            ?? pluginSearchData.find(p => p.acronym.includes(normalizedQuery))?.name
-            ?? pluginSearchData.find(p => p.lower.includes(normalizedQuery))?.name
-            ?? pluginSearchData.find(p => p.searchTerms?.some(t => t.includes(query)))?.name
-            ?? pluginSearchData.find(p => p.description?.includes(query))?.name;
+            const pluginName = data.find(p => p.lower === normalizedQuery)?.name
+                ?? data.find(p => p.lower.startsWith(normalizedQuery))?.name
+                ?? data.find(p => p.acronym.includes(normalizedQuery))?.name
+                ?? data.find(p => p.lower.includes(normalizedQuery))?.name
+                ?? data.find(p => p.searchTerms?.some(t => t.includes(query)))?.name
+                ?? data.find(p => p.description?.includes(query))?.name;
 
-        if (pluginName) return pluginName;
+            if (pluginName) return pluginName;
+        }
+    };
+
+    if (categoryFolder) {
+        const categoryData = allData.filter(p => p.folderName?.startsWith(categoryFolder));
+        const matched = findInData(categoryData);
+        if (matched) return matched;
     }
+
+    return findInData(allData);
 }
 
 function getPluginLink(pluginName: string) {
@@ -1159,8 +1192,8 @@ function ChatProfileCard({ user }: { user: User; }) {
 
 function replacePluginAliases(content: string) {
     return content.replace(PLUGIN_PATTERN, match => {
-        const [, query] = PLUGIN_MATCH_PATTERN.exec(match) ?? [];
-        const pluginName = query ? resolvePluginName(query) : undefined;
+        const [, prefix, query] = PLUGIN_MATCH_PATTERN.exec(match) ?? [];
+        const pluginName = query ? resolvePluginName(query, prefix) : undefined;
 
         if (!pluginName) return match;
 
@@ -1196,8 +1229,8 @@ const PluginCards = ErrorBoundary.wrap(function PluginCards({ message }: { messa
 
     let match;
     while ((match = PLUGIN_PATTERN.exec(message.content)) !== null) {
-        const pluginNameFromMessage = match[1]?.trim();
-        const actualPluginName = pluginNameFromMessage ? resolvePluginName(pluginNameFromMessage) : undefined;
+        const [, prefix, pluginNameFromMessage] = PLUGIN_MATCH_PATTERN.exec(match[0]) ?? [];
+        const actualPluginName = pluginNameFromMessage ? resolvePluginName(pluginNameFromMessage, prefix) : undefined;
         const pluginName = actualPluginName || pluginNameFromMessage;
 
         if (!pluginName || seenPlugins.has(pluginName)) continue;
@@ -1717,7 +1750,7 @@ export default definePlugin({
 
     renderMessageAccessory(props) {
         const { content } = props.message;
-        if (content.length < 12) return null;
+        if (content.length < 5) return null;
         const showPluginCards = !(isPerformanceEnabled() && settings.store.performanceDisablePluginCards) && PLUGIN_CARD_MARKER_PATTERN.test(content);
         const showProfileCards = !settings.store.disableProfilePopoutEmbeds && USER_CARD_MARKER_PATTERN.test(content);
 

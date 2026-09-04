@@ -52,7 +52,14 @@ import { UIElementsButton } from "./UIElements";
 export const cl = classNameFactory("vc-plugins-");
 export const logger = new Logger("PluginSettings", "#a6d189");
 
-const PluginSearchPrefixes = ["tcp:", "testcordplugin:"];
+const PluginSearchPrefixes = [
+    { prefix: "tcp:", folder: "src/testcordplugins/" },
+    { prefix: "testcordplugin:", folder: "src/testcordplugins/" },
+    { prefix: "vcp:", folder: "src/plugins/" },
+    { prefix: "vencordplugin:", folder: "src/plugins/" },
+    { prefix: "eqp:", folder: "src/equicordplugins/" },
+    { prefix: "equicordplugin:", folder: "src/equicordplugins/" }
+];
 const PluginLoadBatchSize = 36;
 
 function showErrorToast(message: string) {
@@ -224,11 +231,16 @@ const sortedPlugins = useMemo(() =>
     const [searchValue, setSearchValue] = useState<{ value: string; tags: PluginTag[]; status: number; author: string; }>({ value: "", tags: [] as PluginTag[], status: SearchStatus.ALL, author: "" });
 
     const search = searchValue.value.toLowerCase();
-    const pluginSearch = useMemo(() => {
+    const searchPrefixMatch = useMemo(() => {
         const trimmedSearch = search.trimStart();
 
-        for (const prefix of PluginSearchPrefixes) {
-            if (trimmedSearch.startsWith(prefix)) return trimmedSearch.slice(prefix.length).trim();
+        for (const entry of PluginSearchPrefixes) {
+            if (trimmedSearch.startsWith(entry.prefix)) {
+                return {
+                    folder: entry.folder,
+                    query: trimmedSearch.slice(entry.prefix.length).trim()
+                };
+            }
         }
 
         return null;
@@ -306,7 +318,12 @@ const sortedPlugins = useMemo(() =>
 
         if (searchValue.author && !plugin.authors?.some(a => a?.name === searchValue.author)) return false;
 
-        const pluginSearchValue = pluginSearch ?? search;
+        if (searchPrefixMatch) {
+            const folder = PluginMeta[plugin.name]?.folderName || "";
+            if (!folder.startsWith(searchPrefixMatch.folder)) return false;
+        }
+
+        const pluginSearchValue = searchPrefixMatch ? searchPrefixMatch.query : search;
 
         if (!pluginSearchValue.length) return true;
 
@@ -316,7 +333,7 @@ const sortedPlugins = useMemo(() =>
             plugin.description.toLowerCase().includes(pluginSearchValue) ||
             plugin.searchTerms?.some(t => t.toLowerCase().includes(pluginSearchValue))
         );
-    }, [searchValue, search, pluginSearch]);
+    }, [searchValue, search, searchPrefixMatch]);
 
     const [newPluginsSet] = useAwaiter(() => DataStore.get("Vencord_existingPlugins").then((cachedPlugins: Record<string, number> | undefined) => {
         const now = Date.now() / 1000;
