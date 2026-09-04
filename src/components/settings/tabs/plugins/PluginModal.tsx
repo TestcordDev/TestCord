@@ -32,6 +32,7 @@ import { buildIssueUrl, generateGitHubIssueBody } from "@utils/debugReport";
 import { proxyLazy } from "@utils/lazy";
 import { Margins } from "@utils/margins";
 import { classes, isObjectEmpty } from "@utils/misc";
+import { getPluginWarning } from "@utils/pluginWarnings";
 import { OptionType, Plugin, PluginTag } from "@utils/types";
 import { RenderModalProps, User } from "@vencord/discord-types";
 import { findComponentByCodeLazy, findCssClassesLazy } from "@webpack";
@@ -172,6 +173,7 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
 
     const pluginMeta = PluginMeta[plugin.name];
     const isEquicordPlugin = pluginMeta.folderName.startsWith("src/equicordplugins/") ?? false;
+    const warning = getPluginWarning(plugin);
 
     return (
         <Modal
@@ -181,6 +183,24 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
             title={
                 <div className={cl("header")}>
                     <BaseText tag="h1" weight="semibold" size="lg">{plugin.name}</BaseText>
+                    {warning && (
+                        <Tooltip text={`${warning.title}: ${warning.description}`}>
+                            {({ onMouseEnter, onMouseLeave }) => (
+                                <span
+                                    className={classes(cl("warning-badge"), cl(`warning-${warning.type}`))}
+                                    onMouseEnter={onMouseEnter}
+                                    onMouseLeave={onMouseLeave}
+                                >
+                                    <img
+                                        src={warning.icon}
+                                        alt={warning.label}
+                                        className={cl("warning-icon")}
+                                    />
+                                    <span>{warning.label}</span>
+                                </span>
+                            )}
+                        </Tooltip>
+                    )}
                 </div>
             }
             subtitle={
@@ -192,6 +212,15 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
                 </div>
             }
         >
+            {warning && (
+                <div className={classes(Margins.top16, cl("warning-banner"), cl(`warning-banner-${warning.type}`))}>
+                    <img src={warning.icon} alt={warning.label} className={cl("warning-banner-icon")} />
+                    <div className={cl("warning-banner-text")}>
+                        <strong className={cl("warning-banner-title")}>{warning.title}</strong>
+                        <Paragraph size="sm" className={cl("warning-banner-desc")}>{warning.description}</Paragraph>
+                    </div>
+                </div>
+            )}
             {!!plugin.settingsAboutComponent && (
                 <div className={classes(Margins.top16, cl("about-box"))}>
                     <section>

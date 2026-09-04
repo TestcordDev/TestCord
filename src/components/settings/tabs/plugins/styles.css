@@ -351,11 +351,13 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 8px;
+    min-height: 20px;
 }
 
 .vc-plugins-card-source {
     min-width: 0;
+    flex: 1 1 auto;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -368,25 +370,37 @@
     white-space: nowrap;
 }
 
-.vc-plugins-card-tags {
-    flex: 0 1 auto;
+.vc-plugins-card-badges {
+    flex: 0 0 auto;
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     justify-content: flex-end;
+    gap: 5px;
+    flex-wrap: nowrap;
+}
+
+.vc-plugins-card-tags {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
     gap: 4px;
-    min-height: 20px;
 }
 
 .vc-plugins-card-tag {
-    max-width: 90px;
-    padding: 2px 6px;
+    max-width: 85px;
+    height: 20px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 6px;
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     background-color: var(--background-surface-high);
     color: var(--text-muted);
     font-size: 10px;
     font-weight: 600;
-    line-height: 14px;
+    line-height: 18px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -394,11 +408,15 @@
 
 .vc-plugins-card-stability {
     flex: 0 0 auto;
-    padding: 2px 6px;
+    height: 20px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 6px;
     border-radius: 6px;
     font-size: 10px;
     font-weight: 700;
-    line-height: 14px;
+    line-height: 18px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     white-space: nowrap;
@@ -447,6 +465,78 @@
 .vc-settings-tab [class*="chevronButton__0edde"] {
     padding-top: 9px;
     align-items: start;
+}
+
+.vc-plugins-warning-badge {
+    height: 30px;
+    width: 30px;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    background: transparent;
+    transition: 0.15s ease-out;
+    cursor: help;
+    flex-shrink: 0;
+}
+
+.vc-plugins-warning-badge:hover {
+    background: color-mix(in srgb, #f0b232 18%, transparent);
+    transform: scale(1.08);
+}
+
+.vc-plugins-warning-icon {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+    display: block;
+    image-rendering: -webkit-optimize-contrast;
+    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 40%));
+}
+
+.vc-plugins-card-warning {
+    flex: 0 0 auto;
+    height: 20px;
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 6px;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 18px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    cursor: help;
+    transition: 0.12s ease-out;
+}
+
+.vc-plugins-card-warning:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
+}
+
+.vc-plugins-card-warning.vc-plugins-plugin-warning-experimental,
+.vc-plugins-card-warning[class*="experimental"] {
+    background-color: color-mix(in srgb, #e67e22 20%, transparent);
+    color: #f39c12;
+    border: 1px solid color-mix(in srgb, #e67e22 45%, transparent);
+}
+
+.vc-plugins-card-warning.vc-plugins-plugin-warning-legacy,
+.vc-plugins-card-warning[class*="legacy"] {
+    background-color: color-mix(in srgb, #d35400 20%, transparent);
+    color: #e67e22;
+    border: 1px solid color-mix(in srgb, #d35400 45%, transparent);
+}
+
+.vc-plugins-warning-icon-small {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+    display: inline-block;
+    image-rendering: -webkit-optimize-contrast;
 }
 
 @media (width <= 720px) {

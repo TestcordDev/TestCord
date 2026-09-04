@@ -77,7 +77,9 @@ export const PluginTags = [
     "Nightcord",
     "betterdiscord",
     "bd",
-    "loader"
+    "loader",
+    "experimental",
+    "legacy"
 ] as const;
 
 export type PluginTag = typeof PluginTags[number];
@@ -144,6 +146,10 @@ export interface PluginDef {
     /** Additional search terms that will bring up your plugin */
     searchTerms?: string[];
     tags?: PluginTag[];
+    /** Whether this plugin is experimental */
+    experimental?: boolean;
+    /** Whether this plugin is legacy/deprecated */
+    legacy?: boolean;
     authors: PluginAuthor[];
     start?(): void;
     stop?(): void;

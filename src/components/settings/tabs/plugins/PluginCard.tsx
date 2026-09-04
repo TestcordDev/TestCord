@@ -12,8 +12,9 @@ import { CogWheel, InfoIcon } from "@components/Icons";
 import { AddonCard } from "@components/settings/AddonCard";
 import { classNameFactory } from "@utils/css";
 import { Logger } from "@utils/Logger";
+import { getPluginWarning } from "@utils/pluginWarnings";
 import { Plugin } from "@utils/types";
-import { React, showToast, Toasts } from "@webpack/common";
+import { React, showToast, Toasts, Tooltip } from "@webpack/common";
 
 import { PluginMeta } from "~plugins";
 
@@ -185,6 +186,10 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         ? `Broken in ${stability.sessionsBroken} of the last ${stability.sessionsSeen} sessions (${Math.round(stability.ratio * 100)}%).`
         : undefined;
 
+    const warning = getPluginWarning(plugin);
+    const maxVisibleTags = warning ? 1 : 2;
+    const tags = plugin.tags;
+
     const footer = (
         <div className={cl("card-meta")}>
             <span className={cl("card-source")}>
@@ -197,25 +202,77 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
                 )}
                 {tooltip}
             </span>
-            {showStabilityBadge && (
-                <span
-                    className={cl("card-stability")}
-                    data-badge={stability.badge}
-                    title={stabilityTooltip}
-                >
-                    {stability.badge === "unstable" ? "Unstable" : "Flaky"}
-                </span>
-            )}
-            {!!plugin.tags?.length && (
-                <div className={cl("card-tags")}>
-                    {plugin.tags.slice(0, 2).map(tag => (
-                        <span key={tag} className={cl("card-tag")}>{tag}</span>
-                    ))}
-                    {plugin.tags.length > 2 && <span className={cl("card-tag")}>+{plugin.tags.length - 2}</span>}
-                </div>
-            )}
+            <div className={cl("card-badges")}>
+                {warning && (
+                    <Tooltip text={`${warning.title}: ${warning.description}`}>
+                        {({ onMouseEnter: onWarningEnter, onMouseLeave: onWarningLeave }) => (
+                            <span
+                                className={cl("card-warning", warning.badgeClass || "")}
+                                onMouseEnter={onWarningEnter}
+                                onMouseLeave={onWarningLeave}
+                            >
+                                <img
+                                    src={warning.icon}
+                                    alt={warning.label}
+                                    className={cl("warning-icon-small")}
+                                />
+                                {warning.label}
+                            </span>
+                        )}
+                    </Tooltip>
+                )}
+                {showStabilityBadge && (
+                    <span
+                        className={cl("card-stability")}
+                        data-badge={stability.badge}
+                        title={stabilityTooltip}
+                    >
+                        {stability.badge === "unstable" ? "Unstable" : "Flaky"}
+                    </span>
+                )}
+                {!!tags?.length && (
+                    <div className={cl("card-tags")}>
+                        {tags.slice(0, maxVisibleTags).map(tag => (
+                            <span key={tag} className={cl("card-tag")}>{tag}</span>
+                        ))}
+                        {tags.length > maxVisibleTags && (
+                            <Tooltip text={tags.slice(maxVisibleTags).join(", ")}>
+                                {({ onMouseEnter: onTagEnter, onMouseLeave: onTagLeave }) => (
+                                    <span
+                                        className={cl("card-tag")}
+                                        onMouseEnter={onTagEnter}
+                                        onMouseLeave={onTagLeave}
+                                    >
+                                        +{tags.length - maxVisibleTags}
+                                    </span>
+                                )}
+                            </Tooltip>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
+
+    const warningBadge = warning ? (
+        <Tooltip text={`${warning.title}: ${warning.description}`}>
+            {({ onMouseEnter: onWarningEnter, onMouseLeave: onWarningLeave }) => (
+                <div
+                    className={cl("warning-badge", warning.badgeClass || "")}
+                    onMouseEnter={onWarningEnter}
+                    onMouseLeave={onWarningLeave}
+                    role="img"
+                    aria-label={warning.title}
+                >
+                    <img
+                        src={warning.icon}
+                        alt={warning.label}
+                        className={cl("warning-icon")}
+                    />
+                </div>
+            )}
+        </Tooltip>
+    ) : null;
 
     return (
         <AddonCard
@@ -223,6 +280,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
             tooltip={tooltip}
             description={plugin.description}
             isNew={isNew}
+            warningBadge={warningBadge}
             enabled={isEnabled()}
             setEnabled={toggleEnabled}
             disabled={disabled}

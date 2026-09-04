@@ -37,6 +37,7 @@ import { Logger } from "@utils/Logger";
 import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
 import { PluginTarget } from "@utils/pluginTargets";
+import { isExperimentalPlugin, isLegacyPlugin } from "@utils/pluginWarnings";
 import { useAwaiter, useCleanupEffect, useIntersection } from "@utils/react";
 import { PluginTag, PluginTags } from "@utils/types";
 import { Alerts, ConfirmModal, openModal, Parser, React, SearchableSelect, Select, TextInput, Toasts, Tooltip, useCallback, useMemo, useRef, useState } from "@webpack/common";
@@ -124,6 +125,8 @@ const SearchStatus = {
     USER_PLUGINS: 8,
     API_PLUGINS: 9,
     BETTERDISCORD: 10,
+    EXPERIMENTAL: 11,
+    LEGACY: 12,
 } as const;
 
 type SearchStatus = typeof SearchStatus[keyof typeof SearchStatus];
@@ -218,13 +221,13 @@ export default function PluginSettings() {
         return o;
     }, []);
 
-const sortedPlugins = useMemo(() =>
-    Object.values(Plugins)
-        .filter(p => p.name)
-        .sort((a, b) => a.name.localeCompare(b.name))
-        .toSorted((a, b) => Number(settings.plugins[b.name]?.isFavorite ?? false) - Number(settings.plugins[a.name]?.isFavorite ?? false)),
-    []
-);
+    const sortedPlugins = useMemo(() =>
+        Object.values(Plugins)
+            .filter(p => p.name)
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .toSorted((a, b) => Number(settings.plugins[b.name]?.isFavorite ?? false) - Number(settings.plugins[a.name]?.isFavorite ?? false)),
+        []
+    );
 
     const hasUserPlugins = useMemo(() => !IS_STANDALONE && Object.values(PluginMeta).some(m => m.userPlugin), []);
 
@@ -312,6 +315,12 @@ const sortedPlugins = useMemo(() =>
                 if (!pluginMetaInfo) return false;
                 return pluginMetaInfo.folderName?.startsWith("src/Betterdiscordplugins/") ||
                     plugin.tags?.includes("betterdiscord");
+            case SearchStatus.EXPERIMENTAL:
+                if (!isExperimentalPlugin(plugin.name) && !plugin.experimental && !plugin.tags?.includes("experimental")) return false;
+                break;
+            case SearchStatus.LEGACY:
+                if (!isLegacyPlugin(plugin.name) && !plugin.legacy && !plugin.tags?.includes("legacy")) return false;
+                break;
         }
 
         if (tags.length && tags.some(t => !plugin.tags?.includes(t))) return false;
@@ -531,6 +540,8 @@ const sortedPlugins = useMemo(() =>
                             hasUserPlugins && { label: "Show UserPlugins", value: SearchStatus.USER_PLUGINS },
                             { label: "Show API Plugins", value: SearchStatus.API_PLUGINS },
                             { label: "Show BetterDiscord", value: SearchStatus.BETTERDISCORD },
+                            { label: "Show Experimental", value: SearchStatus.EXPERIMENTAL },
+                            { label: "Show Legacy", value: SearchStatus.LEGACY },
                         ].filter(isTruthy)}
                         serialize={String}
                         select={status => setSearchValue(prev => ({ ...prev, status }))}
@@ -560,7 +571,7 @@ const sortedPlugins = useMemo(() =>
                             rel="noreferrer"
                             style={{ display: "flex", alignItems: "center", gap: "4px", color: "var(--text-link)", fontSize: "14px", textDecoration: "none", whiteSpace: "nowrap" }}
                         >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" /></svg>
                             {(authorOptions.find(a => a.value === searchValue.author)?.github || searchValue.author).replace(/^https?:\/\/github\.com\//, "")}
                         </a>
                     )}
