@@ -6,12 +6,11 @@
 
 import "./style.css";
 
-import { HeaderBarButton } from "@api/HeaderBar";
+import { HeaderBarButton, HeaderBarIcon } from "@api/HeaderBar";
 import { ErrorBoundary } from "@components/index";
 import { TestcordDevs } from "@utils/constants";
 import { ModalContent, ModalFooter, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
-import { findComponentByCodeLazy } from "@webpack";
 import { Button, Forms, Modal, NavigationRouter, React, RestAPI, TextInput } from "@webpack/common";
 const FormText = Forms.FormText as any;
 
@@ -33,7 +32,6 @@ const UserIcon = (props: any) => (
         />
     </svg>
 );
-const HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_TOP:", '"top"===c');
 
 function getErrorMessage(err: any): string {
     const code = err?.body?.code;

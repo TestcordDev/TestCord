@@ -7,6 +7,7 @@
 import "./style.css";
 
 import { NavContextMenuPatchCallback } from "@api/ContextMenu";
+import { HeaderBarIcon } from "@api/HeaderBar";
 import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { TestcordDevs } from "@utils/constants";
@@ -14,7 +15,7 @@ import { classes } from "@utils/misc";
 import { closeModal, ModalContent, ModalProps, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import type { Channel, User } from "@vencord/discord-types";
-import { findByPropsLazy, findComponentByCodeLazy } from "@webpack";
+import { findByPropsLazy } from "@webpack";
 import {
     Avatar,
     Button,
@@ -31,8 +32,6 @@ import {
     VoiceStateStore
 } from "@webpack/common";
 import type { PropsWithChildren, ReactNode, SVGProps } from "react";
-
-const HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_TOP:", '"top"===c');
 
 interface BaseIconProps extends IconProps {
     viewBox: string;
