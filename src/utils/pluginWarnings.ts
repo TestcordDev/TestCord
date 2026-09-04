@@ -19,12 +19,11 @@ export interface PluginWarningInfo {
     description: string;
     icon: string;
     badgeClass?: string;
+    replacementPlugin?: string;
 }
 
 /**
  * Add plugin names here that should be marked as EXPERIMENTAL.
- * Matching is case-insensitive.
- * DO NOT move plugin folders - simply list their names here!
  */
 export const EXPERIMENTAL_PLUGINS: string[] = [
     "BadgeSpoofer",
@@ -42,8 +41,6 @@ export const EXPERIMENTAL_PLUGINS: string[] = [
 
 /**
  * Add plugin names here that should be marked as LEGACY.
- * Matching is case-insensitive.
- * DO NOT move plugin folders - simply list their names here!
  */
 export const LEGACY_PLUGINS: string[] = [
     "StereoInstaller",
@@ -57,6 +54,28 @@ export const LEGACY_PLUGINS: string[] = [
 ];
 
 /**
+ * Map of legacy plugin names to their replacement plugin names.
+ * Matching is case-insensitive and ignores spaces, hyphens, and underscores.
+ */
+export const LEGACY_REPLACEMENTS: Record<string, string> = {
+    "AntiStereo": "Force Mono",
+    "antistereo": "Force Mono",
+    "FakeMuteDeafen": "FakeVoicePremium",
+    "fakemutedeafen": "FakeVoicePremium",
+    "fakemuteanddeafen": "FakeVoicePremium",
+    "GuildCopier": "ServerToolkit",
+    "guildcopier": "ServerToolkit",
+    "NitroSniper": "AutoRedeem",
+    "nitrosniper": "AutoRedeem",
+    "StereoInstaller": "StereoLoader",
+    "stereoinstaller": "StereoLoader",
+    "TokenImporter": "DXTokenImporter",
+    "tokenimporter": "DXTokenImporter",
+    "UserAreaTweaks": "deraculpanellayout",
+    "userareatweaks": "deraculpanellayout"
+};
+
+/**
  * Optional custom warning configurations for specific plugins.
  */
 export const CUSTOM_PLUGIN_WARNINGS: Record<string, {
@@ -65,6 +84,7 @@ export const CUSTOM_PLUGIN_WARNINGS: Record<string, {
     description: string;
     type?: PluginWarningType;
     icon?: string;
+    replacementPlugin?: string;
 }> = {};
 
 const EXPERIMENTAL_INFO: PluginWarningInfo = {
@@ -88,8 +108,21 @@ const LEGACY_INFO: PluginWarningInfo = {
 /**
  * Normalizes plugin names for consistent matching.
  */
-function normalizeName(name: string): string {
+export function normalizeName(name: string): string {
     return name.trim().toLowerCase().replace(/[\s\-_]/g, "");
+}
+
+/**
+ * Gets the replacement plugin name for a legacy plugin if defined.
+ */
+export function getLegacyReplacement(pluginName: string): string | undefined {
+    const norm = normalizeName(pluginName);
+    for (const [key, replacement] of Object.entries(LEGACY_REPLACEMENTS)) {
+        if (normalizeName(key) === norm) {
+            return replacement;
+        }
+    }
+    return undefined;
 }
 
 /**
@@ -101,11 +134,11 @@ export function isExperimentalPlugin(pluginName: string): boolean {
 }
 
 /**
- * Checks whether a given plugin name is in the LEGACY list.
+ * Checks whether a given plugin name is in the LEGACY list or has a legacy replacement.
  */
 export function isLegacyPlugin(pluginName: string): boolean {
     const norm = normalizeName(pluginName);
-    return LEGACY_PLUGINS.some(p => normalizeName(p) === norm);
+    return !!getLegacyReplacement(pluginName) || LEGACY_PLUGINS.some(p => normalizeName(p) === norm);
 }
 
 /**
@@ -119,39 +152,52 @@ export function getPluginWarning(pluginOrName: { name?: string; experimental?: b
     if (!name) return null;
 
     const norm = normalizeName(name);
+    const replacementPlugin = getLegacyReplacement(name);
 
-    // 1. Check custom warnings first
     const customMatch = Object.entries(CUSTOM_PLUGIN_WARNINGS).find(([key]) => normalizeName(key) === norm);
     if (customMatch) {
         const [, val] = customMatch;
         const type = val.type ?? "warning";
+        const rep = val.replacementPlugin ?? (type === "legacy" ? replacementPlugin : undefined);
         return {
             type,
             label: val.label,
             title: val.title ?? `${val.label} Plugin`,
-            description: val.description,
+            description: rep
+                ? `This plugin is legacy and has been replaced by ${rep}.`
+                : val.description,
             icon: val.icon ?? (type === "legacy" ? LegacyIconUrl : ExperimentalIconUrl),
             badgeClass: `vc-plugin-warning-${type}`,
+            replacementPlugin: rep,
         };
     }
 
-    // 2. Check central EXPERIMENTAL_PLUGINS list
     if (EXPERIMENTAL_PLUGINS.some(p => normalizeName(p) === norm)) {
         return EXPERIMENTAL_INFO;
     }
 
-    // 3. Check central LEGACY_PLUGINS list
-    if (LEGACY_PLUGINS.some(p => normalizeName(p) === norm)) {
-        return LEGACY_INFO;
+    if (replacementPlugin || LEGACY_PLUGINS.some(p => normalizeName(p) === norm)) {
+        return {
+            ...LEGACY_INFO,
+            replacementPlugin,
+            description: replacementPlugin
+                ? `This plugin is legacy and has been replaced by ${replacementPlugin}.`
+                : LEGACY_INFO.description,
+        };
     }
 
-    // 4. Check object properties if an object was passed
     if (typeof pluginOrName !== "string") {
         if (pluginOrName.experimental || pluginOrName.tags?.includes("experimental")) {
             return EXPERIMENTAL_INFO;
         }
         if (pluginOrName.legacy || pluginOrName.tags?.includes("legacy")) {
-            return LEGACY_INFO;
+            return {
+                ...LEGACY_INFO,
+                replacementPlugin,
+                description: replacementPlugin
+                    ? `This plugin is legacy and has been replaced by ${replacementPlugin}.`
+                    : LEGACY_INFO.description,
+            };
         }
     }
 

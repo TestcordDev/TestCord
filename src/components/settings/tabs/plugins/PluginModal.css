@@ -146,7 +146,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    cursor: help;
+    cursor: default;
     margin-left: 8px;
     vertical-align: middle;
 }
@@ -211,4 +211,24 @@
     color: var(--text-muted);
     font-size: 12px;
     line-height: 16px;
+}
+
+.vc-plugin-modal-warning-badge.vc-plugin-modal-warning-clickable {
+    cursor: pointer;
+}
+
+.vc-plugin-modal-warning-badge.vc-plugin-modal-warning-clickable:hover {
+    opacity: 0.85;
+}
+
+.vc-plugin-modal-warning-banner-action {
+    margin-top: 8px;
+}
+
+.vc-plugin-modal-replacement-btn {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    padding: 2px 12px !important;
+    height: 28px !important;
+    min-height: 28px !important;
 }

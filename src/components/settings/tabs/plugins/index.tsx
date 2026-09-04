@@ -40,11 +40,13 @@ import { PluginTarget } from "@utils/pluginTargets";
 import { isExperimentalPlugin, isLegacyPlugin } from "@utils/pluginWarnings";
 import { useAwaiter, useCleanupEffect, useIntersection } from "@utils/react";
 import { PluginTag, PluginTags } from "@utils/types";
-import { Alerts, ConfirmModal, openModal, Parser, React, SearchableSelect, Select, TextInput, Toasts, Tooltip, useCallback, useMemo, useRef, useState } from "@webpack/common";
+import { Alerts, ConfirmModal, openModal, Parser, React, SearchableSelect, Select, TextInput, Toasts, Tooltip, useCallback, useEffect, useMemo, useRef, useState } from "@webpack/common";
 import { JSX } from "react";
 
 import Plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
 
+import { openSettingsTabModal } from "../BaseTab";
+import { registerJumpListener, setPluginsTabOpener } from "./jumpToPlugin";
 import { PluginCard } from "./PluginCard";
 import { openWarningModal } from "./PluginModal";
 import { StockPluginsCard, UserPluginsCard } from "./PluginStatCards";
@@ -233,6 +235,27 @@ export default function PluginSettings() {
 
     const [searchValue, setSearchValue] = useState<{ value: string; tags: PluginTag[]; status: number; author: string; }>({ value: "", tags: [] as PluginTag[], status: SearchStatus.ALL, author: "" });
 
+    useEffect(() => {
+        return registerJumpListener(pluginName => {
+            setSearchValue({
+                value: pluginName,
+                tags: [],
+                status: SearchStatus.ALL,
+                author: "",
+            });
+
+            setTimeout(() => {
+                const searchInput = document.querySelector<HTMLInputElement>(`.${cl("filter-control")} input, input.${cl("filter-control")}`);
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.select();
+                }
+                const section = document.querySelector(`.${cl("section-heading")}`) ?? searchInput;
+                section?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 80);
+        });
+    }, []);
+
     const search = searchValue.value.toLowerCase();
     const searchPrefixMatch = useMemo(() => {
         const trimmedSearch = search.trimStart();
@@ -336,8 +359,12 @@ export default function PluginSettings() {
 
         if (!pluginSearchValue.length) return true;
 
+        const normSearch = pluginSearchValue.replace(/\s+/g, "");
+        const normName = plugin.name.toLowerCase().replace(/\s+/g, "");
+
         return (
-            plugin.name.toLowerCase().includes(pluginSearchValue.replace(/\s+/g, "")) ||
+            plugin.name.toLowerCase().includes(pluginSearchValue) ||
+            normName.includes(normSearch) ||
             plugin.name.match(/[A-Z]/g)?.join("").toLowerCase().includes(pluginSearchValue) || // acronyms like BF for BetterFolders
             plugin.description.toLowerCase().includes(pluginSearchValue) ||
             plugin.searchTerms?.some(t => t.toLowerCase().includes(pluginSearchValue))
@@ -612,6 +639,8 @@ export default function PluginSettings() {
         </SettingsTab >
     );
 }
+
+setPluginsTabOpener(() => openSettingsTabModal(PluginSettings));
 
 export function PluginDependencyList({ deps }: { deps: string[]; }) {
     return (

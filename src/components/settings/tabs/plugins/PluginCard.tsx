@@ -9,15 +9,19 @@ import { PluginHealth } from "@api/PluginHealth";
 import { hasAnyVisibleSettings, isPluginEnabled, pluginRequiresRestart, startDependenciesRecursive, startPlugin, stopPlugin } from "@api/PluginManager";
 import { Settings, useSettings } from "@api/Settings";
 import { CogWheel, InfoIcon } from "@components/Icons";
+import { Paragraph } from "@components/Paragraph";
 import { AddonCard } from "@components/settings/AddonCard";
 import { classNameFactory } from "@utils/css";
 import { Logger } from "@utils/Logger";
-import { getPluginWarning } from "@utils/pluginWarnings";
+import { Margins } from "@utils/margins";
+import { classes } from "@utils/misc";
+import { getPluginWarning, PluginWarningInfo } from "@utils/pluginWarnings";
 import { Plugin } from "@utils/types";
-import { React, showToast, Toasts, Tooltip } from "@webpack/common";
+import { ConfirmModal, openModal, React, showToast, Toasts, Tooltip } from "@webpack/common";
 
 import { PluginMeta } from "~plugins";
 
+import { jumpToPlugin } from "./jumpToPlugin";
 import { openPluginModal } from "./PluginModal";
 
 const logger = new Logger("PluginCard");
@@ -25,6 +29,57 @@ const cl = classNameFactory("vc-plugins-");
 
 // Hoisted so each card passes the same array instance across renders.
 const PLUGIN_ENABLED_PATHS: Record<string, readonly `plugins.${string}.enabled`[]> = {};
+
+function showEnableWarningModal(
+    plugin: Plugin,
+    warningInfo: PluginWarningInfo,
+    onConfirm: () => void
+) {
+    const isExp = warningInfo.type === "experimental";
+    openModal(props => (
+        <ConfirmModal
+            {...props}
+            title={isExp ? "Experimental Plugin Warning" : "Legacy Plugin Warning"}
+            confirmText="Enable Anyway"
+            cancelText="Cancel"
+            variant={isExp ? "critical-primary" : "primary"}
+            onConfirm={onConfirm}
+            onCancel={props.onClose}
+        >
+            <div>
+                {isExp ? (
+                    <>
+                        <Paragraph>
+                            <strong>{plugin.name}</strong> is an experimental plugin that is in active experimentation or development.
+                        </Paragraph>
+                        <Paragraph className={Margins.top8}>
+                            This plugin may not behave correctly and might brick or break some stuff and settings. We are not responsible for any issues, client instability, crashes, or data loss caused by using this plugin.
+                        </Paragraph>
+                        <Paragraph className={Margins.top8}>
+                            Are you sure you want to enable this plugin?
+                        </Paragraph>
+                    </>
+                ) : (
+                    <>
+                        <Paragraph>
+                            <strong>{plugin.name}</strong> is a legacy plugin and is no longer actively maintained or updated.
+                        </Paragraph>
+                        <Paragraph className={Margins.top8}>
+                            Because Discord updates frequently, this plugin may not behave correctly and could cause errors or visual glitches.
+                            {warningInfo.replacementPlugin && (
+                                <> It has been replaced by <strong>{warningInfo.replacementPlugin}</strong>, which we recommend using instead.</>
+                            )}
+                        </Paragraph>
+                        <Paragraph className={Margins.top8}>
+                            Are you sure you want to enable this plugin?
+                        </Paragraph>
+                    </>
+                )}
+            </div>
+        </ConfirmModal>
+    ));
+}
+
 interface PluginCardProps extends React.HTMLProps<HTMLDivElement> {
     plugin: Plugin;
     disabled?: boolean;
@@ -63,11 +118,10 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         });
     }, [plugin.name]);
 
+    const warning = getPluginWarning(plugin);
     const isEnabled = () => isPluginEnabled(plugin.name);
 
-    function toggleEnabled() {
-        const wasEnabled = isEnabled();
-
+    function doToggle(wasEnabled: boolean) {
         // Initialize settings if they don't exist (for BD plugins)
         if (!settings) {
             Settings.plugins[plugin.name] = { enabled: !wasEnabled };
@@ -133,6 +187,17 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         void PluginHealth.recordPluginChange(plugin.name, !wasEnabled);
     }
 
+    function toggleEnabled() {
+        const wasEnabled = isEnabled();
+
+        if (!wasEnabled && warning && (warning.type === "experimental" || warning.type === "legacy")) {
+            showEnableWarningModal(plugin, warning, () => doToggle(false));
+            return;
+        }
+
+        doToggle(wasEnabled);
+    }
+
     const pluginInfo = [
         {
             condition: isModifiedPlugin,
@@ -186,9 +251,21 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         ? `Broken in ${stability.sessionsBroken} of the last ${stability.sessionsSeen} sessions (${Math.round(stability.ratio * 100)}%).`
         : undefined;
 
-    const warning = getPluginWarning(plugin);
     const maxVisibleTags = warning ? 1 : 2;
-    const tags = plugin.tags;
+    const { tags } = plugin;
+
+    const handleWarningClick = (e: React.MouseEvent) => {
+        if (!warning?.replacementPlugin) return;
+        e.stopPropagation();
+        e.preventDefault();
+        jumpToPlugin(warning.replacementPlugin);
+    };
+
+    const warningTooltipText = warning
+        ? warning.replacementPlugin
+            ? `${warning.title}: Replaced by ${warning.replacementPlugin} (Click to jump to it)`
+            : `${warning.title}: ${warning.description}`
+        : "";
 
     const footer = (
         <div className={cl("card-meta")}>
@@ -204,12 +281,19 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
             </span>
             <div className={cl("card-badges")}>
                 {warning && (
-                    <Tooltip text={`${warning.title}: ${warning.description}`}>
+                    <Tooltip text={warningTooltipText}>
                         {({ onMouseEnter: onWarningEnter, onMouseLeave: onWarningLeave }) => (
                             <span
-                                className={cl("card-warning", warning.badgeClass || "")}
+                                className={classes(
+                                    cl("card-warning"),
+                                    warning.badgeClass || "",
+                                    warning.replacementPlugin && cl("warning-clickable")
+                                )}
                                 onMouseEnter={onWarningEnter}
                                 onMouseLeave={onWarningLeave}
+                                onClick={handleWarningClick}
+                                role={warning.replacementPlugin ? "button" : undefined}
+                                tabIndex={warning.replacementPlugin ? 0 : undefined}
                             >
                                 <img
                                     src={warning.icon}
@@ -255,14 +339,20 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
     );
 
     const warningBadge = warning ? (
-        <Tooltip text={`${warning.title}: ${warning.description}`}>
+        <Tooltip text={warningTooltipText}>
             {({ onMouseEnter: onWarningEnter, onMouseLeave: onWarningLeave }) => (
                 <div
-                    className={cl("warning-badge", warning.badgeClass || "")}
+                    className={classes(
+                        cl("warning-badge"),
+                        warning.badgeClass || "",
+                        warning.replacementPlugin && cl("warning-clickable")
+                    )}
                     onMouseEnter={onWarningEnter}
                     onMouseLeave={onWarningLeave}
-                    role="img"
+                    onClick={handleWarningClick}
+                    role={warning.replacementPlugin ? "button" : "img"}
                     aria-label={warning.title}
+                    tabIndex={warning.replacementPlugin ? 0 : undefined}
                 >
                     <img
                         src={warning.icon}

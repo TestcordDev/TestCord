@@ -474,14 +474,8 @@
     place-items: center;
     border-radius: 8px;
     background: transparent;
-    transition: 0.15s ease-out;
-    cursor: help;
+    cursor: default;
     flex-shrink: 0;
-}
-
-.vc-plugins-warning-badge:hover {
-    background: color-mix(in srgb, #f0b232 18%, transparent);
-    transform: scale(1.08);
 }
 
 .vc-plugins-warning-icon {
@@ -490,7 +484,6 @@
     object-fit: contain;
     display: block;
     image-rendering: -webkit-optimize-contrast;
-    filter: drop-shadow(0 1px 2px rgb(0 0 0 / 40%));
 }
 
 .vc-plugins-card-warning {
@@ -508,13 +501,17 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
     white-space: nowrap;
-    cursor: help;
-    transition: 0.12s ease-out;
+    cursor: default;
 }
 
-.vc-plugins-card-warning:hover {
-    filter: brightness(1.15);
-    transform: translateY(-1px);
+.vc-plugins-warning-badge.vc-plugins-warning-clickable,
+.vc-plugins-card-warning.vc-plugins-warning-clickable {
+    cursor: pointer;
+}
+
+.vc-plugins-card-warning.vc-plugins-warning-clickable:hover,
+.vc-plugins-warning-badge.vc-plugins-warning-clickable:hover {
+    opacity: 0.85;
 }
 
 .vc-plugins-card-warning.vc-plugins-plugin-warning-experimental,
