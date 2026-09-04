@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { Heading } from "@components/Heading";
-import { ModalCloseButton, ModalContent, ModalHeader, ModalProps, ModalRoot, ModalSize } from "@utils/modal";
-import { Button, ChannelStore, MessageStore, React, showToast, Toasts, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
+import { ModalContent, ModalProps } from "@utils/modal";
+import { Button, ChannelStore, MessageStore, Modal, React, showToast, Toasts, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
 
 import { downloadItemsToFolder } from "../utils/download";
 import { extractImages, GalleryItem } from "../utils/extractImages";
@@ -268,13 +267,7 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
     const viewerItem = viewerIndex != null ? items[viewerIndex] : null;
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.LARGE} aria-label="Gallery" className="vc-channel-gallery-root">
-            <ModalHeader>
-                <Heading tag="h3" style={{ flex: 1, margin: 0 }}>
-                    {title}
-                </Heading>
-                <ModalCloseButton onClick={onCloseAll} />
-            </ModalHeader>
+        <Modal {...modalProps} onClose={onCloseAll} size="lg" title={title} className="vc-channel-gallery-root">
             {!viewerItem && (
                 <div
                     style={{
@@ -354,6 +347,6 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
                     />
                 )}
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }

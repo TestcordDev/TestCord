@@ -12,11 +12,11 @@ import { FormSwitch } from "@components/FormSwitch";
 import { TestcordDevs } from "@utils/constants";
 import { getUniqueUsername } from "@utils/discord";
 import { sleep } from "@utils/misc";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal } from "@utils/modal";
+import { ModalContent, ModalFooter, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import type { GuildMember, User } from "@vencord/discord-types";
 import { findStoreLazy } from "@webpack";
-import { Button, ChannelStore, ContextMenuApi, Forms, GuildMemberStore, GuildRoleStore, GuildStore, Menu, MessageStore, PresenceStore, React, ScrollerThin, Select, SelectedChannelStore, SelectedGuildStore, TabBar, Text, TextInput, Toasts, useEffect, useRef, UserProfileStore, UserStore, useState } from "@webpack/common";
+import { Button, ChannelStore, ContextMenuApi, Forms, GuildMemberStore, GuildRoleStore, GuildStore, Menu, MessageStore, Modal, PresenceStore, React, ScrollerThin, Select, SelectedChannelStore, SelectedGuildStore, TabBar, Text, TextInput, Toasts, useEffect, useRef, UserProfileStore, UserStore, useState } from "@webpack/common";
 
 const ChannelMemberStore = findStoreLazy("ChannelMemberStore") as {
     getProps(guildId?: string, channelId?: string): { groups: { count: number; id: string; }[]; };
@@ -1178,14 +1178,16 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
     });
 
     return (
-        <ModalRoot {...rootProps} size="medium">
-            <ModalHeader separator={false}>
-                <Forms.FormTitle tag="h4" style={{ margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+        <Modal
+            {...rootProps}
+            onClose={closeModal}
+            size="md"
+            title={
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <ExportIcon width={20} height={20} /> Exporter
-                </Forms.FormTitle>
-                <ModalCloseButton onClick={closeModal} />
-            </ModalHeader>
-
+                </div>
+            }
+        >
             <ModalContent style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "16px" }}>
                 {/* 1. TabBar */}
                 <TabBar
@@ -1482,7 +1484,7 @@ export function ExporterModal({ rootProps, initialTab }: { rootProps: any; initi
                     </div>
                 </div>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 

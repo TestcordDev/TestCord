@@ -16,15 +16,17 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import "./style.css";
+
 import { Flex } from "@components/Flex";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot } from "@utils/modal";
-import { Button, Text } from "@webpack/common";
+import { ModalContent, ModalFooter } from "@utils/modal";
+import { Button, Modal } from "@webpack/common";
 import React, { JSX } from "react";
 
 import { ContributorAuthorSummary } from "../../../philsPluginLibrary/components/ContributorAuthorSummary";
 import { Author, Contributor } from "../../../philsPluginLibrary/types";
 
-export interface SettingsModalProps extends React.ComponentProps<typeof ModalRoot> {
+export interface SettingsModalProps extends React.ComponentProps<any> {
     title?: string;
     onClose: () => void;
     onDone?: () => void;
@@ -45,13 +47,7 @@ export const SettingsModal = (props: SettingsModalProps) => {
         </Button>;
 
     return (
-        <ModalRoot {...props}>
-            <ModalHeader separator={false}>
-                {props.title && <Text variant="heading-lg/semibold" style={{ flexGrow: 1 }}>{props.title}</Text>}
-                <div style={{ marginLeft: "auto" }}>
-                    <ModalCloseButton onClick={props.onClose} />
-                </div>
-            </ModalHeader>
+        <Modal transitionState={props.transitionState ?? 1} {...props} size={props.size ?? "md"} title={props.title}>
             <ModalContent style={{ marginBottom: "1em", display: "flex", flexDirection: "column", gap: "1em" }}>
                 {props.children}
             </ModalContent>
@@ -71,6 +67,6 @@ export const SettingsModal = (props: SettingsModalProps) => {
                     <div style={{ marginLeft: "auto" }}>{doneButton}</div>
                 </Flex>
             </ModalFooter>
-        </ModalRoot >
+        </Modal>
     );
 };

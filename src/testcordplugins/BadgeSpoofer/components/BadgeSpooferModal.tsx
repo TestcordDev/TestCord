@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
+import { ModalContent, ModalFooter, openModal } from "@utils/modal";
 import type { RenderModalProps } from "@vencord/discord-types";
-import { Button, Forms, React, Text, TextInput, Toasts, useEffect, useRef, useState } from "@webpack/common";
+import { Button, Forms, Modal, React, Text, TextInput, Toasts, useEffect, useRef, useState } from "@webpack/common";
 
 import { badgeSpooferEngine } from "../engine";
 import { HypeSquadPicker } from "../hypesquad";
@@ -111,21 +111,12 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
         : 0;
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM}>
-            <ModalHeader separator={true}>
-                <div style={{ display: "flex", flexDirection: "column", flexGrow: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <Text variant="heading-lg/semibold" color="header-primary">
-                            Discord Badge Spoofer
-                        </Text>
-                        <ModalCloseButton onClick={modalProps.onClose} />
-                    </div>
-                    <Text variant="text-sm/normal" color="text-muted">
-                        Spoof Game Variety (Games Played), Game Time (Playtime), & Streaming (Hours Streamed)
-                    </Text>
-                </div>
-            </ModalHeader>
-
+        <Modal
+            {...modalProps}
+            size="md"
+            title="Discord Badge Spoofer"
+            subtitle="Spoof Game Variety (Games Played), Game Time (Playtime), & Streaming (Hours Streamed)"
+        >
             <ModalContent scrollbarType="none" style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: "14px" }}>
                 <div style={{
                     display: "grid",
@@ -330,7 +321,7 @@ export function BadgeSpooferModal({ modalProps }: { modalProps: RenderModalProps
                     </div>
                 </div>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 
