@@ -50,7 +50,8 @@ export const LEGACY_PLUGINS: string[] = [
     "NitroSniper",
     "GuildCopier",
     "TokenImporter",
-    "UserAreaTweaks"
+    "UserAreaTweaks",
+    "OSSpoofer"
 ];
 
 /**
@@ -67,6 +68,7 @@ export const LEGACY_REPLACEMENTS: Record<string, string> = {
     "guildcopier": "ServerToolkit",
     "NitroSniper": "AutoRedeem",
     "nitrosniper": "AutoRedeem",
+    "OSSpoofer": "PlatformEmulator",
     "StereoInstaller": "StereoLoader",
     "stereoinstaller": "StereoLoader",
     "TokenImporter": "DXTokenImporter",

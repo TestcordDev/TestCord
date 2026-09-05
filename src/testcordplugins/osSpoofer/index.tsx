@@ -28,6 +28,7 @@ export default definePlugin({
     name: "OSSpoofer",
     description: "Maximum possible OS spoofing at plugin level",
     tags: ["Privacy", "Utility"],
+    legacy: true,
     authors: [TestcordDevs.x2b],
     settings,
     settingsAboutComponent: () => (
