@@ -288,7 +288,7 @@ const DsaWarningsCollection = ErrorBoundary.wrap(function DsaWarningsCollection(
     const visibleBreaches = isExpanded ? breaches : breaches.slice(0, MAX_VISIBLE_CARDS);
 
     const content = (
-        <section className={classes(cl("section"), isLightTheme && cl("light"))}>
+        <section className={classes(cl("section"))}>
             <div className={cl("header")}>
                 <div className={cl("header-main")}>
                     <BaseText className={cl("title")} size="md" weight="bold" defaultColor={false}>Active DSA Warnings</BaseText>
