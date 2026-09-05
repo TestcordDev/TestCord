@@ -18,6 +18,18 @@ function updateState() {
 }
 
 const settings = definePluginSettings({
+    hidePopoutChatButton: {
+        description: "Hide the popout chat button",
+        type: OptionType.BOOLEAN,
+        default: false,
+        onChange() { updateState(); }
+    },
+    hideHelpButton: {
+        description: "Hide the help button",
+        type: OptionType.BOOLEAN,
+        default: false,
+        onChange() { updateState(); }
+    },
     hideGiftButton: {
         description: "Hide the gift button in the message bar",
         type: OptionType.BOOLEAN,
@@ -56,7 +68,29 @@ const settings = definePluginSettings({
     }
 });
 
-const BUTTON_CONFIG = [
+const BUTTON_CONFIG: { setting: string; selectors: string[]; global?: boolean; }[] = [
+    {
+        setting: "hidePopoutChatButton",
+        global: true,
+        selectors: [
+            '[aria-label="Popout chat"]',
+            '[aria-label="Pop Out"]',
+            '[aria-label="Pop out"]',
+            '[aria-label*="popout" i]',
+            '[aria-label*="pop out" i]',
+            '[aria-label*="pop-out" i]'
+        ]
+    },
+    {
+        setting: "hideHelpButton",
+        global: true,
+        selectors: [
+            '[aria-label="Help"]',
+            '[aria-label="Help & Support"]',
+            '[aria-label="Open Help"]',
+            'a[href*="support.discord.com"]'
+        ]
+    },
     {
         setting: "hideGiftButton",
         selectors: [
@@ -115,55 +149,102 @@ const BUTTON_CONFIG = [
     }
 ];
 
-function getRawHideSelectors(): string[] {
-    const raw: string[] = [];
-    for (const { setting, selectors } of BUTTON_CONFIG) {
-        if (settings.store[setting]) raw.push(...selectors);
+function getHideSelectors(): { chat: string[]; global: string[]; } {
+    const chat: string[] = [];
+    const global: string[] = [];
+    for (const { setting, selectors, global: isGlobal } of BUTTON_CONFIG) {
+        if (settings.store[setting]) (isGlobal ? global : chat).push(...selectors);
     }
-    return raw;
+    return { chat, global };
 }
 
 function injectCSS() {
     const oldStyle = document.getElementById(STYLE_ELEMENT_ID);
     if (oldStyle) oldStyle.remove();
 
-    const rawSelectors = getRawHideSelectors();
-    if (rawSelectors.length === 0) return;
+    const { chat: chatSelectors, global: globalSelectors } = getHideSelectors();
+    if (chatSelectors.length === 0 && globalSelectors.length === 0) return;
 
     // Measured on a live session: emitting these rules per-selector (~115 rules, most
     // with :has()) cost ~200ms of EVERY full style recalc, which made all hover UI
     // feel laggy. Grouping into shared :is() lists and dropping :has() entirely brings
     // that down to ~60% — :has() under substring-scope ancestors was the single most
-    // expensive pattern. Tradeoff: when Discord wraps a hidden button in its own div,
-    // the wrapper keeps its slot instead of collapsing; the button itself still hides.
-    const exactSelectors = rawSelectors.filter(s => !s.includes("*="));
-    const fuzzySelectors = rawSelectors.filter(s => s.includes("*="));
+    // expensive pattern, so :has() stays banned here. No polling, no MutationObserver
+    // either: everything below is static CSS, zero JS runs after injection.
+    //
+    // Verified live via LiveFix: Discord declares its own equal-specificity
+    // display:!important rules that sit later in the cascade (and keeps appending
+    // stylesheets as you navigate), so plain [aria-label] + !important randomly
+    // loses and hidden buttons pop back. Every hide selector therefore gets a
+    // :not(#vc-nobuttons-never) suffix: an impossible ID match that lifts each rule
+    // to (1,0,0) specificity — order-proof against any class-based Discord rule,
+    // with zero matching-cost impact (no :has, no tree climbing).
+    //
+    // Gap fix: when Discord wraps a hidden button in its own (classless) div, that
+    // wrapper stays a flex item and keeps its slot. Instead of selecting the wrapper
+    // via :has(), we dissolve it with display:contents. The wrapper then generates
+    // no box (slot gone) while its children lay out as direct flex items, so the
+    // container's own gap keeps the remaining buttons spaced exactly as before.
+    const exactSelectors = chatSelectors.filter(s => !s.includes("*="));
+    const fuzzySelectors = chatSelectors.filter(s => s.includes("*="));
 
     const scopes = ['[class*="channelTextArea"]', '[class*="channelBottomBar"]'];
-    const activeSelectors: string[] = [];
+    const hideStyles = "display: none !important; width: 0 !important; height: 0 !important; margin: 0 !important; padding: 0 !important; min-width: 0 !important; flex: 0 0 0 !important;";
+    const cssRules: string[] = [];
+
+    const boost = (selectorList: string[]) => selectorList.map(s => `${s}:not(#vc-nobuttons-never)`);
+
+    const pushHideRule = (selectorList: string[]) => {
+        cssRules.push(`${boost(selectorList).join(",\n")} {\n    ${hideStyles}\n}`);
+    };
 
     for (const scope of scopes) {
-        if (exactSelectors.length) activeSelectors.push(`${scope} :is(${exactSelectors.join(",")})`);
-        if (fuzzySelectors.length) activeSelectors.push(`${scope} ${fuzzySelectors.join(",")}`);
-        if (exactSelectors.length) activeSelectors.push(`${scope} [class*="buttons"] > *:is(${exactSelectors.join(",")})`);
-        if (fuzzySelectors.length) activeSelectors.push(`${scope} [class*="buttons"] > *:is(${fuzzySelectors.join(",")})`);
+        if (exactSelectors.length) pushHideRule([`${scope} :is(${exactSelectors.join(",")})`]);
+        if (fuzzySelectors.length) pushHideRule([`${scope} ${fuzzySelectors.join(",")}`]);
+        if (exactSelectors.length) pushHideRule([`${scope} [class*="buttons"] > *:is(${exactSelectors.join(",")})`]);
+        if (fuzzySelectors.length) pushHideRule([`${scope} [class*="buttons"] > *:is(${fuzzySelectors.join(",")})`]);
     }
 
     if (exactSelectors.length) {
-        activeSelectors.push(`[class*="buttons__"] > *:is(${exactSelectors.join(",")})`);
+        pushHideRule([`[class*="buttons__"] > *:is(${exactSelectors.join(",")})`]);
     }
     if (fuzzySelectors.length) {
-        activeSelectors.push(`[class*="buttons__"] > *:is(${fuzzySelectors.join(",")})`);
+        pushHideRule([`[class*="buttons__"] > *:is(${fuzzySelectors.join(",")})`]);
     }
 
-    activeSelectors.push('[id="channel-attach-THREAD"]');
+    // NOTE: never anchor these to bare [class*="buttons__"] — that substring also
+    // matches the voice/user panel's buttons container, dissolving its layout.
+    // Chat wrappers are only dissolved inside the message-box scopes below.
+    if (chatSelectors.length) {
+        const dissolveSelectors: string[] = [];
+        for (const scope of scopes) {
+            dissolveSelectors.push(
+                `${scope} [class*="buttons"] > div:not([class*="buttonWrapper"])`,
+                `${scope} [class*="buttons"] > * > div:not([class])`
+            );
+        }
+        cssRules.push(`${dissolveSelectors.join(",\n")} {\n    display: contents !important;\n}`);
+    }
 
-    const hideStyles = "display: none !important; width: 0 !important; height: 0 !important; margin: 0 !important; padding: 0 !important; min-width: 0 !important; flex: 0 0 0 !important;";
-    const css = `${activeSelectors.join(",\n")} {\n    ${hideStyles}\n}`;
+    if (globalSelectors.length) {
+        pushHideRule(globalSelectors);
+        // Header leftovers: plugin buttons (e.g. Popout chat) render inside a
+        // span.vc-plugin-icon-button wrapper that survives the inner button being
+        // hidden and keeps its toolbar slot; native buttons can sit in classless
+        // toolbar wrapper divs too. Dissolve both so no gap remains.
+        cssRules.push(`${[
+            '[class*="toolbar__"] > span.vc-plugin-icon-button',
+            '[class*="title__"] span.vc-plugin-icon-button',
+            '[class*="title__"] [class*="toolbar__"] > div:not([class])',
+            '[class*="title__"] [class*="toolbar__"] > * > div:not([class])'
+        ].join(",\n")} {\n    display: contents !important;\n}`);
+    }
+
+    cssRules.push(`${boost(['[id="channel-attach-THREAD"]']).join(",\n")} {\n    ${hideStyles}\n}`);
 
     const style = document.createElement("style");
     style.id = STYLE_ELEMENT_ID;
-    style.textContent = css;
+    style.textContent = cssRules.join("\n");
     document.body.appendChild(style);
 }
 
