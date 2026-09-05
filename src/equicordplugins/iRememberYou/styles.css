@@ -1,91 +1,445 @@
-.vc-i-remember-you-header-container {
-    display: contents;
-    justify-content: space-between;
-    align-items: center;
+@keyframes vc-i-remember-you-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.vc-i-remember-you-tab {
+    display: flex;
     flex-direction: column;
-}
-
-.vc-i-remember-you-header-name {
-    margin-top: 16px;
-}
-
-.vc-i-remember-you-header-id {
-    display: inline-block;
-    font-size: 0.8em;
-    font-weight: normal;
-    opacity: 0.75;
-    cursor: pointer;
-    margin-left: 6px;
-}
-
-.vc-i-remember-you-header-id:hover {
-    opacity: 1;
-}
-
-.vc-i-remember-you-header-btns {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 350px));
-    gap: 10px;
-    margin-top: 8px;
+    gap: 16px;
+    padding: 16px;
+    color: var(--text-normal);
+    width: 100%;
+    box-sizing: border-box;
+    animation: vc-i-remember-you-fade-in 0.25s cubic-bezier(0.2, 0, 0, 1) forwards;
 }
 
 .vc-i-remember-you-header {
-    color: var(--text-default);
-}
-
-.vc-i-remember-you-rows {
-    gap: 5px;
+    display: flex;
     flex-direction: column;
+    gap: 14px;
+    background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--brand-experiment, #5865f2) 10%, transparent), transparent 60%),
+        var(--background-secondary);
+    border: 1px solid color-mix(in srgb, var(--brand-experiment, #5865f2) 18%, var(--border-subtle, var(--background-modifier-accent)));
+    border-radius: 14px;
+    padding: 18px 20px;
+    box-shadow: 0 4px 20px rgb(0 0 0 / 12%), 0 1px 0 rgb(255 255 255 / 4%) inset;
 }
 
-.vc-i-remember-you-search {
-    margin-top: 10px;
+.vc-i-remember-you-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
 }
 
-.vc-i-remember-you-search-user {
+.vc-i-remember-you-title-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.vc-i-remember-you-title-group h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--header-primary);
+    letter-spacing: -0.01em;
+}
+
+.vc-i-remember-you-count-badge {
+    background: color-mix(in srgb, var(--brand-experiment, #5865f2) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--brand-experiment, #5865f2) 35%, transparent);
+    color: var(--brand-experiment, #5865f2);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+
+.vc-i-remember-you-description {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
+.vc-i-remember-you-controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.vc-i-remember-you-input-wrapper {
+    flex: 1;
+    min-width: 240px;
+}
+
+.vc-i-remember-you-filters {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    background: var(--background-tertiary);
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
+    user-select: none;
+}
+
+.vc-i-remember-you-slider-pill {
+    position: absolute;
+    top: 4px;
+    background: var(--brand-experiment, #5865f2);
+    border-radius: 7px;
+    pointer-events: none;
+    z-index: 1;
+    transition:
+        left 0.28s cubic-bezier(0.34, 1.25, 0.64, 1),
+        width 0.28s cubic-bezier(0.34, 1.25, 0.64, 1),
+        height 0.28s cubic-bezier(0.34, 1.25, 0.64, 1),
+        opacity 0.15s ease;
+}
+
+.vc-i-remember-you-filter-btn {
+    position: relative;
+    z-index: 2;
+    padding: 6px 14px;
+    border-radius: 7px;
+    border: none;
+    background: transparent !important;
+    color: var(--interactive-normal);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s ease, transform 0.12s ease;
+}
+
+.vc-i-remember-you-filter-btn:hover {
+    color: var(--interactive-hover);
+    transform: translateY(-1px);
+}
+
+.vc-i-remember-you-filter-btn:active {
+    transform: translateY(0) scale(0.96);
+}
+
+.vc-i-remember-you-filter-btn.vc-i-remember-you-active {
+    color: #fff;
+    font-weight: 600;
+    background: transparent !important;
+}
+
+.vc-i-remember-you-groups {
+    display: flex;
     flex-direction: column;
-    padding-top: 18px;
+    gap: 14px;
+}
+
+.vc-i-remember-you-group-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--brand-experiment, #5865f2) 8%, transparent), transparent 55%),
+        var(--background-secondary);
+    border: 1px solid color-mix(in srgb, var(--brand-experiment, #5865f2) 16%, var(--border-subtle, var(--background-modifier-accent)));
+    border-radius: 12px;
+    padding: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 0 rgb(255 255 255 / 4%) inset, 0 4px 16px rgb(0 0 0 / 8%);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, filter 0.18s ease;
+    animation: vc-i-remember-you-fade-in 0.2s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.vc-i-remember-you-group-card::before {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: 0;
+    height: 3px;
+    border-radius: 0 0 999px 999px;
+    background: var(--brand-experiment, #5865f2);
+    opacity: 0.6;
+    transform: scaleX(0.4);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.vc-i-remember-you-group-card:hover {
+    border-color: color-mix(in srgb, var(--brand-experiment, #5865f2) 45%, var(--border-subtle, var(--background-modifier-accent)));
+    box-shadow: var(--elevation-medium, 0 8px 24px rgb(0 0 0 / 16%)), 0 1px 0 rgb(255 255 255 / 6%) inset;
+    filter: brightness(1.03);
+}
+
+.vc-i-remember-you-group-card:hover::before {
+    opacity: 1;
+    transform: scaleX(1);
+}
+
+.vc-i-remember-you-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.vc-i-remember-you-group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    min-width: 0;
+}
+
+button.vc-i-remember-you-group-title {
+    text-align: left;
+}
+
+span.vc-i-remember-you-group-title {
+    cursor: default;
+}
+
+.vc-i-remember-you-group-caret {
+    display: inline-block;
+    color: var(--text-muted);
+    font-size: 14px;
+    transition: transform 0.18s ease;
+}
+
+.vc-i-remember-you-group-caret.vc-i-remember-you-collapsed {
+    transform: rotate(-90deg);
+}
+
+.vc-i-remember-you-group-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--header-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-i-remember-you-group-count {
+    background: color-mix(in srgb, var(--brand-experiment, #5865f2) 18%, transparent);
+    border: 1px solid color-mix(in srgb, var(--brand-experiment, #5865f2) 35%, transparent);
+    color: var(--brand-experiment, #5865f2);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 999px;
+}
+
+.vc-i-remember-you-group-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.vc-i-remember-you-user-grid-wrapper {
+    display: grid;
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transition: grid-template-rows 0.28s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s ease;
+}
+
+.vc-i-remember-you-user-grid-wrapper.vc-i-remember-you-collapsed {
+    grid-template-rows: 0fr;
+    opacity: 0;
+}
+
+.vc-i-remember-you-user-grid-inner {
+    overflow: hidden;
+    min-height: 0;
+}
+
+.vc-i-remember-you-user-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 10px;
+    min-height: 0;
+}
+
+.vc-i-remember-you-user-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--background-tertiary);
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
+    border-radius: 10px;
+    padding: 10px 12px;
+    min-width: 0;
+    overflow: hidden;
+    transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+
+.vc-i-remember-you-user-card:hover {
+    border-color: color-mix(in srgb, var(--brand-experiment, #5865f2) 40%, var(--border-subtle, var(--background-modifier-accent)));
+    background: var(--background-secondary-alt, var(--background-tertiary));
+    transform: translateY(-1px);
+}
+
+.vc-i-remember-you-user-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
 }
 
 .vc-i-remember-you-user-avatar {
-    cursor: pointer;
-    margin-right: 0;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
 }
 
-.vc-i-remember-you-user-row {
+.vc-i-remember-you-user-names {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 4px;
-    align-items: flex-start;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    gap: 1px;
 }
 
-.vc-i-remember-you-user-id {
-    align-self: flex-start;
-    opacity: 0.75;
-    height: min-content;
-    cursor: pointer;
-}
-
-.vc-i-remember-you-user-id:hover {
-    opacity: 1;
-}
-
-.vc-i-remember-you-user {
+.vc-i-remember-you-user-display {
     display: flex;
-    flex-direction: row;
     align-items: center;
-    gap: 8px;
-    width: 100%;
-    margin-top: 0;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--header-primary);
+    line-height: 1.3;
 }
 
-.vc-i-remember-you-user-username {
-    margin-top: 2px;
+.vc-i-remember-you-user-display-text {
+    display: block;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.vc-i-remember-you-user-tooltip {
+.vc-i-remember-you-owner-badge {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--brand-experiment, #5865f2);
+    background: color-mix(in srgb, var(--brand-experiment, #5865f2) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--brand-experiment, #5865f2) 35%, transparent);
+    padding: 1px 6px;
+    border-radius: 999px;
+}
+
+.vc-i-remember-you-user-handle {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.vc-i-remember-you-id-tag {
+    font-size: 11px;
+    font-family: var(--font-code, monospace);
+    color: var(--text-muted);
+    background: var(--background-secondary);
+    padding: 2px 7px;
+    border-radius: 5px;
+    margin-top: 3px;
+    width: fit-content;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border: 1px solid var(--border-subtle, var(--background-modifier-accent));
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.vc-i-remember-you-id-tag:hover {
+    color: var(--text-normal);
+    border-color: var(--brand-experiment, #5865f2);
+}
+
+.vc-i-remember-you-user-source {
+    font-size: 11px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-i-remember-you-user-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+
+.vc-i-remember-you-btn {
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    transition: transform 0.12s ease, filter 0.12s ease !important;
+}
+
+.vc-i-remember-you-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.06);
+}
+
+.vc-i-remember-you-btn:active {
+    transform: translateY(0) scale(0.96) !important;
+}
+
+.vc-i-remember-you-empty-state {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: center;
+    padding: 56px 20px;
+    text-align: center;
+    background: var(--background-secondary);
+    border-radius: 14px;
+    border: 2px dashed color-mix(in srgb, var(--brand-experiment, #5865f2) 25%, var(--border-subtle, var(--background-modifier-accent)));
+    color: var(--text-muted);
+    gap: 10px;
+    animation: vc-i-remember-you-fade-in 0.25s cubic-bezier(0.2, 0, 0, 1) forwards;
+}
+
+.vc-i-remember-you-empty-state h3 {
+    margin: 0;
+    color: var(--header-primary);
+    font-size: 17px;
+    font-weight: 600;
 }
