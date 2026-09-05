@@ -88,10 +88,10 @@ function DirectMessageModal(props: any) {
     return (
         <Modal {...props} size="sm" title="Open Direct Message">
             <ModalContent>
-                <Forms.FormTitle tag="h5" style={{ marginTop: "10px" }}>
+                <Forms.FormTitle tag="h5" style={{ marginBottom: "8px" }}>
                     User ID
                 </Forms.FormTitle>
-                <FormText type={"description" as any} style={{ marginBottom: "10px" }}>
+                <FormText type={"description" as any} style={{ marginBottom: "8px" }}>
                     Enter the Discord User ID of the person you want to message
                 </FormText>
                 <TextInput
@@ -112,22 +112,23 @@ function DirectMessageModal(props: any) {
                 )}
             </ModalContent>
 
-            <ModalFooter style={{ display: "flex", flexDirection: "row-reverse", gap: "16px", alignItems: "center" }}>
-                <Button
-                    color={Button.Colors.BRAND}
-                    disabled={loading || !userId.trim()}
-                    onClick={openDM}
-                >
-                    {loading ? "Opening..." : "Open DM"}
-                </Button>
-                <Button
-                    color={Button.Colors.TRANSPARENT}
-                    look={Button.Looks.LINK}
-                    onClick={props.onClose}
-                    style={{ marginRight: "8px" }}
-                >
-                    Cancel
-                </Button>
+            <ModalFooter>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                    <Button
+                        color={Button.Colors.TRANSPARENT}
+                        look={Button.Looks.LINK}
+                        onClick={props.onClose}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        color={Button.Colors.BRAND}
+                        disabled={loading || !userId.trim()}
+                        onClick={openDM}
+                    >
+                        {loading ? "Opening..." : "Open DM"}
+                    </Button>
+                </div>
             </ModalFooter>
         </Modal>
     );

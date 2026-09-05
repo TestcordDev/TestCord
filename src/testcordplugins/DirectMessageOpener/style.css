@@ -23,20 +23,3 @@
     }
 }
 
-.vc-dm-opener-modal-close-btn,
-button[class*="closeButton"] {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-button[class*="closeButton"]:hover {
-    background-color: var(--background-modifier-hover);
-}
-
-button[class*="closeButton"]:active {
-    background-color: var(--background-modifier-active);
-}
