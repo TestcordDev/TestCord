@@ -1,6 +1,13 @@
 .vc-plugin-modal-header {
-    align-items: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
     position: relative;
+}
+
+.vc-plugin-modal-header h1 {
+    margin: 0;
 }
 
 .vc-plugin-modal-header-content {
@@ -139,16 +146,17 @@
 .vc-plugin-modal-warning-badge {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 3px 8px;
+    gap: 5px;
+    padding: 2px 7px;
     border-radius: 6px;
     font-size: 11px;
     font-weight: 700;
+    line-height: 16px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
     cursor: default;
-    margin-left: 8px;
     vertical-align: middle;
+    flex-shrink: 0;
 }
 
 .vc-plugin-modal-warning-badge.vc-plugin-modal-warning-experimental {
@@ -164,11 +172,12 @@
 }
 
 .vc-plugin-modal-warning-icon {
-    width: 18px;
-    height: 18px;
+    width: 14px;
+    height: 14px;
     object-fit: contain;
     display: block;
     image-rendering: -webkit-optimize-contrast;
+    flex-shrink: 0;
 }
 
 .vc-plugin-modal-warning-banner {
