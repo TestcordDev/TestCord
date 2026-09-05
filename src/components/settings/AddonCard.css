@@ -1,5 +1,5 @@
 .vc-addon-card {
-    background-color: var(--card-background-default);
+    background-color: var(--background-base-low);
     color: var(--interactive-icon-active);
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
@@ -19,6 +19,7 @@
 .vc-addon-card:hover {
     transform: translateY(-1px);
     box-shadow: var(--elevation-high);
+    background: var(--background-surface-high);
 }
 
 .vc-addon-header {
