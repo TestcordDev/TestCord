@@ -33,7 +33,7 @@ const UserIcon = (props: any) => (
         />
     </svg>
 );
-const HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_TOP:", '"top"===c');
+const HeaderBarIcon = findComponentByCodeLazy("iconClassName", "badge", '"aria-haspopup":');
 
 function getErrorMessage(err: any): string {
     const code = err?.body?.code;

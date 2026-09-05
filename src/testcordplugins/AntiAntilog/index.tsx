@@ -26,7 +26,7 @@ const settings = definePluginSettings({
     },
     preserveRemovedEmbeds: {
         type: OptionType.BOOLEAN,
-        description: "Keep image and video embeds visible when someone removes the embed from their message.",
+        description: "Keep embeds visible when someone removes them via edit, including website/link preview title, description, fields and images.",
         default: true
     },
     preserveRemovedAttachments: {
@@ -49,6 +49,7 @@ interface IncomingMessage {
     flags?: number;
     embeds?: any[];
     attachments?: any[];
+    edited_timestamp?: string | null;
 }
 
 interface MessageCreateAction {
@@ -122,6 +123,8 @@ function preserveRemovedMedia(action: MessageUpdateAction) {
         const newMsg = action?.message;
         if (!newMsg?.id || !newMsg?.channel_id) return;
 
+        if (newMsg.edited_timestamp == null) return;
+
         const old = MessageStore.getMessage(newMsg.channel_id, newMsg.id) as IncomingMessage | undefined;
         if (!old) return;
 
@@ -143,14 +146,46 @@ function preserveRemovedMedia(action: MessageUpdateAction) {
                 let removed: any[] = [];
                 let baseEmbeds: any[] = incomingEmbeds ?? oldEmbeds;
 
+                const stableFp = (e: any) => {
+                    if (!e || typeof e !== "object") return String(e);
+                    try {
+                        return JSON.stringify({
+                            url: e.url, type: e.type, title: e.title, description: e.description,
+                            author: e.author?.name ?? e.author?.url, provider: e.provider?.name,
+                            fields: Array.isArray(e.fields) ? e.fields.map((f: any) => ({ name: f.name, value: f.value, inline: f.inline })) : undefined,
+                            footer: e.footer?.text, image: e.image?.url, thumbnail: e.thumbnail?.url, video: e.video?.url
+                        });
+                    } catch {
+                        return `${e?.type ?? ""}|${e?.url ?? ""}|${e?.title ?? ""}|${e?.description ?? ""}`;
+                    }
+                };
+
                 if (!wasSuppressed && nowSuppressed) {
                     removed = oldEmbeds;
                     baseEmbeds = incomingEmbeds ?? [];
-                } else if (incomingEmbeds !== undefined && incomingEmbeds.length < oldEmbeds.length) {
-                    const fingerprint = (e: any) => `${e?.type ?? ""}|${e?.url ?? ""}|${e?.timestamp ?? ""}`;
-                    const seen = new Set(incomingEmbeds.map(fingerprint));
-                    removed = oldEmbeds.filter(e => !seen.has(fingerprint(e)));
+                } else if (incomingEmbeds !== undefined) {
+                    const incomingByUrl = new Map<string, any>();
+                    for (const e of incomingEmbeds) if (e?.url) incomingByUrl.set(e.url, e);
+                    let hasMergedMiddle = false;
+                    for (const old of oldEmbeds) {
+                        if (!old?.url) continue;
+                        const match: any = incomingByUrl.get(old.url);
+                        if (!match) continue;
+                        if (old.description && !match.description) { match.description = old.description; hasMergedMiddle = true; }
+                        if (old.title && !match.title) { match.title = old.title; hasMergedMiddle = true; }
+                        if (Array.isArray(old.fields) && old.fields.length && (!Array.isArray(match.fields) || !match.fields.length)) { match.fields = old.fields; hasMergedMiddle = true; }
+                        if (old.author && !match.author) { match.author = old.author; hasMergedMiddle = true; }
+                        if (old.footer?.text && !match.footer?.text) { match.footer = old.footer; hasMergedMiddle = true; }
+                        if (old.provider && !match.provider) { match.provider = old.provider; hasMergedMiddle = true; }
+                    }
+                    const seen = new Set(incomingEmbeds.map(stableFp));
+                    removed = oldEmbeds.filter(e => !seen.has(stableFp(e)));
                     baseEmbeds = incomingEmbeds;
+                    if (hasMergedMiddle && removed.length === 0) {
+                        const target = ensureClone();
+                        target.embeds = [...baseEmbeds];
+                        if (settings.store.logActivity) logger.info(`Restored middle content for ${newMsg.channel_id}/${newMsg.id} (same URL).`);
+                    }
                 }
 
                 if (removed.length > 0) {

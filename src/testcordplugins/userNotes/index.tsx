@@ -17,7 +17,7 @@ import { User } from "@vencord/discord-types";
 import { findComponentByCodeLazy } from "@webpack";
 import { Menu, TextArea, UserStore, useState } from "@webpack/common";
 
-const HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_TOP:", '"top"===c');
+const HeaderBarIcon = findComponentByCodeLazy("iconClassName", "badge", '"aria-haspopup":');
 
 import { PopupIcon } from "./components/Icons";
 import { OpenNotesDataButton } from "./components/NotesDataButton";

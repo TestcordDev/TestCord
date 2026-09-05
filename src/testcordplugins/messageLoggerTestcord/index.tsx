@@ -735,15 +735,23 @@ export default definePlugin({
 
         oldGetMessage = MessageStore.getMessage;
         MessageStore.getMessage = (channelId: string, messageId: string) => {
+            // Respect temporary per-session hide of edit history (context menu → Delete History Temporary)
+            // Must be checked before the cache lookup, because clearEditHistoryCache now keeps a
+            // copy with empty history – we still want to hide the DB history.
+            if (isEditHistoryTempCleared(messageId)) {
+                const loggedMessageTmp = getCachedLoggedMessage(messageId);
+                if (loggedMessageTmp?.deleted) {
+                    // Deleted messages use hidden flag, not tempCleared – fall through to normal handling
+                } else {
+                    const latest = oldGetMessage!.call(MessageStore, channelId, messageId) as any;
+                    if (latest) return latest;
+                    return oldGetMessage!.call(MessageStore, channelId, messageId);
+                }
+            }
+
             const loggedMessage = getCachedLoggedMessage(messageId);
 
             if (!loggedMessage) {
-                return oldGetMessage!.call(MessageStore, channelId, messageId);
-            }
-            // Respect temporary per-session hide of edit history (context menu → Delete History Temporary)
-            if (isEditHistoryTempCleared(messageId) && !loggedMessage.deleted) {
-                const latest = oldGetMessage!.call(MessageStore, channelId, messageId) as any;
-                if (latest) return latest;
                 return oldGetMessage!.call(MessageStore, channelId, messageId);
             }
 
@@ -792,15 +800,44 @@ export default definePlugin({
                             void restoreAttachmentBlobs(merged.attachments as any).catch(() => { });
                         }
                     }
-                    if (settings.store.preserveRemovedEmbeds && Array.isArray(loggedMessage.embeds) && (loggedMessage.embeds as any[]).length) {
+                    // Only resurrect embeds if the message was actually edited/deleted (not for every
+                    // auto-preview refresh). This prevents phantom embeds on non-edited messages.
+                    const isEditedForEmbeds = !!(latestMessage?.editedTimestamp ?? (loggedMessage as any).editHistory?.length ?? (loggedMessage as any).deleted);
+                    if (settings.store.preserveRemovedEmbeds && isEditedForEmbeds && Array.isArray(loggedMessage.embeds) && (loggedMessage.embeds as any[]).length) {
                         const latestEmbeds: any[] = latestMessage.embeds ?? [];
                         const oldEmbeds: any[] = loggedMessage.embeds as any[];
-                        if (!latestMessage.embeds || latestEmbeds.length < oldEmbeds.length) {
-                            const fp = (e: any) => `${e?.type ?? ""}|${e?.url ?? ""}|${e?.timestamp ?? ""}|${e?.image?.url ?? ""}|${e?.thumbnail?.url ?? ""}`;
-                            const seen = new Set(latestEmbeds.map(fp));
-                            const missing = oldEmbeds.filter((e: any) => !seen.has(fp(e)));
+                        const stableFp = (e: any) => {
+                            if (!e || typeof e !== "object") return String(e);
+                            try {
+                                return JSON.stringify({
+                                    url: e.url, type: e.type, title: e.title, description: e.description,
+                                    author: e.author?.name ?? e.author?.url, provider: e.provider?.name,
+                                    fields: Array.isArray(e.fields) ? e.fields.map((f: any) => ({ name: f.name, value: f.value, inline: f.inline })) : undefined,
+                                    footer: e.footer?.text, image: e.image?.url, thumbnail: e.thumbnail?.url, video: e.video?.url
+                                });
+                            } catch { return `${e?.type ?? ""}|${e?.url ?? ""}|${e?.title ?? ""}|${e?.description ?? ""}`; }
+                        };
+                        {
+                            // If same URL but middle content (description/fields) stripped, restore it into latest embed instead of duplicating
+                            const latestByUrl = new Map<string, any>();
+                            for (const e of latestEmbeds) if (e?.url) latestByUrl.set(e.url, e);
+                            let hasMergedMiddle = false;
+                            for (const old of oldEmbeds) {
+                                if (!old?.url) continue;
+                                const match: any = latestByUrl.get(old.url);
+                                if (!match) continue;
+                                if (old.description && !match.description) { match.description = old.description; hasMergedMiddle = true; }
+                                if (old.title && !match.title) { match.title = old.title; hasMergedMiddle = true; }
+                                if (Array.isArray(old.fields) && old.fields.length && (!Array.isArray(match.fields) || !match.fields.length)) { match.fields = old.fields; hasMergedMiddle = true; }
+                                if (old.author && !match.author) { match.author = old.author; hasMergedMiddle = true; }
+                                if (old.footer?.text && !match.footer?.text) { match.footer = old.footer; hasMergedMiddle = true; }
+                                if (old.provider && !match.provider) { match.provider = old.provider; hasMergedMiddle = true; }
+                            }
+                            const seen = new Set(latestEmbeds.map(stableFp));
+                            const missing = oldEmbeds.filter((e: any) => !seen.has(stableFp(e)));
                             if (missing.length) merged.embeds = latestEmbeds.length ? [...latestEmbeds, ...missing] : [...oldEmbeds];
                             else if (!latestMessage.embeds) merged.embeds = [...oldEmbeds];
+                            else if (hasMergedMiddle) merged.embeds = [...latestEmbeds];
                         }
                         const SUPPRESS = 1 << 2;
                         const oldFlags = (loggedMessage as any).flags ?? 0;

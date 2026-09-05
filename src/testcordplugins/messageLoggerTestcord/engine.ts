@@ -20,6 +20,8 @@ const recentMessages = new Map<string, LoggedMessage>();
 const channelMessageCache = new Map<string, LoggedMessage>();
 const pendingWrites = new Map<string, LogRecord>();
 const pendingDeletes = new Set<string>();
+const pendingUnknownDeletes = new Map<string, { payload: MessageDeletePayload; ts: number; }>();
+const PENDING_DELETE_TTL = 15_000;
 const STATUS_PRIORITY: Record<LogStatus, number> = {
     [LogStatus.EDITED]: 0,
     [LogStatus.DELETED]: 1,
@@ -134,14 +136,24 @@ export function isEditHistoryTempCleared(id: string) { return tempClearedEditIds
 export function clearTempClearedEdits() { tempClearedEditIds.clear(); }
 
 export function clearEditHistoryCache(id: string) {
-    recentMessages.delete(id);
-    channelMessageCache.delete(id);
+    // Keep the message in cache but with empty history so hide is per-session and survives
+    // future auto-embed updates that would otherwise re-queue the DB history.
+    const existing = recentMessages.get(id) ?? channelMessageCache.get(id);
+    if (existing) {
+        const cleared = lodash.cloneDeep(existing);
+        cleared.editHistory = [];
+        recentMessages.set(id, cleared);
+        channelMessageCache.set(id, cleared);
+        const pending = pendingWrites.get(id);
+        if (pending?.message) pending.message.editHistory = [];
+    }
     invalidateLoggedCaches(id);
     tempClearedEditIds.add(id);
-    // Also clear any pending edit record so it doesn't get re-queued
+    // Also clear any pending edit record so it doesn't get re-queued with old history
     const pending = pendingWrites.get(id);
     if (pending && pending.status === LogStatus.EDITED) {
-        pendingWrites.delete(id);
+        // Keep the pending record but with cleared history, or drop it if now empty
+        if (!pending.message.editHistory?.length) pendingWrites.delete(id);
     }
 }
 
@@ -208,6 +220,10 @@ export function preserveRemovedMedia(payload: MessageUpdatePayload) {
         const newMsg: any = (payload as any).message;
         if (!newMsg?.id || !newMsg?.channel_id) return;
 
+        // Only act on real user edits (with edited_timestamp). Auto link previews / proxy
+        // refreshes come without edited_timestamp and should not be treated as "removed".
+        if (newMsg.edited_timestamp == null) return;
+
         const old: any = MessageStore.getMessage(newMsg.channel_id, newMsg.id);
         if (!old) return;
 
@@ -231,18 +247,65 @@ export function preserveRemovedMedia(payload: MessageUpdatePayload) {
                 let removed: any[] = [];
                 let baseEmbeds: any[] = incomingEmbeds ?? oldEmbeds;
 
+                // Stable fingerprint: only content-defining fields, ignores volatile proxy_url/width/height/id/color/timestamp
+                // This prevents duplicates when Discord re-fetches same website embed with new proxy URL
+                const stableFp = (e: any) => {
+                    if (!e || typeof e !== "object") return String(e);
+                    try {
+                        return JSON.stringify({
+                            url: e.url,
+                            type: e.type,
+                            title: e.title,
+                            description: e.description,
+                            author: e.author?.name ?? e.author?.url,
+                            provider: e.provider?.name,
+                            fields: Array.isArray(e.fields) ? e.fields.map((f: any) => ({ name: f.name, value: f.value, inline: f.inline })) : undefined,
+                            footer: e.footer?.text,
+                            image: e.image?.url,
+                            thumbnail: e.thumbnail?.url,
+                            video: e.video?.url
+                        });
+                    } catch {
+                        return `${e?.type ?? ""}|${e?.url ?? ""}|${e?.title ?? ""}|${e?.description ?? ""}`;
+                    }
+                };
+
                 if (!wasSuppressed && nowSuppressed) {
                     removed = oldEmbeds;
                     baseEmbeds = incomingEmbeds ?? [];
-                } else if (incomingEmbeds !== undefined && incomingEmbeds.length < oldEmbeds.length) {
-                    const fingerprint = (e: any) => `${e?.type ?? ""}|${e?.url ?? ""}|${e?.timestamp ?? ""}`;
-                    const seen = new Set(incomingEmbeds.map(fingerprint));
-                    removed = oldEmbeds.filter((e: any) => !seen.has(fingerprint(e)));
+                } else if (incomingEmbeds !== undefined) {
+                    // Merge middle content for same-URL website embeds: if incoming has same URL but truncated description/fields, restore from old
+                    const incomingByUrl = new Map<string, any>();
+                    for (const e of incomingEmbeds) if (e?.url) incomingByUrl.set(e.url, e);
+                    let hasMergedMiddle = false;
+                    for (const old of oldEmbeds) {
+                        if (!old?.url) continue;
+                        const match: any = incomingByUrl.get(old.url);
+                        if (!match) continue;
+                        if (old.description && !match.description) { match.description = old.description; hasMergedMiddle = true; }
+                        if (old.title && !match.title) { match.title = old.title; hasMergedMiddle = true; }
+                        if (Array.isArray(old.fields) && old.fields.length && (!Array.isArray(match.fields) || !match.fields.length)) { match.fields = lodash.cloneDeep(old.fields); hasMergedMiddle = true; }
+                        if (old.author && !match.author) { match.author = lodash.cloneDeep(old.author); hasMergedMiddle = true; }
+                        if (old.footer?.text && !match.footer?.text) { match.footer = lodash.cloneDeep(old.footer); hasMergedMiddle = true; }
+                        if (old.provider && !match.provider) { match.provider = lodash.cloneDeep(old.provider); hasMergedMiddle = true; }
+                        if (old.image?.url && !match.image?.url) { match.image = lodash.cloneDeep(old.image); hasMergedMiddle = true; }
+                        if (old.thumbnail?.url && !match.thumbnail?.url) { match.thumbnail = lodash.cloneDeep(old.thumbnail); hasMergedMiddle = true; }
+                    }
+                    const seen = new Set(incomingEmbeds.map(stableFp));
+                    removed = oldEmbeds.filter((e: any) => !seen.has(stableFp(e)));
                     baseEmbeds = incomingEmbeds;
+                    if (hasMergedMiddle && removed.length === 0) {
+                        const target = ensureClone();
+                        target.embeds = [...baseEmbeds];
+                        if (settings.store.logAntiAntilogActivity) {
+                            log.info(`Restored middle content for ${newMsg.channel_id}/${newMsg.id} (same URL, description/fields).`);
+                        }
+                    }
                 }
 
                 if (removed.length > 0) {
                     const target = ensureClone();
+                    // Save all of the original embed, including website title/description/fields/author/footer, not just image
                     target.embeds = [...baseEmbeds, ...removed];
                     if (nowSuppressed) {
                         target.flags = incomingFlags & ~SUPPRESS_EMBEDS;
@@ -460,6 +523,15 @@ export function handleMessageCreate(payload: MessageCreatePayload) {
     })) return;
 
     remember(snapshot);
+
+    // Fast-delete race: MESSAGE_DELETE can arrive before MESSAGE_CREATE is processed
+    // (gateway out-of-order or optimistic). If we buffered a delete for this id,
+    // immediately log it as deleted so fast deletes don't disappear.
+    const pendingDel = pendingUnknownDeletes.get(snapshot.id);
+    if (pendingDel) {
+        pendingUnknownDeletes.delete(snapshot.id);
+        void saveDeletedMessage(pendingDel.payload).catch(e => log.error("Failed to save buffered fast delete", e));
+    }
 }
 
 export async function handleMessageUpdate(payload: MessageUpdatePayload) {
@@ -509,13 +581,27 @@ export async function handleMessageUpdate(payload: MessageUpdatePayload) {
     }
     if (!previous) return;
 
-    const newContent = hasContent ? payload.message.content : previous.content;
     const embedsChanged = hasEmbeds && JSON.stringify((payload.message as any).embeds) !== JSON.stringify(previous.embeds);
     const attachmentsChanged = hasAttachments && JSON.stringify((payload.message as any).attachments) !== JSON.stringify(previous.attachments);
     const contentChanged = hasContent && previous.content !== payload.message.content;
+    const hasEditedTimestamp = (payload.message as any).edited_timestamp != null;
 
-    if (!contentChanged && !embedsChanged && !attachmentsChanged) {
-        if (previous.editHistory?.length && !shouldIgnore({
+    // Link previews auto-generate embeds without setting edited_timestamp and without changing content.
+    // Treat only content changes (or embed/attachment changes that Discord marks as an edit) as real edits.
+    const isRealEmbedEdit = hasEditedTimestamp && (embedsChanged || attachmentsChanged);
+    if (!contentChanged && !isRealEmbedEdit) {
+        // Respect temporary per-session hide: don't resurrect hidden histories
+        if (isEditHistoryTempCleared(payload.message.id)) return;
+        // No real edit: either nothing changed, or just an auto embed (link unfurl) without edited_timestamp
+        if (embedsChanged || attachmentsChanged) {
+            const updated = lodash.cloneDeep(previous);
+            if (hasEmbeds) (updated as any).embeds = (payload.message as any).embeds;
+            if (hasAttachments) (updated as any).attachments = (payload.message as any).attachments;
+            // If this message's history was temp-hidden, drop the old history on the updated copy
+            if (isEditHistoryTempCleared(updated.id)) updated.editHistory = [];
+            remember(updated);
+            invalidateLoggedCaches(updated.id);
+        } else if (previous.editHistory?.length && !isEditHistoryTempCleared(previous.id) && !shouldIgnore({
             channelId: (previous as any).channel_id ?? (previous as any).channelId,
             authorId: previous.author?.id,
             guildId: payload.guildId ?? (previous as any).guildId ?? (previous as any).guild_id,
@@ -556,6 +642,10 @@ export async function handleMessageUpdate(payload: MessageUpdatePayload) {
         message.editHistory = message.editHistory.slice(-settings.store.maxEditHistory);
     }
 
+    // If this message's history was temp-hidden, don't carry the old hidden history forward
+    if (isEditHistoryTempCleared(message.id)) {
+        message.editHistory = message.editHistory.slice(-1);
+    }
     remember(message);
     invalidateLoggedCaches(message.id);
     // Ensure anti-antilogg'd and edited attachments are saved to disk before the record is flushed
@@ -596,7 +686,21 @@ async function saveDeletedMessage(payload: MessageDeletePayload) {
                 }
             } catch { }
         }
-        if (!dbFallback) return;
+        if (!dbFallback) {
+            // Fast delete: message not yet in any cache (create hasn't been processed or was gated).
+            // Buffer the delete for a short window; if the create arrives soon we will log it then.
+            if (messageId) {
+                // Prune stale buffered deletes
+                const now = Date.now();
+                for (const [k, v] of [...pendingUnknownDeletes.entries()]) {
+                    if (now - v.ts > PENDING_DELETE_TTL) pendingUnknownDeletes.delete(k);
+                }
+                pendingUnknownDeletes.set(messageId, { payload, ts: now });
+                // Auto-expire
+                setTimeout(() => pendingUnknownDeletes.delete(messageId), PENDING_DELETE_TTL);
+            }
+            return;
+        }
     }
 
     const source = (cachedMessage ?? storedMessage ?? dbFallback!) as unknown as MessageJSON;

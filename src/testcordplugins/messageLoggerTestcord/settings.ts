@@ -267,7 +267,7 @@ export const settings = definePluginSettings({
     },
     preserveRemovedEmbeds: {
         type: OptionType.BOOLEAN,
-        description: "Keep image and video embeds visible when someone removes the embed from their message.",
+        description: "Keep embeds visible when someone removes them via edit, including website/link preview title, description, author, fields and images.",
         default: true
     },
     preserveRemovedAttachments: {

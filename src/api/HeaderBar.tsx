@@ -18,7 +18,7 @@ import type { ComponentType, CSSProperties, JSX, MouseEventHandler, ReactNode } 
 const logger = new Logger("HeaderBarAPI");
 
 const HeaderBarClasses = findCssClassesLazy("clickable", "selected", "badge", "badgeContainer");
-const HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_TOP:", '"aria-haspopup":') as ComponentType<ChannelToolbarButtonProps>;
+const HeaderBarIcon = findComponentByCodeLazy("iconClassName", "badge", '"aria-haspopup":') as ComponentType<ChannelToolbarButtonProps>;
 const TESTCORD_TOP_BAR_ICON_COLOR_SETTING: ["plugins.TestcordHelper.topBarButtonIconColor"] = ["plugins.TestcordHelper.topBarButtonIconColor"];
 const TESTCORD_HEADER_BAR_ICON_COLOR_SETTING: ["plugins.TestcordHelper.headerBarButtonIconColor"] = ["plugins.TestcordHelper.headerBarButtonIconColor"];
 

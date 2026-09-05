@@ -12,7 +12,7 @@ import type { CSSProperties } from "react";
 import { NotesDataIcon } from "./Icons";
 import { openNotesDataModal } from "./NotesDataModal";
 
-const HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_TOP:", '"top"===c');
+const HeaderBarIcon = findComponentByCodeLazy("iconClassName", "badge", '"aria-haspopup":');
 
 const ICON_COLOR_SETTINGS = [
     "plugins.TestcordHelper.headerBarButtonIconColor",
