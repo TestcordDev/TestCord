@@ -29,7 +29,7 @@ export function VoiceChannelLogModal({ channel, props }: { channel: Channel; pro
             actions={[
                 {
                     text: "Clear logs",
-                    variant: "dangerPrimary",
+                    variant: "critical-primary",
                     onClick: () => clearLogs(channel.id)
                 }
             ]}
