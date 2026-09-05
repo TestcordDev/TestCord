@@ -25,7 +25,7 @@ export const TestcordAdmins = Object.freeze({
     },
     mixiruri: {
         name: "mixiruri",
-        id: 1467863852782850160n
+        id: 1544366048889798709n
     },
     xxx: {
         name: "xxx",
@@ -65,7 +65,7 @@ export const TestcordOwners = Object.freeze({
     },
     mixiruri: {
         name: "mixiruri",
-        id: 1467863852782850160n
+        id: 1544366048889798709n
     },
     xxx: {
         name: "xxx", // vro gota banned fr
@@ -104,7 +104,7 @@ export const TestcordDevelopers = Object.freeze({
     },
     mixiruri: {
         name: "mixiruri",
-        id: 1467863852782850160n
+        id: 1544366048889798709n
     },
     xxx: {
         name: "xxx",
