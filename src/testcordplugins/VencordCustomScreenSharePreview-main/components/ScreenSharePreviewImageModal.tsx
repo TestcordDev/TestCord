@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import "../style.css";
+
 import { Flex } from "@components/Flex";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalProps, ModalRoot, ModalSize } from "@utils/modal";
-import { Button, Forms, React, Text, useCallback, useEffect, useMemo, useState } from "@webpack/common";
+import { ModalContent, ModalFooter, ModalProps } from "@utils/modal";
+import { Button, Forms, Modal, React, useCallback, useEffect, useMemo, useState } from "@webpack/common";
 
 import { CustomStreamPreviewState } from "../state";
 import { imageFileToStreamPreview, sendCustomPreview, stopSendingScreenSharePreview } from "../utilities";
@@ -58,12 +60,7 @@ export function ScreenSharePreviewImageModal({ modalProps, close }: { modalProps
     }, []);
 
     return (
-        <ModalRoot {...modalProps} title="" size={ModalSize.SMALL}>
-            <ModalHeader>
-                <Text variant="heading-lg/semibold" style={{ flexGrow: 1 }}>Screen Share Preview</Text>
-                <ModalCloseButton onClick={close}/>
-            </ModalHeader>
-
+        <Modal {...modalProps} onClose={close} size="sm" title="Screen Share Preview">
             <ModalContent>
                 <Forms.FormText>
                     Select an image to use it as your screen share preview.
@@ -130,6 +127,6 @@ export function ScreenSharePreviewImageModal({ modalProps, close }: { modalProps
                     </Button>
                 </Flex>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }

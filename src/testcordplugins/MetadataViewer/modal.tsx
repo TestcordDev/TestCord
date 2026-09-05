@@ -8,10 +8,10 @@ import "./style.css";
 
 import { copyToClipboard } from "@utils/clipboard";
 import { Logger } from "@utils/Logger";
-import { ModalCloseButton, ModalHeader, ModalRoot, ModalSize, type RenderModalProps } from "@utils/modal";
+import { type RenderModalProps } from "@utils/modal";
 import type { PluginNative } from "@utils/types";
 import { findStoreLazy } from "@webpack";
-import { Button, React, ReactDOM, showToast, Toasts, useEffect, useMemo, useState, useStateFromStores } from "@webpack/common";
+import { Button, Modal, React, ReactDOM, showToast, Toasts, useEffect, useMemo, useState, useStateFromStores } from "@webpack/common";
 
 import { formatBytes, MetadataResult, parseMetadata } from "./parser";
 import { getMimeFromExtension } from "./utils";
@@ -385,13 +385,7 @@ export function MetadataScannerModal({ rootProps, url, name, mimeType, size }: {
 
     if (confirmScanLargeFile) {
         return (
-            <ModalRoot {...rootProps} className={`vc-mds-modal ${themeClass}`} size={ModalSize.SMALL}>
-                <ModalHeader className="vc-mds-modal-header">
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-                        <span className="vc-mds-modal-title">Large File Warning</span>
-                        <ModalCloseButton onClick={rootProps.onClose} />
-                    </div>
-                </ModalHeader>
+            <Modal {...rootProps} className={`vc-mds-modal ${themeClass}`} size="sm" title="Large File Warning">
                 <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px", alignItems: "center", textAlign: "center" }}>
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-warning)" strokeWidth="2" style={{ color: "var(--status-warning, #f0b232)" }}>
                         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -423,7 +417,7 @@ export function MetadataScannerModal({ rootProps, url, name, mimeType, size }: {
                         </Button>
                     </div>
                 </div>
-            </ModalRoot>
+            </Modal>
         );
     }
 
@@ -921,13 +915,7 @@ export function MetadataScannerModal({ rootProps, url, name, mimeType, size }: {
 
     return (
         <>
-            <ModalRoot {...rootProps} className={`vc-mds-modal ${themeClass}`} size={ModalSize.LARGE}>
-                <ModalHeader className="vc-mds-modal-header">
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-                        <span className="vc-mds-modal-title">Metadata Inspector</span>
-                        <ModalCloseButton onClick={rootProps.onClose} />
-                    </div>
-                </ModalHeader>
+            <Modal {...rootProps} className={`vc-mds-modal ${themeClass}`} size="lg" title="Metadata Inspector">
 
                 <div className="vc-mds-layout">
                     <div className="vc-mds-sidebar">
@@ -992,7 +980,7 @@ export function MetadataScannerModal({ rootProps, url, name, mimeType, size }: {
                         )}
                     </div>
                 </div>
-            </ModalRoot>
+            </Modal>
             {isFullscreen && (ReactDOM as any).createPortal(
                 <div
                     ref={fullscreenRef}

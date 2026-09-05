@@ -106,6 +106,28 @@
     justify-content: space-between;
 }
 
+.vc-gif-captioner-color-circle.active {
+    border-color: #fff;
+    transform: scale(1.1);
+}
+
+button[class*="closeButton"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+button[class*="closeButton"]:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+button[class*="closeButton"]:active {
+    background-color: var(--background-modifier-active);
+}
+
 .vc-gif-captioner-modal-content {
     padding: 8px;
     overflow: hidden;

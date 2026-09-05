@@ -4,33 +4,34 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import "./style.css";
+
 import { NavContextMenuPatchCallback } from "@api/ContextMenu";
+import { HeaderBarIcon } from "@api/HeaderBar";
 import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { TestcordDevs } from "@utils/constants";
 import { classes } from "@utils/misc";
-import { closeModal, ModalCloseButton, ModalContent, ModalHeader, ModalProps, ModalRoot, ModalSize, openModal } from "@utils/modal";
+import { closeModal, ModalContent, ModalProps, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import type { Channel, User } from "@vencord/discord-types";
-import { findByPropsLazy, findComponentByCodeLazy } from "@webpack";
+import { findByPropsLazy } from "@webpack";
 import {
     Avatar,
     Button,
     ChannelStore,
     GuildMemberStore,
     Menu,
+    Modal,
     PermissionsBits,
     PermissionStore,
     React,
     RestAPI,
-    Text,
     Toasts,
     UserStore,
     VoiceStateStore
 } from "@webpack/common";
 import type { PropsWithChildren, ReactNode, SVGProps } from "react";
-
-const HeaderBarIcon = findComponentByCodeLazy("iconClassName", "badge", '"aria-haspopup":');
 
 interface BaseIconProps extends IconProps {
     viewBox: string;
@@ -333,11 +334,7 @@ function ActiveUsersModal({ modalProps }: { modalProps: ModalProps; }) {
     const activeUsers = getActiveUsers();
 
     return (
-        <ModalRoot {...modalProps} size={ModalSize.MEDIUM}>
-            <ModalHeader>
-                <Text variant="heading-lg/semibold" tag="h1">Active Users</Text>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+        <Modal {...modalProps} size="md" title="Active Users">
             <ModalContent>
                 {activeUsers.length === 0 ? (
                     <div style={{
@@ -406,7 +403,7 @@ function ActiveUsersModal({ modalProps }: { modalProps: ModalProps; }) {
                     </div>
                 )}
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }
 

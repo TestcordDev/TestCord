@@ -1,10 +1,27 @@
 .vc-cal-modal-root {
     max-width: 900px;
+}
+
+.vc-cal-modal-content,
+.vc-cal-modal-content * {
     color: #dbdee1;
 }
 
-.vc-cal-modal-root * {
-    color: #dbdee1;
+button[class*="closeButton"] {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+button[class*="closeButton"]:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+button[class*="closeButton"]:active {
+    background-color: var(--background-modifier-active);
 }
 
 .vc-cal-modal-header {

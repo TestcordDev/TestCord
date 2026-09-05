@@ -135,3 +135,100 @@
     border: 1px solid var(--border-subtle);
     background-color: var(--background-base-low);
 }
+
+.vc-plugin-modal-warning-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    cursor: default;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.vc-plugin-modal-warning-badge.vc-plugin-modal-warning-experimental {
+    background-color: color-mix(in srgb, #e67e22 20%, transparent);
+    color: #f39c12;
+    border: 1px solid color-mix(in srgb, #e67e22 50%, transparent);
+}
+
+.vc-plugin-modal-warning-badge.vc-plugin-modal-warning-legacy {
+    background-color: color-mix(in srgb, #d35400 20%, transparent);
+    color: #e67e22;
+    border: 1px solid color-mix(in srgb, #d35400 50%, transparent);
+}
+
+.vc-plugin-modal-warning-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    display: block;
+    image-rendering: -webkit-optimize-contrast;
+}
+
+.vc-plugin-modal-warning-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 14px;
+}
+
+.vc-plugin-modal-warning-banner.vc-plugin-modal-warning-banner-experimental {
+    background-color: color-mix(in srgb, #e67e22 12%, transparent);
+    border: 1px solid color-mix(in srgb, #e67e22 40%, transparent);
+}
+
+.vc-plugin-modal-warning-banner.vc-plugin-modal-warning-banner-legacy {
+    background-color: color-mix(in srgb, #d35400 12%, transparent);
+    border: 1px solid color-mix(in srgb, #d35400 40%, transparent);
+}
+
+.vc-plugin-modal-warning-banner-icon {
+    width: 36px;
+    height: 36px;
+    object-fit: contain;
+    flex-shrink: 0;
+    image-rendering: -webkit-optimize-contrast;
+}
+
+.vc-plugin-modal-warning-banner-title {
+    display: block;
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 2px;
+    color: var(--text-strong);
+}
+
+.vc-plugin-modal-warning-banner-desc {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.vc-plugin-modal-warning-badge.vc-plugin-modal-warning-clickable {
+    cursor: pointer;
+}
+
+.vc-plugin-modal-warning-badge.vc-plugin-modal-warning-clickable:hover {
+    opacity: 0.85;
+}
+
+.vc-plugin-modal-warning-banner-action {
+    margin-top: 8px;
+}
+
+.vc-plugin-modal-replacement-btn {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    padding: 2px 12px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+}

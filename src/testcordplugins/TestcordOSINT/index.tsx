@@ -12,10 +12,10 @@ import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
 import { Logger } from "@utils/Logger";
 import { sleep } from "@utils/misc";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal } from "@utils/modal";
+import { ModalContent, ModalFooter, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import { Message } from "@vencord/discord-types";
-import { Button, ChannelStore, Constants, GuildMemberStore, GuildStore, IconUtils, Menu, PermissionsBits, PermissionStore, Popout, React, RelationshipStore, RestAPI, SelectedChannelStore, TextInput, useCallback, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
+import { Button, ChannelStore, Constants, GuildMemberStore, GuildStore, IconUtils, Menu, Modal, PermissionsBits, PermissionStore, Popout, React, RelationshipStore, RestAPI, SelectedChannelStore, TextInput, useCallback, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
 
 import { callAI, CordCatResult, fetchCordCatData } from "./aiManager";
 import { AlgorithmResult, analyzeMessages, MessageData } from "./algorithms";
@@ -347,22 +347,25 @@ function LinksModal({ modalProps, messages }: { modalProps: any; messages: Messa
     }
 
     return (
-        <ModalRoot {...modalProps} size="large" className="vc-osint-root">
-            <ModalHeader>
-                <div className="vc-osint-header-left">
-                    <div className="vc-osint-header-icon" style={{ background: "linear-gradient(135deg, #3ba55c, #5865f2)" }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" /></svg>
+        <Modal
+            {...modalProps}
+            size="lg"
+            className="vc-osint-root"
+            title={
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", paddingRight: 8 }}>
+                    <div className="vc-osint-header-left">
+                        <div className="vc-osint-header-icon" style={{ background: "linear-gradient(135deg, #3ba55c, #5865f2)" }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" /></svg>
+                        </div>
+                        <div>
+                            <div className="vc-osint-header-title">Links Found</div>
+                            <div className="vc-osint-header-subtitle">{sorted.length} unique URL{sorted.length !== 1 ? "s" : ""}</div>
+                        </div>
                     </div>
-                    <div>
-                        <div className="vc-osint-header-title">Links Found</div>
-                        <div className="vc-osint-header-subtitle">{sorted.length} unique URL{sorted.length !== 1 ? "s" : ""}</div>
-                    </div>
-                </div>
-                <div className="vc-osint-header-right">
                     <Button size={Button.Sizes.SMALL} onClick={copyAll}>Copy All</Button>
-                    <ModalCloseButton onClick={modalProps.onClose} />
                 </div>
-            </ModalHeader>
+            }
+        >
             <ModalContent>
                 <div className="vc-osint-body">
                     {sorted.length === 0 && (
@@ -373,16 +376,16 @@ function LinksModal({ modalProps, messages }: { modalProps: any; messages: Messa
                     )}
                     {sorted.map(({ url, count, firstTimestamp }) => (
                         <div key={url} className="vc-osint-link-entry">
-                            <div className="vc-osint-link-url" title={url}>{url}</div>
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="vc-osint-link-url" title={url}>{url}</a>
                             <div className="vc-osint-link-meta">
-                                <span>{count}x</span>
+                                <span>{count} time{count !== 1 ? "s" : ""}</span>
                                 <span>{new Date(firstTimestamp).toLocaleDateString()}</span>
                             </div>
                         </div>
                     ))}
                 </div>
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }
 
@@ -425,22 +428,25 @@ function AttachmentsModal({ modalProps, messages }: { modalProps: any; messages:
     }
 
     return (
-        <ModalRoot {...modalProps} size="large" className="vc-osint-root">
-            <ModalHeader>
-                <div className="vc-osint-header-left">
-                    <div className="vc-osint-header-icon" style={{ background: "linear-gradient(135deg, #eb459e, #fee75c)" }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" /></svg>
+        <Modal
+            {...modalProps}
+            size="lg"
+            className="vc-osint-root"
+            title={
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", paddingRight: 8 }}>
+                    <div className="vc-osint-header-left">
+                        <div className="vc-osint-header-icon" style={{ background: "linear-gradient(135deg, #eb459e, #fee75c)" }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" /></svg>
+                        </div>
+                        <div>
+                            <div className="vc-osint-header-title">Attachments</div>
+                            <div className="vc-osint-header-subtitle">{attachments.length} file{attachments.length !== 1 ? "s" : ""}</div>
+                        </div>
                     </div>
-                    <div>
-                        <div className="vc-osint-header-title">Attachments</div>
-                        <div className="vc-osint-header-subtitle">{attachments.length} file{attachments.length !== 1 ? "s" : ""}</div>
-                    </div>
-                </div>
-                <div className="vc-osint-header-right">
                     <Button size={Button.Sizes.SMALL} onClick={copyAllUrls}>Copy URLs</Button>
-                    <ModalCloseButton onClick={modalProps.onClose} />
                 </div>
-            </ModalHeader>
+            }
+        >
             <ModalContent>
                 <div className="vc-osint-body">
                     {attachments.length === 0 && (
@@ -504,7 +510,7 @@ function AttachmentsModal({ modalProps, messages }: { modalProps: any; messages:
                     )}
                 </div>
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }
 
@@ -687,11 +693,14 @@ function OSINTScanPanel({ userId, channelId, modalProps }: { userId: string; cha
     }
 
     return (
-        <ModalRoot {...modalProps} size="large" className="vc-osint-root">
-            <ModalHeader>
+        <Modal
+            {...modalProps}
+            size="lg"
+            className="vc-osint-root"
+            title={
                 <div className="vc-osint-header-left">
                     <div className="vc-osint-header-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 14z" /></svg>
                     </div>
                     <div>
                         <div className="vc-osint-header-title">Testcord OSINT</div>
@@ -702,10 +711,8 @@ function OSINTScanPanel({ userId, channelId, modalProps }: { userId: string; cha
                         </div>
                     </div>
                 </div>
-                <div className="vc-osint-header-right">
-                    <ModalCloseButton onClick={modalProps.onClose} />
-                </div>
-            </ModalHeader>
+            }
+        >
             <ModalContent>
                 {phase === "error" && (
                     <div className="vc-osint-empty">
@@ -848,7 +855,7 @@ function OSINTScanPanel({ userId, channelId, modalProps }: { userId: string; cha
                     <Button onClick={modalProps.onClose} color={Button.Colors.PRIMARY}>Close</Button>
                 </ModalFooter>
             )}
-        </ModalRoot>
+        </Modal>
     );
 }
 
@@ -866,8 +873,11 @@ function OSINTHistoryPanel({ modalProps, onSelect }: { modalProps: any; onSelect
     }
 
     return (
-        <ModalRoot {...modalProps} size="medium" className="vc-osint-root">
-            <ModalHeader>
+        <Modal
+            {...modalProps}
+            size="md"
+            className="vc-osint-root"
+            title={
                 <div className="vc-osint-header-left">
                     <div className="vc-osint-header-icon">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" /></svg>
@@ -877,8 +887,8 @@ function OSINTHistoryPanel({ modalProps, onSelect }: { modalProps: any; onSelect
                         <div className="vc-osint-header-subtitle">Last {MAX_HISTORY} scans</div>
                     </div>
                 </div>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+            }
+        >
             <ModalContent>
                 <div className="vc-osint-body">
                     {loading && <div className="vc-osint-progress"><div className="vc-osint-spinner" /></div>}
@@ -903,7 +913,7 @@ function OSINTHistoryPanel({ modalProps, onSelect }: { modalProps: any; onSelect
                     ))}
                 </div>
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }
 
@@ -1023,8 +1033,11 @@ function OSINTMultiScan({ modalProps }: { modalProps: any; }) {
     }
 
     return (
-        <ModalRoot {...modalProps} size="large" className="vc-osint-root">
-            <ModalHeader>
+        <Modal
+            {...modalProps}
+            size="lg"
+            className="vc-osint-root"
+            title={
                 <div className="vc-osint-header-left">
                     <div className="vc-osint-header-icon">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" /></svg>
@@ -1034,8 +1047,8 @@ function OSINTMultiScan({ modalProps }: { modalProps: any; }) {
                         <div className="vc-osint-header-subtitle">{targets.length} target{targets.length !== 1 ? "s" : ""} queued</div>
                     </div>
                 </div>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+            }
+        >
             <ModalContent>
                 <div className="vc-osint-body">
                     {/* Input */}
@@ -1088,7 +1101,7 @@ function OSINTMultiScan({ modalProps }: { modalProps: any; }) {
                 </Button>
                 <Button onClick={modalProps.onClose} color={Button.Colors.PRIMARY}>Close</Button>
             </ModalFooter>
-        </ModalRoot>
+        </Modal>
     );
 }
 
@@ -1126,19 +1139,22 @@ function UserPickerModal({ modalProps, onSelect }: { modalProps: any; onSelect: 
     function select(userId: string) { modalProps.onClose(); onSelect(userId); }
 
     return (
-        <ModalRoot {...modalProps} size="small" className="vc-osint-root">
-            <ModalHeader>
+        <Modal
+            {...modalProps}
+            size="sm"
+            className="vc-osint-root"
+            title={
                 <div className="vc-osint-header-left">
                     <div className="vc-osint-header-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" /></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 14z" /></svg>
                     </div>
                     <div>
                         <div className="vc-osint-header-title">Select User</div>
                         <div className="vc-osint-header-subtitle">Search by name or paste a user ID</div>
                     </div>
                 </div>
-                <ModalCloseButton onClick={modalProps.onClose} />
-            </ModalHeader>
+            }
+        >
             <ModalContent>
                 <div className="vc-osint-body">
                     <TextInput
@@ -1168,7 +1184,7 @@ function UserPickerModal({ modalProps, onSelect }: { modalProps: any; onSelect: 
                     </div>
                 </div>
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }
 

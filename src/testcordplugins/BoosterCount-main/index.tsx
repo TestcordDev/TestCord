@@ -4,15 +4,17 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import "./style.css";
+
 import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Flex } from "@components/Flex";
 import { classNameFactory } from "@utils/css";
 import { openUserProfile } from "@utils/discord";
 import { Logger } from "@utils/Logger";
-import { closeModal, ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
+import { ModalContent, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
-import { FluxDispatcher, GuildMemberStore, Menu, RestAPI, ScrollerThin, Text, useEffect, UserStore, useStateFromStores } from "@webpack/common";
+import { FluxDispatcher, GuildMemberStore, Menu, Modal, RestAPI, ScrollerThin, Text, useEffect, UserStore, useStateFromStores } from "@webpack/common";
 
 const cl = classNameFactory("bc-");
 
@@ -21,22 +23,14 @@ async function openViewBoosters(guild: string) {
     logger.info("Viewing boosters for guild", guild);
     const boosters = await fetchBoosters(guild);
     logger.info(boosters);
-    const key = openModal(props => (
+    openModal(props => (
         <ErrorBoundary>
-            <ModalRoot {...props} size={ModalSize.LARGE}>
-                <ModalHeader>
-                    <Text variant="heading-lg/semibold" style={{ flexGrow: 1 }}>Boosters</Text>
-                    <ModalCloseButton onClick={() => closeModal(key)} />
-                </ModalHeader>
+            <Modal {...props} size="lg" title="Boosters">
                 <ModalContent>
                     <UserList guildId={guild} boosters={boosters} />
-                </ModalContent >
-                <ModalFooter>
-                    <Flex style={{ gap: 10 }}>
-                    </Flex>
-                </ModalFooter>
-            </ModalRoot >
-        </ErrorBoundary >
+                </ModalContent>
+            </Modal>
+        </ErrorBoundary>
     ));
 }
 

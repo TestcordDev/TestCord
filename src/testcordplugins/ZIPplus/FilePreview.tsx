@@ -6,9 +6,9 @@
 
 import { CodeBlock } from "@components/CodeBlock";
 import { copyWithToast, openImageModal } from "@utils/discord";
-import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
+import { ModalContent, openModal } from "@utils/modal";
 import { saveFile } from "@utils/web";
-import { React, useMemo } from "@webpack/common";
+import { Modal, React, useMemo } from "@webpack/common";
 
 const CopyIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={20} height={20} fill="currentColor">
@@ -122,19 +122,7 @@ function TextFileModal({ name, blob, buffer, transitionState, onClose }: TextFil
     };
 
     return (
-        <ModalRoot transitionState={transitionState} size={ModalSize.LARGE}>
-            <ModalHeader separator={false}>
-                <div style={{
-                    fontSize: "20px",
-                    fontWeight: 600,
-                    color: "var(--header-primary)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    flex: 1
-                }}>{name}</div>
-                <ModalCloseButton onClick={onClose} />
-            </ModalHeader>
+        <Modal transitionState={transitionState} onClose={onClose} size="lg" title={name}>
             <ModalContent style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
                 <div style={{
                     display: "flex",
@@ -206,7 +194,7 @@ function TextFileModal({ name, blob, buffer, transitionState, onClose }: TextFil
                     </div>
                 )}
             </ModalContent>
-        </ModalRoot>
+        </Modal>
     );
 }
 
