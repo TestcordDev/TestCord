@@ -36,7 +36,8 @@ export const EXPERIMENTAL_PLUGINS: string[] = [
     "NSFWGateBypass",
     "PerformanceBoost",
     "TrustMeBro",
-    "trustmebro"
+    "trustmebro",
+    "OpenOptimizer"
 ];
 
 /**

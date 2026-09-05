@@ -12,6 +12,7 @@ export default definePlugin({
 	name: "OpenOptimizer",
 	description: "Ports OpenAsar's optimizer code.",
     tags: ["Developers", "Utility"],
+	experimental: true,
 	authors: [{ name: "S€th", id: 1273447359417942128n }],
 	methods: ["removeChild", "appendChild"],
 	timeouts: [] as ReturnType<typeof setTimeout>[],
