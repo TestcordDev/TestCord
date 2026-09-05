@@ -109,12 +109,14 @@ function IconsTab() {
         <SettingsTab>
             <div className={classes(Margins.top16, "vc-icon-tab-search-bar-grid")}>
                 <TextInput autoFocus value={searchInput} placeholder={`Search ${Object.keys(icons).length} icons...`} onChange={onSearch} />
-                <TooltipContainer text="Search by function context">
+                <TooltipContainer text={searchByFunction ? "Search by function context: On" : "Search by function context: Off"}>
                     <Button
                         size="small"
                         aria-label="Search by function context"
-                        className="vc-icon-search-func-btn"
-                        variant={searchByFunction ? "positive" : "primary"}
+                        aria-pressed={searchByFunction}
+                        title={searchByFunction ? "Search by function: on" : "Search by function: off"}
+                        className={classes("vc-icon-search-func-btn", searchByFunction && "vc-icon-search-func-btn-active")}
+                        variant={searchByFunction ? "primary" : "secondary"}
                         onClick={() => setSearchByFunction(!searchByFunction)}
                     >
                         Func

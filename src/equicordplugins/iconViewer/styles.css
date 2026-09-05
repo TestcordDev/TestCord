@@ -43,10 +43,21 @@
     display: flex;
     gap: 8px;
     margin-bottom: 16px;
+    align-items: center;
 }
 
 .vc-icon-tab-search-bar-grid>div:first-child {
     flex: 1;
+}
+
+.vc-icon-search-func-btn {
+    flex-shrink: 0;
+}
+
+.vc-icon-search-func-btn-active {
+    border-color: var(--text-default);
+    box-shadow: inset 0 0 0 1px var(--text-default);
+    font-weight: 700;
 }
 
 .vc-icon-sentinel {
