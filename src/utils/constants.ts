@@ -1493,8 +1493,8 @@ export const TestcordDevs = /* #__PURE__*/ Object.freeze({
         id: 1155026301791514655n
     },
     nnenaza: {
-        name: "kiara",
-        id: 1501441039418785933n,
+        name: "mixiruri",
+        id: 1544366048889798709n,
         github: "Mixiruri"
     },
     neoarz: {
@@ -1527,7 +1527,7 @@ export const TestcordDevs = /* #__PURE__*/ Object.freeze({
     },
     mixi: {
         name: "mixi",
-        id: 1517005377214873672n
+        id: 1544366048889798709n
     },
     Leon135: {
         name: "Leon135",
