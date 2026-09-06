@@ -27,7 +27,7 @@
 
 .vc-spotify-lyrics-next,
 .vc-spotify-lyrics-prev {
-    color: var(--text-muted);
+    color: var(--text-muted) !important;
     margin-bottom: 1%;
 }
 

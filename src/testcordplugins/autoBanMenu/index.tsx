@@ -1248,7 +1248,7 @@ function UserList({ modalProps }: { modalProps: any; }) {
 }
 
 export default definePlugin({
-    name: "autoBanMenu",
+    name: "AutoBanMenu",
     description: "Enhanced ban list with import/export/sync functionality.",
     tags: ["Servers", "Utility"],
     authors: [

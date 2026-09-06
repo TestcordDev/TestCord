@@ -883,10 +883,6 @@
     color: var(--text-default);
 }
 
-.vc-h2-defaultMargin {
-    margin-bottom: 8px;
-}
-
 .vc-surveillance-osint-summary {
     color: var(--text-muted);
     font-size: 13px;

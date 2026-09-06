@@ -283,70 +283,6 @@
     margin-top: 28px !important;
 }
 
-.vc-plugins-grid .vc-addon-card {
-    min-height: 148px;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    background: var(--card-background-default);
-    border-color: var(--border-subtle);
-    box-shadow: none;
-}
-
-.vc-plugins-grid .vc-addon-card:hover {
-    background-color: var(--background-surface-highest);
-    transform: none;
-    box-shadow: var(--elevation-low);
-}
-
-.vc-plugins-grid .vc-addon-header {
-    box-sizing: border-box;
-    padding: 14px 14px 8px;
-    margin: 0;
-    align-items: center;
-    gap: 8px;
-}
-
-.vc-plugins-grid .vc-addon-name-author {
-    min-width: 0;
-    flex: 1 1 auto;
-}
-
-.vc-plugins-grid .vc-addon-name {
-    min-height: 28px;
-}
-
-.vc-plugins-grid .vc-addon-title-container {
-    height: 1.4em;
-}
-
-.vc-plugins-grid .vc-addon-note {
-    /* note renders with inline line-height: 1.25em (AddonCard.tsx), so the clip
-       height must be a multiple of that, not the CSS line-height. overflow:hidden
-       is the real guard; -webkit-line-clamp only adds the ellipsis when it counts
-       correctly (it fails on nested markup). flex: 0 0 auto keeps it from pushing
-       the footer in the card's flex column. */
-    height: 2.5em;
-    flex: 0 0 auto;
-    overflow: hidden;
-    margin: 0 14px 12px;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    color: var(--text-muted);
-}
-
-.vc-plugins-grid .vc-addon-card:hover .vc-addon-note {
-    color: var(--text-default);
-}
-
-.vc-plugins-grid .vc-addon-footer {
-    margin-top: auto;
-    padding: 10px 14px;
-    border-top: 1px solid var(--border-subtle);
-    background-color: color-mix(in srgb, var(--background-base-low) 72%, transparent);
-}
-
 .vc-plugins-card-meta {
     display: flex;
     align-items: center;
@@ -430,10 +366,6 @@
 .vc-plugins-card-stability[data-badge="unstable"] {
     background-color: var(--status-danger-background, rgb(240 71 71 / 15%));
     color: var(--status-danger-text, #f04747);
-}
-
-.vc-plugins-grid .vc-addon-card-disabled {
-    opacity: 0.68;
 }
 
 .vc-plugins-stats-container {

@@ -163,7 +163,7 @@ export default definePlugin({
                                 onClick={() => !reviewData?.hasOptedOut && openReviewsModal(user.id, user.username, ReviewType.User)}
                             >
                                 <div className={classes(ProfileCardOverlayClasses.overlay, ProfileCardContainerClasses.innerContainer, ProfileCardClasses.card)}>
-                                    <Paragraph size={isSideBar ? "sm" : "xs"} weight="medium">User Reviews</Paragraph>
+                                    <Paragraph size={isSideBar ? "sm" : "xs"} weight="medium" defaultColor>User Reviews</Paragraph>
                                     {!!reviewData?.reviewCount
                                         ? (
                                             <div className={ProfileCardContainerClasses.icons}>
@@ -193,7 +193,7 @@ export default definePlugin({
                                                     })}
                                             </div>
                                         )
-                                        : <Paragraph size={isSideBar ? "sm" : "xs"}>{reviewData?.hasOptedOut ? "User opted out" : "No reviews yet"}</Paragraph>
+                                        : <Paragraph size={isSideBar ? "sm" : "xs"} defaultColor>{reviewData?.hasOptedOut ? "User opted out" : "No reviews yet"}</Paragraph>
                                     }
                                 </div>
                             </Clickable>

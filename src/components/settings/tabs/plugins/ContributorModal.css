@@ -63,3 +63,11 @@
     gap: 0.5em;
     margin-top: 0.75em;
 }
+
+.vc-author-modal-plugins .vc-addon-card {
+    background: var(--background-base-low);
+}
+
+.vc-author-modal-plugins .vc-addon-footer {
+    background: var(--background-base-lower);
+}

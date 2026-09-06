@@ -16,7 +16,7 @@ const alarm = "https://www.myinstants.com/media/sounds/tmp_7901-951678082.mp3";
 let audioElement: HTMLAudioElement | null = null;
 
 export default definePlugin({
-    name: "antiMod",
+    name: "AntiMod",
     description: "Tools to avoid mods",
     tags: ["Privacy", "Utility"],
     authors: [TestcordDevs.dot],

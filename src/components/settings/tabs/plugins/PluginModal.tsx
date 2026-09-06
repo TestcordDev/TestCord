@@ -213,7 +213,7 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
             size="lg"
             title={
                 <div className={cl("header")}>
-                    <BaseText tag="h1" weight="semibold" size="lg">{plugin.name}</BaseText>
+                    <BaseText tag="h1" weight="semibold" size="lg">{plugin.name.replace(/([a-z])([A-Z])/g, "$1 $2")}</BaseText>
                     {warning && (
                         <Tooltip text={warningTooltipText}>
                             {({ onMouseEnter, onMouseLeave }) => (

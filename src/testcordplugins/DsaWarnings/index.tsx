@@ -64,20 +64,6 @@ function getColorBrightness(color: number) {
     return (red * 299 + green * 587 + blue * 114) / 1000;
 }
 
-function hasLightProfileTheme(displayProfile: { themeColors?: number[] | null; accentColor?: number | null; } | undefined) {
-    const colors = displayProfile?.themeColors?.filter(color => Number.isFinite(color)) ?? [];
-    if (colors.length > 0) {
-        const average = colors.reduce((total, color) => total + getColorBrightness(color), 0) / colors.length;
-        return average >= 160;
-    }
-
-    if (displayProfile?.accentColor != null) {
-        return getColorBrightness(displayProfile.accentColor) >= 160;
-    }
-
-    return false;
-}
-
 function formatLabel(value: string) {
     return value
         .replace(/^STATEMENT_CATEGORY_/, "")
@@ -230,11 +216,9 @@ function ActionDetailRow({ label, value }: { label: string; value: string; }) {
 
 const DsaWarningsCollection = ErrorBoundary.wrap(function DsaWarningsCollection({
     user,
-    displayProfile,
     isSideBar = false
 }: {
     user: User;
-    displayProfile?: { themeColors?: number[] | null; accentColor?: number | null; };
     isSideBar?: boolean;
 }) {
     const [refreshKey, setRefreshKey] = useState(0);
@@ -247,7 +231,6 @@ const DsaWarningsCollection = ErrorBoundary.wrap(function DsaWarningsCollection(
     });
 
     const isExpanded = expandedUserId === user.id;
-    const isLightTheme = hasLightProfileTheme(displayProfile);
     const isReady = result?.kind === "ready";
     const isUnavailable = result?.kind === "unavailable";
     const isError = result?.kind === "error";
@@ -291,11 +274,11 @@ const DsaWarningsCollection = ErrorBoundary.wrap(function DsaWarningsCollection(
         <section className={classes(cl("section"))}>
             <div className={cl("header")}>
                 <div className={cl("header-main")}>
-                    <BaseText className={cl("title")} size="md" weight="bold" defaultColor={false}>Active DSA Warnings</BaseText>
-                    <BaseText className={cl("count")} size="xs" weight="semibold" defaultColor={false}>{subtitle}</BaseText>
+                    <BaseText className={cl("title")} size="md" weight="bold" defaultColor>Active DSA Warnings</BaseText>
+                    <BaseText className={cl("count")} size="xs" weight="semibold" defaultColor>{subtitle}</BaseText>
                 </div>
                 <Clickable className={cl("open")} onClick={() => VencordNative.native.openExternal(buildDsaBrowseUrl(user.id))} aria-label="Open DSA lookup">
-                    <BaseText tag="span" size="xs" weight="bold" defaultColor={false}>Open DSA Lookup</BaseText>
+                    <BaseText className={cl("open")} tag="span" size="xs" weight="bold" defaultColor>Open DSA Lookup</BaseText>
                 </Clickable>
             </div>
 

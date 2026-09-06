@@ -1096,7 +1096,7 @@ function buildFakeMessage(channelId: string, content: string, replyMessageRefere
 let unsub: (() => void) | null = null;
 
 export default definePlugin({
-    name: "fakeUserProfile",
+    name: "FakeUserProfile",
     description: "Click a user area button to visually spoof your client as another Discord user. Avatar, banner, badges, bio, pronouns, decorations, activities, and outgoing messages all appear as them locally.",
     tags: ["Customisation", "Privacy", "Fun"],
     authors: [TestcordDevs.x2b],

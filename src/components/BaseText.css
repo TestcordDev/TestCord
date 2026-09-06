@@ -28,5 +28,5 @@
 }
 
 .vc-text-defaultColor {
-    color: var(--text-default);
+    color: var(--text-default) !important;
 }

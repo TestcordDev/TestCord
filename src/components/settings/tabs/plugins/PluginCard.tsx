@@ -366,7 +366,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
 
     return (
         <AddonCard
-            name={plugin.name}
+            name={plugin.name.replace(/([a-z])([A-Z])/g, "$1 $2")}
             tooltip={tooltip}
             description={plugin.description}
             isNew={isNew}

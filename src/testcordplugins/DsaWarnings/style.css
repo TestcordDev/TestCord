@@ -18,13 +18,14 @@
     overflow: visible;
 }
 
-.vc-dsa-warnings-light {
+.theme-light .vc-dsa-warnings-section {
     --vc-dsa-warnings-title: color-mix(in srgb, black 82%, var(--primary-700, #1f2328));
     --vc-dsa-warnings-muted: color-mix(in srgb, black 62%, transparent);
     --vc-dsa-warnings-body: color-mix(in srgb, black 76%, transparent);
     --vc-dsa-warnings-link: color-mix(in srgb, black 82%, var(--primary-700, #1f2328));
     --vc-dsa-warnings-chip-user-bg: color-mix(in srgb, var(--brand-500) 18%, white);
     --vc-dsa-warnings-chip-user-fg: #20264a;
+    --white-500: black;
 }
 
 .vc-dsa-warnings-sidebar {
@@ -45,19 +46,6 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-}
-
-.vc-dsa-warnings-title {
-    color: var(--vc-dsa-warnings-title);
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.2;
-}
-
-.vc-dsa-warnings-count {
-    color: var(--vc-dsa-warnings-muted);
-    font-size: 12px;
-    font-weight: 600;
 }
 
 .vc-dsa-warnings-open {

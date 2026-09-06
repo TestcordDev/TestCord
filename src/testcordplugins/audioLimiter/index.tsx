@@ -469,7 +469,7 @@ function SettingsPanel() {
 }
 
 export default definePlugin({
-  name: "Audio Limiter",
+  name: "AudioLimiter",
   description:
     "Automatically limits output volume to avoid sounds that are too loud",
     tags: ["Voice", "Utility"],
