@@ -27,7 +27,6 @@ test("records codeChanged as sourceChanges separately from patchFailures in curr
     assert.equal(counts.patchFailures, 0, "patchFailures should remain 0 for codeChanged");
     assert.equal(counts.runtimeErrors, 0, "runtimeErrors should remain 0");
 
-    // Adding a real patch failure should bump patchFailures, not sourceChanges
     PluginHealth.recordPatchFailure(testPlugin, {
         kind: "noModule",
         find: "bar"
@@ -49,51 +48,43 @@ test("hasIssues and totalUnhealthyPlugins respect ignoreSourceHealth setting", a
         find: "somePattern"
     });
 
-    // Default or explicitly false
     await PluginHealth.setIgnoreSourceHealth(false);
     assert.equal(PluginHealth.isIgnoreSourceHealth(), false);
     assert.equal(PluginHealth.hasIssues(testPlugin), true, "Should have issues when source changes are not ignored");
 
-    // Enabled: ignore source changes for health
     await PluginHealth.setIgnoreSourceHealth(true);
     assert.equal(PluginHealth.isIgnoreSourceHealth(), true);
     assert.equal(PluginHealth.hasIssues(testPlugin), false, "Should NOT have issues when ignoreSourceHealth is true");
 
-    // But if a runtime error is also recorded, it should still have issues
     PluginHealth.recordRuntimeError(testPlugin, "start", new Error("Boom"));
     assert.equal(PluginHealth.hasIssues(testPlugin), true, "Runtime errors must still be counted as issues");
 
-    // Reset back
     await PluginHealth.setIgnoreSourceHealth(false);
     PluginHealth.clear(testPlugin);
 });
 
-test("computeStability respects ignoreSourceHistory setting", async () => {
+test("computeStability respects ignoreSourceHealth setting", async () => {
     const testPlugin = "TestPlugin_HistoryToggle";
     PluginHealth.clear(testPlugin);
 
-    // Register as enabled so sessionsSeen is tracked
     PluginHealth.registerEnabledPlugins([testPlugin]);
 
-    // Record codeChanged in the session
     PluginHealth.recordPatchFailure(testPlugin, {
         kind: "codeChanged",
         find: "baz"
     });
 
-    // With ignoreSourceHistory = false, the source change should count towards sessionsBroken
-    await PluginHealth.setIgnoreSourceHistory(false);
-    assert.equal(PluginHealth.isIgnoreSourceHistory(), false);
+    await PluginHealth.setIgnoreSourceHealth(false);
+    assert.equal(PluginHealth.isIgnoreSourceHealth(), false);
     const scoreWithSource = PluginHealth.getStability(testPlugin);
-    assert.equal(scoreWithSource.sessionsBroken, 1, "Session should be counted as broken when source changes are not ignored in history");
+    assert.equal(scoreWithSource.sessionsBroken, 1, "Session should be counted as broken when source changes are not ignored in health");
+    assert.equal(scoreWithSource.badge, "unstable", "Badge should be unstable when broken");
 
-    // With ignoreSourceHistory = true, the source change should NOT count towards sessionsBroken
-    await PluginHealth.setIgnoreSourceHistory(true);
-    assert.equal(PluginHealth.isIgnoreSourceHistory(), true);
+    await PluginHealth.setIgnoreSourceHealth(true);
+    assert.equal(PluginHealth.isIgnoreSourceHealth(), true);
     const scoreIgnored = PluginHealth.getStability(testPlugin);
-    assert.equal(scoreIgnored.sessionsBroken, 0, "Session should NOT be counted as broken when ignoreSourceHistory is true");
+    assert.equal(scoreIgnored.sessionsBroken, 0, "Session should NOT be counted as broken when ignoreSourceHealth is true");
 
-    // Reset back
-    await PluginHealth.setIgnoreSourceHistory(false);
+    await PluginHealth.setIgnoreSourceHealth(false);
     PluginHealth.clear(testPlugin);
 });

@@ -790,9 +790,10 @@ function HealthSummaryBar({ total, broken }: { total: number; broken: number; })
 function SessionRow({ session, isCurrent, ignoreSourceHistory }: { session: SessionRecord; isCurrent: boolean; ignoreSourceHistory: boolean; }) {
     const brokenNames = Object.entries(session.plugins || {})
         .filter(([, counts]) => {
+            if (!isCurrent && ignoreSourceHistory) return false;
             const hasPatch = counts.patchFailures > 0;
             const hasRuntime = counts.runtimeErrors > 0;
-            const hasSource = !ignoreSourceHistory && (counts.sourceChanges ?? 0) > 0;
+            const hasSource = (counts.sourceChanges ?? 0) > 0;
             return hasPatch || hasRuntime || hasSource;
         })
         .map(([name]) => name)
@@ -1369,7 +1370,7 @@ function HealthTab() {
         ));
         const rating = score >= 90 ? "healthy" : score >= 70 ? "fair" : score >= 40 ? "degraded" : "poor";
         return { score, rating, unstable, flaky, quarantined, crashesDay, unstablePlugins, flakyPlugins };
-    }, [tick, enabledSet, ignoreSourceHistory]);
+    }, [tick, enabledSet, ignoreSourceHealth, ignoreSourceHistory]);
 
     // Startup timeline from PluginManager's per-plugin start measurements.
     const startTimings = useMemo(() => {
@@ -1385,12 +1386,12 @@ function HealthTab() {
     // plugin set and newly-broken plugins against the most recent session
     // that recorded no failures.
     const sinceHealthy = useMemo(() => {
+        if (ignoreSourceHistory) return null;
         const past = PluginHealth.getHistory();
         const lastHealthy = [...past].reverse().find(s =>
-            !Object.values(s.plugins ?? {}).some(c => {
-                const source = !ignoreSourceHistory ? (c.sourceChanges ?? 0) : 0;
-                return (c.patchFailures + c.runtimeErrors + source) > 0;
-            })
+            !Object.values(s.plugins ?? {}).some(c =>
+                (c.patchFailures + c.runtimeErrors + (c.sourceChanges ?? 0)) > 0
+            )
         );
         if (!lastHealthy) return null;
         // Session records include required (always-on) plugins; the current
@@ -1679,9 +1680,9 @@ function HealthTab() {
                         <div className="vc-plugin-health-notice-settings-divider" />
                         <div className="vc-plugin-health-notice-settings-row">
                             <div>
-                                <HeadingSecondary>Ignore source changes in past history</HeadingSecondary>
+                                <HeadingSecondary>Ignore changes in past history</HeadingSecondary>
                                 <Paragraph color="text-subtle">
-                                    Do not count Discord module source code changes as broken sessions in past history or penalize plugin stability scores.
+                                    Do not count changes or errors from past sessions in history or penalize plugin stability scores.
                                 </Paragraph>
                             </div>
                             <label className="vc-plugin-health-toggle">

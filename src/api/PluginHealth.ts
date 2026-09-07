@@ -294,7 +294,7 @@ async function flushNow() {
     }
 }
 
-function computeStability(plugin: string, options?: { excludeSourceChanges?: boolean }): StabilityScore {
+function computeStability(plugin: string, options?: { excludeSourceChanges?: boolean; excludePastHistory?: boolean; }): StabilityScore {
     let sessionsSeen = 0;
     let sessionsBroken = 0;
 
@@ -312,7 +312,12 @@ function computeStability(plugin: string, options?: { excludeSourceChanges?: boo
         if (!seen) continue;
         sessionsSeen++;
         if (counts) {
-            const excludeSource = options?.excludeSourceChanges ?? ignoreSourceHistory;
+            const isPast = session.id !== currentSession.id;
+            const ignorePast = options?.excludePastHistory ?? (isPast && ignoreSourceHistory);
+            if (isPast && ignorePast) {
+                continue;
+            }
+            const excludeSource = options?.excludeSourceChanges ?? (isPast ? false : ignoreSourceHealth);
             const hasPatch = counts.patchFailures > 0;
             const hasRuntime = counts.runtimeErrors > 0;
             const hasSource = !excludeSource && (counts.sourceChanges ?? 0) > 0;
@@ -325,10 +330,8 @@ function computeStability(plugin: string, options?: { excludeSourceChanges?: boo
     const ratio = sessionsSeen === 0 ? NaN : sessionsBroken / sessionsSeen;
 
     let badge: StabilityBadge;
-    if (sessionsSeen < MIN_SESSIONS_FOR_BADGE) {
-        badge = "unknown";
-    } else if (sessionsBroken === 0) {
-        badge = "stable";
+    if (sessionsBroken === 0) {
+        badge = sessionsSeen < MIN_SESSIONS_FOR_BADGE ? "unknown" : "stable";
     } else if (ratio >= UNSTABLE_RATIO) {
         badge = "unstable";
     } else {
