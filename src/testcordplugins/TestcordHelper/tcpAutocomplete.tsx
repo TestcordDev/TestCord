@@ -129,14 +129,20 @@ let origFindMatching: ((...args: any[]) => any) | null = null;
 let hookedModule: any = null;
 let isInitialized = false;
 
-function filterPlugins(query: string, targetCategory?: "Testcord" | "Vencord" | "Equicord"): Plugin[] {
+function filterPlugins(query: string, targetCategory?: "Testcord" | "Vencord" | "Equicord" | "All"): Plugin[] {
     const all = Object.values(plugins).filter(p => {
         if (!p || !p.name || p.name.endsWith("API")) return false;
-        if (!targetCategory) return true;
         const folder = PluginMeta[p.name]?.folderName || "";
         if (targetCategory === "Testcord") return folder.startsWith("src/testcordplugins/");
         if (targetCategory === "Vencord") return folder.startsWith("src/plugins/");
         if (targetCategory === "Equicord") return folder.startsWith("src/equicordplugins/");
+        if (targetCategory === "All") {
+            return (
+                folder.startsWith("src/testcordplugins/") ||
+                folder.startsWith("src/equicordplugins/") ||
+                folder.startsWith("src/plugins/")
+            );
+        }
         return true;
     });
 
@@ -185,14 +191,14 @@ function hookModule(mod: any) {
     Object.defineProperty(mod, "findMatchingAutocompleteType", {
         value: function (args: any) {
             const currentWord = args?.currentWord;
-            const match = currentWord?.match(/^(?:(tcp|testcordplugin)|(vcp|vencordplugin)|(eqp|equicordplugin)):/i);
+            const match = currentWord?.match(/^(?:(tcp|testcordplugin)|(vcp|vencordplugin)|(eqp|equicordplugin)|(plugin|plugins)):/i);
             if (match) {
                 const rawPrefix = match[0];
-                const prefixKeyword = (match[1] || match[2] || match[3]).toLowerCase();
+                const prefixKeyword = (match[1] || match[2] || match[3] || match[4]).toLowerCase();
                 const prefix = `${prefixKeyword}:`;
                 const query = currentWord.slice(rawPrefix.length);
 
-                let category: "Testcord" | "Vencord" | "Equicord" = "Testcord";
+                let category: "Testcord" | "Vencord" | "Equicord" | "All" = "Testcord";
                 let title = "TESTCORD PLUGINS";
                 let type = "TESTCORD_PLUGINS";
 
@@ -204,6 +210,10 @@ function hookModule(mod: any) {
                     category = "Equicord";
                     title = "EQUICORD PLUGINS";
                     type = "EQUICORD_PLUGINS";
+                } else if (match[4]) {
+                    category = "All";
+                    title = "PLUGINS";
+                    type = "PLUGINS";
                 }
 
                 return {
@@ -262,7 +272,7 @@ function hookModule(mod: any) {
     });
 
     mod._tcpAutocompleteHooked = true;
-    logger.info("Hooked Discord native autocomplete for tcp:, vcp:, eqp:");
+    logger.info("Hooked Discord native autocomplete for tcp:, vcp:, eqp:, plugin:");
 }
 
 export function initTcpAutocomplete(): void {
@@ -290,6 +300,6 @@ export function cleanupTcpAutocomplete(): void {
         delete hookedModule._tcpAutocompleteHooked;
         origFindMatching = null;
         hookedModule = null;
-        logger.info("Unhooked Discord native autocomplete for tcp:, vcp:, eqp:");
+        logger.info("Unhooked Discord native autocomplete for tcp:, vcp:, eqp:, plugin:");
     }
 }

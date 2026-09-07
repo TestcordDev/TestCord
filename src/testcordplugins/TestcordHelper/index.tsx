@@ -454,10 +454,10 @@ const RenderEmbeds = getUserSettingLazy<boolean>("textAndImages", "renderEmbeds"
 const MESSAGE_LIMIT = 1900;
 const MB = 1024 * 1024;
 
-const PLUGIN_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp):([^\s,;\n]+)/gi;
-const PLUGIN_MATCH_PATTERN = /(testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp):([^\s,;\n]+)/i;
+const PLUGIN_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?):([^\s,;\n]+)/gi;
+const PLUGIN_MATCH_PATTERN = /(testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?):([^\s,;\n]+)/i;
 const PLUGIN_LINK_PATTERN = /\[([^\]]+)]\(<?https:\/\/github\.com\/TestcordDev\/Testcord\/tree\/main\/src\/(?:plugins|equicordplugins|testcordplugins)\/[^>)]+>?\)/gi;
-const PLUGIN_CARD_MARKER_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp):|github\.com\/TestcordDev\/Testcord\/tree\/main\/src\/(?:plugins|equicordplugins|testcordplugins)\//i;
+const PLUGIN_CARD_MARKER_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?):|github\.com\/TestcordDev\/Testcord\/tree\/main\/src\/(?:plugins|equicordplugins|testcordplugins)\//i;
 const PLUGIN_RESOLVE_CACHE_LIMIT = 500;
 const pluginResolveCache = new Map<string, string | null>();
 const USER_PATTERN = /dcp:([^\s,;\n]+)/gi;
@@ -531,7 +531,7 @@ function getMemoryUsage(): string {
 const settings = definePluginSettings({
     tcpAutocomplete: {
         type: OptionType.BOOLEAN,
-        description: "Show an extend-up autocomplete panel when typing tcp:, vcp:, or eqp: in chat to reference plugins",
+        description: "Show an extend-up autocomplete panel when typing tcp:, vcp:, eqp:, or plugin: in chat to reference plugins",
         default: true,
         onChange: (val: boolean) => {
             if (val) {
@@ -954,12 +954,13 @@ function ChatPluginCard({ pluginName, description }: { pluginName: string; descr
     );
 }
 
-function getCategoryFolder(prefix?: string): string | undefined {
+function getCategoryFolders(prefix?: string): string[] | undefined {
     if (!prefix) return undefined;
     const lower = prefix.toLowerCase();
-    if (lower === "tcp" || lower === "testcordplugin") return "src/testcordplugins/";
-    if (lower === "vcp" || lower === "vencordplugin") return "src/plugins/";
-    if (lower === "eqp" || lower === "equicordplugin") return "src/equicordplugins/";
+    if (lower === "tcp" || lower === "testcordplugin") return ["src/testcordplugins/"];
+    if (lower === "vcp" || lower === "vencordplugin") return ["src/plugins/"];
+    if (lower === "eqp" || lower === "equicordplugin") return ["src/equicordplugins/"];
+    if (lower === "plugin" || lower === "plugins") return ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"];
     return undefined;
 }
 
@@ -982,7 +983,7 @@ function resolvePluginName(search: string, prefix?: string) {
 }
 
 function resolvePluginNameOriginal(search: string, prefix?: string) {
-    const categoryFolder = getCategoryFolder(prefix);
+    const categoryFolders = getCategoryFolders(prefix);
     const allNames = Object.keys(plugins);
     const words = search.trim().replace(/[.!?)]*$/, "").split(/\s+/);
 
@@ -1002,8 +1003,11 @@ function resolvePluginNameOriginal(search: string, prefix?: string) {
         }
     };
 
-    if (categoryFolder) {
-        const categoryNames = allNames.filter(name => PluginMeta[name]?.folderName?.startsWith(categoryFolder));
+    if (categoryFolders) {
+        const categoryNames = allNames.filter(name => {
+            const folder = PluginMeta[name]?.folderName;
+            return folder && categoryFolders.some(f => folder.startsWith(f));
+        });
         const matched = findInNames(categoryNames);
         if (matched) return matched;
     }
@@ -1012,7 +1016,7 @@ function resolvePluginNameOriginal(search: string, prefix?: string) {
 }
 
 function resolvePluginNameCached(search: string, prefix?: string) {
-    const categoryFolder = getCategoryFolder(prefix);
+    const categoryFolders = getCategoryFolders(prefix);
     const allData = getPluginSearchData();
     const words = search.trim().replace(/[.!?)]*$/, "").split(/\s+/);
 
@@ -1032,8 +1036,11 @@ function resolvePluginNameCached(search: string, prefix?: string) {
         }
     };
 
-    if (categoryFolder) {
-        const categoryData = allData.filter(p => p.folderName?.startsWith(categoryFolder));
+    if (categoryFolders) {
+        const categoryData = allData.filter(p => {
+            const folder = p.folderName;
+            return folder ? categoryFolders.some(f => folder.startsWith(f)) : false;
+        });
         const matched = findInData(categoryData);
         if (matched) return matched;
     }

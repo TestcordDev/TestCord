@@ -55,13 +55,15 @@ import { UIElementsButton } from "./UIElements";
 export const cl = classNameFactory("vc-plugins-");
 export const logger = new Logger("PluginSettings", "#a6d189");
 
-const PluginSearchPrefixes = [
-    { prefix: "tcp:", folder: "src/testcordplugins/" },
-    { prefix: "testcordplugin:", folder: "src/testcordplugins/" },
-    { prefix: "vcp:", folder: "src/plugins/" },
-    { prefix: "vencordplugin:", folder: "src/plugins/" },
-    { prefix: "eqp:", folder: "src/equicordplugins/" },
-    { prefix: "equicordplugin:", folder: "src/equicordplugins/" }
+const PluginSearchPrefixes: Array<{ prefix: string; folders: string[]; }> = [
+    { prefix: "tcp:", folders: ["src/testcordplugins/"] },
+    { prefix: "testcordplugin:", folders: ["src/testcordplugins/"] },
+    { prefix: "vcp:", folders: ["src/plugins/"] },
+    { prefix: "vencordplugin:", folders: ["src/plugins/"] },
+    { prefix: "eqp:", folders: ["src/equicordplugins/"] },
+    { prefix: "equicordplugin:", folders: ["src/equicordplugins/"] },
+    { prefix: "plugin:", folders: ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"] },
+    { prefix: "plugins:", folders: ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"] }
 ];
 const PluginLoadBatchSize = 36;
 
@@ -263,7 +265,7 @@ function PluginSettings() {
         for (const entry of PluginSearchPrefixes) {
             if (trimmedSearch.startsWith(entry.prefix)) {
                 return {
-                    folder: entry.folder,
+                    folders: entry.folders,
                     query: trimmedSearch.slice(entry.prefix.length).trim()
                 };
             }
@@ -352,7 +354,7 @@ function PluginSettings() {
 
         if (searchPrefixMatch) {
             const folder = PluginMeta[plugin.name]?.folderName || "";
-            if (!folder.startsWith(searchPrefixMatch.folder)) return false;
+            if (!searchPrefixMatch.folders.some(f => folder.startsWith(f))) return false;
         }
 
         const pluginSearchValue = searchPrefixMatch ? searchPrefixMatch.query : search;
