@@ -6,14 +6,15 @@
 
 import * as DataStore from "@api/DataStore";
 import { BaseText } from "@components/BaseText";
+import { Button } from "@components/Button";
 import { Flex } from "@components/Flex";
 import { providers } from "@testcordplugins/PanelLayout/modules/musicControls/spotify/lyrics/api";
 import { lyricsAlternative } from "@testcordplugins/PanelLayout/modules/musicControls/spotify/lyrics/providers/store";
 import { copyWithToast } from "@utils/discord";
-import { ModalFooter, openModal, RenderModalProps } from "@utils/modal";
 import { makeRange } from "@utils/types";
+import type { RenderModalProps } from "@vencord/discord-types";
 import { findComponentByCodeLazy } from "@webpack";
-import { Button, FluxDispatcher, Menu, Modal, React, Slider } from "@webpack/common";
+import { FluxDispatcher, Menu, Modal, openModalLazy, React, Slider } from "@webpack/common";
 
 import { useLyrics } from "./util";
 
@@ -22,7 +23,6 @@ const PlusIcon = findComponentByCodeLazy("3a1 1 0 1 0-2 0v8H3");
 const customSongDelays: Record<string, number> = {};
 const DATASTORE_KEY = "vc-spotify-custom-song-delays";
 
-// Load saved data immediately
 DataStore.get<Record<string, number>>(DATASTORE_KEY).then(saved => {
     if (saved) {
         Object.assign(customSongDelays, saved);
@@ -48,7 +48,22 @@ function CustomDelayModal({ modalProps, trackKey, trackName }: { modalProps: Ren
 
     return (
         <div className="customLyricsModal">
-            <Modal {...modalProps} size="sm" title={<BaseText size="lg" weight="semibold">Custom Lyric Delay</BaseText>}>
+            <Modal
+                {...modalProps}
+                size="sm"
+                title={<BaseText size="lg" weight="semibold">Custom Lyric Delay</BaseText>}
+                actionBarInput={
+                    <div style={{ display: "flex", justifyContent: "flex-end", width: "100%" }}>
+                        <Button
+                            variant="secondary"
+                            style={{ backgroundColor: "#174b71", color: "#fff" }}
+                            onClick={() => modalProps.onClose()}
+                        >
+                            Done
+                        </Button>
+                    </div>
+                }
+            >
                 <Flex flexDirection="column" style={{ padding: "8px 0" }}>
                     <BaseText size="md">Delay for {trackName}: {delay}ms</BaseText>
                     <Slider
@@ -60,14 +75,6 @@ function CustomDelayModal({ modalProps, trackKey, trackName }: { modalProps: Ren
                         onValueChange={handleDelayChange}
                     />
                 </Flex>
-                <ModalFooter gap={12}>
-                    <Button
-                        color={Button.Colors.BRAND}
-                        onClick={() => modalProps.onClose()}
-                    >
-                        Done
-                    </Button>
-                </ModalFooter>
             </Modal>
         </div>
     );
@@ -105,7 +112,7 @@ export function LyricsContextMenu() {
                 disabled={!trackKey}
                 action={() => {
                     if (!trackKey || !trackName) return;
-                    openModal(modalProps => <CustomDelayModal modalProps={modalProps} trackKey={trackKey} trackName={trackName} />);
+                    openModalLazy(async () => modalProps => <CustomDelayModal modalProps={modalProps} trackKey={trackKey} trackName={trackName} />);
                 }}
                 icon={PlusIcon}
             />
@@ -125,7 +132,6 @@ export function LyricsContextMenu() {
                         disabled={lyricsAlternative.includes(provider) && !hasLyrics}
                         action={() => {
                             FluxDispatcher.dispatch({
-                                // @ts-ignore
                                 type: "SPOTIFY_LYRICS_PROVIDER_CHANGE",
                                 provider: provider,
                             });

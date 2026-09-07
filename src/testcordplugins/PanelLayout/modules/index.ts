@@ -11,6 +11,7 @@ export { devBannerModule, devBannerPatches, DevBannerSettingsModal, DevBannerWid
 export * from "./marketplace/CustomModuleModal";
 export * from "./marketplace/MarketplaceTab";
 export * from "./marketplace/ModulesTab";
+export * from "./marketplace/UserAreaReorderTab";
 export {
     MusicControlsComponent,
     musicControlsModule,

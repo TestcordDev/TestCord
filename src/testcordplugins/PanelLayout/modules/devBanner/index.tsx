@@ -8,7 +8,7 @@ import "./styles.css";
 
 import { Button } from "@components/Button";
 import { Devs, EquicordDevs, TestcordDevs } from "@utils/constants";
-import { RenderModalProps } from "@utils/modal";
+import type { RenderModalProps } from "@vencord/discord-types";
 import { Modal, React } from "@webpack/common";
 
 import { isModuleEnabled } from "../state";
@@ -46,7 +46,11 @@ export function DevBannerSettingsModal({ modalProps, onClose }: { modalProps?: R
                     }}
                 />
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
-                    <Button variant="primary" onClick={handleClose}>
+                    <Button
+                        variant="secondary"
+                        style={{ backgroundColor: "#174b71", color: "#fff" }}
+                        onClick={handleClose}
+                    >
                         Done
                     </Button>
                 </div>

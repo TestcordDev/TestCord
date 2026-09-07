@@ -15,7 +15,6 @@ import { React, TextInput, useMemo, useState } from "@webpack/common";
 import { MARKETPLACE_CATALOG } from "../builtin";
 import { getModuleIcon, SectionHeading } from "../icons";
 import { registerModule, setModuleEnabled, useModules } from "../registry";
-import { openCustomModuleModal } from "./CustomModuleModal";
 
 const CATEGORIES = [
     { id: "all", label: "All Modules" },
@@ -58,16 +57,7 @@ export function MarketplaceTab() {
 
     return (
         <Flex flexDirection="column" gap={16}>
-            <Flex justifyContent="space-between" alignItems="center">
-                <SectionHeading>Module Marketplace</SectionHeading>
-                <Button
-                    size="small"
-                    variant="primary"
-                    onClick={() => openCustomModuleModal()}
-                >
-                    Add Custom Module
-                </Button>
-            </Flex>
+            <SectionHeading>Module Marketplace</SectionHeading>
 
             <TextInput
                 value={searchQuery}
@@ -105,8 +95,8 @@ export function MarketplaceTab() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "12px" }}>
                 {filteredCatalog.map(item => {
-                    const isInstalled = installedMap.has(item.id);
-                    const isEnabled = installedMap.get(item.id) ?? false;
+                    const isInstalled = installedMap.get(item.id) ?? false;
+                    const isEnabled = isInstalled;
 
                     const authorNames = Array.isArray(item.authors)
                         ? item.authors.map(a => (typeof a === "string" ? a : a.name)).join(", ")
@@ -124,8 +114,8 @@ export function MarketplaceTab() {
                             }}
                         >
                             <div>
-                                <Flex justifyContent="space-between" alignItems="flex-start" style={{ marginBottom: "8px" }}>
-                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "8px", width: "100%" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
                                         <div
                                             style={{
                                                 display: "flex",
@@ -141,11 +131,11 @@ export function MarketplaceTab() {
                                         >
                                             {getModuleIcon(item.id, 18)}
                                         </div>
-                                        <div>
-                                            <BaseText size="md" weight="medium" color="text-strong">
+                                        <div style={{ minWidth: 0, flex: 1 }}>
+                                            <BaseText size="md" weight="medium" color="text-strong" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                                 {item.name}
                                             </BaseText>
-                                            <BaseText size="xs" color="text-muted">
+                                            <BaseText size="xs" color="text-muted" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                                 by {authorNames}
                                             </BaseText>
                                         </div>
@@ -155,16 +145,22 @@ export function MarketplaceTab() {
                                             style={{
                                                 fontSize: "11px",
                                                 fontWeight: 600,
-                                                color: isEnabled ? "var(--status-positive, #23a55a)" : "var(--text-muted)",
-                                                backgroundColor: isEnabled ? "rgba(35, 165, 90, 0.15)" : "var(--background-tertiary)",
-                                                padding: "2px 6px",
+                                                color: "var(--status-positive, #23a55a)",
+                                                backgroundColor: "rgba(35, 165, 90, 0.15)",
+                                                border: "1px solid rgba(35, 165, 90, 0.3)",
+                                                padding: "2px 8px",
                                                 borderRadius: "4px",
+                                                whiteSpace: "nowrap",
+                                                flexShrink: 0,
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                lineHeight: "16px",
                                             }}
                                         >
-                                            {isEnabled ? "Active" : "Disabled"}
+                                            Installed
                                         </span>
                                     )}
-                                </Flex>
+                                </div>
 
                                 <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", lineHeight: "1.4", margin: "8px 0" }}>
                                     {item.description}
@@ -190,17 +186,14 @@ export function MarketplaceTab() {
 
                             <Flex justifyContent="space-between" alignItems="center" style={{ borderTop: "1px solid var(--background-modifier-accent)", paddingTop: "10px" }}>
                                 {isInstalled ? (
-                                    <Flex alignItems="center" gap={8} style={{ width: "100%", justifyContent: "space-between" }}>
-                                        <BaseText size="xs" color="text-muted">
-                                            {isEnabled ? "Enabled in user area" : "Disabled"}
-                                        </BaseText>
-                                        <FormSwitch
-                                            title=""
-                                            value={isEnabled}
-                                            onChange={v => setModuleEnabled(item.id, v)}
-                                            hideBorder
-                                        />
-                                    </Flex>
+                                    <Button
+                                        size="small"
+                                        variant="secondary"
+                                        style={{ width: "100%" }}
+                                        onClick={() => void setModuleEnabled(item.id, false)}
+                                    >
+                                        Uninstall
+                                    </Button>
                                 ) : (
                                     <Button
                                         size="small"
@@ -209,9 +202,10 @@ export function MarketplaceTab() {
                                         onClick={() => {
                                             const mod = item.factory();
                                             registerModule({ ...mod, enabled: true });
+                                            void setModuleEnabled(item.id, true);
                                         }}
                                     >
-                                        Enable Module
+                                        Install Module
                                     </Button>
                                 )}
                             </Flex>

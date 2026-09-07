@@ -5,11 +5,13 @@
  */
 
 import * as DataStore from "@api/DataStore";
+import { PlainSettings, SettingsStore } from "@api/Settings";
 import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import ErrorBoundary from "@components/ErrorBoundary";
-import { React, useEffect, UserStore,useState } from "@webpack/common";
+import { Flex } from "@components/Flex";
+import { React, useEffect, UserStore, useState } from "@webpack/common";
 
 import { getBuiltinModules } from "./builtin";
 import {
@@ -21,7 +23,13 @@ import {
     subscribeModules,
     useModules,
 } from "./state";
-import type { CustomModuleData, ModulePosition, StoredModuleState, UserAreaModule } from "./types";
+import type {
+    CustomModuleData,
+    ModulePosition,
+    StoredModuleState,
+    UserAreaModule,
+    UserAreaReorderItem,
+} from "./types";
 
 export {
     getModulesByPosition,
@@ -35,15 +43,195 @@ export {
 
 const MODULE_STATES_KEY = "panel-layout-module-states";
 const CUSTOM_MODULES_KEY = "panel-layout-custom-modules";
+const USER_AREA_ORDER_KEY = "panel-layout-user-area-order";
 
 const notify = notifyModulesChanged;
 let initialized = false;
+
+export function getPanelLayoutPlainSettings(): any {
+    (PlainSettings.plugins as any).PanelLayout ??= {};
+    return (PlainSettings.plugins as any).PanelLayout;
+}
+
+export const DEFAULT_USER_AREA_ORDER: UserAreaReorderItem[] = [
+    {
+        id: "music-controls",
+        type: "module",
+        name: "Music Controls",
+        description: "Control Spotify & Tidal playback in the user area",
+        order: 0,
+        enabled: true,
+        moduleId: "music-controls",
+        hasSettings: true,
+    },
+    {
+        id: "activity-banner",
+        type: "module",
+        name: "Activity Banner",
+        description: "Displays rich presence details and activity cards",
+        order: 1,
+        enabled: true,
+        moduleId: "activity-banner",
+    },
+    {
+        id: "dev-banner",
+        type: "module",
+        name: "Developer Banner",
+        description: "Discord & Testcord client information banner",
+        order: 2,
+        enabled: true,
+        moduleId: "dev-banner",
+        hasSettings: true,
+    },
+    {
+        id: "voice-connected",
+        type: "voice-connected",
+        name: "Voice Connected Area",
+        description: "Discord native voice connection status and call controls",
+        order: 3,
+        enabled: true,
+        hasSettings: true,
+    },
+    {
+        id: "native-activity-banner",
+        type: "native-activity-banner",
+        name: "Discord Native Activity",
+        description: "Discord native game / stream banner",
+        order: 4,
+        enabled: true,
+    },
+    {
+        id: "account-panel",
+        type: "account-panel",
+        name: "User Account & Buttons",
+        description: "Avatar, username, mute, deafen, settings and panel buttons",
+        order: 5,
+        enabled: true,
+        hasSettings: true,
+    },
+    {
+        id: "clock-widget",
+        type: "module",
+        name: "Digital Clock & Date",
+        description: "Digital clock and calendar widget",
+        order: 6,
+        enabled: false,
+        moduleId: "clock-widget",
+    },
+    {
+        id: "system-monitor",
+        type: "module",
+        name: "System & Ping Monitor",
+        description: "Live Discord gateway ping and memory monitor",
+        order: 7,
+        enabled: false,
+        moduleId: "system-monitor",
+    },
+];
+
+let currentUserAreaOrder: UserAreaReorderItem[] = [...DEFAULT_USER_AREA_ORDER];
+
+export function getUserAreaOrder(): UserAreaReorderItem[] {
+    const existingIds = new Set(currentUserAreaOrder.map(i => i.id));
+    const modules = getSortedModules();
+    let maxOrder = currentUserAreaOrder.reduce((acc, curr) => Math.max(acc, curr.order), 0);
+
+    let changed = false;
+    for (const mod of modules) {
+        if (!existingIds.has(mod.id)) {
+            maxOrder++;
+            currentUserAreaOrder.push({
+                id: mod.id,
+                type: "module",
+                name: mod.name,
+                description: mod.description,
+                order: maxOrder,
+                enabled: mod.enabled,
+                moduleId: mod.id,
+                hasSettings: !!mod.settingsComponent,
+            });
+            changed = true;
+        }
+    }
+
+    if (changed) {
+        saveUserAreaOrderToStorage(currentUserAreaOrder);
+    }
+
+    return [...currentUserAreaOrder].sort((a, b) => a.order - b.order);
+}
+
+function saveUserAreaOrderToStorage(items: UserAreaReorderItem[]): void {
+    currentUserAreaOrder = items;
+    const plain = getPanelLayoutPlainSettings();
+    plain.userAreaOrder = items;
+    SettingsStore.markAsChanged();
+    void DataStore.set(USER_AREA_ORDER_KEY, items);
+}
+
+export async function setUserAreaOrder(items: UserAreaReorderItem[]): Promise<void> {
+    saveUserAreaOrderToStorage(items);
+
+    for (const item of items) {
+        if (item.type === "module" && item.moduleId) {
+            const mod = registeredModules.get(item.moduleId);
+            if (mod) {
+                mod.order = item.order;
+                if (mod.enabled !== item.enabled) {
+                    mod.enabled = item.enabled;
+                    try {
+                        if (item.enabled) void mod.onEnable?.();
+                        else mod.onDisable?.();
+                    } catch (e) {
+                        console.error(`[PanelLayout] Error syncing module ${mod.id}:`, e);
+                    }
+                }
+            }
+        }
+    }
+
+    await persistModuleStates();
+    notify();
+}
+
+export async function setUserAreaItemEnabled(id: string, enabled: boolean): Promise<void> {
+    const items = getUserAreaOrder();
+    const target = items.find(i => i.id === id);
+    if (!target) return;
+    target.enabled = enabled;
+
+    if (target.type === "module" && target.moduleId) {
+        await setModuleEnabled(target.moduleId, enabled);
+    } else {
+        await setUserAreaOrder(items);
+    }
+}
 
 export async function initModuleManager(): Promise<void> {
     if (initialized) return;
     initialized = true;
 
-    const savedStates = (await DataStore.get<Record<string, StoredModuleState>>(MODULE_STATES_KEY)) ?? {};
+    const plain = getPanelLayoutPlainSettings();
+    const synchronousSavedStates = plain.moduleStates as Record<string, StoredModuleState> | undefined;
+    const synchronousCustomList = plain.customModules as CustomModuleData[] | undefined;
+    if (Array.isArray(plain.userAreaOrder) && plain.userAreaOrder.length > 0) {
+        currentUserAreaOrder = plain.userAreaOrder;
+    }
+
+    const [asyncSavedStates, asyncCustomList, asyncUserAreaOrder] = await Promise.all([
+        DataStore.get<Record<string, StoredModuleState>>(MODULE_STATES_KEY),
+        DataStore.get<CustomModuleData[]>(CUSTOM_MODULES_KEY),
+        DataStore.get<UserAreaReorderItem[]>(USER_AREA_ORDER_KEY),
+    ]);
+
+    const savedStates: Record<string, StoredModuleState> = {
+        ...(asyncSavedStates ?? {}),
+        ...(synchronousSavedStates ?? {}),
+    };
+
+    if (asyncUserAreaOrder && !plain.userAreaOrder) {
+        currentUserAreaOrder = asyncUserAreaOrder;
+    }
 
     const builtinList = getBuiltinModules();
     builtinList.forEach((mod, idx) => {
@@ -66,7 +254,7 @@ export async function initModuleManager(): Promise<void> {
         }
     });
 
-    const customList = (await DataStore.get<CustomModuleData[]>(CUSTOM_MODULES_KEY)) ?? [];
+    const customList = synchronousCustomList ?? asyncCustomList ?? [];
     for (const data of customList) {
         if (!data.id) continue;
         const saved = savedStates[data.id];
@@ -80,6 +268,11 @@ export async function initModuleManager(): Promise<void> {
             }
         }
     }
+
+    plain.moduleStates = savedStates;
+    plain.customModules = customList;
+    plain.userAreaOrder = currentUserAreaOrder;
+    SettingsStore.markAsChanged();
 
     notify();
 }
@@ -97,7 +290,7 @@ export function stopModuleManager(): void {
     initialized = false;
 }
 
-async function persistModuleStates(): Promise<void> {
+export async function persistModuleStates(): Promise<void> {
     const states: Record<string, StoredModuleState> = {};
     for (const [id, mod] of registeredModules.entries()) {
         states[id] = {
@@ -106,6 +299,10 @@ async function persistModuleStates(): Promise<void> {
             position: mod.position,
         };
     }
+    const plain = getPanelLayoutPlainSettings();
+    plain.moduleStates = states;
+    SettingsStore.markAsChanged();
+
     await DataStore.set(MODULE_STATES_KEY, states);
 }
 
@@ -125,6 +322,13 @@ export async function setModuleEnabled(id: string, enabled: boolean): Promise<vo
         console.error(`[PanelLayout] Error toggling module ${id} lifecycle:`, e);
     }
 
+    const orderItems = getUserAreaOrder();
+    const item = orderItems.find(i => i.id === id || i.moduleId === id);
+    if (item) {
+        item.enabled = enabled;
+        saveUserAreaOrderToStorage(orderItems);
+    }
+
     await persistModuleStates();
     notify();
 }
@@ -142,7 +346,7 @@ export async function moveModule(id: string, direction: "up" | "down"): Promise<
     if (!mod) return;
 
     const pos = mod.position ?? "above";
-    const samePositionModules = getSortedModules().filter(m => (m.position ?? "above") === pos);
+    const samePositionModules = getSortedModules().filter(m => (m.position ?? "above") === pos && m.enabled);
     const index = samePositionModules.findIndex(m => m.id === id);
     if (index === -1) return;
 
@@ -173,7 +377,7 @@ export async function reorderModules(orderedIds: string[]): Promise<void> {
     notify();
 }
 
-export function registerModule(module: Omit<UserAreaModule, "order" | "enabled"> & { order?: number; enabled?: boolean }): void {
+export function registerModule(module: Omit<UserAreaModule, "order" | "enabled"> & { order?: number; enabled?: boolean; }): void {
     const existing = registeredModules.get(module.id);
     const order = module.order ?? existing?.order ?? registeredModules.size;
     const enabled = module.enabled ?? existing?.enabled ?? true;
@@ -195,6 +399,7 @@ export function registerModule(module: Omit<UserAreaModule, "order" | "enabled">
         }
     }
 
+    void persistModuleStates();
     notify();
 }
 
@@ -209,6 +414,7 @@ export function unregisterModule(id: string): void {
             }
         }
         registeredModules.delete(id);
+        void persistModuleStates();
         notify();
     }
 }
@@ -250,7 +456,7 @@ function createCustomModule(data: CustomModuleData, savedState?: StoredModuleSta
     };
 }
 
-function CustomModuleComponent({ data }: { data: CustomModuleData }) {
+function CustomModuleComponent({ data }: { data: CustomModuleData; }) {
     const [renderedContent, setRenderedContent] = useState<React.ReactNode>(null);
 
     useEffect(() => {
@@ -261,7 +467,7 @@ function CustomModuleComponent({ data }: { data: CustomModuleData }) {
             const timeStr = now.toLocaleTimeString();
             const dateStr = now.toLocaleDateString();
 
-            const parsed = data.customCode
+            const parsed = (data.customCode || "")
                 .replace(/{username}/g, username)
                 .replace(/{time}/g, timeStr)
                 .replace(/{date}/g, dateStr);
@@ -312,8 +518,12 @@ export async function installCustomModule(input: CustomModuleData): Promise<User
     const id = input.id || `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const customData: CustomModuleData = { ...input, id };
 
-    const customList = (await DataStore.get<CustomModuleData[]>(CUSTOM_MODULES_KEY)) ?? [];
+    const customList = await getCustomModulesData();
     customList.push(customData);
+
+    const plain = getPanelLayoutPlainSettings();
+    plain.customModules = customList;
+    SettingsStore.markAsChanged();
     await DataStore.set(CUSTOM_MODULES_KEY, customList);
 
     const mod = createCustomModule(customData);
@@ -325,14 +535,18 @@ export async function installCustomModule(input: CustomModuleData): Promise<User
 }
 
 export async function updateCustomModule(id: string, input: Partial<CustomModuleData>): Promise<UserAreaModule | null> {
-    const customList = (await DataStore.get<CustomModuleData[]>(CUSTOM_MODULES_KEY)) ?? [];
+    const customList = await getCustomModulesData();
     const index = customList.findIndex(m => m.id === id);
     if (index === -1) return null;
 
     customList[index] = { ...customList[index], ...input };
+
+    const plain = getPanelLayoutPlainSettings();
+    plain.customModules = customList;
+    SettingsStore.markAsChanged();
     await DataStore.set(CUSTOM_MODULES_KEY, customList);
 
-    const savedStates = (await DataStore.get<Record<string, StoredModuleState>>(MODULE_STATES_KEY)) ?? {};
+    const savedStates = plain.moduleStates ?? (await DataStore.get<Record<string, StoredModuleState>>(MODULE_STATES_KEY)) ?? {};
     const mod = createCustomModule(customList[index], savedStates[id]);
     registeredModules.set(id, mod);
     await persistModuleStates();
@@ -342,8 +556,14 @@ export async function updateCustomModule(id: string, input: Partial<CustomModule
 }
 
 export async function uninstallCustomModule(id: string): Promise<void> {
-    const customList = (await DataStore.get<CustomModuleData[]>(CUSTOM_MODULES_KEY)) ?? [];
+    const customList = await getCustomModulesData();
     const updated = customList.filter(m => m.id !== id);
+
+    const plain = getPanelLayoutPlainSettings();
+    plain.customModules = updated;
+    if (plain.moduleStates) delete plain.moduleStates[id];
+    SettingsStore.markAsChanged();
+
     await DataStore.set(CUSTOM_MODULES_KEY, updated);
 
     const states = (await DataStore.get<Record<string, StoredModuleState>>(MODULE_STATES_KEY)) ?? {};
@@ -355,5 +575,7 @@ export async function uninstallCustomModule(id: string): Promise<void> {
 }
 
 export async function getCustomModulesData(): Promise<CustomModuleData[]> {
+    const plain = getPanelLayoutPlainSettings();
+    if (Array.isArray(plain.customModules)) return plain.customModules;
     return (await DataStore.get<CustomModuleData[]>(CUSTOM_MODULES_KEY)) ?? [];
 }

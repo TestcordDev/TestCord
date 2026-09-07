@@ -9,7 +9,7 @@ import { TooltipContainer } from "@components/TooltipContainer";
 import { settings } from "@testcordplugins/PanelLayout/modules/musicControls/settings";
 import { SpotifyLrcStore } from "@testcordplugins/PanelLayout/modules/musicControls/spotify/lyrics/providers/store";
 import { SpotifyStore } from "@testcordplugins/PanelLayout/modules/musicControls/spotify/SpotifyStore";
-import { ContextMenuApi, openModal,React, useEffect, useState, useStateFromStores } from "@webpack/common";
+import { ContextMenuApi, openModalLazy, React, useEffect, useState, useStateFromStores } from "@webpack/common";
 
 import { LyricsContextMenu } from "./ctxMenu";
 import { LyricsModal } from "./modal";
@@ -38,7 +38,7 @@ function LyricsDisplay({ scroll = true, style }: { scroll?: boolean; style?: Rea
         <div
             className="vc-spotify-lyrics"
             style={style}
-            onClick={() => openModal(props => <LyricsModal props={props} />)}
+            onClick={() => openModalLazy(async () => props => <LyricsModal props={props} />)}
             onContextMenu={e => ContextMenuApi.openContextMenu(e, () => <LyricsContextMenu />)}
         >
             <div className="vc-spotify-lyrics-inner">

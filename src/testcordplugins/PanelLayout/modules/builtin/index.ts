@@ -11,8 +11,6 @@ import { devBannerModule } from "../devBanner";
 import { musicControlsModule } from "../musicControls";
 import type { MarketplaceCatalogItem, UserAreaModule } from "../types";
 import { clockModule } from "./clockWidget";
-import { quickNotesModule } from "./quickNotes";
-import { quotesModule } from "./quotesWidget";
 import { systemMonitorModule } from "./systemMonitor";
 
 export function getBuiltinModules(): Array<Omit<UserAreaModule, "order" | "enabled">> {
@@ -22,8 +20,6 @@ export function getBuiltinModules(): Array<Omit<UserAreaModule, "order" | "enabl
         devBannerModule,
         clockModule,
         systemMonitorModule,
-        quickNotesModule,
-        quotesModule,
     ];
 }
 
@@ -33,8 +29,6 @@ export const BUILTIN_MODULES: Array<Omit<UserAreaModule, "order" | "enabled">> =
     devBannerModule,
     clockModule,
     systemMonitorModule,
-    quickNotesModule,
-    quotesModule,
 ];
 
 export const MARKETPLACE_CATALOG: MarketplaceCatalogItem[] = [
@@ -93,28 +87,6 @@ export const MARKETPLACE_CATALOG: MarketplaceCatalogItem[] = [
         isBuiltin: true,
         factory: () => systemMonitorModule,
     },
-    {
-        id: "quick-notes",
-        name: "Quick Notes",
-        description: "A convenient collapsible scratchpad for notes and reminders saved locally.",
-        authors: [TestcordDevs.sirphantom89],
-        version: "1.0.0",
-        tags: ["Utility", "Productivity"],
-        category: "utility",
-        isBuiltin: true,
-        factory: () => quickNotesModule,
-    },
-    {
-        id: "quotes-widget",
-        name: "Daily Quotes",
-        description: "Displays daily motivational quotes and positive thoughts in your user area.",
-        authors: [TestcordDevs.sirphantom89],
-        version: "1.0.0",
-        tags: ["Aesthetics", "Quotes"],
-        category: "appearance",
-        isBuiltin: true,
-        factory: () => quotesModule,
-    },
 ];
 
-export { clockModule, quickNotesModule, quotesModule, systemMonitorModule };
+export { clockModule, systemMonitorModule };

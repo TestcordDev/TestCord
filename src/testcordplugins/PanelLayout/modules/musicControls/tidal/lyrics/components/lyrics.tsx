@@ -9,7 +9,7 @@ import { TooltipContainer } from "@components/TooltipContainer";
 import { settings } from "@testcordplugins/PanelLayout/modules/musicControls/settings";
 import { TidalLrcStore } from "@testcordplugins/PanelLayout/modules/musicControls/tidal/lyrics/providers/store";
 import { TidalStore } from "@testcordplugins/PanelLayout/modules/musicControls/tidal/TidalStore";
-import { ContextMenuApi, openModal,useEffect, useState, useStateFromStores } from "@webpack/common";
+import { ContextMenuApi, openModalLazy, useEffect, useState, useStateFromStores } from "@webpack/common";
 
 import { LyricsContextMenu } from "./ctxMenu";
 import { LyricsModal } from "./modal";
@@ -50,7 +50,7 @@ function LyricsDisplay({ scroll = true }: { scroll?: boolean; }) {
     return (
         <div
             className="eq-tidal-lyrics"
-            onClick={() => openModal(props => <LyricsModal rootProps={props} />)}
+            onClick={() => openModalLazy(async () => props => <LyricsModal rootProps={props} />)}
             onContextMenu={e => ContextMenuApi.openContextMenu(e, () => <LyricsContextMenu />)}
         >
             {currentLyrics.map((line, i) => (

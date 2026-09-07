@@ -8,300 +8,320 @@ import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { Flex } from "@components/Flex";
-import { FormSwitch } from "@components/FormSwitch";
-import { openModal } from "@utils/modal";
-import { React } from "@webpack/common";
+import { Paragraph } from "@components/Paragraph";
+import { React, useEffect, useState } from "@webpack/common";
 
 import {
-    ChevronDownIcon,
-    ChevronUpIcon,
-    getModuleIcon,
+    CodeIcon,
     PencilIcon,
-    SectionHeading,
-    SettingsGearIcon,
     TrashIcon,
 } from "../icons";
 import {
-    moveModule,
+    getCustomModulesData,
     setModuleEnabled,
-    setModulePosition,
     uninstallCustomModule,
     useModules,
 } from "../registry";
-import type { CustomModuleData, UserAreaModule } from "../types";
+import type { CustomModuleData } from "../types";
 import { openCustomModuleModal } from "./CustomModuleModal";
+import { MarketplaceTab } from "./MarketplaceTab";
+import { UserAreaReorderTab } from "./UserAreaReorderTab";
 
-export function ModulesTab() {
+export type ModulesSubTab = "userarea" | "marketplace" | "usermodules";
+
+function SubTabUserAreaIcon({ size = 14, style }: { size?: number; style?: React.CSSProperties; }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={style}>
+            <path d="M3 6h18M3 12h18M3 18h18" />
+        </svg>
+    );
+}
+
+function SubTabMarketplaceIcon({ size = 14, style }: { size?: number; style?: React.CSSProperties; }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+        </svg>
+    );
+}
+
+export interface ModulesTabProps {
+    pluginSettings?: any;
+    onOpenButtonCustomizer?: () => void;
+    initialSubTab?: ModulesSubTab;
+}
+
+export function ModulesTab({
+    pluginSettings,
+    onOpenButtonCustomizer,
+    initialSubTab = "userarea",
+}: ModulesTabProps = {}) {
+    const [subTab, setSubTab] = useState<ModulesSubTab>(initialSubTab);
     const modules = useModules();
-    const aboveModules = modules.filter(m => (m.position ?? "above") === "above");
-    const belowModules = modules.filter(m => (m.position ?? "above") === "below");
+    const [customModules, setCustomModules] = useState<CustomModuleData[]>([]);
+
+    useEffect(() => {
+        void getCustomModulesData().then(setCustomModules);
+    }, [modules]);
+
+    const SUB_TABS = [
+        { id: "userarea", label: "User Area", icon: SubTabUserAreaIcon },
+        { id: "marketplace", label: "Marketplace", icon: SubTabMarketplaceIcon },
+        { id: "usermodules", label: "User Modules", icon: CodeIcon },
+    ] as const;
+
+const TAB_CSS = `
+.vc-pl-subtab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    margin-bottom: -1px;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    border-bottom: 2px solid transparent;
+    background-color: transparent !important;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    user-select: none;
+}
+.vc-pl-subtab:hover {
+    background-color: var(--background-modifier-hover, var(--background-mod-subtle)) !important;
+}
+.vc-pl-subtab.active,
+.vc-pl-subtab.active:hover {
+    border-bottom: 2px solid var(--brand-experiment, var(--background-brand)) !important;
+    background-color: transparent !important;
+}
+`;
 
     return (
         <Flex flexDirection="column" gap={16}>
-            <Flex justifyContent="space-between" alignItems="center">
-                <SectionHeading>Modules Above Profile ({aboveModules.filter(m => m.enabled).length})</SectionHeading>
-                <Button
-                    size="small"
-                    variant="primary"
-                    onClick={() => openCustomModuleModal()}
-                >
-                    Add Custom Module
-                </Button>
-            </Flex>
+            <style>{TAB_CSS}</style>
+            <div
+                style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    borderBottom: "1px solid var(--background-modifier-accent, var(--border-muted))",
+                    width: "100%",
+                    marginBottom: "4px",
+                }}
+            >
+                {SUB_TABS.map(tab => {
+                    const active = subTab === tab.id;
+                    const Icon = tab.icon;
+                    return (
+                        <div
+                            key={tab.id}
+                            onClick={() => setSubTab(tab.id)}
+                            className={`vc-pl-subtab ${active ? "active" : ""}`}
+                        >
+                            <span
+                                style={{
+                                    display: "flex",
+                                    color: active
+                                        ? "var(--brand-experiment, var(--background-brand))"
+                                        : "var(--text-muted)",
+                                    transition: "color 0.15s ease",
+                                }}
+                            >
+                                <Icon size={14} />
+                            </span>
+                            <BaseText
+                                size="md"
+                                weight={active ? "semibold" : "medium"}
+                                color={active ? "text-strong" : "text-muted"}
+                            >
+                                {tab.label}
+                            </BaseText>
+                        </div>
+                    );
+                })}
+            </div>
 
-            {aboveModules.length === 0 ? (
-                <Card variant="primary" style={{ padding: "14px", textAlign: "center", color: "var(--text-muted)", fontSize: "13px" }}>
-                    No modules positioned above profile.
-                </Card>
-            ) : (
-                <Card variant="primary" style={{ padding: 0, overflow: "hidden" }}>
-                    {aboveModules.map((mod, index) => (
-                        <ModuleRow
-                            key={mod.id}
-                            mod={mod}
-                            isFirst={index === 0}
-                            isLast={index === aboveModules.length - 1}
-                            isLastInCard={index === aboveModules.length - 1}
-                        />
-                    ))}
-                </Card>
+            {subTab === "userarea" && (
+                <UserAreaReorderTab
+                    pluginSettings={pluginSettings}
+                    onOpenButtonCustomizer={onOpenButtonCustomizer}
+                />
             )}
 
-            <SectionHeading>Modules Below Profile ({belowModules.filter(m => m.enabled).length})</SectionHeading>
+            {subTab === "marketplace" && (
+                <MarketplaceTab />
+            )}
 
-            {belowModules.length === 0 ? (
-                <Card variant="primary" style={{ padding: "14px", textAlign: "center", color: "var(--text-muted)", fontSize: "13px" }}>
-                    No modules positioned below profile.
-                </Card>
-            ) : (
-                <Card variant="primary" style={{ padding: 0, overflow: "hidden" }}>
-                    {belowModules.map((mod, index) => (
-                        <ModuleRow
-                            key={mod.id}
-                            mod={mod}
-                            isFirst={index === 0}
-                            isLast={index === belowModules.length - 1}
-                            isLastInCard={index === belowModules.length - 1}
-                        />
-                    ))}
-                </Card>
+            {subTab === "usermodules" && (
+                <UserModulesSubfolder
+                    customModules={customModules}
+                    onRefresh={() => void getCustomModulesData().then(setCustomModules)}
+                />
             )}
         </Flex>
     );
 }
 
-function ModuleRow({
-    mod,
-    isFirst,
-    isLast,
-    isLastInCard,
+function UserModulesSubfolder({
+    customModules,
+    onRefresh,
 }: {
-    mod: UserAreaModule;
-    isFirst: boolean;
-    isLast: boolean;
-    isLastInCard: boolean;
+    customModules: CustomModuleData[];
+    onRefresh: () => void;
 }) {
-    const authorNames = Array.isArray(mod.authors)
-        ? mod.authors.map(a => (typeof a === "string" ? a : a.name)).join(", ")
-        : "Testcord";
-
     return (
-        <div
-            style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "10px 14px",
-                borderBottom: isLastInCard ? "none" : "1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.06))",
-                opacity: mod.enabled ? 1 : 0.65,
-                transition: "opacity 0.15s ease",
-            }}
-        >
-            <Flex alignItems="center" gap={12} style={{ flex: 1, minWidth: 0 }}>
-                <Flex flexDirection="column" gap={2} style={{ flexShrink: 0 }}>
-                    <button
-                        onClick={() => moveModule(mod.id, "up")}
-                        disabled={isFirst}
-                        title="Move Up"
-                        style={{
-                            background: "none",
-                            border: "none",
-                            cursor: isFirst ? "default" : "pointer",
-                            color: isFirst ? "var(--text-muted)" : "var(--interactive-normal)",
-                            opacity: isFirst ? 0.3 : 0.8,
-                            padding: "2px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        <ChevronUpIcon size={12} />
-                    </button>
-                    <button
-                        onClick={() => moveModule(mod.id, "down")}
-                        disabled={isLast}
-                        title="Move Down"
-                        style={{
-                            background: "none",
-                            border: "none",
-                            cursor: isLast ? "default" : "pointer",
-                            color: isLast ? "var(--text-muted)" : "var(--interactive-normal)",
-                            opacity: isLast ? 0.3 : 0.8,
-                            padding: "2px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                        }}
-                    >
-                        <ChevronDownIcon size={12} />
-                    </button>
-                </Flex>
-
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "30px",
-                        height: "30px",
-                        borderRadius: "6px",
-                        backgroundColor: "var(--background-modifier-accent, rgba(255, 255, 255, 0.08))",
-                        color: "var(--interactive-normal)",
-                        flexShrink: 0,
-                    }}
-                >
-                    {getModuleIcon(mod.id, 16)}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-                    <Flex alignItems="center" gap={6}>
-                        <BaseText size="md" weight="medium" color="text-strong">
-                            {mod.name}
-                        </BaseText>
-                        {mod.version && (
-                            <span style={{ fontSize: "10px", color: "var(--text-muted)", backgroundColor: "var(--background-tertiary)", padding: "1px 5px", borderRadius: "4px" }}>
-                                v{mod.version}
-                            </span>
-                        )}
-                        {mod.isCustom && (
-                            <span style={{ fontSize: "10px", color: "var(--brand-experiment)", backgroundColor: "rgba(88, 101, 242, 0.15)", padding: "1px 5px", borderRadius: "4px", fontWeight: 600 }}>
-                                Custom
-                            </span>
-                        )}
-                    </Flex>
-                    <BaseText size="xs" color="text-muted" style={{ marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {mod.description || `By ${authorNames}`}
+        <Flex flexDirection="column" gap={14}>
+            <Card
+                variant="primary"
+                style={{
+                    padding: "16px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    background: "linear-gradient(135deg, rgba(88, 101, 242, 0.12), rgba(0, 0, 0, 0.2))",
+                    border: "1px solid rgba(88, 101, 242, 0.25)",
+                }}
+            >
+                <div>
+                    <BaseText size="md" weight="semibold" color="text-strong">
+                        Custom User Modules
                     </BaseText>
+                    <Paragraph style={{ color: "var(--text-muted)", fontSize: "12px", margin: "3px 0 0" }}>
+                        Create interactive HTML/CSS widgets or React components directly in your user area.
+                    </Paragraph>
                 </div>
-            </Flex>
-
-            <Flex alignItems="center" gap={8} style={{ flexShrink: 0, marginLeft: "12px" }}>
-                <div
-                    style={{
-                        display: "flex",
-                        backgroundColor: "var(--background-secondary, rgba(0, 0, 0, 0.2))",
-                        borderRadius: "6px",
-                        padding: "2px",
-                        border: "1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.08))",
+                <Button
+                    size="small"
+                    variant="primary"
+                    onClick={() => {
+                        openCustomModuleModal(undefined, false);
+                        setTimeout(onRefresh, 300);
                     }}
+                    style={{ flexShrink: 0, padding: "6px 14px" }}
                 >
-                    <button
-                        type="button"
-                        onClick={() => setModulePosition(mod.id, "above")}
-                        style={{
-                            background: (mod.position ?? "above") === "above" ? "var(--brand-experiment, #5865f2)" : "transparent",
-                            color: (mod.position ?? "above") === "above" ? "#ffffff" : "var(--text-muted)",
-                            border: "none",
-                            borderRadius: "4px",
-                            padding: "3px 8px",
-                            fontSize: "11px",
-                            fontWeight: 500,
-                            cursor: "pointer",
-                            transition: "background 0.15s ease, color 0.15s ease",
-                        }}
-                    >
-                        Above
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setModulePosition(mod.id, "below")}
-                        style={{
-                            background: (mod.position ?? "above") === "below" ? "var(--brand-experiment, #5865f2)" : "transparent",
-                            color: (mod.position ?? "above") === "below" ? "#ffffff" : "var(--text-muted)",
-                            border: "none",
-                            borderRadius: "4px",
-                            padding: "3px 8px",
-                            fontSize: "11px",
-                            fontWeight: 500,
-                            cursor: "pointer",
-                            transition: "background 0.15s ease, color 0.15s ease",
-                        }}
-                    >
-                        Below
-                    </button>
-                </div>
+                    + Add User Module
+                </Button>
+            </Card>
 
-                {mod.isCustom && (
-                    <>
-                        <Button
-                            size="small"
-                            variant="secondary"
-                            title="Edit code"
-                            onClick={() => {
-                                const customData: CustomModuleData = {
-                                    id: mod.id,
-                                    name: mod.name,
-                                    description: mod.description,
-                                    author: authorNames,
-                                    customType: mod.customType ?? "html",
-                                    customCode: mod.customCode ?? "",
-                                    customCss: mod.customCss,
-                                    position: mod.position,
-                                    enabled: mod.enabled,
-                                    order: mod.order,
-                                };
-                                openCustomModuleModal(customData, true);
+            {customModules.length === 0 ? (
+                <Card variant="primary" style={{ padding: "28px 16px", textAlign: "center" }}>
+                    <div style={{ display: "flex", justifyContent: "center", marginBottom: "8px", opacity: 0.6 }}>
+                        <CodeIcon size={32} />
+                    </div>
+                    <BaseText size="md" weight="medium" color="text-strong">
+                        No Custom Modules Yet
+                    </BaseText>
+                    <Paragraph style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "4px" }}>
+                        Click "+ Add User Module" above to create your first customized widget.
+                    </Paragraph>
+                </Card>
+            ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "10px" }}>
+                    {customModules.map(mod => (
+                        <Card
+                            key={mod.id}
+                            variant="primary"
+                            style={{
+                                padding: "14px",
+                                display: "flex",
+                                flexDirection: "column",
+                                justifyContent: "space-between",
+                                gap: "12px",
                             }}
-                            style={{ padding: "4px 8px", display: "flex", alignItems: "center", justifyContent: "center" }}
                         >
-                            <PencilIcon size={14} />
-                        </Button>
-                        <Button
-                            size="small"
-                            variant="dangerPrimary"
-                            title="Uninstall"
-                            onClick={() => uninstallCustomModule(mod.id)}
-                            style={{ padding: "4px 8px", display: "flex", alignItems: "center", justifyContent: "center" }}
-                        >
-                            <TrashIcon size={14} />
-                        </Button>
-                    </>
-                )}
+                            <div>
+                                <Flex justifyContent="space-between" alignItems="flex-start">
+                                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                        <div
+                                            style={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                width: "28px",
+                                                height: "28px",
+                                                borderRadius: "6px",
+                                                backgroundColor: "rgba(88, 101, 242, 0.15)",
+                                                color: "var(--brand-experiment)",
+                                            }}
+                                        >
+                                            <CodeIcon size={16} />
+                                        </div>
+                                        <div>
+                                            <BaseText size="md" weight="medium" color="text-strong">
+                                                {mod.name}
+                                            </BaseText>
+                                            <BaseText size="xs" color="text-muted">
+                                                {mod.customType?.toUpperCase() || "HTML"} Widget
+                                            </BaseText>
+                                        </div>
+                                    </div>
+                                    <span
+                                        style={{
+                                            fontSize: "10px",
+                                            fontWeight: 600,
+                                            padding: "2px 6px",
+                                            borderRadius: "4px",
+                                            backgroundColor: mod.enabled ? "rgba(35, 165, 90, 0.15)" : "var(--background-tertiary)",
+                                            color: mod.enabled ? "var(--status-positive, #23a55a)" : "var(--text-muted)",
+                                        }}
+                                    >
+                                        {mod.enabled ? "Active" : "Disabled"}
+                                    </span>
+                                </Flex>
 
-                {mod.settingsComponent && (
-                    <Button
-                        size="small"
-                        variant="secondary"
-                        title="Settings"
-                        onClick={() => {
-                            const SettingsComponent = mod.settingsComponent!;
-                            openModal(modalProps => (
-                                <SettingsComponent onClose={modalProps.onClose} modalProps={modalProps} />
-                            ));
-                        }}
-                        style={{ padding: "4px 8px", display: "flex", alignItems: "center", justifyContent: "center" }}
-                    >
-                        <SettingsGearIcon size={14} />
-                    </Button>
-                )}
+                                {mod.description && (
+                                    <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", margin: "8px 0 0", lineHeight: "1.3" }}>
+                                        {mod.description}
+                                    </Paragraph>
+                                )}
+                            </div>
 
-                <FormSwitch
-                    title=""
-                    value={mod.enabled}
-                    onChange={v => setModuleEnabled(mod.id, v)}
-                    hideBorder
-                />
-            </Flex>
-        </div>
+                            <Flex justifyContent="space-between" alignItems="center" style={{ borderTop: "1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.06))", paddingTop: "8px" }}>
+                                <Flex gap={6}>
+                                    <Button
+                                        size="small"
+                                        variant="secondary"
+                                        title="Edit Code"
+                                        onClick={() => {
+                                            openCustomModuleModal(mod, true);
+                                            setTimeout(onRefresh, 300);
+                                        }}
+                                        style={{ padding: "4px 8px" }}
+                                    >
+                                        <PencilIcon size={14} />
+                                    </Button>
+                                    <Button
+                                        size="small"
+                                        variant="dangerPrimary"
+                                        title="Delete Module"
+                                        onClick={() => {
+                                            if (mod.id) {
+                                                void uninstallCustomModule(mod.id).then(onRefresh);
+                                            }
+                                        }}
+                                        style={{ padding: "4px 8px" }}
+                                    >
+                                        <TrashIcon size={14} />
+                                    </Button>
+                                </Flex>
+
+                                <Flex alignItems="center" gap={6}>
+                                    <Button
+                                        size="small"
+                                        variant={mod.enabled ? "secondary" : "primary"}
+                                        onClick={() => {
+                                            if (mod.id) {
+                                                void setModuleEnabled(mod.id, !mod.enabled).then(onRefresh);
+                                            }
+                                        }}
+                                        style={{ fontSize: "11px", padding: "4px 10px" }}
+                                    >
+                                        {mod.enabled ? "Disable" : "Enable"}
+                                    </Button>
+                                </Flex>
+                            </Flex>
+                        </Card>
+                    ))}
+                </div>
+            )}
+        </Flex>
     );
 }

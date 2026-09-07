@@ -287,27 +287,5 @@ export function ActivityInfo({
 }
 
 export function ActivityBannerWidget() {
-    const activities = useStateFromStores([LocalActivityStore, SelfPresenceStore, PresenceStore, RunningGameStore], getUserActivities);
-    if (activities.length === 0) return null;
-
-    return (
-        <div
-            className="vc-actbanner-widget"
-            style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                padding: "8px 10px",
-                margin: "4px 8px",
-                background: "var(--background-secondary-alt)",
-                borderRadius: "8px",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.2)",
-            }}
-        >
-            <ActivityIcon />
-            <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-                <ActivityInfo />
-            </div>
-        </div>
-    );
+    return null;
 }

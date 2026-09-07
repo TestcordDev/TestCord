@@ -24,11 +24,9 @@ export function ModulesContainer({ position = "above" }: ModulesContainerProps) 
         <div
             className={`vc-panel-layout-modules-container vc-panel-modules-${position}`}
             style={{
-                display: "flex",
-                flexDirection: "column",
+                display: "contents",
                 width: "100%",
                 boxSizing: "border-box",
-                overflow: "hidden",
             }}
         >
             {activeModules.map(module => {

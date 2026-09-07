@@ -13,8 +13,8 @@ import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { Paragraph } from "@components/Paragraph";
 import { Devs, EquicordDevs } from "@utils/constants";
-import { openModal, RenderModalProps } from "@utils/modal";
-import { Modal, React, Select, showToast, Toasts, useState } from "@webpack/common";
+import type { RenderModalProps } from "@vencord/discord-types";
+import { Modal, openModalLazy, React, Select, showToast, Toasts, useState } from "@webpack/common";
 
 import { isModuleEnabled } from "../state";
 import type { UserAreaModule } from "../types";
@@ -150,13 +150,10 @@ export const musicControlsPatches = [
         find: ".PLAYER_DEVICES",
         predicate: () => isModuleEnabled("music-controls"),
         replacement: [{
-            // Adds POST and a Marker to the SpotifyAPI (so we can easily find it)
             match: /get:(\i)\.bind\(null,(\i\.\i)\.get\)/,
             replace: "post:$1.bind(null,$2.post),vcSpotifyMarker:1,$&"
         },
         {
-            // Spotify Connect API returns status 202 instead of 204 when skipping tracks.
-            // Discord rejects 202 which causes the request to send twice. This patch prevents this.
             match: /202===\i\.status/,
             replace: "false",
         }]
@@ -166,7 +163,6 @@ export const musicControlsPatches = [
         predicate: () => isModuleEnabled("music-controls"),
         replacement: [
             {
-                // Discord doesn't give you shuffle state and the repeat kind, only a boolean
                 match: /repeat:"off"!==(\i),/,
                 replace: "shuffle:arguments[2]?.shuffle_state??false,actual_repeat:$1,$&"
             },
@@ -207,7 +203,7 @@ export function MusicControlsComponent() {
     );
 }
 
-export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps?: RenderModalProps; onClose?: () => void }) {
+export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps?: RenderModalProps; onClose?: () => void; }) {
     const s = settings.use([
         "showSpotifyControls",
         "betterSpotifyControls",
@@ -345,16 +341,16 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                             <div style={{ padding: "10px 0" }}>
                                 <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
                                     Lyrics Position Relative to Player:
-                                 </Paragraph>
-                                 <Select
-                                     options={[
-                                         { label: "Above player", value: "above" },
-                                         { label: "Below player", value: "below" },
-                                     ]}
-                                     isSelected={v => v === s.lyricsPosition}
-                                     select={v => { settings.store.lyricsPosition = v as "above" | "below"; }}
-                                     serialize={v => String(v)}
-                                 />
+                                </Paragraph>
+                                <Select
+                                    options={[
+                                        { label: "Above player", value: "above" },
+                                        { label: "Below player", value: "below" },
+                                    ]}
+                                    isSelected={v => v === s.lyricsPosition}
+                                    select={v => { settings.store.lyricsPosition = v as "above" | "below"; }}
+                                    serialize={v => String(v)}
+                                />
                             </div>
                             <div style={{ padding: "10px 0" }}>
                                 <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
@@ -387,7 +383,11 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                 )}
 
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
-                    <Button variant="primary" onClick={handleClose}>
+                    <Button
+                        variant="secondary"
+                        style={{ backgroundColor: "#174b71", color: "#fff" }}
+                        onClick={handleClose}
+                    >
                         Done
                     </Button>
                 </div>
@@ -397,7 +397,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
 }
 
 export function openMusicControlsSettings() {
-    openModal(modalProps => <MusicControlsSettingsModal modalProps={modalProps} />);
+    openModalLazy(async () => modalProps => <MusicControlsSettingsModal modalProps={modalProps} />);
 }
 
 export const musicControlsModule: Omit<UserAreaModule, "order" | "enabled"> = {

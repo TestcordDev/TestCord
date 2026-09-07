@@ -16,18 +16,19 @@ import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
 import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { TestcordDevs } from "@utils/constants";
-import { ModalFooter, openModal, RenderModalProps } from "@utils/modal";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
-import { Modal, React, Select, Slider } from "@webpack/common";
+import type { RenderModalProps } from "@vencord/discord-types";
+import { Modal, openModalLazy, React, Select, Slider } from "@webpack/common";
 
 import {
     activityBannerPatches,
     devBannerPatches,
+    getPanelLayoutPlainSettings,
+    getUserAreaOrder,
     getVisibleGameOrRpc,
     initModuleManager,
     LocalActivityStore,
     makeDevBanner,
-    MarketplaceTab,
     markRenderedInEI,
     ModulesContainer,
     ModulesTab,
@@ -40,6 +41,7 @@ import {
     saveRenderer,
     SelfPresenceStore,
     stopModuleManager,
+    subscribeModules,
 } from "./modules";
 
 migratePluginSettings("deraculpanellayout", "PanelLayout");
@@ -48,7 +50,6 @@ migratePluginSettings("deracul-panel-layout", "PanelLayout");
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 const settings = definePluginSettings({
-    // Layout
     userPanelLayout: {
         type: OptionType.SELECT,
         description: "Layout for user panel buttons",
@@ -77,12 +78,10 @@ const settings = definePluginSettings({
         ],
         onChange: () => apply()
     },
-    // Sizing
     iconSize: { type: OptionType.SLIDER, description: "Icon size (px)", default: 20, markers: makeRange(12, 28, 2), stickToMarkers: false, onChange: () => apply() },
     buttonContainerSize: { type: OptionType.SLIDER, description: "Button overall size (px)", default: 36, markers: makeRange(24, 48, 4), stickToMarkers: false, onChange: () => apply() },
     buttonGap: { type: OptionType.SLIDER, description: "Gap between buttons (px)", default: 6, markers: makeRange(0, 12, 2), stickToMarkers: true, onChange: () => apply() },
     panelOpacity: { type: OptionType.SLIDER, description: "Panel buttons opacity (0-100)", default: 100, markers: makeRange(10, 100, 10), stickToMarkers: false, onChange: () => apply() },
-    // Button styling
     buttonStyle: {
         type: OptionType.SELECT,
         description: "Visual style of panel buttons",
@@ -111,24 +110,19 @@ const settings = definePluginSettings({
     panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#0e1852", onChange: () => apply() },
     glowColor: { type: OptionType.STRING, description: "Glow hover color", default: "#ffffff", onChange: () => apply() },
     forceNativeButtonColor: { type: OptionType.BOOLEAN, default: false, description: "Force the icon color on Discord's native buttons (Mute, Deafen, Settings) even when no custom icon color is set", onChange: () => apply() },
-    // Chevrons & Lock
     hideChevrons: { type: OptionType.BOOLEAN, default: false, description: "Hide dropdown chevrons next to Mute and Deafen", onChange: () => apply() },
     lockButtonPosition: { type: OptionType.BOOLEAN, default: false, description: "Lock Button Position (prevents buttons dropping down on long status)", onChange: () => apply() },
-    // Call controls
     callCompact: { type: OptionType.BOOLEAN, default: false, description: "Compact mode for call control buttons", onChange: () => apply() },
     hideDisconnect: { type: OptionType.BOOLEAN, default: false, description: "Hide the disconnect button", onChange: () => apply() },
     hideVoiceStatus: { type: OptionType.BOOLEAN, default: false, description: "Hide the 'Voice Connected' status text and channel name", onChange: () => apply() },
     hidePingIcon: { type: OptionType.BOOLEAN, default: false, description: "Hide the ping/connection quality icon", onChange: () => apply() },
-    // Per-button visibility
     hideMute: { type: OptionType.BOOLEAN, default: false, description: "Hide Mute button", onChange: () => apply() },
     hideDeafen: { type: OptionType.BOOLEAN, default: false, description: "Hide Deafen button", onChange: () => apply() },
     hideSettings: { type: OptionType.BOOLEAN, default: false, description: "Hide User Settings button", onChange: () => apply() },
     hideCamera: { type: OptionType.BOOLEAN, default: false, description: "Hide camera button in call controls", onChange: () => apply() },
     hideScreenShare: { type: OptionType.BOOLEAN, default: false, description: "Hide screen share button in call controls", onChange: () => apply() },
     hideActivity: { type: OptionType.BOOLEAN, default: false, description: "Hide activity button in call controls", onChange: () => apply() },
-    // Line
     hideLine: { type: OptionType.BOOLEAN, default: true, description: "Hide the line between user and buttons", onChange: () => apply() },
-    // Profile Nameplate
     fixProfileNameplate: { type: OptionType.BOOLEAN, default: false, description: "Fixes the rounding of the profile nameplate", onChange: () => apply() },
 });
 
@@ -140,16 +134,16 @@ const S = {
     previewButtonOn: ".previewButtonOn",
     previewButtonOff: ".previewButtonOff",
     panelContainer: ".container__37e49",
-    panelButtons:   ".buttons__37e49",
-    panelButton:    ".button__201d5",
-    audioParent:    ".audioButtonParent__5e764",
-    chevron:        ".buttonChevron__5e764",
-    callContainer:  ".container_e131a9",
-    callControls:   ".actionButtons_e131a9",
-    callButton:     ".button_e131a9",
-    voiceStatus:    ".rtcConnectionStatus__06d62",
-    pingIcon:       ".clickablePing__06d62",
-    disconnect:     ".voiceButtonsContainer_e131a9",
+    panelButtons: ".buttons__37e49",
+    panelButton: ".button__201d5",
+    audioParent: ".audioButtonParent__5e764",
+    chevron: ".buttonChevron__5e764",
+    callContainer: ".container_e131a9",
+    callControls: ".actionButtons_e131a9",
+    callButton: ".button_e131a9",
+    voiceStatus: ".rtcConnectionStatus__06d62",
+    pingIcon: ".clickablePing__06d62",
+    disconnect: ".voiceButtonsContainer_e131a9",
     accountWrapper: ".accountPopoutButtonWrapper__37e49",
 };
 
@@ -176,12 +170,10 @@ const TOGGLE_LABELS: Record<string, string[]> = {
 };
 
 function getCanonicalLabel(label: string): string {
-    // 1. Direct aliases mapping
     for (const [canonical, aliases] of Object.entries(TOGGLE_LABELS)) {
         if (aliases.includes(label)) return canonical;
     }
 
-    // 2. Normalize prefixes for third-party dynamic toggle buttons
     let cleaned = label;
     const prefixes = [
         "Enable ", "Disable ",
@@ -196,8 +188,6 @@ function getCanonicalLabel(label: string): string {
     }
     return cleaned;
 }
-
-// ─── Custom Config Store (Drag & Drop / Keys / Hiding) ────────────────────────
 
 interface ButtonConfig {
     label: string;
@@ -219,6 +209,15 @@ const BUTTON_CONFIG_KEY = "panel-layout-configs";
 const OLD_BUTTON_CONFIG_KEY = "deracul-panel-layout-configs";
 let buttonConfigs: Record<string, ButtonConfig> = {};
 let configsLoaded = false;
+let unsubscribeModules: (() => void) | null = null;
+
+try {
+    const initialPlPlain = getPanelLayoutPlainSettings();
+    if (initialPlPlain?.buttonConfigs && typeof initialPlPlain.buttonConfigs === "object") {
+        buttonConfigs = { ...initialPlPlain.buttonConfigs };
+        configsLoaded = true;
+    }
+} catch { }
 
 let anyLinksConfigured = false;
 
@@ -226,14 +225,30 @@ function rebuildLinkIndex() {
     anyLinksConfigured = Object.values(buttonConfigs).some(cfg => (cfg.linkedTo?.length ?? 0) > 0);
 }
 
+rebuildLinkIndex();
+
 async function loadConfigs() {
-    buttonConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ??
-                    (await DataStore.get<Record<string, ButtonConfig>>(OLD_BUTTON_CONFIG_KEY)) ?? {};
+    try {
+        const plPlain = getPanelLayoutPlainSettings();
+        const diskConfigs = plPlain?.buttonConfigs;
+        const dsConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ??
+            (await DataStore.get<Record<string, ButtonConfig>>(OLD_BUTTON_CONFIG_KEY));
+        buttonConfigs = { ...(diskConfigs ?? {}), ...(dsConfigs ?? {}) };
+    } catch {
+        buttonConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ??
+            (await DataStore.get<Record<string, ButtonConfig>>(OLD_BUTTON_CONFIG_KEY)) ?? {};
+    }
     configsLoaded = true;
     rebuildLinkIndex();
 }
 
 function saveConfigs() {
+    try {
+        const plPlain = getPanelLayoutPlainSettings();
+        plPlain.buttonConfigs = buttonConfigs;
+        SettingsStore.markAsChanged();
+    } catch { }
+
     DataStore.set(BUTTON_CONFIG_KEY, buttonConfigs);
     rebuildLinkIndex();
 }
@@ -269,7 +284,6 @@ function cssVal(val: string): string {
     return JSON.stringify(val);
 }
 
-// Employs a unique data attribute injected dynamically for stable ordering
 function getBtnSelector(canonical: string): string {
     return `html body div${S.panelContainer} div:is(${S.panelButtons}, ${S.callControls}) > [data-deracul-label=${cssVal(canonical)}]`;
 }
@@ -346,8 +360,6 @@ function syncLinkedPartners(label: string, wasActive: boolean | null) {
 }
 
 function onGlobalClick(e: MouseEvent) {
-    // Cheapest possible bail-out first: skip entirely (no DOM walk, no lookup)
-    // whenever the user hasn't linked any buttons at all.
     if (!configsLoaded || !e.isTrusted || !anyLinksConfigured) return;
 
     const target = e.target as HTMLElement | null;
@@ -499,7 +511,6 @@ function buildCSS(): string {
     const gap = st.buttonGap ?? 4;
     const lines: string[] = [];
 
-    // SubModalButton
     lines.push(`
         .SubModalButton {
             position: relative;
@@ -550,7 +561,6 @@ function buildCSS(): string {
             transform: scaleY(1);
         }
     `);
-    // Native custom scrollbars
     lines.push(`
         .deracul-scrollbar::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
         .deracul-scrollbar::-webkit-scrollbar-track { background: var(--scrollbar-thin-track, transparent) !important; border-radius: 4px !important; }
@@ -558,7 +568,6 @@ function buildCSS(): string {
         .deracul-scrollbar { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) transparent; }
     `);
 
-    // Icon color theming
     lines.push(`
         [title="Soundboard disabled when deafened"] *,
         [title="Open Soundboard"] *,
@@ -576,12 +585,6 @@ function buildCSS(): string {
             stroke: var(--background-brand);
         }
     `);
-    // When a custom icon color is chosen (TestcordHelper -> user area buttons),
-    // cascade it to the whole panel via --vc-plugin-icon-color so both plugin
-    // buttons and native Mute/Deafen/Settings icons honor it. When no custom
-    // color is set, leave the panel untouched so buttons keep their theme's
-    // default colors. forceNativeButtonColor extends the same coloring to the
-    // native buttons even without a custom color, using the icon color fallback.
     const iconColor = getTestcordIconColor("userAreaButtonIconColor");
     if (iconColor || st.forceNativeButtonColor) {
         const color = iconColor ?? ICON_COLOR_FALLBACK;
@@ -606,10 +609,8 @@ function buildCSS(): string {
         `);
     }
 
-    // Base fixes
     lines.push(`${S.panelContainer} { height: auto !important; min-height: unset !important; }`);
 
-    // Ensure cloned config SVGs display correctly
     lines.push(`
         .deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
             width: 22px !important; height: 22px !important;
@@ -617,7 +618,6 @@ function buildCSS(): string {
         }
     `);
 
-    // Preview icon color fix
     lines.push(`
         .icon-color-fix svg, .icon-color-fix svg * {
             color: var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary))) !important;
@@ -633,7 +633,6 @@ function buildCSS(): string {
         }
     `);
 
-    // User Panel Layout
     switch (st.userPanelLayout) {
         case "grid2": lines.push(gridCSS(S.panelButtons, 2, gap)); break;
         case "grid3": lines.push(gridCSS(S.panelButtons, 3, gap)); break;
@@ -650,7 +649,6 @@ function buildCSS(): string {
             if (st.userPanelLayout === "split_grid3") flexSize = `0 0 calc(33.333% - (${gap}px * 2 / 3))`;
             if (st.userPanelLayout === "split_grid4") flexSize = `0 0 calc(25% - (${gap}px * 3 / 4))`;
 
-            // Note: Massive flex order gaps (10000, 20000) allow custom Drag and Drop orders to inject safely in between.
             lines.push(`
                 ${S.panelContainer} {
                     display: flex !important; flex-wrap: wrap !important; gap: ${gap}px !important;
@@ -699,7 +697,6 @@ function buildCSS(): string {
             break;
     }
 
-    // Call controls layout
     switch (st.callControlsLayout) {
         case "grid2": lines.push(gridCSS(S.callControls, 2, gap)); break;
         case "vertical":
@@ -714,7 +711,6 @@ function buildCSS(): string {
             break;
     }
 
-    // Icon & Button size
     if (st.iconSize !== 20) {
         lines.push(`${S.panelButtons} ${S.panelButton} svg, ${S.panelButtons} ${S.panelButton} .lottieIcon__5eb9b { width: ${st.iconSize}px !important; height: ${st.iconSize}px !important; }`);
     }
@@ -729,9 +725,6 @@ function buildCSS(): string {
         `);
     }
 
-    // Button Base style
-    // Neutralize Discord's nameplate backdrop blur / status fills on panel buttons
-    // (plateMuted / plateState classes paint them even with transparent background).
     lines.push(`${S.panelButtons} ${S.panelButton} { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }`);
     switch (st.buttonStyle) {
         case "filled":
@@ -742,9 +735,6 @@ function buildCSS(): string {
             lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { border: 1.5px solid var(--background-modifier-accent, var(--border-muted)) !important; border-radius: 8px !important; }`);
             break;
         case "outlineold":
-            // Pre-fallback replica: relies on var(--background-modifier-accent) which
-            // new Discord tokens dropped, so the border doesn't actually render.
-            // People liked that buggy look, so it's kept as its own option.
             lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { border: 1.5px solid var(--background-modifier-accent) !important; border-radius: 8px !important; }`);
             break;
         case "pill":
@@ -756,8 +746,6 @@ function buildCSS(): string {
                         ${S.panelButtons} ${S.panelButton}:hover, ${S.previewButtonContainer} ${S.previewButton}:hover { background: var(--background-modifier-active, var(--background-mod-strong)) !important; }`);
             break;
         default:
-            // Keep plugin toggle buttons from showing Discord's own fill (colorBrand
-            // hover background) underneath the glow/scale hover effects.
             lines.push(`${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton} { background: transparent !important; }
                         ${S.panelButtons} ${S.panelButton}:hover, ${S.previewButtonContainer} ${S.previewButton}:hover { background: transparent !important; }`);
             break;
@@ -769,12 +757,10 @@ function buildCSS(): string {
         lines.push(`${S.panelButtons}:hover { opacity: 1 !important; }`);
     }
 
-    // Panel Background
     if (st.panelBackgroundColor) {
         lines.push(`${S.panelContainer} { background-color: ${st.panelBackgroundColor} !important; }`);
     }
 
-    // Hover
     switch (st.hoverEffect) {
         case "scale": lines.push(`${S.panelButtons} ${S.panelButton}:hover, ${S.previewButton}:hover { transform: scale(1.15) !important; transition: transform 0.15s ease !important; }`); break;
         case "glow": lines.push(`${S.panelButtons} ${S.panelButton}:hover, ${S.previewButton}:hover { filter: drop-shadow(0 0 6px ${st.glowColor}) !important; transition: filter 0.15s ease !important; }`); break;
@@ -785,7 +771,6 @@ function buildCSS(): string {
         lines.push(`${S.panelButtons} ${S.panelButton}.plated__67645:not(.plateMuted__67645):hover { background: transparent !important }`);
     }
 
-    // Visibility toggles
     if (st.hideChevrons) lines.push(`${S.panelButtons} ${S.chevron} { display: none !important; }`);
     if (st.hideDisconnect) lines.push(`${S.disconnect} { display: none !important; }`);
     if (st.hideVoiceStatus) lines.push(`${S.voiceStatus} { display: none !important; }`);
@@ -801,7 +786,6 @@ function buildCSS(): string {
     if (st.hideScreenShare) lines.push(`${getBtnSelector("Screen Share")} { display: none !important; }`);
     if (st.hideActivity) lines.push(`${getBtnSelector("Activity")} { display: none !important; }`);
 
-    // Lock Button Positions logic (prevents long status text or screen sharing from pushing buttons down to a new row) max-width: calc(100% - 140px) !important;
     if (st.lockButtonPosition) {
         const isSplit = ["split_row", "split_grid2", "split_grid3", "split_grid4", "all_top"].includes(st.userPanelLayout);
         if (!isSplit) {
@@ -844,6 +828,57 @@ function buildCustomCSS(): string {
     const layout = settings.store.userPanelLayout;
     const isSplit = ["split_row", "split_grid2", "split_grid3", "split_grid4"].includes(layout);
 
+    lines.push(`
+        section[class*="panels_"],
+        .panels__5e434 {
+            display: flex !important;
+            flex-direction: column !important;
+        }
+    `);
+
+    try {
+        const userAreaOrder = getUserAreaOrder();
+        userAreaOrder.forEach((item, idx) => {
+            const orderVal = (idx + 1) * 10;
+            const hiddenStyle = !item.enabled ? "display: none !important;" : "";
+
+            if (item.type === "voice-connected") {
+                lines.push(`
+                    section[class*="panels_"] > ${S.callContainer},
+                    section[class*="panels_"] > [class*="container_e131a9"],
+                    section[class*="panels_"] > div:has(${S.callControls}) {
+                        order: ${orderVal} !important;
+                        ${hiddenStyle}
+                    }
+                `);
+            } else if (item.type === "native-activity-banner" || item.id === "activity-banner" || item.moduleId === "activity-banner") {
+                lines.push(`
+                    section[class*="panels_"] > [class*="activityPanel_"],
+                    section[class*="panels_"] > div:has([class*="activityPanel_"]),
+                    .vc-panel-module-item[data-module-id="activity-banner"] {
+                        order: ${orderVal} !important;
+                        ${hiddenStyle}
+                    }
+                `);
+            } else if (item.type === "account-panel") {
+                lines.push(`
+                    section[class*="panels_"] > ${S.panelContainer},
+                    section[class*="panels_"] > [class*="container__37e49"] {
+                        order: ${orderVal} !important;
+                        ${hiddenStyle}
+                    }
+                `);
+            } else if (item.type === "module" && item.moduleId) {
+                lines.push(`
+                    .vc-panel-module-item[data-module-id="${item.moduleId}"] {
+                        order: ${orderVal} !important;
+                        ${hiddenStyle}
+                    }
+                `);
+            }
+        });
+    } catch { }
+
     for (const cfg of Object.values(buttonConfigs)) {
         if (!cfg.label) continue;
 
@@ -860,14 +895,12 @@ function buildCustomCSS(): string {
             lines.push(`${sel} { order: ${orderVal} !important; }`);
         }
 
-        // Custom Active Blob Color & Opacity per button
         if (cfg.colorfulActiveButton) {
             const baseColor = cfg.color || "#5865f2";
             const alpha = Math.round(((cfg.opacity ?? 100) / 100) * 255).toString(16).padStart(2, "0");
             const finalColor = `${baseColor.slice(0, 7)}${alpha}`;
-            const finalRadius= cfg.radius != null ? `${cfg.radius}px` : "10px";
+            const finalRadius = cfg.radius != null ? `${cfg.radius}px` : "10px";
 
-            // We add :hover overrides here so the active custom color isn't erased when interacting!
             lines.push(`
                 ${S.previewButtonOn}[data-deracul-label="${cfg.label}"]:hover,
                 ${S.previewButtonOn}[data-deracul-label="${cfg.label}"],
@@ -892,15 +925,13 @@ function buildCustomCSS(): string {
             `);
         }
 
-        // Custom InActive Blob Color & Opacity per button
         if (cfg.colorfulInActiveButton) {
             const baseColor = cfg.colorOff || "#000000";
             const alpha = Math.round(((cfg.opacityOff ?? 22) / 100) * 255).toString(16).padStart(2, "0");
             const finalColor = `${baseColor.slice(0, 7)}${alpha}`;
             const finalColorHovered = `${baseColor.slice(0, 7)}${alpha + 0.11}`;
-            const finalRadius= cfg.radiusOff != null ? `${cfg.radiusOff}px` : "10px";
+            const finalRadius = cfg.radiusOff != null ? `${cfg.radiusOff}px` : "10px";
 
-            // We add :hover overrides here so the active custom color isn't erased when interacting!
             lines.push(`
                 ${S.previewButtonOff}[data-deracul-label="${cfg.label}"],
                 ${sel} button[role="switch"][aria-checked="false"],
@@ -924,6 +955,31 @@ function buildCustomCSS(): string {
             `);
         }
     }
+
+    lines.push(`
+        .vc-pl-subtab {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            margin-bottom: -1px;
+            cursor: pointer;
+            border-radius: 6px 6px 0 0;
+            border-bottom: 2px solid transparent;
+            background-color: transparent !important;
+            transition: background-color 0.15s ease, border-color 0.15s ease;
+            user-select: none;
+        }
+        .vc-pl-subtab:hover {
+            background-color: var(--background-modifier-hover, var(--background-mod-subtle)) !important;
+        }
+        .vc-pl-subtab.active,
+        .vc-pl-subtab.active:hover {
+            border-bottom: 2px solid var(--brand-experiment, var(--background-brand)) !important;
+            background-color: transparent !important;
+        }
+    `);
+
     return lines.join("\n");
 }
 
@@ -975,7 +1031,6 @@ const HOVER_EFFECTS = [
     { value: "none", label: "None" },
 ];
 
-// Fixed body height so switching tabs never resizes the modal window.
 const MODAL_BODY_HEIGHT = 440;
 
 // ─── Native-styled helper components ─────────────────────────────────────────
@@ -983,8 +1038,6 @@ const MODAL_BODY_HEIGHT = 440;
 function SliderRow({ label, value, min, max, unit = "px", onChange, resetKey }: {
     label: string; value: number; min: number; max: number; unit?: string; onChange: (v: number) => void; resetKey?: number;
 }) {
-    // One marker per whole unit + stickToMarkers forces the handle to snap to
-    // exact integers as it's dragged, instead of free-floating fractional values.
     const stepMarkers = React.useMemo(() => makeRange(min, max, 1), [min, max]);
 
     return (
@@ -1001,8 +1054,6 @@ function SliderRow({ label, value, min, max, unit = "px", onChange, resetKey }: 
                 markers={stepMarkers}
                 stickToMarkers
                 renderMarker={() => null}
-                // asValueChanges fires continuously while dragging (not just on release),
-                // so the panel updates live as the handle moves.
                 asValueChanges={v => onChange(Math.round(v))}
                 onValueRender={v => `${Math.round(v)}${unit}`}
             />
@@ -1322,20 +1373,14 @@ function MiniToggle({ value, onChange }: { value: boolean; onChange: (v: boolean
     );
 }
 
-// ─── Drag & Drop Tab Component (index-based, no mid-drag array mutation) ──────
-
 interface BtnItem { id: string; label: string; iconHTML: string; }
 
-// Building this list clones + rewrites SVGs (to dedupe id collisions across
-// buttons), which is real DOM work — cache it instead of redoing it on every
-// modal open. Invalidated only when the actual set of visible buttons changes.
 let btnItemsCache: BtnItem[] | null = null;
 let btnItemsCacheKey = "";
 
 function getBtnItems(): BtnItem[] {
     const buttons = getAllButtons();
 
-    // Cheap fingerprint of "what's on screen" — if unchanged, reuse the cache.
     const key = buttons.map(el => getCanonicalLabel(getBtnLabel(el) ?? "")).join("|");
     if (btnItemsCache && key === btnItemsCacheKey) return btnItemsCache;
 
@@ -1411,7 +1456,6 @@ function ButtonsDragTab() {
     const [items, setItems] = React.useState<BtnItem[]>(() => getBtnItems());
     const [listeningId, setListeningId] = React.useState<string | null>(null);
 
-    // Index-based drag state. We never mutate `items` mid-drag — only on drop.
     const dragFromIndex = React.useRef<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
     const [activeDragIndex, setActiveDragIndex] = React.useState<number | null>(null);
@@ -1434,9 +1478,6 @@ function ButtonsDragTab() {
         setActiveDragIndex(index);
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", String(index));
-        // Use a transparent 1px drag image so the browser doesn't render the
-        // default ghost on top of our own opacity/scale styling, which is
-        // what caused the "unreliable" look before.
         const img = new Image();
         img.src = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
         e.dataTransfer.setDragImage(img, 0, 0);
@@ -1514,7 +1555,7 @@ function ButtonsDragTab() {
                                             draggable
                                             onDragStart={e => handleDragStart(e, index)}
                                             onDragOver={e => handleDragOver(e, index)}
-                                            onDragLeave={() => { if (dragOverIndex === index) setDragOverIndex(null); } }
+                                            onDragLeave={() => { if (dragOverIndex === index) setDragOverIndex(null); }}
                                             onDrop={e => handleDrop(e, index)}
                                             onDragEnd={handleDragEnd}
                                             style={{
@@ -1566,7 +1607,7 @@ function ButtonsDragTab() {
                                                 onChange={v => {
                                                     setBtnCfg(item.id, { hidden: !v });
                                                     apply(); forceUpdate();
-                                                } } />
+                                                }} />
                                         </div>
                                     );
                                 })}
@@ -1575,10 +1616,10 @@ function ButtonsDragTab() {
                             <div style={{ position: "relative", alignContent: "center", flexShrink: 0 }}>
                                 <button
                                     onClick={() => {
-                                        openModal(modalProps => (
+                                        openModalLazy(async () => modalProps => (
                                             <SettingsModal modalProps={modalProps} />
                                         ));
-                                    } }
+                                    }}
                                     title="Button customization"
                                     style={{
                                         width: "36px",
@@ -1740,26 +1781,20 @@ function ButtonsDragTab() {
 
 // ─── Modal Implementation ─────────────────────────────────────────────────────
 
-type Tab = "panel" | "call" | "style" | "colors" | "hide" | "drag" | "modules" | "marketplace";
+type Tab = "panel" | "call" | "style" | "colors" | "hide" | "drag" | "modules";
 
 function PanelLayoutIcon({ style, className }: { style?: React.CSSProperties; className?: string; }) {
     return (
         <svg style={style} className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            {/* Top-Left Block */}
             <rect x="3" y="3" width="8" height="10" rx="2" fill="currentColor" />
-            {/* Bottom-Left Block */}
             <rect x="3" y="15" width="8" height="6" rx="2" fill="currentColor" />
-            {/* Top-Right Block */}
             <rect x="13" y="3" width="8" height="6" rx="2" fill="currentColor" />
-            {/* Bottom-Right Block */}
             <rect x="13" y="11" width="8" height="10" rx="2" fill="currentColor" />
         </svg>
     );
 }
 
 // ─── Tab icons ────────────────────────────────────────────────────────────────
-// Kept in the same flat, currentColor, rects/circles-only language as
-// PanelLayoutIcon above so the tab strip reads as one family.
 
 function TabPanelIcon() {
     return (
@@ -1831,14 +1866,6 @@ function TabModulesIcon() {
     );
 }
 
-function TabMarketplaceIcon() {
-    return (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-    );
-}
-
 const TAB_ICONS: Record<Tab, () => React.ReactElement> = {
     panel: TabPanelIcon,
     call: TabCallIcon,
@@ -1847,12 +1874,8 @@ const TAB_ICONS: Record<Tab, () => React.ReactElement> = {
     hide: TabVisibilityIcon,
     drag: TabButtonsIcon,
     modules: TabModulesIcon,
-    marketplace: TabMarketplaceIcon,
 };
 
-// Small accent-bar heading used to open each settings section — a single
-// repeated device instead of a bespoke icon per section, so it reads as
-// rhythm rather than decoration.
 function SectionHeading({ children }: { children: React.ReactNode; }) {
     return (
         <Flex alignItems="center" gap={8} style={{ marginTop: "4px" }}>
@@ -1866,14 +1889,13 @@ function SectionHeading({ children }: { children: React.ReactNode; }) {
     );
 }
 
-function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean }) {
+function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean; }) {
     const containerRef = React.useRef<HTMLDivElement>(null);
 
     React.useLayoutEffect(() => {
         if (!containerRef.current) return;
         containerRef.current.innerHTML = "";
 
-        // Helper to extract or parse an SVG element from various inputs (DOM Element, String, or { __html: string })
         const getSvgNode = (input: any): SVGElement | null => {
             if (!input) return null;
 
@@ -1896,12 +1918,10 @@ function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean })
         const viewBox = svgNode.getAttribute("viewBox") || "0 0 24 24";
         const maskId = `toggleLineMask-${Math.random().toString(36).substring(2, 7)}`;
 
-        // Extract viewBox dimensions
         const viewBoxValues = viewBox.split(/[\s,]+/).map(Number);
         const vbWidth = viewBoxValues[2] || 24;
         const vbHeight = viewBoxValues[3] || 24;
 
-        // Standard proportional coordinates for custom strike-through line
         const lineCoords = {
             x1: String(Number((vbWidth * 0.88).toFixed(2))),
             y1: String(Number((vbHeight * 0.12).toFixed(2))),
@@ -1913,14 +1933,10 @@ function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean })
         const overlayLineWidth = String(Number((vbWidth * 0.08).toFixed(2)));
         const lineCap = "round";
 
-        // enabled = false -> OFF state (show strike-through)
-        // enabled = true  -> ON state (clean icon)
         const showStrikeThrough = !enabled;
 
-        // Clone target SVG hierarchy
         const contentClone = svgNode.cloneNode(true) as SVGElement;
 
-        // 1. Remove hidden elements (e.g. Lottie hidden keyframes)
         contentClone.querySelectorAll("*").forEach(el => {
             const style = el.getAttribute("style") || "";
             const isHiddenAttr = el.getAttribute("display") === "none";
@@ -1931,10 +1947,8 @@ function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean })
             }
         });
 
-        // 2. Strip native <line> tags
         contentClone.querySelectorAll("line").forEach(line => line.remove());
 
-        // 3. Strip native diagonal slash <path> tags (e.g., Lottie diagonal slash paths)
         contentClone.querySelectorAll("path").forEach(path => {
             const d = path.getAttribute("d") || "";
             if (/M\s*-?10,\s*10.*10,\s*-10/i.test(d) || /M\s*-?10\s+10.*10\s+-10/i.test(d)) {
@@ -1942,7 +1956,6 @@ function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean })
             }
         });
 
-        // 4. Remove all existing mask attributes from cloned nodes
         contentClone.querySelectorAll("[mask]").forEach(el => el.removeAttribute("mask"));
 
         const newSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -1950,16 +1963,14 @@ function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean })
         newSvg.setAttribute("height", "20");
         newSvg.setAttribute("viewBox", viewBox);
 
-        // Preserve defs minus native masks
         contentClone.querySelectorAll("defs").forEach(defs => {
             const defsClone = defs.cloneNode(true) as Element;
             defsClone.querySelectorAll("mask").forEach(m => m.remove());
             newSvg.appendChild(defsClone);
         });
 
-        // 5. Construct mask ONLY when strike-through is needed (enabled = false)
         if (showStrikeThrough) {
-            const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs"); // Added defs wrapper
+            const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
             const mask = document.createElementNS("http://www.w3.org/2000/svg", "mask");
             mask.setAttribute("id", maskId);
 
@@ -1967,7 +1978,7 @@ function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean })
             rect.setAttribute("width", "100%");
             rect.setAttribute("height", "100%");
             rect.setAttribute("fill", "#ffffff");
-            rect.setAttribute("class", "whiteMaskRect"); // Added a specific class
+            rect.setAttribute("class", "whiteMaskRect");
 
             const maskLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
             maskLine.setAttribute("x1", lineCoords.x1);
@@ -1982,12 +1993,10 @@ function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean })
             mask.appendChild(rect);
             mask.appendChild(maskLine);
 
-            // Append the mask to defs, and defs to the new SVG
             defs.appendChild(mask);
             newSvg.appendChild(defs);
         }
 
-        // 6. Build Content Group
         const mainGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
         mainGroup.setAttribute("fill", "currentColor");
 
@@ -2006,7 +2015,6 @@ function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean })
 
         newSvg.appendChild(mainGroup);
 
-        // 7. Append Overlay Line ONLY when strike-through is active (enabled = false)
         if (showStrikeThrough) {
             const overlayLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
             overlayLine.setAttribute("x1", lineCoords.x1);
@@ -2074,11 +2082,11 @@ function SubModalButton({
     );
 }
 
-function SettingsModal({ modalProps }: { modalProps: RenderModalProps }) {
+function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
     const [items] = React.useState<BtnItem[]>(getBtnItems());
 
     const handleOpenSubModal = (item: BtnItem) => {
-        openModal((props: RenderModalProps) => (
+        openModalLazy(async () => (props: RenderModalProps) => (
             <SettingModal modalProps={props} label={item.label} icon={{ __html: item.iconHTML }} />
         ));
     };
@@ -2094,24 +2102,24 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps }) {
                     <div className="deracul-scrollbar" style={{ paddingTop: "1px", overflowY: "auto", paddingRight: "4px" }}>
                         <Flex flexDirection="column" gap={8}>
                             {(items ?? [])
-                            .filter(item => !getBtnCfg(item.id).hidden &&
-                                getCanonicalLabel(item.label) !== "Soundboard disabled when deafened" &&
-                                getCanonicalLabel(item.label) !== "Open Soundboard" &&
-                                getCanonicalLabel(item.label) !== "User Settings" &&
-                                getCanonicalLabel(item.label) !== "Panel Layout"
-                            )
-                            .map(item => {
-                                const cfg = getBtnCfg(item.id);
+                                .filter(item => !getBtnCfg(item.id).hidden &&
+                                    getCanonicalLabel(item.label) !== "Soundboard disabled when deafened" &&
+                                    getCanonicalLabel(item.label) !== "Open Soundboard" &&
+                                    getCanonicalLabel(item.label) !== "User Settings" &&
+                                    getCanonicalLabel(item.label) !== "Panel Layout"
+                                )
+                                .map(item => {
+                                    const cfg = getBtnCfg(item.id);
 
-                                return (
-                                    <SubModalButton
-                                        key={item.id}
-                                        item={item}
-                                        cfg={cfg}
-                                        handleOpenSubModal={handleOpenSubModal}
-                                    />
-                                );
-                            })}
+                                    return (
+                                        <SubModalButton
+                                            key={item.id}
+                                            item={item}
+                                            cfg={cfg}
+                                            handleOpenSubModal={handleOpenSubModal}
+                                        />
+                                    );
+                                })}
                         </Flex>
                     </div>
                 </div>
@@ -2119,7 +2127,11 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps }) {
 
             <Flex gap={8} justifyContent="flex-end" style={{ width: "100%", marginTop: "var(--custom-modal-padding-md)" }}>
                 <div style={{ flex: 1 }} />
-                <Button variant="primary" onClick={() => modalProps.onClose()}>
+                <Button
+                    variant="secondary"
+                    style={{ backgroundColor: "#174b71", color: "#fff" }}
+                    onClick={() => modalProps.onClose()}
+                >
                     Done
                 </Button>
             </Flex>
@@ -2139,7 +2151,7 @@ function SettingModalItem({
     label: any;
     icon?: any;
     modalProps: RenderModalProps;
-    resetDefaults: (arg: { id: any }) => void;
+    resetDefaults: (arg: { id: any; }) => void;
     forceUpdate: () => void;
 }) {
     const cfg = getBtnCfg(item.id);
@@ -2227,7 +2239,31 @@ function SettingModalItem({
         (cfg.keybind !== null);
 
     return (
-        <Modal title={<BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>} {...modalProps} size="xl">
+        <Modal
+            title={<BaseText size="sm" weight="medium" color="text-default">{item.label}</BaseText>}
+            actionBarInput={
+                <div style={{ display: "flex", justifyContent: isModified ? "space-between" : "flex-end", width: "100%", alignItems: "center" }}>
+                    {isModified ? (
+                        <Button
+                            variant="secondary"
+                            style={{ backgroundColor: "#174b71", color: "#fff" }}
+                            onClick={() => resetDefaults({ id: item.id })}
+                        >
+                            Reset to Defaults
+                        </Button>
+                    ) : <div />}
+                    <Button
+                        variant="secondary"
+                        style={{ backgroundColor: "#174b71", color: "#fff" }}
+                        onClick={() => modalProps.onClose()}
+                    >
+                        Done
+                    </Button>
+                </div>
+            }
+            {...modalProps}
+            size="xl"
+        >
             <div style={{ display: "flex", flexDirection: "row-reverse", gap: "24px", height: `${MODAL_BODY_HEIGHT}px` }}>
                 <div className="deracul-scrollbar" style={{ flex: 1, height: "100%", overflowY: "auto", paddingRight: "4px" }}>
                     <Flex flexDirection="column" gap={16}>
@@ -2391,19 +2427,6 @@ function SettingModalItem({
                 )}
             </div>
 
-            <ModalFooter style={{ paddingRight: 0, paddingLeft: 0 }}>
-                <Flex gap={8} justifyContent="flex-end" style={{ width: "100%" }}>
-                    {isModified && (
-                        <Button variant="secondary" onClick={() => resetDefaults({ id: item.id })}>
-                            Reset to Defaults
-                        </Button>
-                    )}
-                    <div style={{ flex: 1 }} />
-                    <Button variant="primary" onClick={() => modalProps.onClose()}>
-                        Done
-                    </Button>
-                </Flex>
-            </ModalFooter>
         </Modal>
     );
 }
@@ -2414,7 +2437,7 @@ function SettingModal({ modalProps, label, icon }: { modalProps: RenderModalProp
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const [, setResetKey] = React.useState(0);
 
-    function resetDefaults({ id }: { id: any }) {
+    function resetDefaults({ id }: { id: any; }) {
         setBtnCfg(id, {
             color: "#5865f2",
             opacity: 100,
@@ -2494,6 +2517,12 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
 
     function set<K extends keyof typeof settings.store>(key: K, val: (typeof settings.store)[K]) {
         settings.store[key] = val;
+        try {
+            const plPlain = getPanelLayoutPlainSettings();
+            plPlain[key] = val;
+            SettingsStore.markAsChanged();
+        } catch {
+        }
         apply(); forceUpdate();
     }
 
@@ -2507,7 +2536,6 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         { id: "hide", label: "Visibility" },
         { id: "drag", label: "Buttons" },
         { id: "modules", label: "Modules" },
-        { id: "marketplace", label: "Marketplace" },
     ];
 
     function resetDefaults() {
@@ -2558,8 +2586,8 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
 
     return (
         <Modal title={
-        <>
-            <Flex gap={12} alignItems="center" style={{ width: "100%", paddingRight: "36px" }}>
+            <>
+                <Flex gap={12} alignItems="center" style={{ width: "100%", paddingRight: "36px" }}>
                     <div style={{
                         display: "flex", alignItems: "center", justifyContent: "center",
                         width: "40px", height: "40px", borderRadius: "12px",
@@ -2586,22 +2614,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <div
                                 key={t.id}
                                 onClick={() => setTab(t.id)}
-                                style={{
-                                    display: "flex", alignItems: "center", gap: "6px",
-                                    padding: "8px 12px", marginBottom: "-1px",
-                                    cursor: "pointer", borderRadius: "6px 6px 0 0",
-                                    borderBottom: active ? "2px solid var(--brand-experiment, var(--background-brand))" : "2px solid transparent",
-                                    backgroundColor: "transparent",
-                                    transition: "background-color 0.15s ease, border-color 0.15s ease",
-                                }}
-                                onMouseEnter={e => {
-                                    e.currentTarget.style.backgroundColor = active
-                                        ? "transparent"
-                                        : "var(--background-modifier-hover, var(--background-mod-subtle))";
-                                }}
-                                onMouseLeave={e => {
-                                    e.currentTarget.style.backgroundColor = "transparent";
-                                }}
+                                className={`vc-pl-subtab ${active ? "active" : ""}`}
                             >
                                 <span style={{ display: "flex", color: active ? "var(--brand-experiment, var(--background-brand))" : "var(--text-muted)", transition: "color 0.15s ease" }}>
                                     <Icon />
@@ -2613,7 +2626,28 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         );
                     })}
                 </Flex>
-        </>} {...modalProps} size="xl">
+            </>}
+            actionBarInput={
+                <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+                    <Button
+                        variant="secondary"
+                        style={{ backgroundColor: "#174b71", color: "#fff" }}
+                        onClick={resetDefaults}
+                    >
+                        Reset to Defaults
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        style={{ backgroundColor: "#174b71", color: "#fff" }}
+                        onClick={() => modalProps.onClose()}
+                    >
+                        Done
+                    </Button>
+                </div>
+            }
+            {...modalProps}
+            size="xl"
+        >
             <div className="deracul-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px" }}>
                 <Flex flexDirection="column" gap={16}>
                     {tab === "panel" && <>
@@ -2703,27 +2737,15 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <ButtonsDragTab />
                     </>}
 
-                    {tab === "modules" && <>
-                        <ModulesTab />
-                    </>}
-
-                    {tab === "marketplace" && <>
-                        <MarketplaceTab />
-                    </>}
+                    {tab === "modules" && (
+                        <ModulesTab
+                            pluginSettings={s}
+                            onOpenButtonCustomizer={() => setTab("drag")}
+                        />
+                    )}
                 </Flex>
             </div>
 
-            <ModalFooter>
-                <Flex gap={8} justifyContent="flex-end" style={{ width: "100%" }}>
-                    <Button variant="secondary" onClick={resetDefaults}>
-                        Reset to Defaults
-                    </Button>
-                    <div style={{ flex: 1 }} />
-                    <Button variant="primary" onClick={() => modalProps.onClose()}>
-                        Done
-                    </Button>
-                </Flex>
-            </ModalFooter>
         </Modal>
     );
 }
@@ -2731,7 +2753,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
 // ─── Panel Button ─────────────────────────────────────────────────────────────
 
 function PanelLayoutButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
-    const handleOpen = () => openModal(modalProps => <PanelLayoutModal modalProps={modalProps} />);
+    const handleOpen = () => openModalLazy(async () => modalProps => <PanelLayoutModal modalProps={modalProps} />);
 
     return (
         <UserAreaButton
@@ -2797,11 +2819,14 @@ export default definePlugin({
         await Promise.all([loadConfigs(), initModuleManager()]);
         apply();
         startObserver();
+        unsubscribeModules = subscribeModules(() => apply());
         SettingsStore.addChangeListener("plugins.TestcordHelper.userAreaButtonIconColor", apply);
         document.addEventListener("keydown", onGlobalKeydown, true);
         document.addEventListener("click", onGlobalClick, true);
     },
     stop() {
+        unsubscribeModules?.();
+        unsubscribeModules = null;
         stopModuleManager();
         stopObserver();
         SettingsStore.removeChangeListener("plugins.TestcordHelper.userAreaButtonIconColor", apply);

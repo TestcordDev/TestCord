@@ -155,6 +155,15 @@ export function LayersIcon({ size = 16, style }: { size?: number; style?: React.
     );
 }
 
+export function EyeIcon({ size = 14, style }: { size?: number; style?: React.CSSProperties }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={style}>
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+        </svg>
+    );
+}
+
 export function getModuleIcon(id: string, size = 16): React.ReactElement {
     switch (id) {
         case "music-controls":
@@ -167,10 +176,6 @@ export function getModuleIcon(id: string, size = 16): React.ReactElement {
             return <ClockIcon size={size} />;
         case "system-monitor":
             return <ActivityPulseIcon size={size} />;
-        case "quick-notes":
-            return <FileTextIcon size={size} />;
-        case "quotes-widget":
-            return <QuoteIcon size={size} />;
         default:
             return <CodeIcon size={size} />;
     }

@@ -67,3 +67,16 @@ export interface MarketplaceCatalogItem {
     previewComponent?: ComponentType;
     factory: () => Omit<UserAreaModule, "order" | "enabled">;
 }
+
+export type UserAreaItemType = "voice-connected" | "native-activity-banner" | "account-panel" | "module";
+
+export interface UserAreaReorderItem {
+    id: string;
+    type: UserAreaItemType;
+    name: string;
+    description: string;
+    order: number;
+    enabled: boolean;
+    moduleId?: string;
+    hasSettings?: boolean;
+}

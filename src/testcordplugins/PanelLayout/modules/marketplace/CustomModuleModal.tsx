@@ -8,8 +8,8 @@ import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { Flex } from "@components/Flex";
-import { ModalFooter, openModal, RenderModalProps } from "@utils/modal";
-import { Modal, React, Select, TextInput, useState } from "@webpack/common";
+import type { RenderModalProps } from "@vencord/discord-types";
+import { Modal, openModalLazy, React, Select, TextInput, useState } from "@webpack/common";
 
 function FormField({ title, note, children }: { title: string; note?: string; children: React.ReactNode; }) {
     return (
@@ -27,6 +27,7 @@ function FormField({ title, note, children }: { title: string; note?: string; ch
     );
 }
 
+import { CodeIcon, EyeIcon } from "../icons";
 import { installCustomModule, updateCustomModule } from "../registry";
 import type { CustomModuleData, CustomModuleType, ModulePosition } from "../types";
 
@@ -50,7 +51,7 @@ const DEFAULT_REACT_CODE = `function Component() {
 }`;
 
 export function openCustomModuleModal(initialData?: CustomModuleData, isEditing = false) {
-    openModal(props => (
+    openModalLazy(async () => props => (
         <CustomModuleModal modalProps={props} initialData={initialData} isEditing={isEditing} />
     ));
 }
@@ -103,6 +104,30 @@ export function CustomModuleModal({ modalProps, initialData, isEditing }: Custom
         }
     };
 
+    const TAB_CSS = `
+.vc-pl-subtab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    margin-bottom: -1px;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    border-bottom: 2px solid transparent;
+    background-color: transparent !important;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+    user-select: none;
+}
+.vc-pl-subtab:hover {
+    background-color: var(--background-modifier-hover, var(--background-mod-subtle)) !important;
+}
+.vc-pl-subtab.active,
+.vc-pl-subtab.active:hover {
+    border-bottom: 2px solid var(--brand-experiment, var(--background-brand)) !important;
+    background-color: transparent !important;
+}
+`;
+
     return (
         <Modal
             title={
@@ -111,35 +136,85 @@ export function CustomModuleModal({ modalProps, initialData, isEditing }: Custom
                 </BaseText>
             }
             size="lg"
+            actionBarInput={
+                <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+                    <Button
+                        variant="secondary"
+                        style={{ backgroundColor: "#174b71", color: "#fff" }}
+                        onClick={() => modalProps.onClose()}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        style={{ backgroundColor: "#174b71", color: "#fff" }}
+                        onClick={handleSave}
+                    >
+                        {isEditing ? "Save Changes" : "Install Module"}
+                    </Button>
+                </div>
+            }
             {...modalProps}
         >
+            <style>{TAB_CSS}</style>
             <div style={{ maxHeight: "65vh", overflowY: "auto", paddingRight: "4px" }}>
-                <Flex gap={8} style={{ marginBottom: "16px", borderBottom: "1px solid var(--background-modifier-accent)" }}>
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        borderBottom: "1px solid var(--background-modifier-accent, var(--border-muted))",
+                        width: "100%",
+                        marginBottom: "16px",
+                    }}
+                >
                     <div
                         onClick={() => setActiveTab("edit")}
-                        style={{
-                            padding: "8px 16px",
-                            cursor: "pointer",
-                            fontWeight: activeTab === "edit" ? 600 : 400,
-                            borderBottom: activeTab === "edit" ? "2px solid var(--brand-experiment)" : "2px solid transparent",
-                            color: activeTab === "edit" ? "var(--header-primary)" : "var(--text-muted)",
-                        }}
+                        className={`vc-pl-subtab ${activeTab === "edit" ? "active" : ""}`}
                     >
-                        Editor
+                        <span
+                            style={{
+                                display: "flex",
+                                color: activeTab === "edit"
+                                    ? "var(--brand-experiment, var(--background-brand))"
+                                    : "var(--text-muted)",
+                                transition: "color 0.15s ease",
+                            }}
+                        >
+                            <CodeIcon size={14} />
+                        </span>
+                        <BaseText
+                            size="md"
+                            weight={activeTab === "edit" ? "semibold" : "medium"}
+                            color={activeTab === "edit" ? "text-strong" : "text-muted"}
+                        >
+                            Editor
+                        </BaseText>
                     </div>
                     <div
                         onClick={() => setActiveTab("preview")}
-                        style={{
-                            padding: "8px 16px",
-                            cursor: "pointer",
-                            fontWeight: activeTab === "preview" ? 600 : 400,
-                            borderBottom: activeTab === "preview" ? "2px solid var(--brand-experiment)" : "2px solid transparent",
-                            color: activeTab === "preview" ? "var(--header-primary)" : "var(--text-muted)",
-                        }}
+                        className={`vc-pl-subtab ${activeTab === "preview" ? "active" : ""}`}
                     >
-                        Live Preview
+                        <span
+                            style={{
+                                display: "flex",
+                                color: activeTab === "preview"
+                                    ? "var(--brand-experiment, var(--background-brand))"
+                                    : "var(--text-muted)",
+                                transition: "color 0.15s ease",
+                            }}
+                        >
+                            <EyeIcon size={14} />
+                        </span>
+                        <BaseText
+                            size="md"
+                            weight={activeTab === "preview" ? "semibold" : "medium"}
+                            color={activeTab === "preview" ? "text-strong" : "text-muted"}
+                        >
+                            Live Preview
+                        </BaseText>
                     </div>
-                </Flex>
+                </div>
 
                 {error && (
                     <div
@@ -295,16 +370,6 @@ export function CustomModuleModal({ modalProps, initialData, isEditing }: Custom
                 )}
             </div>
 
-            <ModalFooter>
-                <Flex gap={8} justifyContent="flex-end" style={{ width: "100%" }}>
-                    <Button variant="secondary" onClick={() => modalProps.onClose()}>
-                        Cancel
-                    </Button>
-                    <Button variant="primary" onClick={handleSave}>
-                        {isEditing ? "Save Changes" : "Install Module"}
-                    </Button>
-                </Flex>
-            </ModalFooter>
         </Modal>
     );
 }
