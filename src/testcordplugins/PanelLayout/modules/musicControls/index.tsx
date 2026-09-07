@@ -223,34 +223,36 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
     const handleClose = () => (modalProps?.onClose ?? onClose)?.();
 
     return (
-        <Modal title="Music Controls Settings" {...modalProps!}>
+        <Modal title="Music Controls Settings" {...modalProps!} actionBarInput={
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", flexDirection: "row-reverse" }}>
+                <Button
+                    variant="secondary"
+                    onClick={handleClose}
+                >
+                    Done
+                </Button>
+            </div>
+        }>
             <div style={{ padding: "16px" }}>
-                <Paragraph style={{ marginBottom: "16px", color: "var(--text-muted)", fontSize: "13px" }}>
-                    Configure Spotify and Tidal player display, hover behavior, and synced lyrics.
-                </Paragraph>
-
                 <Flex gap={8} style={{ marginBottom: "16px" }}>
-                    <Button
-                        variant={tab === "spotify" ? "primary" : "secondary"}
-                        size="small"
+                    <div
                         onClick={() => setTab("spotify")}
+                        className={`vc-pl-subtab ${tab === "spotify" ? "active" : ""}`}
                     >
                         Spotify
-                    </Button>
-                    <Button
-                        variant={tab === "tidal" ? "primary" : "secondary"}
-                        size="small"
+                    </div>
+                    <div
                         onClick={() => setTab("tidal")}
+                        className={`vc-pl-subtab ${tab === "tidal" ? "active" : ""}`}
                     >
                         Tidal
-                    </Button>
-                    <Button
-                        variant={tab === "lyrics" ? "primary" : "secondary"}
-                        size="small"
+                    </div>
+                    <div
                         onClick={() => setTab("lyrics")}
+                        className={`vc-pl-subtab ${tab === "lyrics" ? "active" : ""}`}
                     >
                         Lyrics & Hover
-                    </Button>
+                    </div>
                 </Flex>
 
                 {tab === "spotify" && (
@@ -381,16 +383,6 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                         </Card>
                     </div>
                 )}
-
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
-                    <Button
-                        variant="secondary"
-                        style={{ backgroundColor: "#174b71", color: "#fff" }}
-                        onClick={handleClose}
-                    >
-                        Done
-                    </Button>
-                </div>
             </div>
         </Modal>
     );

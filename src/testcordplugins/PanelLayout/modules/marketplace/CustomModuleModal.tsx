@@ -105,28 +105,30 @@ export function CustomModuleModal({ modalProps, initialData, isEditing }: Custom
     };
 
     const TAB_CSS = `
-.vc-pl-subtab {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    margin-bottom: -1px;
-    cursor: pointer;
-    border-radius: 6px 6px 0 0;
-    border-bottom: 2px solid transparent;
-    background-color: transparent !important;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
-    user-select: none;
-}
-.vc-pl-subtab:hover {
-    background-color: var(--background-modifier-hover, var(--background-mod-subtle)) !important;
-}
-.vc-pl-subtab.active,
-.vc-pl-subtab.active:hover {
-    border-bottom: 2px solid var(--brand-experiment, var(--background-brand)) !important;
-    background-color: transparent !important;
-}
-`;
+        .vc-pl-subtab {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            margin-bottom: -1px;
+            cursor: pointer;
+            border-radius: 6px 6px 0 0;
+            border-bottom: 2px solid transparent;
+            background-color: transparent !important;
+            transition: background-color 0.15s ease, border-color 0.15s ease;
+            user-select: none;
+        }
+
+        .vc-pl-subtab:hover {
+            background-color: var(--background-modifier-hover, var(--background-mod-subtle)) !important;
+        }
+
+        .vc-pl-subtab.active,
+        .vc-pl-subtab.active:hover {
+            border-bottom: 2px solid var(--brand-experiment, var(--background-brand)) !important;
+            background-color: transparent !important;
+        }
+    `;
 
     return (
         <Modal

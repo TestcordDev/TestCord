@@ -1521,7 +1521,6 @@ function ButtonsDragTab() {
         <Flex flexDirection="column" gap={16} style={{ paddingBottom: "12px" }}>
             <Paragraph style={{ color: "var(--text-muted)", fontSize: "13px" }}>
                 Drag a square left or right to change its order. Use the switches to show or hide them.
-                Click the chips under "Group with" on a button's card to link it with others — activating one activates the rest.
             </Paragraph>
 
             {items.length === 0 ? (
@@ -1747,7 +1746,7 @@ function ButtonsDragTab() {
                                                                     gap: "6px",
                                                                     height: "28px",
                                                                     padding: "0 10px",
-                                                                    borderRadius: "14px",
+                                                                    borderRadius: "5vh",
                                                                     border: linked
                                                                         ? "1px solid var(--brand-experiment, var(--background-brand))"
                                                                         : "1px solid var(--background-modifier-accent, var(--border-muted))",
@@ -2745,7 +2744,6 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                     )}
                 </Flex>
             </div>
-
         </Modal>
     );
 }

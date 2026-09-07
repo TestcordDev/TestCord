@@ -38,22 +38,22 @@ export function DevBannerSettingsModal({ modalProps, onClose }: { modalProps?: R
     const handleClose = () => (modalProps?.onClose ?? onClose)?.();
 
     return (
-        <Modal title="Developer Banner Settings" {...modalProps!}>
+        <Modal title="Developer Banner Settings" {...modalProps!} actionBarInput={
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", flexDirection: "row-reverse" }}>
+                <Button
+                    variant="secondary"
+                    onClick={handleClose}
+                >
+                    Done
+                </Button>
+            </div>
+        }>
             <div style={{ padding: "16px" }}>
                 <FormatSetting
                     setValue={(newFormat: string) => {
                         settings.store.format = newFormat;
                     }}
                 />
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
-                    <Button
-                        variant="secondary"
-                        style={{ backgroundColor: "#174b71", color: "#fff" }}
-                        onClick={handleClose}
-                    >
-                        Done
-                    </Button>
-                </div>
             </div>
         </Modal>
     );

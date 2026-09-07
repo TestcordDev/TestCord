@@ -27,6 +27,8 @@ import { openCustomModuleModal } from "./CustomModuleModal";
 import { MarketplaceTab } from "./MarketplaceTab";
 import { UserAreaReorderTab } from "./UserAreaReorderTab";
 
+const MODAL_BODY_HEIGHT = 380;
+
 export type ModulesSubTab = "userarea" | "marketplace" | "usermodules";
 
 function SubTabUserAreaIcon({ size = 14, style }: { size?: number; style?: React.CSSProperties; }) {
@@ -71,27 +73,29 @@ export function ModulesTab({
     ] as const;
 
 const TAB_CSS = `
-.vc-pl-subtab {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
-    margin-bottom: -1px;
-    cursor: pointer;
-    border-radius: 6px 6px 0 0;
-    border-bottom: 2px solid transparent;
-    background-color: transparent !important;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
-    user-select: none;
-}
-.vc-pl-subtab:hover {
-    background-color: var(--background-modifier-hover, var(--background-mod-subtle)) !important;
-}
-.vc-pl-subtab.active,
-.vc-pl-subtab.active:hover {
-    border-bottom: 2px solid var(--brand-experiment, var(--background-brand)) !important;
-    background-color: transparent !important;
-}
+    .vc-pl-subtab {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 14px;
+        margin-bottom: -1px;
+        cursor: pointer;
+        border-radius: 6px 6px 0 0;
+        border-bottom: 2px solid transparent;
+        background-color: transparent !important;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+        user-select: none;
+    }
+
+    .vc-pl-subtab:hover {
+        background-color: var(--background-modifier-hover, var(--background-mod-subtle)) !important;
+    }
+
+    .vc-pl-subtab.active,
+    .vc-pl-subtab.active:hover {
+        border-bottom: 2px solid var(--brand-experiment, var(--background-brand)) !important;
+        background-color: transparent !important;
+    }
 `;
 
     return (
@@ -139,23 +143,27 @@ const TAB_CSS = `
                 })}
             </div>
 
-            {subTab === "userarea" && (
-                <UserAreaReorderTab
-                    pluginSettings={pluginSettings}
-                    onOpenButtonCustomizer={onOpenButtonCustomizer}
-                />
-            )}
+            <div className="deracul-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px" }}>
+                <Flex flexDirection="column" gap={16}>
+                    {subTab === "userarea" && (
+                        <UserAreaReorderTab
+                            pluginSettings={pluginSettings}
+                            onOpenButtonCustomizer={onOpenButtonCustomizer}
+                        />
+                    )}
 
-            {subTab === "marketplace" && (
-                <MarketplaceTab />
-            )}
+                    {subTab === "marketplace" && (
+                        <MarketplaceTab />
+                    )}
 
-            {subTab === "usermodules" && (
-                <UserModulesSubfolder
-                    customModules={customModules}
-                    onRefresh={() => void getCustomModulesData().then(setCustomModules)}
-                />
-            )}
+                    {subTab === "usermodules" && (
+                        <UserModulesSubfolder
+                            customModules={customModules}
+                            onRefresh={() => void getCustomModulesData().then(setCustomModules)}
+                        />
+                    )}
+            </Flex>
+            </div>
         </Flex>
     );
 }

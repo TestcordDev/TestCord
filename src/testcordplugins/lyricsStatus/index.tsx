@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import * as DataStore from "@api/DataStore";
 import { definePluginSettings } from "@api/Settings";
 import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import { getUserSettingLazy } from "@api/UserSettings";
+import { settings as musicControlsSettings } from "@testcordplugins/PanelLayout/modules/musicControls/settings";
 import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
 import { FluxDispatcher } from "@webpack/common";
@@ -68,6 +70,31 @@ let currentArtist = "";
 function getPosition(): number {
     if (!isPlaying) return lastPosition;
     return lastPosition + (Date.now() - lastPositionTs);
+}
+
+// ── Lyric delay (global + per-song, shared with the music controls lyrics provider) ──
+
+const CUSTOM_DELAY_DATASTORE_KEY = "vc-spotify-custom-song-delays";
+const customSongDelays: Record<string, number> = {};
+
+function getTrackKey(id: string, name: string): string {
+    return id || name;
+}
+
+function getCurrentDelay(): number {
+    const globalDelay = musicControlsSettings.store.lyricDelay ?? 0;
+    const songDelay = customSongDelays[getTrackKey(currentTrackId, currentTrackName)] ?? 0;
+    return globalDelay + songDelay;
+}
+
+function loadCustomSongDelays() {
+    DataStore.get<Record<string, number>>(CUSTOM_DELAY_DATASTORE_KEY).then(saved => {
+        if (saved) Object.assign(customSongDelays, saved);
+    });
+}
+
+function onCustomDelayChange({ trackKey, delay }: { trackKey: string; delay: number; }) {
+    customSongDelays[trackKey] = delay;
 }
 
 // ── Lyrics ────────────────────────────────────────────────────────────────────
@@ -185,7 +212,7 @@ let lyricsAbortController: AbortController | null = null;
 
 function tick() {
     if (!settings.store.active || !isPlaying || !currentLines) return;
-    const line = getCurrentLine(currentLines, getPosition());
+    const line = getCurrentLine(currentLines, getPosition() + getCurrentDelay());
     if (!line) return;
     const text = settings.store.format
         .replace("{lyrics}", line)
@@ -321,7 +348,10 @@ export default definePlugin({
     },
 
     start() {
+        loadCustomSongDelays();
         FluxDispatcher.subscribe("SPOTIFY_PLAYER_STATE", onSpotifyPlayerState as any);
+        FluxDispatcher.subscribe("SPOTIFY_LYRICS_DELAYS_LOADED", loadCustomSongDelays as any);
+        FluxDispatcher.subscribe("SPOTIFY_LYRICS_CUSTOM_DELAY_CHANGE", onCustomDelayChange as any);
         if (settings.store.active) {
             intervalId = setInterval(tick, 2000);
         }
@@ -332,6 +362,8 @@ export default definePlugin({
         lyricsAbortController?.abort();
         lyricsAbortController = null;
         FluxDispatcher.unsubscribe("SPOTIFY_PLAYER_STATE", onSpotifyPlayerState as any);
+        FluxDispatcher.unsubscribe("SPOTIFY_LYRICS_DELAYS_LOADED", loadCustomSongDelays as any);
+        FluxDispatcher.unsubscribe("SPOTIFY_LYRICS_CUSTOM_DELAY_CHANGE", onCustomDelayChange as any);
         if (intervalId !== null) { clearInterval(intervalId); intervalId = null; }
         if (!isPlaying) handleStopStatus();
         currentLines = null;

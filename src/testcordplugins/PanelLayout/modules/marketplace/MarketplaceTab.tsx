@@ -74,7 +74,7 @@ export function MarketplaceTab() {
                             onClick={() => setSelectedCategory(cat.id)}
                             style={{
                                 padding: "6px 14px",
-                                borderRadius: "16px",
+                                borderRadius: "5vh",
                                 cursor: "pointer",
                                 fontSize: "12px",
                                 fontWeight: active ? 600 : 500,
@@ -96,7 +96,6 @@ export function MarketplaceTab() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "12px" }}>
                 {filteredCatalog.map(item => {
                     const isInstalled = installedMap.get(item.id) ?? false;
-                    const isEnabled = isInstalled;
 
                     const authorNames = Array.isArray(item.authors)
                         ? item.authors.map(a => (typeof a === "string" ? a : a.name)).join(", ")

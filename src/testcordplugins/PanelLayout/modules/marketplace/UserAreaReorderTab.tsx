@@ -5,7 +5,6 @@
  */
 
 import { BaseText } from "@components/BaseText";
-import { Button } from "@components/Button";
 import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { openModalLazy, React, useEffect, useReducer, useRef, UserStore, useState } from "@webpack/common";
@@ -28,6 +27,8 @@ import {
     useModules,
 } from "../registry";
 import type { UserAreaReorderItem } from "../types";
+
+const MODAL_BODY_HEIGHT = 350;
 
 export function UserAreaReorderTab({
     pluginSettings,
@@ -133,7 +134,7 @@ export function UserAreaReorderTab({
     };
 
     return (
-        <Flex gap={16} style={{ width: "100%", height: "100%", minHeight: "380px" }}>
+        <Flex gap={16} style={{ width: "100%" }}>
             {/* ─── LEFT SIDE: LIVE PREVIEW ────────────────────────────────────────── */}
             <div
                 style={{
@@ -161,7 +162,7 @@ export function UserAreaReorderTab({
                         gap: "6px",
                         boxShadow: "0 4px 16px rgba(0, 0, 0, 0.25)",
                         overflowY: "auto",
-                        maxHeight: "370px",
+                        maxHeight: "350px",
                     }}
                 >
                     {items.filter(i => i.enabled).map(item => (
@@ -196,16 +197,7 @@ export function UserAreaReorderTab({
                     </BaseText>
                 </Flex>
 
-                <div
-                    style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "6px",
-                        overflowY: "auto",
-                        maxHeight: "370px",
-                        paddingRight: "4px",
-                    }}
-                >
+                <div className="deracul-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px", gap: "6px", display: "flex", flexDirection: "column" }}>
                     {items.map((item, index) => {
                         const isDragging = activeDragIndex === index;
                         const isOver = dragOverIndex === index && activeDragIndex !== index;
@@ -315,20 +307,31 @@ export function UserAreaReorderTab({
                                     </div>
                                 </Flex>
 
-                                <Flex alignItems="center" gap={8} style={{ flexShrink: 0, marginLeft: "10px" }}>
+                                <Flex gap={0} style={{ flexShrink: 0, marginLeft: "10px" }}>
                                     {item.hasSettings && (
-                                        <Button
-                                            size="small"
-                                            variant="secondary"
-                                            title="Settings"
+                                        <button
                                             onClick={e => {
                                                 e.stopPropagation();
                                                 handleSettingsClick(item);
                                             }}
-                                            style={{ padding: "4px 8px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                            title="Settings"
+                                            style={{
+                                                width: "33px",
+                                                height: "33px",
+                                                backgroundColor: "transparent",
+                                                color: "var(--interactive-normal)",
+                                                cursor: "pointer",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                fontSize: "16px",
+                                                transition: "background-color 0.15s ease, color 0.15s ease",
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.color = "var(--interactive-active)"}
+                                            onMouseLeave={e => e.currentTarget.style.color = "var(--interactive-normal)"}
                                         >
-                                            <SettingsGearIcon size={13} />
-                                        </Button>
+                                            <SettingsGearIcon size={33} />
+                                        </button>
                                     )}
 
                                     <FormSwitch
