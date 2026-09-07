@@ -638,8 +638,6 @@ export default definePlugin({
                 }
 
                 isActive = true;
-                // Keep the main-process encrypted DNS in sync with this engine
-                // so the Privacy & Security toggle reflects reality.
                 try { void VencordNative?.privacy?.setDnsEnabled?.(true)?.catch?.(() => { }); } catch { }
                 showPluginToast(`${PLUGIN_NAME} activated with ${getProviderName()}.`, Toasts.Type.SUCCESS);
             },
@@ -665,7 +663,6 @@ export default definePlugin({
                     return;
                 }
                 isActive = false;
-                try { void VencordNative?.privacy?.setDnsEnabled?.(false)?.catch?.(() => { }); } catch { }
 
                 showPluginToast(`${PLUGIN_NAME} deactivated.`);
                 log.info("Plugin stopped.");
@@ -714,9 +711,6 @@ export default definePlugin({
                 void CustomDNS.start();
             }, START_DELAY_MS);
         } else {
-            // Auto start disabled — make sure the main-process encrypted DNS
-            // engine isn't left active from a previous session.
-            try { void VencordNative?.privacy?.setDnsEnabled?.(false)?.catch?.(() => { }); } catch { }
             log.info("Auto start is disabled.");
         }
 

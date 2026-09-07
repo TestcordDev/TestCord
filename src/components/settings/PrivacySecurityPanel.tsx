@@ -67,16 +67,10 @@ const FIRST_PARTY_HOSTS = [
     "discord.dev"
 ];
 
-// ReviewDB and other known-but-untrusted third parties that receive your token.
-// These are recognized so we can name them, but they are NEVER marked trusted.
 const UNTRUSTED_KNOWN_HOSTS: Record<string, string> = {
     "manti.vendicated.dev": "ReviewDB backend (receives your Discord token)"
 };
 
-// Known-good third-party infrastructure. NOT Discord, but reputable and expected
-// (public CDNs that serve open-source assets). Tagged "Trusted CDN" so benign
-// remote-code fetches like Shiki's WASM don't read as generic third party.
-// These never receive your token; they only serve static assets.
 const TRUSTED_KNOWN_HOSTS: Record<string, string> = {
     "cdn.jsdelivr.net": "jsDelivr public CDN (serves open-source assets, e.g. Shiki syntax highlighting).",
     "unpkg.com": "unpkg public CDN (serves npm package assets)."
@@ -95,8 +89,6 @@ function matchKnown(map: Record<string, string>, host: string): string | undefin
 export function classifyHost(host: string): HostReputation {
     const h = (host || "").toLowerCase();
     if (FIRST_PARTY_HOSTS.some(fp => h === fp || h.endsWith("." + fp))) return "first-party";
-    // Untrusted takes precedence over trusted so a host can never be laundered
-    // into the trusted bucket if it also appears as a token recipient.
     if (matchKnown(UNTRUSTED_KNOWN_HOSTS, h)) return "third-party";
     if (matchKnown(TRUSTED_KNOWN_HOSTS, h)) return "trusted-third-party";
     return "third-party";
@@ -121,8 +113,6 @@ export function hostReputationNote(host: string): string {
     return "An external host that is not Discord.";
 }
 
-// Maps a host's reputation to the CSS class suffix used for its tag. Untrusted
-// known hosts stay in the "third" (red) bucket even though they're recognized.
 export function repTagClass(host: string): "first" | "trusted" | "third" {
     const rep = classifyHost(host);
     if (rep === "first-party") return "first";
@@ -272,28 +262,25 @@ export function PrivacySecurityPanel() {
     const [copiedField, setCopiedField] = useState<string | null>(null);
     const LOGS_PER_PAGE = 4;
 
-    const settings = useSettings(["plugins.NoTrack.disableAnalytics", "plugins.CustomDNS.autoStart", "plugins.CustomDNS.rewriteFetch"]);
+    const settings = useSettings(["plugins.NoTrack.disableAnalytics", "plugins.CustomDNS.rewriteFetch"]);
     const noTrackOn = settings.plugins?.NoTrack?.disableAnalytics !== false;
-    const dnsActive = settings.plugins?.CustomDNS?.autoStart !== false;
     const dnsRewrite = settings.plugins?.CustomDNS?.rewriteFetch === true;
 
     const copyToClipboard = (value: string, field: string) => {
         try {
             navigator.clipboard.writeText(value);
         } catch {
-            // Fallback for environments without the async clipboard API.
             const ta = document.createElement("textarea");
             ta.value = value;
             document.body.appendChild(ta);
             ta.select();
-            try { document.execCommand("copy"); } catch { /* no-op */ }
+            try { document.execCommand("copy"); } catch { }
             document.body.removeChild(ta);
         }
         setCopiedField(field);
         setTimeout(() => setCopiedField(prev => (prev === field ? null : prev)), 1500);
     };
 
-    // Custom Dropdown State & Ref
     const [isDnsOpen, setIsDnsOpen] = useState(false);
     const selectRef = useRef<HTMLDivElement>(null);
 
@@ -344,7 +331,6 @@ export function PrivacySecurityPanel() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Telemetry KPI Counters
     const [counters, setCounters] = useState({
         totalBlocked: 0,
         totalStripped: 0,
@@ -359,7 +345,6 @@ export function PrivacySecurityPanel() {
     const [hostRules, setHostRules] = useState<Record<string, HostRule>>({});
     const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
 
-    // Threat Vector Shields
     const [shields, setShields] = useState<CoveredSurfacesState>({
         scienceAnalytics: true,
         metrics: true,
@@ -374,7 +359,6 @@ export function PrivacySecurityPanel() {
         linkTrackerGuard: true
     });
 
-    // DNS Providers & State
     const [dnsProviders, setDnsProviders] = useState<Record<string, { doh: string; fallback: string; }>>({
         "Cloudflare 1.1.1.1": { doh: "https://cloudflare-dns.com/dns-query", fallback: "1.1.1.1" },
         "Cloudflare Security (Malware)": { doh: "https://security.cloudflare-dns.com/dns-query", fallback: "1.1.1.2" },
@@ -404,10 +388,8 @@ export function PrivacySecurityPanel() {
     const [diagnosticLogs, setDiagnosticLogs] = useState<string[]>([
         "Secure Connect console ready."
     ]);
-    // True when the IPC bridge to the privacy service failed; shown as a banner.
     const [ipcError, setIpcError] = useState(false);
 
-    // Outbound Surfaces Route Groups
     const [outboundRoutes, setOutboundRoutes] = useState<RouteGroup[]>([
         {
             id: "discord_api",
@@ -471,11 +453,9 @@ export function PrivacySecurityPanel() {
         }
     ]);
 
-    // Recent Intercepted Blocks Logs
     const [logs, setLogs] = useState<BlockedLog[]>([]);
     const [maxLogs, setMaxLogsState] = useState(500);
 
-    // Allowed Requests Inspector State
     const [allowedLogs, setAllowedLogs] = useState<AllowedEventLog[]>([]);
     const [allowedSearchQuery, setAllowedSearchQuery] = useState("");
     const [selectedAllowedRoute, setSelectedAllowedRoute] = useState<string>("all");
@@ -518,9 +498,6 @@ export function PrivacySecurityPanel() {
             setLoading(false);
         }
 
-        // Live stats from the renderer DNS engine when it is the one actively
-        // resolving traffic — the main resolver's cache is otherwise only
-        // populated by diagnostic runs.
         try {
             const custom = (globalThis as any).CustomDNS;
             const active = custom?.isActive?.() === true;
@@ -536,7 +513,6 @@ export function PrivacySecurityPanel() {
                 setNativeCalls(0);
             }
         } catch {
-            // The plugin's debug API is best-effort; the panel works without it.
         }
     };
 
@@ -546,20 +522,13 @@ export function PrivacySecurityPanel() {
         return () => clearInterval(interval);
     }, []);
 
-    // Immediate push for malicious remote-code alerts (no need to wait for poll).
     useEffect(() => {
         if (!VencordNative?.privacy?.onSecurityAlert) return;
-        // The bridge returns an unsubscribe function — use it so reopening the
-        // tab doesn't stack duplicate listeners.
         return VencordNative.privacy.onSecurityAlert((alert: SecurityAlert) => {
             setAlerts(prev => [alert, ...prev.filter(a => a.id !== alert.id)]);
         });
     }, []);
 
-    // Keep the Secure Connect console in sync with the live provider selection.
-    // Runs on mount and on every change: strips any prior config line and appends
-    // the current provider, so the console never shows a stale/default provider
-    // (e.g. the seeded "Cloudflare 1.1.1.1" when the user is actually on Mullvad).
     useEffect(() => {
         setDiagnosticLogs(prev => {
             const withoutConfig = prev.filter(l => !l.startsWith("Loaded local disk config:"));
@@ -624,7 +593,6 @@ export function PrivacySecurityPanel() {
             document.body.removeChild(a);
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         } catch {
-            // If Blob/anchor download is unavailable, fall back to clipboard.
             copyToClipboard(content, "export");
         }
     };
@@ -654,8 +622,6 @@ export function PrivacySecurityPanel() {
         return String(log);
     };
 
-    // Merge returned logs into the console without discarding lines the UI
-    // already added (e.g. the "Running…" notice), deduping identical entries.
     const mergeDiagnosticLogs = (returned: unknown) => {
         if (!Array.isArray(returned)) return;
         setDiagnosticLogs(prev => {
@@ -690,14 +656,12 @@ export function PrivacySecurityPanel() {
                 const returnedLogs = await VencordNative.privacy.stopDiagnostic();
                 mergeDiagnosticLogs(returnedLogs);
             } catch {
-                // Keep the local "stopped" line; nothing else to do.
             }
         }
     };
 
     const handleClearDnsCache = async () => {
         setDnsCacheStats(prev => ({ ...prev, size: 0, hits: 0, misses: 0 }));
-        // Clear the renderer engine's cache too when it is the active one.
         try { (globalThis as any).CustomDNS?.clearCache?.(); } catch { }
         setDiagnosticLogs(prev => [...prev, "Resolver LRU cache cleared."]);
         if (VencordNative?.privacy?.clearDnsCache) {
@@ -725,25 +689,25 @@ export function PrivacySecurityPanel() {
         description: string;
         test: string;
     }> = [
-        {
-            key: "experimentalTracing",
-            title: "Block Tracing",
-            description: "Blocks Discord first-party API requests ending in /tracing.",
-            test: "Switch channels, type a message and open context menus."
-        },
-        {
-            key: "experimentalRtcDiagnostics",
-            title: "Block RTC Diagnostics",
-            description: "Blocks call-quality diagnostic reports without blocking voice signaling or media.",
-            test: "Join voice, change input and output devices, then start and stop a stream."
-        },
-        {
-            key: "experimentalRemoteLogging",
-            title: "Block Remote Logs",
-            description: "Blocks Discord remote debug-log uploads. Local logs remain available.",
-            test: "Restart Discord, check for updates and confirm crash recovery still works."
-        }
-    ];
+            {
+                key: "experimentalTracing",
+                title: "Block Tracing",
+                description: "Blocks Discord first-party API requests ending in /tracing.",
+                test: "Switch channels, type a message and open context menus."
+            },
+            {
+                key: "experimentalRtcDiagnostics",
+                title: "Block RTC Diagnostics",
+                description: "Blocks call-quality diagnostic reports without blocking voice signaling or media.",
+                test: "Join voice, change input and output devices, then start and stop a stream."
+            },
+            {
+                key: "experimentalRemoteLogging",
+                title: "Block Remote Logs",
+                description: "Blocks Discord remote debug-log uploads. Local logs remain available.",
+                test: "Restart Discord, check for updates and confirm crash recovery still works."
+            }
+        ];
 
     const surfaceTags: Array<{ key: keyof CoveredSurfacesState; title: string; }> = [
         { key: "scienceAnalytics", title: "Science" },
@@ -763,9 +727,7 @@ export function PrivacySecurityPanel() {
     const currentProviderObj = dnsProviders[selectedDns] || { doh: "https://cloudflare-dns.com/dns-query", fallback: "1.1.1.1" };
     const totalMappedRoutes = outboundRoutes.length;
     const totalBlockedRoutes = outboundRoutes.reduce((acc, r) => acc + r.blockedCount, 0);
-    const dnsFullyActive = dnsActive && dnsEngineEnabled;
 
-    // Search & Pagination calculations for Recent Blocks
     const filteredLogs = logs.filter(log => {
         if (!searchQuery) return true;
         const q = searchQuery.toLowerCase();
@@ -778,9 +740,6 @@ export function PrivacySecurityPanel() {
         );
     });
 
-    // Group repeated blocks by domain + action. Each group keeps its most recent
-    // event as the representative (logs are already newest-first), plus a count
-    // and the members so search still lands on the exact request.
     const groupedLogs = (() => {
         const map = new Map<string, { rep: BlockedLog; count: number; members: BlockedLog[]; }>();
         for (const log of filteredLogs) {
@@ -793,7 +752,6 @@ export function PrivacySecurityPanel() {
                 map.set(key, { rep: log, count: 1, members: [log] });
             }
         }
-        // Preserve recency order: groups sorted by their representative's timestamp.
         return Array.from(map.values()).sort((a, b) => b.rep.timestamp - a.rep.timestamp);
     })();
 
@@ -823,15 +781,21 @@ export function PrivacySecurityPanel() {
         settings.plugins.NoTrack.disableAnalytics = !noTrackOn;
     };
 
-    const toggleDns = () => {
-        const next = !dnsActive;
-        settings.plugins.CustomDNS.autoStart = next;
-        // Gate the main-process encrypted DNS engine with the same toggle so
-        // turning Custom DNS off actually stops system-wide DoH.
+    const toggleDns = async () => {
+        const next = !dnsEngineEnabled;
+        setDnsEngineEnabled(next);
+        if (settings.plugins?.CustomDNS) {
+            settings.plugins.CustomDNS.autoStart = next;
+        }
         if (VencordNative?.privacy?.setDnsEnabled) {
-            VencordNative.privacy.setDnsEnabled(next)
-                .then(enabled => setDnsEngineEnabled(enabled))
-                .catch(() => { });
+            try {
+                const updated = await VencordNative.privacy.setDnsEnabled(next);
+                if (typeof updated === "boolean") {
+                    setDnsEngineEnabled(updated);
+                }
+            } catch (err) {
+                console.error("[Privacy] Failed to toggle DNS", err);
+            }
         }
     };
 
@@ -843,19 +807,18 @@ export function PrivacySecurityPanel() {
         openModal(modalProps => (
             <Modal
                 title={
-                <>
-                    <div className="ps-block-modal-title-group">
-                        <span className="ps-badge ps-badge-green">Allowed Outbound Traffic</span>
-                        <h3 className="ps-block-modal-title" style={{ margin: "4px 0 0 0" }}>Allowed Outbound Requests Inspector</h3>
-                    </div>
-                </>}
+                    <>
+                        <div className="ps-block-modal-title-group">
+                            <span className="ps-badge ps-badge-green">Allowed Outbound Traffic</span>
+                            <h3 className="ps-block-modal-title" style={{ margin: "4px 0 0 0" }}>Allowed Outbound Requests Inspector</h3>
+                        </div>
+                    </>}
                 role="dialog"
                 size="xl"
                 {...modalProps}
             >
 
                 <div className="ps-block-modal-body ps-allowed-modal-body" style={{ maxHeight: "68vh", overflowY: "auto", padding: "16px" }}>
-                    {/* Controls: Search, Route Filter & Clear */}
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
                         <div style={{ display: "flex", gap: "8px", alignItems: "center", flex: 1, minWidth: "240px" }}>
                             <input
@@ -956,7 +919,6 @@ export function PrivacySecurityPanel() {
                         </div>
                     </div>
 
-                    {/* Allowed Requests List */}
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                         {filteredAllowedLogs.length > 0 ? (
                             filteredAllowedLogs.map(log => (
@@ -1037,14 +999,14 @@ export function PrivacySecurityPanel() {
                     role="dialog"
                     aria-modal="true"
                     title={
-                    <>
-                        <div className="ps-block-modal-header">
-                            <div className="ps-block-modal-title-group">
-                                <span className="ps-block-category-tag">{getCategoryLabel(selectedBlock.category)}</span>
-                                <h3 className="ps-block-modal-title">{getEventTitle(selectedBlock)}</h3>
+                        <>
+                            <div className="ps-block-modal-header">
+                                <div className="ps-block-modal-title-group">
+                                    <span className="ps-block-category-tag">{getCategoryLabel(selectedBlock.category)}</span>
+                                    <h3 className="ps-block-modal-title">{getEventTitle(selectedBlock)}</h3>
+                                </div>
                             </div>
-                        </div>
-                    </>}
+                        </>}
                     {...modalProps}
                 >
                     <div className="ps-block-modal-body">
@@ -1181,29 +1143,29 @@ export function PrivacySecurityPanel() {
         <SettingsTab>
             <div className="ps-command-center">
                 {ipcError && (
-                        <div className="ps-alert-banner" role="alert">
-                            <div className="ps-alert-banner-head">
-                                <div className="ps-alert-banner-title">
-                                    <span className="ps-alert-banner-icon">⚠</span>
-                                    Connection issue
-                                </div>
+                    <div className="ps-alert-banner" role="alert">
+                        <div className="ps-alert-banner-head">
+                            <div className="ps-alert-banner-title">
+                                <span className="ps-alert-banner-icon">⚠</span>
+                                Connection issue
                             </div>
-                            <div className="ps-alert-list">
-                                <div className="ps-alert-item">
-                                    <div className="ps-alert-msg">
-                                        Couldn't reach the privacy service — the data below may be stale. Retrying automatically.
-                                    </div>
+                        </div>
+                        <div className="ps-alert-list">
+                            <div className="ps-alert-item">
+                                <div className="ps-alert-msg">
+                                    Couldn't reach the privacy service — the data below may be stale. Retrying automatically.
                                 </div>
                             </div>
                         </div>
-                    )}
+                    </div>
+                )}
                 <Card className="ps-card">
                     <div className="ps-card-header">
                         <div className="ps-header-title-group">
                             <h2 className="ps-card-title-text">Privacy Protection</h2>
                             <span className="ps-badge ps-badge-green">
                                 <span className="ps-badge-dot"></span>
-                                {noTrackOn && dnsActive ? "Active" : "Partial"}
+                                {noTrackOn && dnsEngineEnabled ? "Active" : "Partial"}
                             </span>
                         </div>
                     </div>
@@ -1231,7 +1193,7 @@ export function PrivacySecurityPanel() {
                             </div>
                             <button
                                 type="button"
-                                className={`ps-toggle-switch${dnsActive ? " ps-toggle-switch-on" : ""}`}
+                                className={`ps-toggle-switch${dnsEngineEnabled ? " ps-toggle-switch-on" : ""}`}
                                 onClick={toggleDns}
                             >
                                 <span className="ps-toggle-knob" />
@@ -1308,7 +1270,6 @@ export function PrivacySecurityPanel() {
                     </div>
                 </Card>
 
-                {/* TOP SECTION: EXPERIMENTAL PRIVACY PROTECTIONS */}
                 <Card className="ps-card">
                     <div className="ps-card-header">
                         <div className="ps-header-title-group">
@@ -1364,16 +1325,14 @@ export function PrivacySecurityPanel() {
                 </Card>
 
                 <div className="ps-main-layout">
-                    {/* LEFT COLUMN: SECURE CONNECT & OUTBOUND SURFACES */}
                     <div className="ps-main-left-col">
-                        {/* SECTION 1: SECURE CONNECT (ENCRYPTED DNS) */}
                         <Card className="ps-card">
                             <div className="ps-card-header">
                                 <div className="ps-header-title-group">
                                     <h2 className="ps-card-title-text">Secure Connect</h2>
-                                    <span className={`ps-badge ${dnsFullyActive ? "ps-badge-green" : "ps-badge-muted"}`}>
+                                    <span className={`ps-badge ${dnsEngineEnabled ? "ps-badge-green" : "ps-badge-muted"}`}>
                                         <span className="ps-badge-dot"></span>
-                                        {dnsFullyActive ? "Active" : "Disabled"}
+                                        {dnsEngineEnabled ? "Active" : "Disabled"}
                                     </span>
                                 </div>
                             </div>
@@ -1383,7 +1342,6 @@ export function PrivacySecurityPanel() {
 
                             <div className="ps-secure-connect-grid">
                                 <div className="ps-sc-left">
-                                    {/* CUSTOM DESIGNER DISCORD DROPDOWN */}
                                     <div className="ps-form-group" ref={selectRef}>
                                         <label className="ps-label">DNS provider</label>
                                         <div className="ps-custom-select-wrapper">
@@ -1474,7 +1432,6 @@ export function PrivacySecurityPanel() {
                             </div>
                         </Card>
 
-                        {/* SECTION 2: OUTBOUND SURFACES */}
                         <Card className="ps-card">
                             <div className="ps-card-header">
                                 <div className="ps-header-title-group">
@@ -1537,7 +1494,6 @@ export function PrivacySecurityPanel() {
                         </Card>
                     </div>
 
-                    {/* RIGHT COLUMN: PRIVACY SUITE PROTECTION */}
                     <div className="ps-main-right-col">
                         <Card className="ps-card">
                             <div className="ps-card-header">
@@ -1553,7 +1509,6 @@ export function PrivacySecurityPanel() {
                                 TestCord's privacy suite blocks Discord tracking and screens supported request paths for watched telemetry and recognised credential leaks.
                             </div>
 
-                            {/* Critical Security Alert Banner */}
                             {alerts.some(a => !a.acknowledged) && (
                                 <div className="ps-alert-banner">
                                     <div className="ps-alert-banner-head">
@@ -1577,7 +1532,6 @@ export function PrivacySecurityPanel() {
                                 </div>
                             )}
 
-                            {/* Hero Metric Cards Grid */}
                             <div className="ps-kpi-grid">
                                 <div className="ps-kpi-card ps-hero-green">
                                     <h2 className="ps-kpi-value">{counters.totalBlocked}</h2>
@@ -1613,9 +1567,7 @@ export function PrivacySecurityPanel() {
                                 </div>
                             </div>
 
-                            {/* Protection Right Stack */}
                             <div className="ps-protection-bottom-grid">
-                                {/* Covered Surfaces */}
                                 <div className="ps-sub-section">
                                     <h4 className="ps-sub-title">COVERED SURFACES</h4>
                                     <div className="ps-tag-pills-wrap">
@@ -1631,7 +1583,6 @@ export function PrivacySecurityPanel() {
                                     </div>
                                 </div>
 
-                                {/* Paginated & Filterable Recent Blocks */}
                                 <div className="ps-sub-section">
                                     <div className="ps-sub-header">
                                         <h4 className="ps-sub-title">RECENT BLOCKS</h4>
@@ -1708,7 +1659,6 @@ export function PrivacySecurityPanel() {
                                         )}
                                     </div>
 
-                                    {/* Pagination Controls */}
                                     <div className="ps-pagination-footer">
                                         <div className="ps-export-actions">
                                             <button

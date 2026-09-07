@@ -65,11 +65,6 @@ class DnsResolverEngine {
     private isDiagnosticRunning = false;
     private abortDiagnosticController: AbortController | null = null;
     private isInitialized = false;
-    /**
-     * Whether encrypted DNS is applied to the Electron session at all. Mirrors
-     * the Custom DNS toggle in the Privacy & Security panel; when false the
-     * app keeps using the system resolver.
-     */
     private dnsEnabled = true;
 
     constructor() {
@@ -85,6 +80,7 @@ class DnsResolverEngine {
     public init() {
         if (this.isInitialized) return;
         this.isInitialized = true;
+        this.loadSettings();
 
         if (app.isReady()) {
             this.applyToElectronSession();
@@ -96,6 +92,7 @@ class DnsResolverEngine {
     public applyToElectronSession() {
         if (!this.dnsEnabled) {
             this.addLog("info", "Encrypted DNS is disabled; the app is using the system resolver.");
+            this.disableElectronSession();
             return;
         }
         try {
@@ -149,7 +146,14 @@ class DnsResolverEngine {
     private saveSettings() {
         try {
             mkdirSync(SETTINGS_DIR, { recursive: true });
+            let existingData: any = {};
+            if (existsSync(PRIVACY_SETTINGS_FILE)) {
+                try {
+                    existingData = JSON.parse(readFileSync(PRIVACY_SETTINGS_FILE, "utf-8"));
+                } catch { }
+            }
             const data = {
+                ...existingData,
                 selectedProviderName: this.selectedProviderName,
                 customEndpoints: this.customEndpoints,
                 dnsEnabled: this.dnsEnabled
@@ -164,12 +168,6 @@ class DnsResolverEngine {
         return this.dnsEnabled;
     }
 
-    /**
-     * Enable or disable encrypted DNS for the whole Electron session. Persists
-     * across restarts and reconfigures the host resolver immediately: enabling
-     * applies the selected provider, disabling falls back to the system
-     * resolver.
-     */
     public setEnabled(enabled: boolean): boolean {
         this.dnsEnabled = enabled;
         this.saveSettings();
@@ -184,7 +182,6 @@ class DnsResolverEngine {
     private disableElectronSession() {
         try {
             if (typeof app.configureHostResolver === "function") {
-                // No secureDns* options — Electron goes back to the system resolver.
                 app.configureHostResolver({ enableBuiltInResolver: true });
                 this.addLog("info", "Encrypted DNS disabled; the app is using the system resolver.");
             } else {
@@ -209,7 +206,9 @@ class DnsResolverEngine {
         if (providers[name]) {
             this.selectedProviderName = name;
             this.saveSettings();
-            this.applyToElectronSession();
+            if (this.dnsEnabled) {
+                this.applyToElectronSession();
+            }
             this.addLog("info", `DNS Provider switched to: ${name}`);
             return true;
         }
@@ -221,7 +220,9 @@ class DnsResolverEngine {
         this.customEndpoints[name] = { doh, fallback: fallback || "1.1.1.1" };
         this.selectedProviderName = name;
         this.saveSettings();
-        this.applyToElectronSession();
+        if (this.dnsEnabled) {
+            this.applyToElectronSession();
+        }
         this.addLog("success", `Custom DNS endpoint added & selected: ${name} (${doh})`);
         return true;
     }
@@ -240,7 +241,7 @@ class DnsResolverEngine {
                 if (rtt >= 0) {
                     this.latencies[name] = rtt;
                 } else {
-                    this.latencies[name] = -1; // Offline / error
+                    this.latencies[name] = -1;
                 }
             })
         );
@@ -264,23 +265,15 @@ class DnsResolverEngine {
                 return Date.now() - start;
             }
         } catch {
-            // ping failed
         }
         return -1;
     }
 
-    /**
-     * Resolve a hostname over the encrypted pipeline. Returns null when the
-     * name cannot be resolved — never the provider's own fallback IP, which
-     * would misdirect requests and pollute the cache with wrong answers.
-     */
     public async resolveHostname(hostname: string): Promise<string | null> {
-        // Check LRU Cache
         const now = Date.now();
         const cached = this.cache.get(hostname);
         if (cached && cached.expiresAt > now) {
             this.cacheHits++;
-            // Re-insert for LRU freshness
             this.cache.delete(hostname);
             this.cache.set(hostname, cached);
             return cached.ip;
@@ -288,7 +281,6 @@ class DnsResolverEngine {
 
         this.cacheMisses++;
 
-        // Attempt primary resolution with fallback
         const providers = this.getAllProviders();
         const primary = providers[this.selectedProviderName] || DNS_PROVIDERS["Cloudflare 1.1.1.1"];
 
@@ -300,7 +292,6 @@ class DnsResolverEngine {
         }
 
         if (!resolvedIp) {
-            // Secondary failover — pointless when the primary IS the secondary.
             const secondary = DNS_PROVIDERS["Cloudflare 1.1.1.1"];
             if (primary.doh !== secondary.doh) {
                 try {
@@ -342,14 +333,12 @@ class DnsResolverEngine {
         return null;
     }
 
-    // Build a DNS wire-format query packet for an A record.
     private buildDnsQuery(hostname: string): Buffer {
         const id = Math.floor(Math.random() * 0xffff);
         const header = Buffer.alloc(12);
-        header.writeUInt16BE(id, 0); // transaction id
-        header.writeUInt16BE(0x0100, 2); // flags: standard query, recursion desired
-        header.writeUInt16BE(1, 4); // QDCOUNT = 1
-        // ANCOUNT / NSCOUNT / ARCOUNT stay 0
+        header.writeUInt16BE(id, 0);
+        header.writeUInt16BE(0x0100, 2);
+        header.writeUInt16BE(1, 4);
 
         const labels = hostname.split(".").filter(Boolean);
         const qnameParts: Buffer[] = [];
@@ -360,16 +349,15 @@ class DnsResolverEngine {
             buf.write(label, 1, "ascii");
             qnameParts.push(buf);
         }
-        qnameParts.push(Buffer.from([0])); // root label terminator
+        qnameParts.push(Buffer.from([0]));
 
         const qtypeClass = Buffer.alloc(4);
-        qtypeClass.writeUInt16BE(1, 0); // QTYPE = A
-        qtypeClass.writeUInt16BE(1, 2); // QCLASS = IN
+        qtypeClass.writeUInt16BE(1, 0);
+        qtypeClass.writeUInt16BE(1, 2);
 
         return Buffer.concat([header, ...qnameParts, qtypeClass]);
     }
 
-    // Parse the first A record from a DNS wire-format response.
     private parseDnsAnswer(msg: Buffer): string | null {
         if (msg.length < 12) return null;
         const qdcount = msg.readUInt16BE(4);
@@ -377,21 +365,18 @@ class DnsResolverEngine {
         if (ancount === 0) return null;
 
         let offset = 12;
-        // Skip the question section (qdcount entries).
         for (let q = 0; q < qdcount; q++) {
             while (offset < msg.length) {
                 const len = msg.readUInt8(offset);
                 if (len === 0) { offset += 1; break; }
-                if ((len & 0xc0) === 0xc0) { offset += 2; break; } // compression pointer
+                if ((len & 0xc0) === 0xc0) { offset += 2; break; }
                 offset += 1 + len;
             }
-            offset += 4; // QTYPE + QCLASS
+            offset += 4;
         }
 
-        // Walk the answer records.
         for (let a = 0; a < ancount; a++) {
             if (offset >= msg.length) break;
-            // NAME: pointer or label sequence
             if ((msg.readUInt8(offset) & 0xc0) === 0xc0) {
                 offset += 2;
             } else {
@@ -413,11 +398,9 @@ class DnsResolverEngine {
         return null;
     }
 
-    // Resolve a hostname over DNS-over-TLS (RFC 7858, TCP/853).
     private queryDoT(dotHost: string, serverIp: string, hostname: string, timeoutMs: number): Promise<string | null> {
         return new Promise((resolve, reject) => {
             const query = this.buildDnsQuery(hostname);
-            // DoT frames the DNS message with a 2-byte big-endian length prefix.
             const framed = Buffer.alloc(2 + query.length);
             framed.writeUInt16BE(query.length, 0);
             query.copy(framed, 2);
@@ -425,7 +408,7 @@ class DnsResolverEngine {
             const socket = tlsConnect({
                 host: serverIp,
                 port: 853,
-                servername: dotHost, // SNI + cert validation against the DoT hostname
+                servername: dotHost,
                 minVersion: "TLSv1.2"
             });
 
@@ -598,7 +581,6 @@ class DnsResolverEngine {
 
             if (signal.aborted) return;
 
-            // Populate the resolver cache via the normal failover path so the cache row reflects the run.
             const testIp = await this.resolveHostname("discord.com");
             if (signal.aborted) return;
             if (testIp) {
