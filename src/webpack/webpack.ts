@@ -251,7 +251,7 @@ export function handleModuleNotFound(method: string, ...filter: unknown[]) {
     // CSS class and component misses are common on Discord canary — they spam the console
     // and throw in dev, breaking startup. Log as warn and don't throw for those; keep
     // strict throwing for core finds like stores.
-    const isSoftMiss = method === "findCssClasses" || method === "findComponent" || method === "findComponentByCode" || method === "findByProps";
+    const isSoftMiss = method === "findCssClasses" || method === "findComponent" || method === "findComponentByCode" || method === "findByProps" || method === "findExportedComponent";
     if (isSoftMiss) {
         logger.debug(err.message, "Filter:", filter);
         return;
@@ -627,9 +627,11 @@ export function findExportedComponentLazy<T extends object = any>(...props: Prop
 
     return LazyComponent<T>(() => {
         const res = find(filters.byProps(...props), { isIndirect: true });
-        if (!res)
+        if (!res) {
             handleModuleNotFound("findExportedComponent", ...props);
-        return res[props[0]];
+            return (() => null) as any;
+        }
+        return (res[props[0]] ?? (() => null)) as any;
     });
 }
 

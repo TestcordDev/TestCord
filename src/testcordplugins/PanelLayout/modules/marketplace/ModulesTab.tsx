@@ -50,12 +50,14 @@ function SubTabMarketplaceIcon({ size = 14, style }: { size?: number; style?: Re
 export interface ModulesTabProps {
     pluginSettings?: any;
     onOpenButtonCustomizer?: () => void;
+    onOpenCallBarSettings?: () => void;
     initialSubTab?: ModulesSubTab;
 }
 
 export function ModulesTab({
     pluginSettings,
     onOpenButtonCustomizer,
+    onOpenCallBarSettings,
     initialSubTab = "userarea",
 }: ModulesTabProps = {}) {
     const [subTab, setSubTab] = useState<ModulesSubTab>(initialSubTab);
@@ -149,6 +151,7 @@ const TAB_CSS = `
                         <UserAreaReorderTab
                             pluginSettings={pluginSettings}
                             onOpenButtonCustomizer={onOpenButtonCustomizer}
+                            onOpenCallBarSettings={onOpenCallBarSettings}
                         />
                     )}
 

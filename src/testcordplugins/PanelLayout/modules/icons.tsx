@@ -177,3 +177,13 @@ export function getModuleIcon(id: string, size = 16): React.ReactElement {
             return <CodeIcon size={size} />;
     }
 }
+
+export function VsCodeIcon({ size = 20, style }: { size?: number; style?: React.CSSProperties }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
+            <path d="M17.2 2.2a1 1 0 0 1 1.1.2l4.2 3.8a1 1 0 0 1 .3.7v10.2a1 1 0 0 1-.3.7l-4.2 3.8a1 1 0 0 1-1.6-.8V3a1 1 0 0 1 .5-.8Z" fill="#0065A9" />
+            <path d="M18 16.5 7.5 12 18 7.5v9Z" fill="#007ACC" />
+            <path d="M17.2 2.2a1 1 0 0 0-1.1.2L1.8 11.2a1 1 0 0 0 0 1.6l14.3 8.8a1 1 0 0 0 1.6-.8l1.3-8.8-1.8-9.8Z" fill="#1F9CF0" />
+        </svg>
+    );
+}
