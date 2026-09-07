@@ -45,7 +45,7 @@ import { JSX } from "react";
 
 import Plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
 
-import { openSettingsTabModal } from "../BaseTab";
+import { openSettingsTabModal, wrapTab } from "../BaseTab";
 import { registerJumpListener, setPluginsTabOpener } from "./jumpToPlugin";
 import { PluginCard } from "./PluginCard";
 import { openWarningModal } from "./PluginModal";
@@ -168,7 +168,7 @@ function ExcludedPluginsList({ search }: { search: string; }) {
     );
 }
 
-export default function PluginSettings() {
+function PluginSettings() {
     const settings = useSettings();
     const changeRef = useRef<ChangeList<string>>(null);
     const changes = changeRef.current ??= new ChangeList<string>();
@@ -641,6 +641,8 @@ export default function PluginSettings() {
 }
 
 setPluginsTabOpener(() => openSettingsTabModal(PluginSettings));
+
+export default wrapTab(PluginSettings, "Plugins");
 
 export function PluginDependencyList({ deps }: { deps: string[]; }) {
     return (
