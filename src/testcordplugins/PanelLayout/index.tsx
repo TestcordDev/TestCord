@@ -25,7 +25,6 @@ import {
     devBannerPatches,
     getVisibleGameOrRpc,
     initModuleManager,
-    isModuleEnabled,
     LocalActivityStore,
     makeDevBanner,
     MarketplaceTab,
@@ -34,7 +33,6 @@ import {
     ModulesTab,
     musicControlsPatches,
     PresenceStore,
-    registerModule,
     renderActivityIcon,
     renderActivityInfo,
     renderStreamingGame,
@@ -42,8 +40,6 @@ import {
     saveRenderer,
     SelfPresenceStore,
     stopModuleManager,
-    unregisterModule,
-    useModules,
 } from "./modules";
 
 migratePluginSettings("deraculpanellayout", "PanelLayout");

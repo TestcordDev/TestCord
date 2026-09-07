@@ -12,9 +12,9 @@ export * from "./marketplace/CustomModuleModal";
 export * from "./marketplace/MarketplaceTab";
 export * from "./marketplace/ModulesTab";
 export {
+    MusicControlsComponent,
     musicControlsModule,
     musicControlsPatches,
-    MusicControlsComponent,
     MusicControlsSettingsModal,
     openMusicControlsSettings,
     startMusicControls,

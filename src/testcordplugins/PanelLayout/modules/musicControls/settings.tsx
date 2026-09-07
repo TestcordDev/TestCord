@@ -5,7 +5,6 @@
  */
 
 import { disableStyle, enableStyle } from "@api/Styles";
-import { defineModuleSettings } from "../moduleSettings";
 import { ButtonCompat } from "@components/Button";
 import { HeadingSecondary } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
@@ -13,6 +12,7 @@ import { SettingsSection } from "@components/settings/tabs/plugins/components/Co
 import { makeRange, OptionType } from "@utils/types";
 import { MaskedLink, Select, showToast, TextInput, Toasts } from "@webpack/common";
 
+import { defineModuleSettings } from "../moduleSettings";
 import hoverOnlyStyle from "./hoverOnly.css?managed";
 import betterSpotifyControlsStyle from "./spotify/betterSpotifyControls.css?managed";
 import { clearLyricsCache, removeTranslations } from "./spotify/lyrics/api";

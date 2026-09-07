@@ -7,9 +7,8 @@
 import "./styles.css";
 
 import { Button } from "@components/Button";
-import { Heading } from "@components/Heading";
 import { Devs, EquicordDevs, TestcordDevs } from "@utils/constants";
-import { openModal, RenderModalProps } from "@utils/modal";
+import { RenderModalProps } from "@utils/modal";
 import { Modal, React } from "@webpack/common";
 
 import { isModuleEnabled } from "../state";

@@ -28,7 +28,7 @@ import {
     uninstallCustomModule,
     useModules,
 } from "../registry";
-import type { CustomModuleData, ModulePosition, UserAreaModule } from "../types";
+import type { CustomModuleData, UserAreaModule } from "../types";
 import { openCustomModuleModal } from "./CustomModuleModal";
 
 export function ModulesTab() {

@@ -9,9 +9,7 @@ import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import ErrorBoundary from "@components/ErrorBoundary";
-import { Flex } from "@components/Flex";
-import { UserStore } from "@webpack/common";
-import { React, useEffect, useState } from "@webpack/common";
+import { React, useEffect, UserStore,useState } from "@webpack/common";
 
 import { getBuiltinModules } from "./builtin";
 import {

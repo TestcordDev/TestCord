@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType } from "react";
 
 export type ModulePosition = "above" | "below";
 
