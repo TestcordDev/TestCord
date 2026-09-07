@@ -42,9 +42,17 @@ function matchesKeybind(e: KeyboardEvent) {
 
 export interface ChromeTabsStripProps extends TabTarget {
     titleBar?: boolean;
+    position?: "left" | "top" | "bottom" | "right" | "titlebar";
+    collapsible?: boolean;
 }
 
-export function ChromeTabsStrip({ guildId, channelId, titleBar }: ChromeTabsStripProps) {
+export function ChromeTabsStrip({
+    guildId,
+    channelId,
+    titleBar,
+    position = "top",
+    collapsible = false
+}: ChromeTabsStripProps) {
     const forceUpdate = useForceUpdater();
     const [userId, setUserId] = useState("");
 
@@ -54,6 +62,36 @@ export function ChromeTabsStrip({ guildId, channelId, titleBar }: ChromeTabsStri
     const [tabWidth, setTabWidth] = useState(maxTabWidth);
 
     const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+    const [isHovered, setIsHovered] = useState(false);
+    const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleMouseEnter = useCallback(() => {
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+            hoverTimeoutRef.current = null;
+        }
+        setIsHovered(true);
+    }, []);
+
+    const handleMouseLeave = useCallback(() => {
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+        hoverTimeoutRef.current = setTimeout(() => {
+            setIsHovered(false);
+            hoverTimeoutRef.current = null;
+        }, 280);
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+        };
+    }, []);
+
+    const isCollapsed = collapsible && !isHovered;
+    const isVertical = position === "left" || position === "right";
 
     const isFullscreen = useStateFromStores([ChannelRTCStore], () => ChannelRTCStore.isFullscreenInContext() ?? false);
 
@@ -81,14 +119,14 @@ export function ChromeTabsStrip({ guildId, channelId, titleBar }: ChromeTabsStri
 
     const recalculateTabWidth = useCallback(() => {
         const strip = stripRef.current;
-        if (!strip || tabCount === 0) return;
+        if (!strip || tabCount === 0 || isVertical) return;
 
         const available = strip.clientWidth - NEW_TAB_BUTTON_WIDTH;
         if (available <= 0) return;
 
         const ideal = Math.floor(available / tabCount);
         setTabWidth(Math.max(MIN_TAB_WIDTH, Math.min(maxTabWidth, ideal)));
-    }, [tabCount, maxTabWidth]);
+    }, [tabCount, maxTabWidth, isVertical]);
 
     useLayoutEffect(recalculateTabWidth, [recalculateTabWidth]);
 
@@ -209,43 +247,64 @@ export function ChromeTabsStrip({ guildId, channelId, titleBar }: ChromeTabsStri
     if (!userId || isFullscreen || tabCount === 0) return null;
 
     return (
-        <div
-            className={classes(cl("container"), titleBar && cl("container-titlebar"))}
-            onContextMenu={e => ContextMenuApi.openContextMenu(e, () => (
-                <StripContextMenu onNewTab={openNewTab} />
-            ))}
-        >
+        <>
+            {collapsible && (
+                <div
+                    className={classes(
+                        cl("hover-trigger"),
+                        cl(`hover-trigger-${position}`),
+                        isHovered && cl("hover-trigger-active")
+                    )}
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={handleMouseLeave}
+                />
+            )}
             <div
-                className={cl("strip")}
-                ref={stripRef}
-                role="tablist"
-                style={{ "--tc-tab-width": `${tabWidth}px` } as React.CSSProperties}
-            >
-                {tabs.map((tab, index) => (
-                    <ChromeTab
-                        key={tab.id}
-                        tab={tab}
-                        index={index}
-                        isActive={tab.id === activeId}
-                        canClose={tabCount > 1}
-                        isDragging={dragIndex === index}
-                        isBeforeActive={tabs[index + 1]?.id === activeId}
-                        narrow={tabWidth < NARROW_TAB_WIDTH}
-                        tiny={tabWidth < TINY_TAB_WIDTH}
-                        onDragStart={handleDragStart}
-                        onDragEnter={handleDragEnter}
-                        onDragEnd={handleDragEnd}
-                    />
+                className={classes(
+                    cl("container"),
+                    titleBar && cl("container-titlebar"),
+                    position && cl(`container-${position}`),
+                    collapsible && cl("container-collapsible"),
+                    isCollapsed && cl("container-collapsed")
+                )}
+                onMouseEnter={collapsible ? handleMouseEnter : undefined}
+                onMouseLeave={collapsible ? handleMouseLeave : undefined}
+                onContextMenu={e => ContextMenuApi.openContextMenu(e, () => (
+                    <StripContextMenu onNewTab={openNewTab} />
                 ))}
-
-                <button
-                    className={classes(cl("new-tab"))}
-                    onClick={openNewTab}
-                    aria-label="New tab"
+            >
+                <div
+                    className={cl("strip")}
+                    ref={stripRef}
+                    role="tablist"
+                    style={{ "--tc-tab-width": isVertical ? "100%" : `${tabWidth}px` } as React.CSSProperties}
                 >
-                    <PlusIcon size={16} />
-                </button>
+                    {tabs.map((tab, index) => (
+                        <ChromeTab
+                            key={tab.id}
+                            tab={tab}
+                            index={index}
+                            isActive={tab.id === activeId}
+                            canClose={tabCount > 1}
+                            isDragging={dragIndex === index}
+                            isBeforeActive={tabs[index + 1]?.id === activeId}
+                            narrow={!isVertical && tabWidth < NARROW_TAB_WIDTH}
+                            tiny={!isVertical && tabWidth < TINY_TAB_WIDTH}
+                            onDragStart={handleDragStart}
+                            onDragEnter={handleDragEnter}
+                            onDragEnd={handleDragEnd}
+                        />
+                    ))}
+
+                    <button
+                        className={classes(cl("new-tab"))}
+                        onClick={openNewTab}
+                        aria-label="New tab"
+                    >
+                        <PlusIcon size={16} />
+                    </button>
+                </div>
             </div>
-        </div>
+        </>
     );
 }

@@ -29,9 +29,31 @@ export const settings = definePluginSettings({
         options: [
             { label: "In the title bar (like Discord's upcoming tabs)", value: "titlebar", default: true },
             { label: "Top, above the app", value: "top" },
-            { label: "Bottom, below the app", value: "bottom" }
+            { label: "Bottom, below the app", value: "bottom" },
+            { label: "Left, beside the app", value: "left" },
+            { label: "Right, beside the app", value: "right" }
         ],
         restartNeeded: true
+    },
+    collapsible: {
+        type: OptionType.BOOLEAN,
+        description: "Collapse the tab strip automatically and only show it when hovering over the area",
+        default: false
+    },
+    ctrlClickNewTab: {
+        type: OptionType.BOOLEAN,
+        description: "Ctrl+click (or Cmd+click) on a channel, server, DM, or link to open it in a new tab",
+        default: true
+    },
+    openTabOnMention: {
+        type: OptionType.BOOLEAN,
+        description: "Automatically open a new tab when you get tagged by someone",
+        default: false
+    },
+    focusTabOnMention: {
+        type: OptionType.BOOLEAN,
+        description: "Automatically switch to the newly opened tab when tagged",
+        default: false
     },
     maxTabWidth: {
         type: OptionType.SLIDER,
