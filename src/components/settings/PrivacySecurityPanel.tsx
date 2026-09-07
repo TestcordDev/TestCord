@@ -1025,13 +1025,6 @@ export function PrivacySecurityPanel() {
                     <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                         Showing {filteredAllowedLogs.length} of {allowedLogs.length} allowed requests
                     </span>
-                    <button
-                        type="button"
-                        className="ps-btn"
-                        onClick={() => modalProps.onClose()}
-                    >
-                        Close
-                    </button>
                 </div>
             </Modal>
         ));
