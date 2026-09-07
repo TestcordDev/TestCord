@@ -182,6 +182,7 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
                         className={AvatarStyles.moreUsers}
                         onMouseEnter={onMouseEnter}
                         onMouseLeave={onMouseLeave}
+                        style={{ borderRadius: "var(--radius-md)", width: "36px" }}
                     >
                         +{remainingAuthors.length}
                     </div>
