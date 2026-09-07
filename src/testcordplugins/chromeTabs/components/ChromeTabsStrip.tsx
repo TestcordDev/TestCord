@@ -63,32 +63,108 @@ export function ChromeTabsStrip({
 
     const [dragIndex, setDragIndex] = useState<number | null>(null);
 
+    const containerRef = useRef<HTMLDivElement>(null);
     const [isHovered, setIsHovered] = useState(false);
+    const isHoveredRef = useRef(false);
+    isHoveredRef.current = isHovered;
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const handleMouseEnter = useCallback(() => {
+    const handleContainerMouseEnter = useCallback(() => {
+        if (!collapsible) return;
         if (hoverTimeoutRef.current) {
             clearTimeout(hoverTimeoutRef.current);
             hoverTimeoutRef.current = null;
         }
         setIsHovered(true);
-    }, []);
+    }, [collapsible]);
 
-    const handleMouseLeave = useCallback(() => {
+    const handleContainerMouseLeave = useCallback(() => {
+        if (!collapsible) return;
         if (hoverTimeoutRef.current) {
             clearTimeout(hoverTimeoutRef.current);
         }
         hoverTimeoutRef.current = setTimeout(() => {
             setIsHovered(false);
             hoverTimeoutRef.current = null;
-        }, 280);
-    }, []);
+        }, 320);
+    }, [collapsible]);
 
     useEffect(() => {
-        return () => {
-            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+        if (!collapsible) {
+            setIsHovered(false);
+            return;
+        }
+
+        const EDGE_TRIGGER_PX = 8;
+        const EXIT_BUFFER_PX = 16;
+
+        const onMouseMove = (e: MouseEvent) => {
+            const { clientX, clientY } = e;
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            let inTriggerZone = false;
+            if (position === "top" || position === "titlebar") {
+                inTriggerZone = clientY <= EDGE_TRIGGER_PX;
+            } else if (position === "bottom") {
+                inTriggerZone = clientY >= height - EDGE_TRIGGER_PX;
+            } else if (position === "left") {
+                inTriggerZone = clientX <= EDGE_TRIGGER_PX;
+            } else if (position === "right") {
+                inTriggerZone = clientX >= width - EDGE_TRIGGER_PX;
+            }
+
+            let inContainer = false;
+            const el = containerRef.current;
+            if (el) {
+                const rect = el.getBoundingClientRect();
+                inContainer = (
+                    clientX >= rect.left - EXIT_BUFFER_PX &&
+                    clientX <= rect.right + EXIT_BUFFER_PX &&
+                    clientY >= rect.top - EXIT_BUFFER_PX &&
+                    clientY <= rect.bottom + EXIT_BUFFER_PX
+                );
+            }
+
+            if (inTriggerZone || inContainer) {
+                if (hoverTimeoutRef.current) {
+                    clearTimeout(hoverTimeoutRef.current);
+                    hoverTimeoutRef.current = null;
+                }
+                if (!isHoveredRef.current) {
+                    setIsHovered(true);
+                }
+            } else if (isHoveredRef.current) {
+                if (!hoverTimeoutRef.current) {
+                    hoverTimeoutRef.current = setTimeout(() => {
+                        setIsHovered(false);
+                        hoverTimeoutRef.current = null;
+                    }, 320);
+                }
+            }
         };
-    }, []);
+
+        const onMouseLeaveDoc = (e: MouseEvent) => {
+            if (!e.relatedTarget) {
+                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                hoverTimeoutRef.current = setTimeout(() => {
+                    setIsHovered(false);
+                    hoverTimeoutRef.current = null;
+                }, 320);
+            }
+        };
+
+        window.addEventListener("mousemove", onMouseMove, { passive: true });
+        document.addEventListener("mouseleave", onMouseLeaveDoc);
+        return () => {
+            window.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseleave", onMouseLeaveDoc);
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+                hoverTimeoutRef.current = null;
+            }
+        };
+    }, [collapsible, position]);
 
     const isCollapsed = collapsible && !isHovered;
     const isVertical = position === "left" || position === "right";
@@ -247,64 +323,53 @@ export function ChromeTabsStrip({
     if (!userId || isFullscreen || tabCount === 0) return null;
 
     return (
-        <>
-            {collapsible && (
-                <div
-                    className={classes(
-                        cl("hover-trigger"),
-                        cl(`hover-trigger-${position}`),
-                        isHovered && cl("hover-trigger-active")
-                    )}
-                    onMouseEnter={handleMouseEnter}
-                    onMouseLeave={handleMouseLeave}
-                />
+        <div
+            ref={containerRef}
+            className={classes(
+                cl("container"),
+                titleBar && cl("container-titlebar"),
+                position && cl(`container-${position}`),
+                collapsible && cl("container-collapsible"),
+                isCollapsed && cl("container-collapsed")
             )}
+            onMouseEnter={handleContainerMouseEnter}
+            onMouseLeave={handleContainerMouseLeave}
+            onContextMenu={e => ContextMenuApi.openContextMenu(e, () => (
+                <StripContextMenu onNewTab={openNewTab} />
+            ))}
+        >
             <div
-                className={classes(
-                    cl("container"),
-                    titleBar && cl("container-titlebar"),
-                    position && cl(`container-${position}`),
-                    collapsible && cl("container-collapsible"),
-                    isCollapsed && cl("container-collapsed")
-                )}
-                onMouseEnter={collapsible ? handleMouseEnter : undefined}
-                onMouseLeave={collapsible ? handleMouseLeave : undefined}
-                onContextMenu={e => ContextMenuApi.openContextMenu(e, () => (
-                    <StripContextMenu onNewTab={openNewTab} />
-                ))}
+                className={cl("strip")}
+                ref={stripRef}
+                role="tablist"
+                style={{ "--tc-tab-width": isVertical ? "100%" : `${tabWidth}px` } as React.CSSProperties}
             >
-                <div
-                    className={cl("strip")}
-                    ref={stripRef}
-                    role="tablist"
-                    style={{ "--tc-tab-width": isVertical ? "100%" : `${tabWidth}px` } as React.CSSProperties}
-                >
-                    {tabs.map((tab, index) => (
-                        <ChromeTab
-                            key={tab.id}
-                            tab={tab}
-                            index={index}
-                            isActive={tab.id === activeId}
-                            canClose={tabCount > 1}
-                            isDragging={dragIndex === index}
-                            isBeforeActive={tabs[index + 1]?.id === activeId}
-                            narrow={!isVertical && tabWidth < NARROW_TAB_WIDTH}
-                            tiny={!isVertical && tabWidth < TINY_TAB_WIDTH}
-                            onDragStart={handleDragStart}
-                            onDragEnter={handleDragEnter}
-                            onDragEnd={handleDragEnd}
-                        />
-                    ))}
+                {tabs.map((tab, index) => (
+                    <ChromeTab
+                        key={tab.id}
+                        tab={tab}
+                        index={index}
+                        isActive={tab.id === activeId}
+                        canClose={tabCount > 1}
+                        isDragging={dragIndex === index}
+                        isBeforeActive={tabs[index + 1]?.id === activeId}
+                        narrow={!isVertical && tabWidth < NARROW_TAB_WIDTH}
+                        tiny={!isVertical && tabWidth < TINY_TAB_WIDTH}
+                        onDragStart={handleDragStart}
+                        onDragEnter={handleDragEnter}
+                        onDragEnd={handleDragEnd}
+                    />
+                ))}
 
-                    <button
-                        className={classes(cl("new-tab"))}
-                        onClick={openNewTab}
-                        aria-label="New tab"
-                    >
-                        <PlusIcon size={16} />
-                    </button>
-                </div>
+                <button
+                    className={classes(cl("new-tab"))}
+                    onClick={openNewTab}
+                    onMouseLeave={e => e.currentTarget.blur()}
+                    aria-label="New tab"
+                >
+                    <PlusIcon size={16} />
+                </button>
             </div>
-        </>
+        </div>
     );
 }

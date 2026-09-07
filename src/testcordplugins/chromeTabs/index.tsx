@@ -35,7 +35,11 @@ function parseChannelUrl(url: string): { guildId: string; channelId?: string; me
     }
 }
 
-function findTargetFromFiber(target: HTMLElement): { guildId?: string; channelId?: string; messageId?: string; } | null {
+function findTargetFromFiber(target: HTMLElement): { guildId?: string; channelId?: string; } | null {
+    if (target.closest('[class*="messageListItem"], [id^="chat-messages-"], [class*="messageContent"], [role="article"], [class*="markup_"]')) {
+        return null;
+    }
+
     let curr: HTMLElement | null = target;
     let depth = 0;
     while (curr && depth < 8) {
@@ -49,13 +53,14 @@ function findTargetFromFiber(target: HTMLElement): { guildId?: string; channelId
             while (fiber && fDepth < 10) {
                 const memo = fiber.memoizedProps;
                 if (memo) {
+                    if (memo.message || memo.messageId) {
+                        return null;
+                    }
                     const channel = memo.channel as Channel | undefined;
-                    const message = memo.message as Message | undefined;
                     const channelId = (memo.channelId as string | undefined) || channel?.id;
                     if (channelId) {
                         const guildId = (memo.guildId as string | undefined) || channel?.guild_id || (memo.guild as { id?: string; } | undefined)?.id;
-                        const messageId = (memo.messageId as string | undefined) || message?.id;
-                        return { guildId, channelId, messageId };
+                        return { guildId, channelId };
                     }
                     const guildId = (memo.guildId as string | undefined) || (memo.guild as { id?: string; } | undefined)?.id;
                     if (guildId) {
@@ -97,6 +102,10 @@ function handleGlobalClick(e: MouseEvent) {
     const target = e.target as HTMLElement | null;
     if (!target) return;
 
+    if (target.closest('[class*="messageListItem"], [id^="chat-messages-"], [class*="messageContent"], [role="article"], [class*="markup_"]')) {
+        return;
+    }
+
     const anchor = target.closest("a[href]") as HTMLAnchorElement | null;
     if (anchor) {
         const href = anchor.getAttribute("href");
@@ -128,7 +137,7 @@ function handleGlobalClick(e: MouseEvent) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        openTargetInNewTab(fromFiber.guildId || "@me", fromFiber.channelId, fromFiber.messageId);
+        openTargetInNewTab(fromFiber.guildId || "@me", fromFiber.channelId);
     }
 }
 
@@ -293,7 +302,12 @@ export default definePlugin({
         );
 
         if (tabBarPosition === "bottom") {
-            return <>{children}{strip}</>;
+            return (
+                <div className={classes("tc-chrometabs-app-col", "tc-chrometabs-layout-bottom")}>
+                    <div className="tc-chrometabs-app-main">{children}</div>
+                    {strip}
+                </div>
+            );
         }
 
         if (tabBarPosition === "left") {
@@ -314,7 +328,12 @@ export default definePlugin({
             );
         }
 
-        return <>{strip}{children}</>;
+        return (
+            <div className={classes("tc-chrometabs-app-col", "tc-chrometabs-layout-top")}>
+                {strip}
+                <div className="tc-chrometabs-app-main">{children}</div>
+            </div>
+        );
     },
 
     isTitleBar() {

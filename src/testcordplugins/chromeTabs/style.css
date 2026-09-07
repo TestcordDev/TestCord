@@ -16,7 +16,26 @@
     grid-area: notice;
     z-index: 102;
 
+    -webkit-app-region: no-drag;
+}
+
+.tc-chrometabs-container-titlebar {
     -webkit-app-region: drag;
+}
+
+body:has([role="menu"]),
+body:has([role="dialog"]),
+body:has([class*="layerContainer_"] > div:not(:empty)),
+body:has([class*="layerContainer"] > div:not(:empty)),
+body:has([class*="popout_"]),
+body:has([class*="popout"]),
+#app-mount:has([role="menu"]),
+#app-mount:has([role="dialog"]),
+#app-mount:has([class*="layerContainer"] > div:not(:empty)) {
+    .tc-chrometabs-container,
+    .tc-chrometabs-container-titlebar {
+        -webkit-app-region: no-drag !important;
+    }
 }
 
 [class*="notice"] + .tc-chrometabs-container {
@@ -274,6 +293,15 @@
     background-color: var(--background-mod-strong, rgb(255 255 255 / 10%));
 }
 
+.tc-chrometabs-new-tab:focus {
+    outline: none;
+}
+
+.tc-chrometabs-new-tab:focus-visible {
+    outline: 2px solid var(--brand-500, var(--focus-primary, #5865f2));
+    outline-offset: 1px;
+}
+
 
 
 [class*="leading_"]:has(.tc-chrometabs-container-titlebar) {
@@ -355,6 +383,26 @@
     flex: 1 1 auto !important;
 }
 
+.tc-chrometabs-app-col {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    flex: 1 1 auto !important;
+}
+
+.tc-chrometabs-app-col > .tc-chrometabs-app-main {
+    height: auto !important;
+    min-height: 0 !important;
+    flex: 1 1 0% !important;
+}
+
+.tc-chrometabs-container-top,
+.tc-chrometabs-container-bottom {
+    flex-shrink: 0 !important;
+}
+
 .tc-chrometabs-app-main {
     flex: 1 1 auto !important;
     min-width: 0 !important;
@@ -429,54 +477,6 @@
 
 .tc-chrometabs-container-bottom {
     border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
-}
-
-.tc-chrometabs-hover-trigger {
-    position: fixed;
-    z-index: 10000;
-    pointer-events: auto;
-    background: transparent;
-}
-
-.tc-chrometabs-hover-trigger-top {
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 16px;
-}
-
-.tc-chrometabs-hover-trigger-bottom {
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 16px;
-}
-
-.tc-chrometabs-hover-trigger-left {
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: 16px;
-}
-
-.tc-chrometabs-hover-trigger-right {
-    top: 0;
-    bottom: 0;
-    right: 0;
-    width: 16px;
-}
-
-.tc-chrometabs-hover-trigger-titlebar {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 100%;
-}
-
-.tc-chrometabs-hover-trigger-active {
-    pointer-events: none;
 }
 
 .tc-chrometabs-container-collapsible {
