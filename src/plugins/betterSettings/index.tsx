@@ -26,7 +26,7 @@ const Classes = findCssClassesLazy("animating", "baseLayer", "bg", "layer", "lay
 const SECTION_ICONS: Record<string, Icon> = {
     profile_section: PencilSparkleIcon,
     user_section: UserIcon,
-    equicord_section: TestCordIcon as any,
+    testcord_section: TestCordIcon as any,
     billing_section: CreditCardIcon,
     app_section: AppsIcon,
     games_and_apps_section: GameControllerIcon,
@@ -206,8 +206,8 @@ export default definePlugin({
             if (!item?.props) continue;
             const { key, props } = item;
 
-            if (key === "equicord_plugins" || key === "equicord_themes") {
-                const children = key === "equicord_plugins"
+            if (key === "testcord_plugins" || key === "testcord_themes") {
+                const children = key === "testcord_plugins"
                     ? buildPluginMenuEntries()
                     : buildThemeMenuEntries();
 

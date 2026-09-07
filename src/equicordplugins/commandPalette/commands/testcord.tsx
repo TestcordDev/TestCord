@@ -12,7 +12,7 @@ const SECTION = "Testcord";
 
 export const testcordCommands: PaletteCommand[] = [
     {
-        id: "equicord.settings",
+        id: "testcord.settings",
         title: "Open Testcord Settings",
         section: SECTION,
         keywords: ["testcord", "equicord", "vencord", "settings"],
@@ -20,11 +20,11 @@ export const testcordCommands: PaletteCommand[] = [
         actions: [{
             id: "run",
             label: "Open Testcord Settings",
-            run: () => void openSettingsPage("equicord_main")
+            run: () => void openSettingsPage("testcord_main")
         }]
     },
     {
-        id: "equicord.quickCss",
+        id: "testcord",
         title: "Open QuickCSS",
         section: SECTION,
         keywords: ["css", "quickcss", "editor", "style"],
@@ -36,7 +36,7 @@ export const testcordCommands: PaletteCommand[] = [
         }]
     },
     {
-        id: "equicord.updater",
+        id: "testcord.updater",
         title: "Open Updater",
         section: SECTION,
         keywords: ["update", "updater", "version"],
@@ -45,11 +45,11 @@ export const testcordCommands: PaletteCommand[] = [
         actions: [{
             id: "run",
             label: "Open Updater",
-            run: () => void openSettingsPage("equicord_updater")
+            run: () => void openSettingsPage("testcord_updater")
         }]
     },
     {
-        id: "equicord.changelog",
+        id: "testcord.changelog",
         title: "Open Changelog",
         section: SECTION,
         keywords: ["changelog", "news", "whats new"],
@@ -57,11 +57,11 @@ export const testcordCommands: PaletteCommand[] = [
         actions: [{
             id: "run",
             label: "Open Changelog",
-            run: () => void openSettingsPage("equicord_changelog")
+            run: () => void openSettingsPage("testcord_changelog")
         }]
     },
     {
-        id: "equicord.restart",
+        id: "testcord.restart",
         title: "Restart Discord",
         section: SECTION,
         keywords: ["restart", "reload", "refresh"],

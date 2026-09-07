@@ -29,11 +29,11 @@ export const DISCORD_SETTINGS_ROUTES: SettingsRoute[] = [
     { route: "authorized_apps", label: "Authorized Apps", keywords: ["oauth", "apps"] },
     { route: "family_center", label: "Family Center", keywords: ["family", "safety"] },
     { route: "advanced", label: "Advanced", keywords: ["developer"] },
-    { route: "equicord_main", label: "Equicord", keywords: ["vencord"] },
-    { route: "equicord_plugins", label: "Equicord Plugins", keywords: ["plugins"] },
-    { route: "equicord_themes", label: "Equicord Themes", keywords: ["themes", "css"] },
-    { route: "equicord_updater", label: "Equicord Updater", keywords: ["update"] },
-    { route: "equicord_changelog", label: "Testcord Changelog", keywords: ["changelog", "news"] }
+    { route: "testcord_main", label: "Testcord", keywords: ["vencord", "equicord"] },
+    { route: "testcord_plugins", label: "Testcord Plugins", keywords: ["plugins"] },
+    { route: "testcord_themes", label: "Testcord Themes", keywords: ["themes", "css"] },
+    { route: "testcord_updater", label: "Testcord Updater", keywords: ["update"] },
+    { route: "testcord_changelog", label: "Testcord Changelog", keywords: ["changelog", "news"] }
 ];
 
 const ROUTE_ALIASES = new Map<string, string[]>([
@@ -52,11 +52,11 @@ const ROUTE_ALIASES = new Map<string, string[]>([
     ["chat", ["chat_panel"]],
     ["authorized_apps", ["authorized_apps_panel"]],
     ["family_center", ["family_center_panel"]],
-    ["equicord_main", ["equicord_main_panel"]],
-    ["equicord_plugins", ["equicord_plugins_panel"]],
-    ["equicord_themes", ["equicord_themes_panel"]],
-    ["equicord_updater", ["equicord_updater_panel"]],
-    ["equicord_changelog", ["equicord_changelog_panel"]]
+    ["testcord_main", ["testcord_main_panel"]],
+    ["testcord_plugins", ["testcord_plugins_panel"]],
+    ["testcord_themes", ["testcord_themes_panel"]],
+    ["testcord_updater", ["testcord_updater_panel"]],
+    ["testcord_changelog", ["testcord_changelog_panel"]]
 ]);
 
 const ROUTE_LOOKUP = (() => {

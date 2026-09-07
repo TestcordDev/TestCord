@@ -25,19 +25,19 @@ export default definePlugin({
     startAt: StartAt.WebpackReady,
     toolboxActions: {
         "Open Icons Tab"() {
-            SettingsRouter.openUserSettings("equicord_icon_viewer_panel");
+            SettingsRouter.openUserSettings("testcord_icon_viewer_panel");
         },
     },
     settingsAboutComponent: SettingsAbout,
     start() {
         SettingsPlugin.customEntries.push({
-            key: "equicord_icon_viewer",
+            key: "testcord_icon_viewer",
             title: "Icon Finder",
             Component: IconsTab,
             Icon: MagnifyingGlassIcon
         });
     },
     stop() {
-        removeFromArray(SettingsPlugin.customEntries, e => e.key === "equicord_icon_viewer");
+        removeFromArray(SettingsPlugin.customEntries, e => e.key === "testcord_icon_viewer");
     },
 });

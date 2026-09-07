@@ -106,7 +106,7 @@ interface SettingsLayoutBuilder {
     buildLayout(): SettingsLayoutNode[];
 }
 
-const TESTCORD_MAIN_ENTRY_KEY = "equicord_main";
+const TESTCORD_MAIN_ENTRY_KEY = "testcord_main";
 
 // PURE: no writes. Must return the same result no matter which caller (editor
 // or sidebar sync) runs first, otherwise the editor row and the live sidebar
@@ -575,7 +575,7 @@ const settings = definePluginSettings({
     },
     includeVencordInfoWhenCopying: {
         type: OptionType.BOOLEAN,
-        description: "Also copy Equicord info (Equicord, Electron, Chromium) when clicking the version info in the bottom left area of the Settings page",
+        description: "Also copy Testcord info (Testcord, Electron, Chromium) when clicking the version info in the bottom left area of the Settings page",
         default: true
     },
     visibleSettingsTabs: {
@@ -694,18 +694,18 @@ export default definePlugin({
         const layout = originalLayoutBuilder.buildLayout();
         if (originalLayoutBuilder.key !== "$Root") return layout;
         if (!Array.isArray(layout)) return layout;
-        if (layout.some(s => s?.key === "equicord_section")) return layout;
+        if (layout.some(s => s?.key === "testcord_section")) return layout;
 
         const { buildEntry } = this;
 
-        const equicordEntries: SettingsLayoutNode[] = [
+        const testcordEntries: SettingsLayoutNode[] = [
             buildEntry({
                 key: TESTCORD_MAIN_ENTRY_KEY,
                 title: "Testcord",
                 panelTitle: "Testcord Settings",
                 Component: () => <>
                     <TestcordTabsEditor
-                        tabs={getTestcordTabDescriptors(equicordEntries)}
+                        tabs={getTestcordTabDescriptors(testcordEntries)}
                     />
                     <VencordTab />
                 </>,
@@ -766,20 +766,20 @@ export default definePlugin({
                 Icon: BookmarkIcon,
             }),
             buildEntry({
-                key: "equicord_cloud",
+                key: "testcord_cloud",
                 title: "Cloud",
-                panelTitle: "Equicord Cloud",
+                panelTitle: "testcord Cloud",
                 Component: CloudTab,
                 Icon: CloudIcon
             }),
             buildEntry({
-                key: "equicord_backup_restore",
+                key: "testcord_backup_restore",
                 title: "Backup & Restore",
                 Component: BackupAndRestoreTab,
                 Icon: BackupRestoreIcon
             }),
             !IS_STANDALONE && PatchHelperTab && buildEntry({
-                key: "equicord_patch_helper",
+                key: "testcord_patch_helper",
                 title: "Patch Helper",
                 Component: PatchHelperTab,
                 Icon: PatchHelperIcon
@@ -787,22 +787,22 @@ export default definePlugin({
             ...this.customEntries.map(buildEntry)
         ].filter(isTruthy);
 
-        const orderedEquicordEntries = orderTestcordTabs(
-            equicordEntries,
-            readTestcordTabOrder(equicordEntries.map(entry => entry.key!)),
-            readPinnedTestcordTabs(equicordEntries.map(entry => entry.key!))
+        const orderedTestcordEntries = orderTestcordTabs(
+            testcordEntries,
+            readTestcordTabOrder(testcordEntries.map(entry => entry.key!)),
+            readPinnedTestcordTabs(testcordEntries.map(entry => entry.key!))
         );
 
         syncVisibleTestcordSidebarTabs(
-            getTestcordTabDescriptors(equicordEntries),
-            readVisibleTestcordTabs(equicordEntries.map(entry => entry.key!))
+            getTestcordTabDescriptors(testcordEntries),
+            readVisibleTestcordTabs(testcordEntries.map(entry => entry.key!))
         );
 
-        const equicordSection: SettingsLayoutNode = {
-            key: "equicord_section",
+        const testcordSection: SettingsLayoutNode = {
+            key: "testcord_section",
             type: LayoutTypes.SECTION,
             useTitle: () => "TestCord Settings",
-            buildLayout: () => orderedEquicordEntries
+            buildLayout: () => orderedTestcordEntries
         };
 
         const { settingsLocation } = settings.store;
@@ -825,7 +825,7 @@ export default definePlugin({
             idx += 1;
         }
 
-        layout.splice(idx, 0, equicordSection);
+        layout.splice(idx, 0, testcordSection);
 
         return layout;
     },

@@ -101,7 +101,7 @@ export default definePlugin({
             registerAction({
                 id: "openDevSettings",
                 label: "Open Dev tab",
-                callback: () => SettingsRouter.openUserSettings("equicord_patch_helper_panel"),
+                callback: () => SettingsRouter.openUserSettings("testcord_patch_helper_panel"),
                 registrar: "Equicord"
             });
         }

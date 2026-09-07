@@ -177,7 +177,7 @@ async function marketplaceItems(): Promise<PaletteListItem[]> {
                                         id: "openSettings",
                                         label: "Open Themes Settings",
                                         icon: GearIcon,
-                                        run: () => void openSettingsPage("equicord_themes", "Themes")
+                                        run: () => void openSettingsPage("testcord_themes", "Themes")
                                     }
                                 ]
                             }
@@ -200,7 +200,7 @@ async function marketplaceItems(): Promise<PaletteListItem[]> {
                     id: "openSettings",
                     label: "Open Themes Settings",
                     icon: GearIcon,
-                    run: () => void openSettingsPage("equicord_themes", "Themes")
+                    run: () => void openSettingsPage("testcord_themes", "Themes")
                 }
             ];
 
@@ -424,7 +424,7 @@ export const themeCommands: PaletteCommand[] = [
         actions: [{
             id: "open",
             label: "Open Themes Settings",
-            run: () => void openSettingsPage("equicord_themes", "Themes")
+            run: () => void openSettingsPage("testcord_themes", "Themes")
         }]
     }
 ];
