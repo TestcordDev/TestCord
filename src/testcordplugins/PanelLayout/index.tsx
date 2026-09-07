@@ -5,7 +5,7 @@
  */
 
 import * as DataStore from "@api/DataStore";
-import { definePluginSettings, SettingsStore } from "@api/Settings";
+import { definePluginSettings, migratePluginSettings, SettingsStore } from "@api/Settings";
 import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
@@ -19,6 +19,35 @@ import { TestcordDevs } from "@utils/constants";
 import { ModalFooter, openModal, RenderModalProps } from "@utils/modal";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
 import { Modal, React, Select, Slider } from "@webpack/common";
+
+import {
+    activityBannerPatches,
+    devBannerPatches,
+    getVisibleGameOrRpc,
+    initModuleManager,
+    isModuleEnabled,
+    LocalActivityStore,
+    makeDevBanner,
+    MarketplaceTab,
+    markRenderedInEI,
+    ModulesContainer,
+    ModulesTab,
+    musicControlsPatches,
+    PresenceStore,
+    registerModule,
+    renderActivityIcon,
+    renderActivityInfo,
+    renderStreamingGame,
+    RunningGameStore,
+    saveRenderer,
+    SelfPresenceStore,
+    stopModuleManager,
+    unregisterModule,
+    useModules,
+} from "./modules";
+
+migratePluginSettings("deraculpanellayout", "PanelLayout");
+migratePluginSettings("deracul-panel-layout", "PanelLayout");
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
@@ -190,7 +219,8 @@ interface ButtonConfig {
     linkedTo?: string[];
 }
 
-const BUTTON_CONFIG_KEY = "deracul-panel-layout-configs";
+const BUTTON_CONFIG_KEY = "panel-layout-configs";
+const OLD_BUTTON_CONFIG_KEY = "deracul-panel-layout-configs";
 let buttonConfigs: Record<string, ButtonConfig> = {};
 let configsLoaded = false;
 
@@ -201,7 +231,8 @@ function rebuildLinkIndex() {
 }
 
 async function loadConfigs() {
-    buttonConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ?? {};
+    buttonConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ??
+                    (await DataStore.get<Record<string, ButtonConfig>>(OLD_BUTTON_CONFIG_KEY)) ?? {};
     configsLoaded = true;
     rebuildLinkIndex();
 }
@@ -1720,7 +1751,7 @@ function ButtonsDragTab() {
 
 // ─── Modal Implementation ─────────────────────────────────────────────────────
 
-type Tab = "panel" | "call" | "style" | "colors" | "hide" | "drag";
+type Tab = "panel" | "call" | "style" | "colors" | "hide" | "drag" | "modules" | "marketplace";
 
 function PanelLayoutIcon({ style, className }: { style?: React.CSSProperties; className?: string; }) {
     return (
@@ -1803,6 +1834,22 @@ function TabButtonsIcon() {
     );
 }
 
+function TabModulesIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 4h7v7H4V4zm0 9h7v7H4v-7zm9-9h7v7h-7V4zm0 9h7v7h-7v-7z" fill="currentColor" />
+        </svg>
+    );
+}
+
+function TabMarketplaceIcon() {
+    return (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+    );
+}
+
 const TAB_ICONS: Record<Tab, () => React.ReactElement> = {
     panel: TabPanelIcon,
     call: TabCallIcon,
@@ -1810,6 +1857,8 @@ const TAB_ICONS: Record<Tab, () => React.ReactElement> = {
     colors: TabColorsIcon,
     hide: TabVisibilityIcon,
     drag: TabButtonsIcon,
+    modules: TabModulesIcon,
+    marketplace: TabMarketplaceIcon,
 };
 
 // Small accent-bar heading used to open each settings section — a single
@@ -2468,6 +2517,8 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         { id: "colors", label: "Colors" },
         { id: "hide", label: "Visibility" },
         { id: "drag", label: "Buttons" },
+        { id: "modules", label: "Modules" },
+        { id: "marketplace", label: "Marketplace" },
     ];
 
     function resetDefaults() {
@@ -2662,6 +2713,14 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <SectionHeading>Button Order & Hotkeys & Grouping</SectionHeading>
                         <ButtonsDragTab />
                     </>}
+
+                    {tab === "modules" && <>
+                        <ModulesTab />
+                    </>}
+
+                    {tab === "marketplace" && <>
+                        <MarketplaceTab />
+                    </>}
                 </Flex>
             </div>
 
@@ -2699,16 +2758,54 @@ function PanelLayoutButton({ iconForeground, hideTooltips, nameplate }: UserArea
 // ─── Plugin ───────────────────────────────────────────────────────────────────
 
 export default definePlugin({
-    name: "deraculpanellayout",
-    description: "Customize the layout, style, and visibility of panel and call buttons.",
+    name: "PanelLayout",
+    description: "Customize the layout, style, and visibility of panel and call buttons, and manage user area modules.",
     authors: [TestcordDevs.deracul, TestcordDevs.Aviv, TestcordDevs.x2b, TestcordDevs.sirphantom89],
     dependencies: ["UserSettingsAPI"],
     settings,
+    required: true,
+
+    patches: [
+        {
+            find: "#{intl::USER_PROFILE_ACCOUNT_POPOUT_BUTTON_A11Y_LABEL}",
+            replacement: {
+                match: /(?<=\i\.jsxs?\)\()(\i),{(?=[^}]*?userTag:\i,occluded:)/,
+                replace: "$self.PanelWrapper,{VencordOriginal:$1,"
+            },
+        },
+        ...musicControlsPatches,
+        ...devBannerPatches,
+        ...activityBannerPatches,
+    ],
+
+    makeDevBanner,
+
+    LocalActivityStore,
+    SelfPresenceStore,
+    PresenceStore,
+    RunningGameStore,
+
+    saveRenderer,
+    markRenderedInEI,
+    renderStreamingGame,
+    getVisibleGameOrRpc,
+    renderActivityInfo,
+    renderActivityIcon,
+
+    PanelWrapper({ VencordOriginal, ...props }: any) {
+        return (
+            <>
+                <ModulesContainer position="above" />
+                <VencordOriginal {...props} />
+                <ModulesContainer position="below" />
+            </>
+        );
+    },
 
     userAreaButton: { icon: PanelLayoutIcon, render: PanelLayoutButton },
 
     async start() {
-        await loadConfigs();
+        await Promise.all([loadConfigs(), initModuleManager()]);
         apply();
         startObserver();
         SettingsStore.addChangeListener("plugins.TestcordHelper.userAreaButtonIconColor", apply);
@@ -2716,6 +2813,7 @@ export default definePlugin({
         document.addEventListener("click", onGlobalClick, true);
     },
     stop() {
+        stopModuleManager();
         stopObserver();
         SettingsStore.removeChangeListener("plugins.TestcordHelper.userAreaButtonIconColor", apply);
         document.getElementById(STYLE_ID)?.remove();
@@ -2724,3 +2822,12 @@ export default definePlugin({
         document.removeEventListener("click", onGlobalClick, true);
     }
 });
+
+export {
+    initModuleManager,
+    isModuleEnabled,
+    registerModule,
+    stopModuleManager,
+    unregisterModule,
+    useModules,
+} from "./modules";

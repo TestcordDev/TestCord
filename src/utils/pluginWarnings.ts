@@ -29,7 +29,6 @@ export const EXPERIMENTAL_PLUGINS: string[] = [
     "BadgeSpoofer",
     "AntilogPremium",
     "ChromeTabs",
-    "ActivityBanner",
     "FastDiscord",
     "TestcordOptimizer",
     "NoButtons",
@@ -74,8 +73,15 @@ export const LEGACY_REPLACEMENTS: Record<string, string> = {
     "stereoinstaller": "StereoLoader",
     "TokenImporter": "DXTokenImporter",
     "tokenimporter": "DXTokenImporter",
-    "UserAreaTweaks": "deraculpanellayout",
-    "userareatweaks": "deraculpanellayout"
+    "UserAreaTweaks": "PanelLayout",
+    "userareatweaks": "PanelLayout",
+    "MusicControls": "PanelLayout",
+    "musiccontrols": "PanelLayout",
+    "ActivityBanner": "PanelLayout",
+    "activitybanner": "PanelLayout",
+    "DiscordDevBanner": "PanelLayout",
+    "discorddevbanner": "PanelLayout",
+    "deraculpanellayout": "PanelLayout"
 };
 
 /**
