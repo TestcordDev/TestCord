@@ -62,6 +62,7 @@ const PluginSearchPrefixes: Array<{ prefix: string; folders: string[]; }> = [
     { prefix: "vencordplugin:", folders: ["src/plugins/"] },
     { prefix: "eqp:", folders: ["src/equicordplugins/"] },
     { prefix: "equicordplugin:", folders: ["src/equicordplugins/"] },
+    { prefix: "p:", folders: ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"] },
     { prefix: "plugin:", folders: ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"] },
     { prefix: "plugins:", folders: ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"] }
 ];

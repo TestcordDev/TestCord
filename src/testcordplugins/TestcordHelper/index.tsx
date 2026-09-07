@@ -454,8 +454,8 @@ const RenderEmbeds = getUserSettingLazy<boolean>("textAndImages", "renderEmbeds"
 const MESSAGE_LIMIT = 1900;
 const MB = 1024 * 1024;
 
-const PLUGIN_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?):([^\s,;\n]+)/gi;
-const PLUGIN_MATCH_PATTERN = /(testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?):([^\s,;\n]+)/i;
+const PLUGIN_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?|p?):([^\s,;\n]+)/gi;
+const PLUGIN_MATCH_PATTERN = /(testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?|p?):([^\s,;\n]+)/i;
 const PLUGIN_LINK_PATTERN = /\[([^\]]+)]\(<?https:\/\/github\.com\/TestcordDev\/Testcord\/tree\/main\/src\/(?:plugins|equicordplugins|testcordplugins)\/[^>)]+>?\)/gi;
 const PLUGIN_CARD_MARKER_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?):|github\.com\/TestcordDev\/Testcord\/tree\/main\/src\/(?:plugins|equicordplugins|testcordplugins)\//i;
 const PLUGIN_RESOLVE_CACHE_LIMIT = 500;
@@ -531,7 +531,7 @@ function getMemoryUsage(): string {
 const settings = definePluginSettings({
     tcpAutocomplete: {
         type: OptionType.BOOLEAN,
-        description: "Show an extend-up autocomplete panel when typing tcp:, vcp:, eqp:, or plugin: in chat to reference plugins",
+        description: "Show an extend-up autocomplete panel when typing tcp:, vcp:, eqp:, or p: in chat to reference plugins",
         default: true,
         onChange: (val: boolean) => {
             if (val) {
@@ -960,7 +960,7 @@ function getCategoryFolders(prefix?: string): string[] | undefined {
     if (lower === "tcp" || lower === "testcordplugin") return ["src/testcordplugins/"];
     if (lower === "vcp" || lower === "vencordplugin") return ["src/plugins/"];
     if (lower === "eqp" || lower === "equicordplugin") return ["src/equicordplugins/"];
-    if (lower === "plugin" || lower === "plugins") return ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"];
+    if (lower === "p" ||lower === "plugin" || lower === "plugins") return ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"];
     return undefined;
 }
 

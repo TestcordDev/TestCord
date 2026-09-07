@@ -191,7 +191,7 @@ function hookModule(mod: any) {
     Object.defineProperty(mod, "findMatchingAutocompleteType", {
         value: function (args: any) {
             const currentWord = args?.currentWord;
-            const match = currentWord?.match(/^(?:(tcp|testcordplugin)|(vcp|vencordplugin)|(eqp|equicordplugin)|(plugin|plugins)):/i);
+            const match = currentWord?.match(/^(?:(tcp|testcordplugin)|(vcp|vencordplugin)|(eqp|equicordplugin)|(p|plugin|plugins)):/i);
             if (match) {
                 const rawPrefix = match[0];
                 const prefixKeyword = (match[1] || match[2] || match[3] || match[4]).toLowerCase();
@@ -272,7 +272,7 @@ function hookModule(mod: any) {
     });
 
     mod._tcpAutocompleteHooked = true;
-    logger.info("Hooked Discord native autocomplete for tcp:, vcp:, eqp:, plugin:");
+    logger.info("Hooked Discord native autocomplete for tcp:, vcp:, eqp:, p:");
 }
 
 export function initTcpAutocomplete(): void {
@@ -300,6 +300,6 @@ export function cleanupTcpAutocomplete(): void {
         delete hookedModule._tcpAutocompleteHooked;
         origFindMatching = null;
         hookedModule = null;
-        logger.info("Unhooked Discord native autocomplete for tcp:, vcp:, eqp:, plugin:");
+        logger.info("Unhooked Discord native autocomplete for tcp:, vcp:, eqp:, p:");
     }
 }
