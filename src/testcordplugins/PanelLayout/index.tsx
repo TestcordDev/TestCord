@@ -217,7 +217,7 @@ function cssVal(val: string): string {
 }
 
 function getBtnSelector(canonical: string): string {
-    return `html body div${S.panelContainer} div:is(${S.panelButtons}, ${S.callControls}) > [data-panellayout-label=${cssVal(canonical)}]`;
+    return `html body div${S.panelContainer} div:is(${S.panelButtons}, ${S.callControls}) > [data-deracul-label=${cssVal(canonical)}]`;
 }
 
 // ─── Global Keybind Logic ─────────────────────────────────────────────────────
@@ -297,10 +297,10 @@ function onGlobalClick(e: MouseEvent) {
     const target = e.target as HTMLElement | null;
     if (!target) return;
 
-    const btnEl = target.closest<HTMLElement>("[data-panellayout-label]");
+    const btnEl = target.closest<HTMLElement>("[data-deracul-label]");
     if (!btnEl) return;
 
-    const label = btnEl.getAttribute("data-panellayout-label");
+    const label = btnEl.getAttribute("data-deracul-label");
     if (!label) return;
 
     const cfg = buttonConfigs[label];
@@ -331,7 +331,7 @@ function toggleGroupLink(labelA: string, labelB: string, linked: boolean) {
 }
 
 function getButtonLabel(button: HTMLElement): string | null {
-    const customLabel = button.getAttribute("data-panellayout-label");
+    const customLabel = button.getAttribute("data-deracul-label");
     if (customLabel) return customLabel;
 
     const aria = button.getAttribute("aria-label")?.toLowerCase() || "";
@@ -354,8 +354,8 @@ function updateDomAttributes() {
         const rawLabel = getBtnLabel(el);
         if (!rawLabel) continue;
         const canonical = getCanonicalLabel(rawLabel);
-        if (el.getAttribute("data-panellayout-label") !== canonical) {
-            el.setAttribute("data-panellayout-label", canonical);
+        if (el.getAttribute("data-deracul-label") !== canonical) {
+            el.setAttribute("data-deracul-label", canonical);
         }
     }
 }
@@ -388,8 +388,8 @@ function stopObserver() {
 
 // ─── CSS Builders ─────────────────────────────────────────────────────────────
 
-const STYLE_ID = "panellayout-styles";
-const CUSTOM_STYLE_ID = "panellayout-custom-styles";
+const STYLE_ID = "deracul-panel-layout";
+const CUSTOM_STYLE_ID = "deracul-panel-custom";
 
 function gridCSS(selector: string, cols: number, gap: number) {
     return `
@@ -494,10 +494,10 @@ function buildCSS(): string {
         }
     `);
     lines.push(`
-        .panellayout-scrollbar::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
-        .panellayout-scrollbar::-webkit-scrollbar-track { background: var(--scrollbar-thin-track, transparent) !important; border-radius: 4px !important; }
-        .panellayout-scrollbar::-webkit-scrollbar-thumb { background: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) !important; border-radius: 4px !important; }
-        .panellayout-scrollbar { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) transparent; }
+        .deracul-scrollbar::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+        .deracul-scrollbar::-webkit-scrollbar-track { background: var(--scrollbar-thin-track, transparent) !important; border-radius: 4px !important; }
+        .deracul-scrollbar::-webkit-scrollbar-thumb { background: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) !important; border-radius: 4px !important; }
+        .deracul-scrollbar { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) transparent; }
     `);
 
     lines.push(`
@@ -544,7 +544,7 @@ function buildCSS(): string {
     lines.push(`${S.panelContainer} { height: auto !important; min-height: unset !important; }`);
 
     lines.push(`
-        .panellayout-btn-preview svg, .panellayout-btn-preview [class*="lottieIcon"] {
+        .deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
             width: 22px !important; height: 22px !important;
             color: var(--interactive-normal, var(--interactive-text-default)) !important; fill: currentColor !important;
         }
@@ -594,14 +594,14 @@ function buildCSS(): string {
                     order: 30000 !important; flex: 1 1 auto !important; min-width: 0 !important; margin-right: auto !important;
                 }
                 ${S.panelButtons} { display: contents !important; }
-                ${S.panelButtons} > *:not(${S.audioParent}):not([data-panellayout-label="User Settings"]) {
+                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) {
                     order: 10000 !important; display: flex !important; justify-content: center !important; align-items: center !important; flex: ${flexSize} !important;
                 }
-                ${S.panelButtons} > *:not(${S.audioParent}):not([data-panellayout-label="User Settings"]) > button {
+                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) > button {
                     width: 100% !important; display: flex !important; justify-content: center !important; align-items: center !important;
                 }
                 ${S.panelButtons} > ${S.audioParent},
-                ${S.panelButtons} > [data-panellayout-label="User Settings"] {
+                ${S.panelButtons} > [data-deracul-label="User Settings"] {
                     order: 40000 !important; margin: 0 !important;
                 }
             `);
@@ -834,8 +834,8 @@ function buildCustomCSS(): string {
             const finalRadius = cfg.radius != null ? `${cfg.radius}px` : "10px";
 
             lines.push(`
-                ${S.previewButtonOn}[data-panellayout-label="${cfg.label}"]:hover,
-                ${S.previewButtonOn}[data-panellayout-label="${cfg.label}"],
+                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"]:hover,
+                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"],
                 ${sel} button[role="switch"][aria-checked="true"]:hover,
                 ${sel} button[role="switch"][aria-checked="true"],
                 ${sel} button[aria-checked="true"]:hover,
@@ -847,7 +847,7 @@ function buildCustomCSS(): string {
                     border-radius: ${finalRadius} !important;
                 }
 
-                ${S.previewButtonOn}[data-panellayout-label="${cfg.label}"] svg,
+                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"] svg,
                 ${sel} button[role="switch"][aria-checked="true"] svg,
                 ${sel} button[aria-checked="true"] svg,
                 ${sel}[aria-checked="true"] svg {
@@ -865,7 +865,7 @@ function buildCustomCSS(): string {
             const finalRadius = cfg.radiusOff != null ? `${cfg.radiusOff}px` : "10px";
 
             lines.push(`
-                ${S.previewButtonOff}[data-panellayout-label="${cfg.label}"],
+                ${S.previewButtonOff}[data-deracul-label="${cfg.label}"],
                 ${sel} button[role="switch"][aria-checked="false"],
                 ${sel} button[aria-checked="false"],
                 ${sel}[aria-checked="false"] {
@@ -875,7 +875,7 @@ function buildCustomCSS(): string {
                     border-radius: ${finalRadius} !important;
                 }
 
-                ${S.previewButtonOff}[data-panellayout-label="${cfg.label}"]:hover,
+                ${S.previewButtonOff}[data-deracul-label="${cfg.label}"]:hover,
                 ${sel} button[role="switch"][aria-checked="false"]:hover,
                 ${sel} button[aria-checked="false"]:hover,
                 ${sel}[aria-checked="false"]:hover {
@@ -1389,7 +1389,7 @@ function ButtonsDragTab() {
                         <div style={{
                             display: "flex",
                         }}>
-                            <div className="panellayout-scrollbar" style={{
+                            <div className="deracul-scrollbar" style={{
                                 display: "flex",
                                 flexDirection: "row",
                                 gap: "12px",
@@ -1428,7 +1428,7 @@ function ButtonsDragTab() {
                                         >
                                             {isMute && (
                                                 <div
-                                                    className="panellayout-btn-preview"
+                                                    className="deracul-btn-preview"
                                                     dangerouslySetInnerHTML={{ __html: svgs.muteOff }}
                                                     style={{
                                                         width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
@@ -1439,7 +1439,7 @@ function ButtonsDragTab() {
 
                                             {isDeafen && (
                                                 <div
-                                                    className="panellayout-btn-preview"
+                                                    className="deracul-btn-preview"
                                                     dangerouslySetInnerHTML={{ __html: svgs.deafenOff }}
                                                     style={{
                                                         width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
@@ -1450,7 +1450,7 @@ function ButtonsDragTab() {
 
                                             {!isMute && !isDeafen && (
                                                 <div
-                                                    className="panellayout-btn-preview"
+                                                    className="deracul-btn-preview"
                                                     dangerouslySetInnerHTML={{ __html: item.iconHTML }}
                                                     style={{
                                                         width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
@@ -1501,7 +1501,7 @@ function ButtonsDragTab() {
                         </div>
                     </Card>
 
-                    <div className="panellayout-scrollbar" style={{
+                    <div className="deracul-scrollbar" style={{
                         display: "flex",
                         flexDirection: "column",
                         gap: "12px",
@@ -1956,7 +1956,7 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
                 </BaseText>
             ) : (
                 <div style={{ display: "flex", flexDirection: "column", maxHeight: "200px" }}>
-                    <div className="panellayout-scrollbar" style={{ paddingTop: "1px", overflowY: "auto", paddingRight: "4px" }}>
+                    <div className="deracul-scrollbar" style={{ paddingTop: "1px", overflowY: "auto", paddingRight: "4px" }}>
                         <Flex flexDirection="column" gap={8}>
                             {(items ?? [])
                                 .filter(item => !getBtnCfg(item.id).hidden &&
@@ -2032,7 +2032,7 @@ function SettingModalItem({
 
         if (typeof label === "string") {
             targetEl =
-                document.querySelector(`${S.panelContainer} [data-panellayout-label="${label}"]`) ||
+                document.querySelector(`${S.panelContainer} [data-deracul-label="${label}"]`) ||
                 document.querySelector(`${S.panelContainer} ${S.panelButton}`) ||
                 document.querySelector(S.panelButton);
         } else if (label && "current" in label) {
@@ -2059,9 +2059,9 @@ function SettingModalItem({
         if (!label) return;
 
         const buttonEl = document.querySelector<HTMLElement>(
-            `${S.panelContainer} [data-panellayout-label="${label}"]`
+            `${S.panelContainer} [data-deracul-label="${label}"]`
         ) || document.querySelector<HTMLElement>(
-            `${S.panelContainer} ${S.panelButton}[data-panellayout-label="${label}"]`
+            `${S.panelContainer} ${S.panelButton}[data-deracul-label="${label}"]`
         );
 
         if (!buttonEl) return;
@@ -2122,7 +2122,7 @@ function SettingModalItem({
             size="xl"
         >
             <div style={{ display: "flex", flexDirection: "row-reverse", gap: "24px", height: `${MODAL_BODY_HEIGHT}px` }}>
-                <div className="panellayout-scrollbar" style={{ flex: 1, height: "100%", overflowY: "auto", paddingRight: "4px" }}>
+                <div className="deracul-scrollbar" style={{ flex: 1, height: "100%", overflowY: "auto", paddingRight: "4px" }}>
                     <Flex flexDirection="column" gap={16}>
                         {!isUserSettings && !isPanelLayout && (
                             <>
@@ -2224,7 +2224,7 @@ function SettingModalItem({
                                 <BaseText size="xs" color="text-muted">OFF State</BaseText>
                                 <button
                                     className={!isMute && !isDeafen ? "buttonPreview previewButtonOff plateMuted__67645" : "buttonPreview previewButtonOff"}
-                                    data-panellayout-label={cfg.label}
+                                    data-deracul-label={cfg.label}
                                     style={{
                                         "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
                                         "--custom-nameplate-neutral": customNameplateNeutral,
@@ -2254,7 +2254,7 @@ function SettingModalItem({
                                 <BaseText size="xs" color="text-muted">ON State</BaseText>
                                 <button
                                     className={isMute || isDeafen ? "buttonPreview previewButtonOn button__201d5 lookBlank__201d5 plateMuted__67645" : "buttonPreview previewButtonOn button__201d5 lookBlank__201d5"}
-                                    data-panellayout-label={cfg.label}
+                                    data-deracul-label={cfg.label}
                                     style={{
                                         "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
                                         "--custom-nameplate-neutral": customNameplateNeutral,
@@ -2505,7 +2505,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
             {...modalProps}
             size="xl"
         >
-            <div className="panellayout-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px" }}>
+            <div className="deracul-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px" }}>
                 <Flex flexDirection="column" gap={16}>
                     {tab === "panel" && <>
                         <SectionHeading>Layout Structure</SectionHeading>
@@ -2628,7 +2628,7 @@ function PanelLayoutButton({ iconForeground, hideTooltips, nameplate }: UserArea
 export default definePlugin({
     name: "PanelLayout",
     description: "Customize the layout, style, and visibility of panel and call buttons, and manage user area modules.",
-    authors: [TestcordDevs.Aviv, TestcordDevs.x2b, TestcordDevs.sirphantom89],
+    authors: [TestcordDevs.deracul, TestcordDevs.Aviv, TestcordDevs.x2b, TestcordDevs.sirphantom89],
     dependencies: ["UserSettingsAPI"],
     settings,
     required: true,

@@ -147,8 +147,16 @@ export function stopMusicControls() {
 
 export const musicControlsPatches = [
     {
+        find: "#{intl::USER_PROFILE_ACCOUNT_POPOUT_BUTTON_A11Y_LABEL}",
+        predicate: () => !isModuleEnabled("music-controls"),
+        replacement: {
+            match: /(?<=\i\.jsxs?\)\()(\i),{(?=[^}]*?userTag:\i,occluded:)/,
+            replace: "$self.PanelWrapper,{VencordOriginal:$1,"
+        },
+    },
+    {
         find: ".PLAYER_DEVICES",
-        predicate: () => isModuleEnabled("music-controls"),
+        predicate: () => !isModuleEnabled("music-controls"),
         replacement: [{
             match: /get:(\i)\.bind\(null,(\i\.\i)\.get\)/,
             replace: "post:$1.bind(null,$2.post),vcSpotifyMarker:1,$&"
@@ -160,7 +168,7 @@ export const musicControlsPatches = [
     },
     {
         find: 'repeat:"off"!==',
-        predicate: () => isModuleEnabled("music-controls"),
+        predicate: () => !isModuleEnabled("music-controls"),
         replacement: [
             {
                 match: /repeat:"off"!==(\i),/,
@@ -204,6 +212,7 @@ export function MusicControlsComponent() {
 }
 
 export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps?: RenderModalProps; onClose?: () => void; }) {
+    showToast(`${isModuleEnabled("music-controls")}`);
     const s = settings.use([
         "showSpotifyControls",
         "betterSpotifyControls",
@@ -221,6 +230,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
 
     const [tab, setTab] = useState<"spotify" | "tidal" | "lyrics">("spotify");
     const handleClose = () => (modalProps?.onClose ?? onClose)?.();
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
 
     return (
         <Modal title="Music Controls Settings" size="lg" {...modalProps!} actionBarInput={
@@ -233,28 +243,28 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                 </Button>
             </div>
         }>
-            <div className="panellayout-scrollbar" style={{ padding: "16px", height: "540px", minHeight: "540px", maxHeight: "80vh", overflowY: "auto", boxSizing: "border-box" }}>
-                <Flex gap={8} style={{ marginBottom: "16px" }}>
-                    <div
-                        onClick={() => setTab("spotify")}
-                        className={`vc-pl-subtab ${tab === "spotify" ? "active" : ""}`}
-                    >
-                        Spotify
-                    </div>
-                    <div
-                        onClick={() => setTab("tidal")}
-                        className={`vc-pl-subtab ${tab === "tidal" ? "active" : ""}`}
-                    >
-                        Tidal
-                    </div>
-                    <div
-                        onClick={() => setTab("lyrics")}
-                        className={`vc-pl-subtab ${tab === "lyrics" ? "active" : ""}`}
-                    >
-                        Lyrics & Hover
-                    </div>
-                </Flex>
+            <Flex gap={8} style={{ marginBottom: "16px" }}>
+                <div
+                    onClick={() => setTab("spotify")}
+                    className={`vc-pl-subtab ${tab === "spotify" ? "active" : ""}`}
+                >
+                    Spotify
+                </div>
+                <div
+                    onClick={() => setTab("tidal")}
+                    className={`vc-pl-subtab ${tab === "tidal" ? "active" : ""}`}
+                >
+                    Tidal
+                </div>
+                <div
+                    onClick={() => setTab("lyrics")}
+                    className={`vc-pl-subtab ${tab === "lyrics" ? "active" : ""}`}
+                >
+                    Lyrics & Hover
+                </div>
+            </Flex>
 
+            <div className="panellayout-scrollbar" style={{ padding: "16px", height: "540px", minHeight: "540px", maxHeight: "80vh", overflowY: "auto", boxSizing: "border-box" }}>
                 {tab === "spotify" && (
                     <div style={{ display: "grid", gap: "10px" }}>
                         <Card variant="primary">
@@ -262,7 +272,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 title="Show Spotify Controls"
                                 description="Display Spotify player controls (play/pause, skip, progress bar) in the user panel."
                                 value={s.showSpotifyControls}
-                                onChange={v => { settings.store.showSpotifyControls = v; }}
+                                onChange={v => { settings.store.showSpotifyControls = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Album Art Background"
@@ -271,25 +281,26 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 onChange={v => {
                                     settings.store.betterSpotifyControls = v;
                                     toggleBetterSpotifyControls(v);
+                                    forceUpdate();
                                 }}
                             />
                             <FormSwitch
                                 title="Show Spotify Synced Lyrics"
                                 description="Display synchronized karaoke lyrics above or below the player."
                                 value={s.showSpotifyLyrics}
-                                onChange={v => { settings.store.showSpotifyLyrics = v; }}
+                                onChange={v => { settings.store.showSpotifyLyrics = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Open Spotify Desktop URIs"
                                 description="Open Spotify URIs (spotify:track:...) instead of web links."
                                 value={s.useSpotifyUris}
-                                onChange={v => { settings.store.useSpotifyUris = v; }}
+                                onChange={v => { settings.store.useSpotifyUris = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Previous Restarts Track"
                                 description="Restart playing track when pressing previous if playtime is over 3s."
                                 value={s.previousButtonRestartsTrack}
-                                onChange={v => { settings.store.previousButtonRestartsTrack = v; }}
+                                onChange={v => { settings.store.previousButtonRestartsTrack = v; forceUpdate(); }}
                                 hideBorder
                             />
                         </Card>
@@ -303,13 +314,13 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 title="Show Tidal Controls"
                                 description="Display Tidal player controls when connected to TidaLuna."
                                 value={s.showTidalControls}
-                                onChange={v => { settings.store.showTidalControls = v; }}
+                                onChange={v => { settings.store.showTidalControls = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Show Tidal Synced Lyrics"
                                 description="Display synchronized lyrics for Tidal playback."
                                 value={s.showTidalLyrics}
-                                onChange={v => { settings.store.showTidalLyrics = v; }}
+                                onChange={v => { settings.store.showTidalLyrics = v; forceUpdate(); }}
                                 hideBorder
                             />
                         </Card>
@@ -326,19 +337,20 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 onChange={v => {
                                     settings.store.hoverControls = v;
                                     toggleHoverControls(v);
+                                    forceUpdate();
                                 }}
                             />
                             <FormSwitch
                                 title="Fallback Lyrics Provider"
                                 description="Try alternative providers when the primary provider has no lyrics."
                                 value={s.fallbackProvider}
-                                onChange={v => { settings.store.fallbackProvider = v; }}
+                                onChange={v => { settings.store.fallbackProvider = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Hide Toast on Missing Lyrics"
                                 description="Do not show a toast notification when lyrics cannot be found."
                                 value={s.showFailedToasts}
-                                onChange={v => { settings.store.showFailedToasts = v; }}
+                                onChange={v => { settings.store.showFailedToasts = v; forceUpdate(); }}
                             />
                             <div style={{ padding: "10px 0" }}>
                                 <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>

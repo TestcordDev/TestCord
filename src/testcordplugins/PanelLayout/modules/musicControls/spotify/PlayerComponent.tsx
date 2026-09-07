@@ -30,6 +30,7 @@ import { classes } from "@utils/misc";
 import { formatDuration } from "@utils/text";
 import { ContextMenuApi, FluxDispatcher, Menu, React, useEffect, useState, useStateFromStores } from "@webpack/common";
 
+import { MusicControlsComponent } from "..";
 import { settings } from "../settings";
 import { SeekBar } from "./SeekBar";
 import { SpotifyStore, Track } from "./SpotifyStore";
@@ -86,27 +87,25 @@ function CopyContextMenu({ name, type, path }: { type: string; name: string; pat
                 label={`Copy ${type} Name`}
                 action={() => copyWithToast(name)}
                 icon={CopyIcon}
-                leadingAccessory={{ type: "icon", icon: CopyIcon }}
             />
             <Menu.MenuItem
                 id="vc-spotify-copy-link"
                 label={`Copy ${type} Link`}
                 action={() => copyWithToast("https://open.spotify.com" + path)}
                 icon={LinkIcon}
-                leadingAccessory={{ type: "icon", icon: LinkIcon }}
             />
             <Menu.MenuItem
                 id="vc-spotify-open"
                 label={`Open ${type} in Spotify`}
                 action={() => SpotifyStore.openExternal(path)}
                 icon={OpenExternalIcon}
-                leadingAccessory={{ type: "icon", icon: OpenExternalIcon }}
             />
         </Menu.Menu>
     );
 }
 
 function Controls() {
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const { showSpotifyLyrics } = settings.use(["showSpotifyLyrics"]);
     const [isPlaying, shuffle, repeat] = useStateFromStores(
         [SpotifyStore],
@@ -127,12 +126,12 @@ function Controls() {
         <Flex className={cl("button-row")} gap="0" style={{ position: "relative" }}>
             <Button
                 className={classes(cl("button"), cl("shuffle"), cl(shuffle ? "shuffle-on" : "shuffle-off"))}
-                onClick={() => SpotifyStore.setShuffle(!shuffle)}
+                onClick={() => { SpotifyStore.setShuffle(!shuffle); forceUpdate(); }}
             >
                 <Shuffle />
             </Button>
             <Button onClick={() => {
-                settings.store.previousButtonRestartsTrack && SpotifyStore.position > 3000 ? SpotifyStore.seek(0) : SpotifyStore.prev();
+                settings.store.previousButtonRestartsTrack && SpotifyStore.position > 3000 ? SpotifyStore.seek(0) : SpotifyStore.prev(); forceUpdate();
             }}>
                 <SkipPrev />
             </Button>
@@ -144,7 +143,7 @@ function Controls() {
             </Button>
             <Button
                 className={classes(cl("button"), cl("repeat"), cl(repeatClassName))}
-                onClick={() => SpotifyStore.setRepeat(nextRepeat)}
+                onClick={() => { SpotifyStore.setRepeat(nextRepeat); forceUpdate(); }}
                 style={{ position: "relative" }}
             >
                 {repeat === "track" && <span className={cl("repeat-1")}>1</span>}
@@ -154,7 +153,7 @@ function Controls() {
                 <TooltipContainer text={showSpotifyLyrics ? "Disable Lyrics" : "Enable Lyrics"}>
                     <Button
                         className={classes(cl("button"), cl("lyrics"), cl(showSpotifyLyrics ? "repeat-context" : ""))}
-                        onClick={() => { settings.store.showSpotifyLyrics = !showSpotifyLyrics; }}
+                        onClick={() => { settings.store.showSpotifyLyrics = !showSpotifyLyrics; MusicControlsComponent(); forceUpdate(); }}
                     >
                         <LyricsButtonIcon />
                     </Button>
@@ -240,7 +239,6 @@ function AlbumContextMenu({ track }: { track: Track; }) {
                 label="Open Album"
                 action={() => SpotifyStore.openExternal(`/album/${track.album.id}`)}
                 icon={OpenExternalIcon}
-                leadingAccessory={{ type: "icon", icon: OpenExternalIcon }}
             />
             <Menu.MenuItem
                 key="view-cover"
@@ -249,7 +247,6 @@ function AlbumContextMenu({ track }: { track: Track; }) {
                 // trolley
                 action={() => openImageModal(track.album.image)}
                 icon={ImageIcon}
-                leadingAccessory={{ type: "icon", icon: ImageIcon }}
             />
             <Menu.MenuControlItem
                 id="spotify-volume"

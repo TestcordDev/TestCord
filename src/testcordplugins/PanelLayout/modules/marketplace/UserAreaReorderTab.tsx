@@ -106,7 +106,7 @@ import {
 } from "../registry";
 import type { UserAreaReorderItem } from "../types";
 
-const MODAL_BODY_HEIGHT = 350;
+const MODAL_BODY_HEIGHT = 344;
 
 export function UserAreaReorderTab({
     pluginSettings,
@@ -257,35 +257,38 @@ export function UserAreaReorderTab({
                     </BaseText>
                 </div>
 
-                <div
-                    className="panels__5e434 vc-user-area-preview-panel"
-                    style={{
-                        width: "270px",
-                        backgroundColor: "var(--background-secondary-alt, #111214)",
-                        border: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))",
-                        borderRadius: "8px",
-                        display: "flex",
-                        flexDirection: "column",
-                        boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
-                        overflow: "hidden",
-                        maxHeight: `${MODAL_BODY_HEIGHT}px`,
-                        overflowY: "auto",
-                    }}
-                >
-                    {visibleItems.filter(i => i.enabled).map((item, idx, arr) => (
-                        <LivePreviewBlock
-                            key={item.id}
-                            item={item}
-                            pluginSettings={pluginSettings}
-                            isLast={idx === arr.length - 1}
-                        />
-                    ))}
+                <div className="panellayout-scrollbar" style={{ width: "270px", height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px", gap: "6px", display: "flex", flexDirection: "column" }}>
+                    <div
+                        className="panels__5e434 vc-user-area-preview-panel"
+                        style={{
+                            width: "270px",
+                            backgroundColor: "var(--background-secondary-alt, #111214)",
+                            border: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))",
+                            borderRadius: "8px",
+                            display: "flex",
+                            flexDirection: "column",
+                            boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
+                            overflow: "hidden",
+                            maxHeight: `${MODAL_BODY_HEIGHT}px`,
+                            overflowY: "auto",
+                            position: "unset",
+                        }}
+                    >
+                        {visibleItems.filter(i => i.enabled).map((item, idx, arr) => (
+                            <LivePreviewBlock
+                                key={item.id}
+                                item={item}
+                                pluginSettings={pluginSettings}
+                                isLast={idx === arr.length - 1}
+                            />
+                        ))}
 
-                    {visibleItems.filter(i => i.enabled).length === 0 && (
-                        <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--text-muted)", fontSize: "12px" }}>
-                            All components are disabled. Toggle items on the right to preview them here.
-                        </div>
-                    )}
+                        {visibleItems.filter(i => i.enabled).length === 0 && (
+                            <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--text-muted)", fontSize: "12px" }}>
+                                All components are disabled. Toggle items on the right to preview them here.
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
