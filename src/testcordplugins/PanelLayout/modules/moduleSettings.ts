@@ -11,10 +11,8 @@ export function defineModuleSettings<Def extends SettingsDefinition>(
     moduleName: string,
     def: Def
 ): DefinedSettings<Def> {
-    // 1. Ensure target object exists in PlainSettings & Settings
     (PlainSettings.plugins as any)[moduleName] ??= {};
 
-    // 2. Helper to get default value
     function getDefault(key: string) {
         const setting = def[key];
         if (!setting) return undefined;
@@ -26,14 +24,12 @@ export function defineModuleSettings<Def extends SettingsDefinition>(
         return undefined;
     }
 
-    // 3. Register onChange listeners
     for (const [key, item] of Object.entries(def)) {
         if (item.onChange) {
             SettingsStore.addChangeListener(`plugins.${moduleName}.${key}`, item.onChange);
         }
     }
 
-    // 4. Create a smart proxy for store
     const storeProxy = new Proxy({} as any, {
         get(_, prop: string) {
             if (prop === "$$typeof") return undefined;
@@ -75,10 +71,7 @@ export function defineModuleSettings<Def extends SettingsDefinition>(
                 ? filter.map(k => `plugins.${moduleName}.${String(k)}` as const)
                 : [`plugins.${moduleName}.*` as const];
 
-            // Hook into useSettings so React re-renders when setting changes
             useSettings(paths as any);
-
-            // Return proxy that reads current value or default
             return storeProxy;
         },
         def,

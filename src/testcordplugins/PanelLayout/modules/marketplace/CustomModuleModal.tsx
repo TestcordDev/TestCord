@@ -37,7 +37,7 @@ interface CustomModuleModalProps {
 }
 
 const DEFAULT_HTML_CODE = `<div style="padding: 8px 12px; background: rgba(88, 101, 242, 0.15); border: 1px solid rgba(88, 101, 242, 0.4); border-radius: 8px; text-align: center;">
-    <div style="font-weight: 600; font-size: 13px; color: #5865f2;">Hello, {username}! 👋</div>
+    <div style="font-weight: 600; font-size: 13px; color: #5865f2;">Hello, {username}!</div>
     <div style="font-size: 11px; color: #aaa; margin-top: 2px;">Local time: {time}</div>
 </div>`;
 
@@ -106,12 +106,9 @@ export function CustomModuleModal({ modalProps, initialData, isEditing }: Custom
     return (
         <Modal
             title={
-                <Flex gap={8} alignItems="center">
-                    <span style={{ fontSize: "20px" }}>✨</span>
-                    <BaseText size="lg" weight="semibold">
-                        {isEditing ? "Edit Custom Module" : "Install Custom Module"}
-                    </BaseText>
-                </Flex>
+                <BaseText size="lg" weight="semibold">
+                    {isEditing ? "Edit Custom Module" : "Install Custom Module"}
+                </BaseText>
             }
             size="lg"
             {...modalProps}

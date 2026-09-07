@@ -45,10 +45,8 @@ export async function initModuleManager(): Promise<void> {
     if (initialized) return;
     initialized = true;
 
-    // 1. Load saved states
     const savedStates = (await DataStore.get<Record<string, StoredModuleState>>(MODULE_STATES_KEY)) ?? {};
 
-    // 2. Register built-in modules
     const builtinList = getBuiltinModules();
     builtinList.forEach((mod, idx) => {
         if (!mod) return;
@@ -70,7 +68,6 @@ export async function initModuleManager(): Promise<void> {
         }
     });
 
-    // 3. Load custom modules
     const customList = (await DataStore.get<CustomModuleData[]>(CUSTOM_MODULES_KEY)) ?? [];
     for (const data of customList) {
         if (!data.id) continue;
@@ -159,7 +156,6 @@ export async function moveModule(id: string, direction: "up" | "down"): Promise<
     mod.order = targetMod.order;
     targetMod.order = tempOrder;
 
-    // In case orders were identical, space them out
     if (mod.order === targetMod.order) {
         samePositionModules.forEach((m, i) => {
             m.order = i;
@@ -219,8 +215,6 @@ export function unregisterModule(id: string): void {
     }
 }
 
-// ─── Custom Module Creation & Execution ──────────────────────────────────────────
-
 function createCustomModule(data: CustomModuleData, savedState?: StoredModuleState): UserAreaModule {
     const id = data.id || `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const position = savedState?.position ?? data.position ?? "above";
@@ -234,7 +228,6 @@ function createCustomModule(data: CustomModuleData, savedState?: StoredModuleSta
         authors: data.author ? [data.author] : ["Custom"],
         version: data.version || "1.0.0",
         tags: ["Custom", ...(data.tags || [])],
-        icon: "✨",
         isCustom: true,
         customType: data.customType,
         customCode: data.customCode,
@@ -283,7 +276,6 @@ function CustomModuleComponent({ data }: { data: CustomModuleData }) {
             );
         } else if (data.customType === "react") {
             try {
-                // Safe component evaluator scoping React & common components
                 const scope = {
                     React,
                     Button,
@@ -322,12 +314,10 @@ export async function installCustomModule(input: CustomModuleData): Promise<User
     const id = input.id || `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const customData: CustomModuleData = { ...input, id };
 
-    // 1. Save to custom modules store
     const customList = (await DataStore.get<CustomModuleData[]>(CUSTOM_MODULES_KEY)) ?? [];
     customList.push(customData);
     await DataStore.set(CUSTOM_MODULES_KEY, customList);
 
-    // 2. Register and persist state
     const mod = createCustomModule(customData);
     registeredModules.set(mod.id, mod);
     await persistModuleStates();
@@ -354,17 +344,14 @@ export async function updateCustomModule(id: string, input: Partial<CustomModule
 }
 
 export async function uninstallCustomModule(id: string): Promise<void> {
-    // 1. Remove from DataStore
     const customList = (await DataStore.get<CustomModuleData[]>(CUSTOM_MODULES_KEY)) ?? [];
     const updated = customList.filter(m => m.id !== id);
     await DataStore.set(CUSTOM_MODULES_KEY, updated);
 
-    // 2. Remove state
     const states = (await DataStore.get<Record<string, StoredModuleState>>(MODULE_STATES_KEY)) ?? {};
     delete states[id];
     await DataStore.set(MODULE_STATES_KEY, states);
 
-    // 3. Unregister
     registeredModules.delete(id);
     notify();
 }

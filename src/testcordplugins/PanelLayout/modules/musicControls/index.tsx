@@ -420,7 +420,6 @@ export const musicControlsModule: Omit<UserAreaModule, "order" | "enabled"> = {
     authors: [Devs.Ven, Devs.afn, Devs.KraXen72, Devs.Av32000, Devs.nin0dev, Devs.thororen, EquicordDevs.vmohammad, Devs.Joona],
     version: "2.0.0",
     tags: ["Media", "Audio", "Spotify", "Tidal"],
-    icon: "🎵",
     position: "above",
     render: MusicControlsComponent,
     onEnable: startMusicControls,

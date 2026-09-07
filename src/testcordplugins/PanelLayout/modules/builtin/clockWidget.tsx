@@ -63,7 +63,6 @@ export const clockModule: Omit<UserAreaModule, "order" | "enabled"> = {
     authors: [TestcordDevs.x2b],
     version: "1.0.0",
     tags: ["Utility", "Time", "Clock"],
-    icon: "🕒",
     position: "above",
     render: ClockComponent,
 };

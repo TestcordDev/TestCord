@@ -84,7 +84,6 @@ export const systemMonitorModule: Omit<UserAreaModule, "order" | "enabled"> = {
     authors: [TestcordDevs.sirphantom89],
     version: "1.0.0",
     tags: ["Utility", "Monitor", "Performance"],
-    icon: "⚡",
     position: "above",
     render: SystemMonitorComponent,
 };

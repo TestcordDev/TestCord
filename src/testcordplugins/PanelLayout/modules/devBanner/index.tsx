@@ -80,7 +80,6 @@ export const devBannerModule: Omit<UserAreaModule, "order" | "enabled"> = {
     authors: [EquicordDevs.KrystalSkull, Devs.thororen, TestcordDevs.sirphantom89],
     version: "1.0.0",
     tags: ["Developers", "Appearance"],
-    icon: "🏷️",
     position: "above",
     render: DevBannerWidget,
     settingsComponent: DevBannerSettingsModal,

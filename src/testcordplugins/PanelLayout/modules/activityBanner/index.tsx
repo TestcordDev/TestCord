@@ -119,7 +119,6 @@ export const activityBannerModule: Omit<UserAreaModule, "order" | "enabled"> = {
     authors: [TestcordDevs.sirphantom89],
     version: "1.0.0",
     tags: ["Utility", "Activity", "Rich Presence"],
-    icon: "🎮",
     position: "above",
     render: ActivityBannerWidget,
 };

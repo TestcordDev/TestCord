@@ -62,7 +62,6 @@ export const quotesModule: Omit<UserAreaModule, "order" | "enabled"> = {
     authors: [TestcordDevs.deracul],
     version: "1.0.0",
     tags: ["Utility", "Aesthetics", "Quotes"],
-    icon: "💬",
     position: "above",
     render: QuotesComponent,
 };

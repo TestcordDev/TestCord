@@ -8,6 +8,7 @@ import * as DataStore from "@api/DataStore";
 import { TestcordDevs } from "@utils/constants";
 import { React, useEffect, useState } from "@webpack/common";
 
+import { FileTextIcon } from "../icons";
 import type { UserAreaModule } from "../types";
 
 const QUICK_NOTES_KEY = "panel-layout-quick-notes";
@@ -56,7 +57,7 @@ function QuickNotesComponent() {
                 }}
             >
                 <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                    <span>📝</span>
+                    <FileTextIcon size={14} style={{ opacity: 0.8 }} />
                     <span>Quick Notes</span>
                 </div>
                 <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
@@ -96,7 +97,6 @@ export const quickNotesModule: Omit<UserAreaModule, "order" | "enabled"> = {
     authors: [TestcordDevs.Aviv],
     version: "1.0.0",
     tags: ["Utility", "Productivity", "Notes"],
-    icon: "📝",
     position: "above",
     render: QuickNotesComponent,
 };

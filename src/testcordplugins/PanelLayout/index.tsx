@@ -1358,19 +1358,13 @@ function getBtnItems(): BtnItem[] {
             const clone = svg.cloneNode(true) as SVGElement;
             clone.removeAttribute("style");
 
-            // --- FIX: Remove broken Lottie masks and hidden layers ---
             clone.querySelectorAll("defs, mask, [clip-path]").forEach(node => {
-                // Keep standard structural defs if needed, but strip Lottie runtime masks
                 if (node.id && node.id.includes("__lottie_element")) {
                     node.remove();
                 }
             });
             clone.querySelectorAll('[style*="display: none"]').forEach(node => node.remove());
-            // ---------------------------------------------------------
 
-            // --- FIX: Prevent SVG ID Collisions ---
-            // Single pass: collect old->new id map, then rewrite all references
-            // once, instead of re-scanning the whole cloned tree per id (was O(n^2)).
             const uniqueSuffix = Math.random().toString(36).substring(2, 7);
             const idNodes = clone.querySelectorAll("[id]");
             if (idNodes.length) {
@@ -1393,7 +1387,6 @@ function getBtnItems(): BtnItem[] {
                     });
                 });
             }
-            // --------------------------------------
 
             iconHTML = clone.outerHTML;
         } else {
