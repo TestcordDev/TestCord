@@ -212,7 +212,6 @@ export function MusicControlsComponent() {
 }
 
 export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps?: RenderModalProps; onClose?: () => void; }) {
-    showToast(`${isModuleEnabled("music-controls")}`);
     const s = settings.use([
         "showSpotifyControls",
         "betterSpotifyControls",
