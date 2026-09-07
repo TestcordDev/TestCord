@@ -153,7 +153,7 @@ function Controls() {
                 <TooltipContainer text={showSpotifyLyrics ? "Disable Lyrics" : "Enable Lyrics"}>
                     <Button
                         className={classes(cl("button"), cl("lyrics"), cl(showSpotifyLyrics ? "repeat-context" : ""))}
-                        onClick={() => { settings.store.showSpotifyLyrics = !showSpotifyLyrics; MusicControlsComponent(); forceUpdate(); }}
+                        onClick={() => { settings.store.showSpotifyLyrics = !showSpotifyLyrics; forceUpdate(); MusicControlsComponent(); }}
                     >
                         <LyricsButtonIcon />
                     </Button>

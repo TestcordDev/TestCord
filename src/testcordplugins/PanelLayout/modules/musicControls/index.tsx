@@ -271,7 +271,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 title="Show Spotify Controls"
                                 description="Display Spotify player controls (play/pause, skip, progress bar) in the user panel."
                                 value={s.showSpotifyControls}
-                                onChange={v => { settings.store.showSpotifyControls = v; forceUpdate(); }}
+                                onChange={v => { settings.store.showSpotifyControls = v; forceUpdate(); MusicControlsComponent(); }}
                             />
                             <FormSwitch
                                 title="Album Art Background"
@@ -287,7 +287,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 title="Show Spotify Synced Lyrics"
                                 description="Display synchronized karaoke lyrics above or below the player."
                                 value={s.showSpotifyLyrics}
-                                onChange={v => { settings.store.showSpotifyLyrics = v; forceUpdate(); }}
+                                onChange={v => { settings.store.showSpotifyLyrics = v; forceUpdate(); MusicControlsComponent(); }}
                             />
                             <FormSwitch
                                 title="Open Spotify Desktop URIs"
