@@ -197,9 +197,9 @@ function getShieldForCategory(category: string): string {
         case "tracking": return "Science / Analytics";
         case "sentry": return "Sentry";
         case "metrics": return "Metrics";
-        case "tracing": return "Tracing (Experimental)";
-        case "rtcDiagnostics": return "RTC Diagnostics (Experimental)";
-        case "remoteLogging": return "Remote Logs (Experimental)";
+        case "tracing": return "Tracing";
+        case "rtcDiagnostics": return "RTC Diagnostics";
+        case "remoteLogging": return "Remote Logs";
         case "webhooks": return "Webhook Guard";
         case "remoteCode": return "Remote Code Guard";
         case "linkTracker": return "Link Tracker Stripper";
@@ -676,36 +676,28 @@ export function PrivacySecurityPanel() {
         "scienceAnalytics", "metrics", "sentry", "tokenGuard",
         "webhookGuard", "remoteCodeGuard", "fetchXhrBeacon", "linkTrackerGuard"
     ];
-    const EXPERIMENTAL_SHIELD_KEYS: Array<keyof CoveredSurfacesState> = [
-        "experimentalTracing", "experimentalRtcDiagnostics", "experimentalRemoteLogging"
-    ];
 
     const coreShieldsOffCount = CORE_SHIELD_KEYS.filter(k => !shields[k]).length;
-    const experimentalEnabledCount = EXPERIMENTAL_SHIELD_KEYS.filter(k => shields[k]).length;
 
     const EXPERIMENTS: Array<{
         key: "experimentalTracing" | "experimentalRtcDiagnostics" | "experimentalRemoteLogging";
         title: string;
         description: string;
-        test: string;
     }> = [
             {
                 key: "experimentalTracing",
                 title: "Block Tracing",
-                description: "Blocks Discord first-party API requests ending in /tracing.",
-                test: "Switch channels, type a message and open context menus."
+                description: "Blocks Discord first-party API requests ending in /tracing."
             },
             {
                 key: "experimentalRtcDiagnostics",
                 title: "Block RTC Diagnostics",
-                description: "Blocks call-quality diagnostic reports without blocking voice signaling or media.",
-                test: "Join voice, change input and output devices, then start and stop a stream."
+                description: "Blocks call-quality diagnostic reports without blocking voice signaling or media."
             },
             {
                 key: "experimentalRemoteLogging",
                 title: "Block Remote Logs",
-                description: "Blocks Discord remote debug-log uploads. Local logs remain available.",
-                test: "Restart Discord, check for updates and confirm crash recovery still works."
+                description: "Blocks Discord remote debug-log uploads. Local logs remain available."
             }
         ];
 
@@ -719,9 +711,9 @@ export function PrivacySecurityPanel() {
         { key: "remoteCodeGuard", title: "Remote Code Guard" },
         { key: "fetchXhrBeacon", title: "Fetch / XHR / Beacon" },
         { key: "linkTrackerGuard", title: "Link Tracker Stripper" },
-        { key: "experimentalTracing", title: "Tracing (Exp)" },
-        { key: "experimentalRtcDiagnostics", title: "RTC Diag (Exp)" },
-        { key: "experimentalRemoteLogging", title: "Remote Logs (Exp)" }
+        { key: "experimentalTracing", title: "Tracing" },
+        { key: "experimentalRtcDiagnostics", title: "RTC Diag" },
+        { key: "experimentalRemoteLogging", title: "Remote Logs" }
     ];
 
     const currentProviderObj = dnsProviders[selectedDns] || { doh: "https://cloudflare-dns.com/dns-query", fallback: "1.1.1.1" };
@@ -1212,6 +1204,22 @@ export function PrivacySecurityPanel() {
                                 <span className="ps-toggle-knob" />
                             </button>
                         </div>
+                        {EXPERIMENTS.map(experiment => (
+                            <div className="ps-toggle-row" key={experiment.key}>
+                                <div className="ps-toggle-info">
+                                    <span className="ps-toggle-title">{experiment.title}</span>
+                                    <span className="ps-toggle-desc">{experiment.description}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    className={`ps-toggle-switch${shields[experiment.key] ? " ps-toggle-switch-on" : ""}`}
+                                    onClick={() => toggleShield(experiment.key)}
+                                    aria-label={`Toggle ${experiment.title}`}
+                                >
+                                    <span className="ps-toggle-knob" />
+                                </button>
+                            </div>
+                        ))}
                         <div className="ps-toggle-row">
                             <div className="ps-toggle-info">
                                 <span className="ps-toggle-title">Block Log Buffer Limit</span>
@@ -1267,60 +1275,6 @@ export function PrivacySecurityPanel() {
                                 )}
                             </div>
                         </div>
-                    </div>
-                </Card>
-
-                <Card className="ps-card">
-                    <div className="ps-card-header">
-                        <div className="ps-header-title-group">
-                            <h2 className="ps-card-title-text">Experimental Privacy Protections</h2>
-                            <span className={`ps-badge ${experimentalEnabledCount > 0 ? "ps-badge-blue" : "ps-badge-muted"}`}>
-                                <span className="ps-badge-dot"></span>
-                                {experimentalEnabledCount} enabled
-                            </span>
-                        </div>
-                    </div>
-                    <div className="ps-card-subtitle">
-                        Advanced telemetry shields. Enable one at a time and test Discord after each change.
-                    </div>
-                    <div className="ps-privacy-toggles">
-                        {EXPERIMENTS.map(experiment => (
-                            <div className="ps-toggle-row" key={experiment.key}>
-                                <div className="ps-toggle-info">
-                                    <span className="ps-toggle-title">{experiment.title}</span>
-                                    <span className="ps-toggle-desc">{experiment.description}</span>
-                                </div>
-                                <button
-                                    type="button"
-                                    className={`ps-toggle-switch${shields[experiment.key] ? " ps-toggle-switch-on" : ""}`}
-                                    onClick={() => toggleShield(experiment.key)}
-                                    aria-label={`Toggle ${experiment.title}`}
-                                >
-                                    <span className="ps-toggle-knob" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="ps-sub-section" style={{ marginTop: "4px" }}>
-                        <h4 className="ps-sub-title">TESTING CHECKLIST</h4>
-                        <div className="ps-outbound-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
-                            {EXPERIMENTS.map(experiment => (
-                                <div className="ps-route-card" key={experiment.key}>
-                                    <div className="ps-route-header">
-                                        <span className="ps-route-title">{experiment.title}</span>
-                                        <span className={`ps-badge ps-badge-xs ${shields[experiment.key] ? "ps-badge-blue" : "ps-badge-muted"}`}>
-                                            {shields[experiment.key] ? "Active" : "Disabled"}
-                                        </span>
-                                    </div>
-                                    <div className="ps-route-desc">{experiment.test}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className="ps-footer-note">
-                        If something breaks, disable the experiment and restart Discord. Local debug logs and core voice signaling remain unaffected.
                     </div>
                 </Card>
 

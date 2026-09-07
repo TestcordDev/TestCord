@@ -714,7 +714,7 @@ export default definePlugin({
             buildEntry({
                 key: "testcord_privacy_security",
                 title: "Privacy & Security",
-                panelTitle: "Privacy & Security Command Center",
+                panelTitle: "Privacy & Security",
                 Component: PrivacySecurityPanel,
                 Icon: SafetyIcon
             }),
