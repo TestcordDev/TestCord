@@ -361,7 +361,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                         { label: "Below player", value: "below" },
                                     ]}
                                     isSelected={v => v === s.lyricsPosition}
-                                    select={v => { settings.store.lyricsPosition = v as "above" | "below"; }}
+                                    select={v => { settings.store.lyricsPosition = v as "above" | "below"; forceUpdate(); }}
                                     serialize={v => String(v)}
                                 />
                             </div>
@@ -375,7 +375,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                         { label: "Spotify (Musixmatch)", value: Provider.Spotify },
                                     ]}
                                     isSelected={v => v === s.lyricsProvider}
-                                    select={v => { settings.store.lyricsProvider = v as Provider; }}
+                                    select={v => { settings.store.lyricsProvider = v as Provider; forceUpdate(); }}
                                     serialize={v => String(v)}
                                 />
                             </div>
@@ -386,6 +386,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                     onClick={() => {
                                         clearLyricsCache();
                                         showToast("Lyrics cache purged", Toasts.Type.SUCCESS);
+                                        forceUpdate();
                                     }}
                                 >
                                     Purge Lyrics Cache
