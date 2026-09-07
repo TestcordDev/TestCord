@@ -65,9 +65,16 @@
 }
 
 .vc-author-modal-plugins .vc-addon-card {
-    background: var(--background-base-low);
+    background-color: var(--background-base-low);
+    transition: transform 0.1s ease-in-out;
+}
+
+.vc-author-modal-plugins .vc-addon-card:hover {
+    background-color: var(--background-surface-highest);
+    box-shadow: var(--elevation-high);
+    transform: translateY(-1px);
 }
 
 .vc-author-modal-plugins .vc-addon-footer {
-    background: var(--background-base-lower);
+    background-color: var(--background-base-lower);
 }
