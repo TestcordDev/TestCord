@@ -719,26 +719,26 @@ export default definePlugin({
                 Icon: SafetyIcon
             }),
             buildEntry({
-                key: "equicord_plugins",
+                key: "testcord_plugins",
                 title: "Plugins",
                 Component: PluginsTab,
                 Icon: PluginsIcon
             }),
             buildEntry({
-                key: "equicord_themes",
+                key: "testcord_themes",
                 title: "Themes",
                 Component: ThemesTab,
                 Icon: PaintbrushIcon
             }),
             !IS_UPDATER_DISABLED && UpdaterTab && buildEntry({
-                key: "equicord_updater",
+                key: "testcord_updater",
                 title: "Updater",
                 panelTitle: "TestCord Updater",
                 Component: UpdaterTab,
                 Icon: UpdaterIcon
             }),
             buildEntry({
-                key: "equicord_changelog",
+                key: "testcord_changelog",
                 title: "Changelog",
                 panelTitle: "TestCord Changelog",
                 Component: ChangelogTab,
