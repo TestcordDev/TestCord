@@ -5,11 +5,9 @@
  */
 
 import { disableStyle, enableStyle, setStyleClassNames } from "@api/Styles";
-import ErrorBoundary from "@components/ErrorBoundary";
+import { registerModule, unregisterModule } from "@testcordplugins/PanelLayout";
 import definePlugin, { ReporterTestable } from "@utils/types";
 import { findCssClassesLazy } from "@webpack";
-
-import { registerModule, unregisterModule } from "@testcordplugins/PanelLayout";
 
 import { YMusicSyncPlayer } from "./components/Player";
 import { startRichPresence, stopRichPresence } from "./richPresence";
