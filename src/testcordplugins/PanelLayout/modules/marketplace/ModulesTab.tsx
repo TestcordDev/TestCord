@@ -9,6 +9,7 @@ import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { Flex } from "@components/Flex";
 import { Paragraph } from "@components/Paragraph";
+import type { PluginNative } from "@utils/types";
 import { React, useEffect, useState } from "@webpack/common";
 
 import {
@@ -27,7 +28,11 @@ import { openCustomModuleModal } from "./CustomModuleModal";
 import { MarketplaceTab } from "./MarketplaceTab";
 import { UserAreaReorderTab } from "./UserAreaReorderTab";
 
-const MODAL_BODY_HEIGHT = 380;
+const Native = (VencordNative?.pluginHelpers?.PanelLayout || {}) as PluginNative<
+    typeof import("../../native")
+>;
+
+const MODAL_BODY_HEIGHT = 370;
 
 export type ModulesSubTab = "userarea" | "marketplace" | "usermodules";
 
@@ -145,7 +150,7 @@ const TAB_CSS = `
                 })}
             </div>
 
-            <div className="deracul-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px" }}>
+            <div className="panellayout-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px", boxSizing: "border-box" }}>
                 <Flex flexDirection="column" gap={16}>
                     {subTab === "userarea" && (
                         <UserAreaReorderTab
@@ -199,17 +204,28 @@ function UserModulesSubfolder({
                         Create interactive HTML/CSS widgets or React components directly in your user area.
                     </Paragraph>
                 </div>
-                <Button
-                    size="small"
-                    variant="primary"
-                    onClick={() => {
-                        openCustomModuleModal(undefined, false);
-                        setTimeout(onRefresh, 300);
-                    }}
-                    style={{ flexShrink: 0, padding: "6px 14px" }}
-                >
-                    + Add User Module
-                </Button>
+                <Flex gap={8} alignItems="center" style={{ flexShrink: 0 }}>
+                    <Button
+                        size="small"
+                        variant="secondary"
+                        onClick={() => void Native?.openUserModulesFolder?.()}
+                        style={{ padding: "6px 12px" }}
+                        title="Open usermodules folder on disk"
+                    >
+                        Open Folder
+                    </Button>
+                    <Button
+                        size="small"
+                        variant="primary"
+                        onClick={() => {
+                            openCustomModuleModal(undefined, false);
+                            setTimeout(onRefresh, 300);
+                        }}
+                        style={{ padding: "6px 14px" }}
+                    >
+                        + Add User Module
+                    </Button>
+                </Flex>
             </Card>
 
             {customModules.length === 0 ? (

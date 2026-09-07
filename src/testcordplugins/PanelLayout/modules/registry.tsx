@@ -11,6 +11,7 @@ import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Flex } from "@components/Flex";
+import type { PluginNative } from "@utils/types";
 import { React, useEffect, UserStore, useState } from "@webpack/common";
 
 import { getBuiltinModules } from "./builtin";
@@ -47,6 +48,10 @@ const USER_AREA_ORDER_KEY = "panel-layout-user-area-order";
 
 const notify = notifyModulesChanged;
 let initialized = false;
+
+const Native = (VencordNative?.pluginHelpers?.PanelLayout || {}) as PluginNative<
+    typeof import("../native")
+>;
 
 export function getPanelLayoutPlainSettings(): any {
     (PlainSettings.plugins as any).PanelLayout ??= {};
@@ -132,11 +137,19 @@ export const DEFAULT_USER_AREA_ORDER: UserAreaReorderItem[] = [
 let currentUserAreaOrder: UserAreaReorderItem[] = [...DEFAULT_USER_AREA_ORDER];
 
 export function getUserAreaOrder(): UserAreaReorderItem[] {
-    const existingIds = new Set(currentUserAreaOrder.map(i => i.id));
     const modules = getSortedModules();
+    const activeModuleIds = new Set(modules.map(m => m.id));
+
+    const initialLen = currentUserAreaOrder.length;
+    currentUserAreaOrder = currentUserAreaOrder.filter(item => {
+        if (item.type !== "module") return true;
+        const targetId = item.moduleId || item.id;
+        return activeModuleIds.has(targetId);
+    });
+    let changed = currentUserAreaOrder.length !== initialLen;
+
     let maxOrder = currentUserAreaOrder.reduce((acc, curr) => Math.max(acc, curr.order), 0);
 
-    let changed = false;
     for (const mod of modules) {
         const existing = currentUserAreaOrder.find(i => i.id === mod.id || i.moduleId === mod.id);
         if (!existing) {
@@ -294,7 +307,28 @@ export async function initModuleManager(): Promise<void> {
         }
     });
 
-    const customList = synchronousCustomList ?? asyncCustomList ?? [];
+    let diskCustomModules: CustomModuleData[] = [];
+    try {
+        const res = await Native?.loadUserModules?.();
+        if (res?.success && Array.isArray(res.modules)) {
+            diskCustomModules = res.modules;
+        }
+    } catch (e) {
+        console.warn("[PanelLayout] Error loading modules from native disk:", e);
+    }
+
+    const customModuleMap = new Map<string, CustomModuleData>();
+    for (const m of diskCustomModules) {
+        if (m?.id) customModuleMap.set(m.id, m);
+    }
+    const storedCustom = synchronousCustomList ?? asyncCustomList ?? [];
+    for (const m of storedCustom) {
+        if (m?.id && !customModuleMap.has(m.id)) {
+            customModuleMap.set(m.id, m);
+            void Native?.saveUserModule?.(m);
+        }
+    }
+    const customList = Array.from(customModuleMap.values());
     for (const data of customList) {
         if (!data.id) continue;
         const saved = savedStates[data.id];
@@ -576,7 +610,18 @@ export async function installCustomModule(input: CustomModuleData): Promise<User
     const customData: CustomModuleData = { ...input, id };
 
     const customList = await getCustomModulesData();
-    customList.push(customData);
+    const existingIndex = customList.findIndex(m => m.id === id);
+    if (existingIndex >= 0) {
+        customList[existingIndex] = customData;
+    } else {
+        customList.push(customData);
+    }
+
+    try {
+        await Native?.saveUserModule?.(customData);
+    } catch (e) {
+        console.error("[PanelLayout] Error saving custom module to disk:", e);
+    }
 
     try {
         const plain = getPanelLayoutPlainSettings();
@@ -624,6 +669,12 @@ export async function updateCustomModule(id: string, input: Partial<CustomModule
     customList[index] = { ...customList[index], ...input };
 
     try {
+        await Native?.saveUserModule?.(customList[index]);
+    } catch (e) {
+        console.error("[PanelLayout] Error updating custom module on disk:", e);
+    }
+
+    try {
         const plain = getPanelLayoutPlainSettings();
         plain.customModules = customList;
         SettingsStore.markAsChanged();
@@ -659,6 +710,12 @@ export async function updateCustomModule(id: string, input: Partial<CustomModule
 }
 
 export async function uninstallCustomModule(id: string): Promise<void> {
+    try {
+        await Native?.deleteUserModule?.(id);
+    } catch (e) {
+        console.error("[PanelLayout] Error deleting custom module from disk:", e);
+    }
+
     const customList = await getCustomModulesData();
     const updated = customList.filter(m => m.id !== id);
 
@@ -688,6 +745,13 @@ export async function uninstallCustomModule(id: string): Promise<void> {
 }
 
 export async function getCustomModulesData(): Promise<CustomModuleData[]> {
+    try {
+        const res = await Native?.loadUserModules?.();
+        if (res?.success && Array.isArray(res.modules) && res.modules.length > 0) {
+            return res.modules;
+        }
+    } catch { }
+
     const plain = getPanelLayoutPlainSettings();
     if (Array.isArray(plain.customModules)) return plain.customModules;
     try {

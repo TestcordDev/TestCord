@@ -156,29 +156,53 @@ export function UserAreaReorderTab({
         if (dragOverIndex !== index) setDragOverIndex(index);
     };
 
+    const applyNewVisibleOrder = (newVisible: UserAreaReorderItem[]) => {
+        const updatedVisible = newVisible.map((it, idx) => ({ ...it, order: idx }));
+        const updatedAll = items.map(it => {
+            const found = updatedVisible.find(v => v.id === it.id);
+            if (found) return found;
+            if (it.id === "native-activity-banner") {
+                const act = updatedVisible.find(v => v.id === "activity-banner");
+                if (act) return { ...it, order: act.order };
+            }
+            if (it.id === "activity-banner") {
+                const nat = updatedVisible.find(v => v.id === "native-activity-banner");
+                if (nat) return { ...it, order: nat.order };
+            }
+            return it;
+        });
+        setItems(updatedAll);
+        void setUserAreaOrder(updatedAll);
+        forceUpdate();
+    };
+
     const commitDrop = (targetIndex: number) => {
         const fromIndex = dragFromIndex.current;
-        if (fromIndex !== null && fromIndex !== targetIndex) {
+        if (
+            fromIndex !== null &&
+            fromIndex !== targetIndex &&
+            fromIndex >= 0 &&
+            fromIndex < visibleItems.length &&
+            targetIndex >= 0 &&
+            targetIndex < visibleItems.length
+        ) {
             const next = [...visibleItems];
             const [moved] = next.splice(fromIndex, 1);
             next.splice(targetIndex, 0, moved);
-            const updatedVisible = next.map((it, idx) => ({ ...it, order: idx }));
-            const updatedAll = items.map(it => {
-                const found = updatedVisible.find(v => v.id === it.id);
-                if (found) return found;
-                if (it.id === "native-activity-banner") {
-                    const act = updatedVisible.find(v => v.id === "activity-banner");
-                    if (act) return { ...it, order: act.order };
-                }
-                return it;
-            });
-            setItems(updatedAll);
-            void setUserAreaOrder(updatedAll);
-            forceUpdate();
+            applyNewVisibleOrder(next);
         }
         dragFromIndex.current = null;
         setActiveDragIndex(null);
         setDragOverIndex(null);
+    };
+
+    const moveItem = (index: number, direction: -1 | 1) => {
+        const targetIndex = index + direction;
+        if (targetIndex < 0 || targetIndex >= visibleItems.length) return;
+        const next = [...visibleItems];
+        const [moved] = next.splice(index, 1);
+        next.splice(targetIndex, 0, moved);
+        applyNewVisibleOrder(next);
     };
 
     const toggleItem = (id: string, enabled: boolean) => {
@@ -277,12 +301,12 @@ export function UserAreaReorderTab({
             >
                 <Flex justifyContent="space-between" alignItems="center" style={{ marginBottom: "2px" }}>
                     <BaseText size="xs" weight="semibold" color="text-muted" style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                        User Area Reorder & Visibility ({items.length} items)
+                        User Area Reorder & Visibility ({visibleItems.length} items)
                     </BaseText>
                 </Flex>
 
-                <div className="deracul-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px", gap: "6px", display: "flex", flexDirection: "column" }}>
-                    {items.map((item, index) => {
+                <div className="panellayout-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px", gap: "6px", display: "flex", flexDirection: "column" }}>
+                    {visibleItems.map((item, index) => {
                         const isDragging = activeDragIndex === index;
                         const isOver = dragOverIndex === index && activeDragIndex !== index;
 
@@ -306,10 +330,10 @@ export function UserAreaReorderTab({
                                     padding: "8px 12px",
                                     borderRadius: "8px",
                                     backgroundColor: isOver
-                                        ? "rgba(88, 101, 242, 0.15)"
+                                        ? "rgba(88, 101, 242, 0.18)"
                                         : "var(--background-secondary, rgba(255, 255, 255, 0.04))",
                                     border: isOver
-                                        ? "1px solid var(--brand-experiment, #5865f2)"
+                                        ? "2px solid var(--brand-experiment, #5865f2)"
                                         : "1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.06))",
                                     cursor: isDragging ? "grabbing" : "grab",
                                     opacity: isDragging ? 0.35 : item.enabled ? 1 : 0.6,
@@ -391,9 +415,89 @@ export function UserAreaReorderTab({
                                     </div>
                                 </Flex>
 
-                                <Flex gap={0} style={{ flexShrink: 0, marginLeft: "10px" }}>
+                                <Flex gap={4} alignItems="center" style={{ flexShrink: 0, marginLeft: "8px" }} onMouseDown={e => e.stopPropagation()}>
+                                    <Flex gap={2} alignItems="center">
+                                        <button
+                                            type="button"
+                                            onClick={e => {
+                                                e.stopPropagation();
+                                                moveItem(index, -1);
+                                            }}
+                                            disabled={index === 0}
+                                            title="Move Up"
+                                            style={{
+                                                width: "26px",
+                                                height: "26px",
+                                                borderRadius: "4px",
+                                                backgroundColor: "transparent",
+                                                color: index === 0 ? "var(--text-muted)" : "var(--interactive-normal)",
+                                                border: "none",
+                                                cursor: index === 0 ? "default" : "pointer",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                opacity: index === 0 ? 0.3 : 1,
+                                                transition: "all 0.12s ease",
+                                                padding: 0,
+                                            }}
+                                            onMouseEnter={e => {
+                                                if (index !== 0) {
+                                                    e.currentTarget.style.color = "var(--interactive-active)";
+                                                    e.currentTarget.style.backgroundColor = "var(--background-modifier-hover, rgba(255, 255, 255, 0.08))";
+                                                }
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.color = index === 0 ? "var(--text-muted)" : "var(--interactive-normal)";
+                                                e.currentTarget.style.backgroundColor = "transparent";
+                                            }}
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="18 15 12 9 6 15" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={e => {
+                                                e.stopPropagation();
+                                                moveItem(index, 1);
+                                            }}
+                                            disabled={index === visibleItems.length - 1}
+                                            title="Move Down"
+                                            style={{
+                                                width: "26px",
+                                                height: "26px",
+                                                borderRadius: "4px",
+                                                backgroundColor: "transparent",
+                                                color: index === visibleItems.length - 1 ? "var(--text-muted)" : "var(--interactive-normal)",
+                                                border: "none",
+                                                cursor: index === visibleItems.length - 1 ? "default" : "pointer",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                opacity: index === visibleItems.length - 1 ? 0.3 : 1,
+                                                transition: "all 0.12s ease",
+                                                padding: 0,
+                                            }}
+                                            onMouseEnter={e => {
+                                                if (index !== visibleItems.length - 1) {
+                                                    e.currentTarget.style.color = "var(--interactive-active)";
+                                                    e.currentTarget.style.backgroundColor = "var(--background-modifier-hover, rgba(255, 255, 255, 0.08))";
+                                                }
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.color = index === visibleItems.length - 1 ? "var(--text-muted)" : "var(--interactive-normal)";
+                                                e.currentTarget.style.backgroundColor = "transparent";
+                                            }}
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="6 9 12 15 18 9" />
+                                            </svg>
+                                        </button>
+                                    </Flex>
+
                                     {item.hasSettings && (
                                         <button
+                                            type="button"
                                             onClick={e => {
                                                 e.stopPropagation();
                                                 handleSettingsClick(item);
@@ -819,7 +923,7 @@ function ActionButtonsRow({ pluginSettings }: { pluginSettings?: any; }) {
                             <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
                         ) : (
                             <span
-                                className="deracul-btn-preview"
+                                className="panellayout-btn-preview"
                                 dangerouslySetInnerHTML={{ __html: btn.iconHTML }}
                                 style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
                             />

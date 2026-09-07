@@ -159,7 +159,7 @@ export function CustomModuleModal({ modalProps, initialData, isEditing }: Custom
             {...modalProps}
         >
             <style>{TAB_CSS}</style>
-            <div style={{ maxHeight: "65vh", overflowY: "auto", paddingRight: "4px" }}>
+            <div className="panellayout-scrollbar" style={{ height: "460px", minHeight: "460px", maxHeight: "70vh", overflowY: "auto", paddingRight: "4px", boxSizing: "border-box" }}>
                 <div
                     style={{
                         display: "flex",

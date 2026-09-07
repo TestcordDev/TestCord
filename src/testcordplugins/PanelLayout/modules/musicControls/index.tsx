@@ -223,7 +223,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
     const handleClose = () => (modalProps?.onClose ?? onClose)?.();
 
     return (
-        <Modal title="Music Controls Settings" {...modalProps!} actionBarInput={
+        <Modal title="Music Controls Settings" size="lg" {...modalProps!} actionBarInput={
             <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", flexDirection: "row-reverse" }}>
                 <Button
                     variant="secondary"
@@ -233,7 +233,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                 </Button>
             </div>
         }>
-            <div style={{ padding: "16px" }}>
+            <div className="panellayout-scrollbar" style={{ padding: "16px", height: "540px", minHeight: "540px", maxHeight: "80vh", overflowY: "auto", boxSizing: "border-box" }}>
                 <Flex gap={8} style={{ marginBottom: "16px" }}>
                     <div
                         onClick={() => setTab("spotify")}
