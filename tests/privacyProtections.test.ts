@@ -162,3 +162,26 @@ test("badge spoofer requests bypass telemetry shields", () => {
         experimentalRemoteLogging: true
     }), { blocked: false, category: "badge_spoofer_allowed" });
 });
+
+test("renderer-patch events are classified as first-party internal Discord telemetry", () => {
+    function classifyHost(host: string): "first-party" | "trusted-third-party" | "third-party" {
+        const h = (host || "").toLowerCase();
+        if (h === "renderer-patch" || h.startsWith("renderer-patch")) return "first-party";
+        if (FIRST_PARTY_HOSTS.some(fp => h === fp || h.endsWith("." + fp))) return "first-party";
+        return "third-party";
+    }
+
+    function hostReputationLabel(host: string): string {
+        const h = (host || "").toLowerCase();
+        if (h === "renderer-patch" || h.startsWith("renderer-patch")) return "Discord (Internal)";
+        const rep = classifyHost(h);
+        if (rep === "first-party") return "Discord";
+        return "Third party";
+    }
+
+    assert.equal(classifyHost("renderer-patch"), "first-party");
+    assert.equal(hostReputationLabel("renderer-patch"), "Discord (Internal)");
+    assert.equal(classifyHost("discord.com"), "first-party");
+    assert.equal(classifyHost("random-tracker.com"), "third-party");
+});
+

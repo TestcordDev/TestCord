@@ -88,6 +88,7 @@ function matchKnown(map: Record<string, string>, host: string): string | undefin
 
 export function classifyHost(host: string): HostReputation {
     const h = (host || "").toLowerCase();
+    if (h === "renderer-patch" || h.startsWith("renderer-patch")) return "first-party";
     if (FIRST_PARTY_HOSTS.some(fp => h === fp || h.endsWith("." + fp))) return "first-party";
     if (matchKnown(UNTRUSTED_KNOWN_HOSTS, h)) return "third-party";
     if (matchKnown(TRUSTED_KNOWN_HOSTS, h)) return "trusted-third-party";
@@ -96,6 +97,7 @@ export function classifyHost(host: string): HostReputation {
 
 export function hostReputationLabel(host: string): string {
     const h = (host || "").toLowerCase();
+    if (h === "renderer-patch" || h.startsWith("renderer-patch")) return "Discord (Internal)";
     const rep = classifyHost(h);
     if (rep === "first-party") return "Discord";
     if (matchKnown(UNTRUSTED_KNOWN_HOSTS, h)) return "Untrusted third party";
@@ -105,6 +107,9 @@ export function hostReputationLabel(host: string): string {
 
 export function hostReputationNote(host: string): string {
     const h = (host || "").toLowerCase();
+    if (h === "renderer-patch" || h.startsWith("renderer-patch")) {
+        return "Discord telemetry blocked directly in the renderer before leaving the client.";
+    }
     if (classifyHost(h) === "first-party") return "Discord's own servers.";
     const untrusted = matchKnown(UNTRUSTED_KNOWN_HOSTS, h);
     if (untrusted) return untrusted;
