@@ -43,11 +43,13 @@ export function markRenderedInEI() {
 }
 
 export function renderStreamingGame(app: unknown, game: unknown) {
+    if (!isModuleEnabled("activity-banner")) return null;
     if (wasRenderedInEI) return null;
     return cardRenderer?.(app, game, { isGameRunning: true });
 }
 
 export function getVisibleGameOrRpc(game: unknown): unknown {
+    if (!isModuleEnabled("activity-banner")) return game;
     const musicControlsOn = isPluginEnabled("MusicControls") || isModuleEnabled("music-controls");
     if (musicControlsOn && game && (game as { name?: string; }).name?.toLowerCase() === "spotify") {
         game = null;
@@ -67,6 +69,14 @@ export function getVisibleGameOrRpc(game: unknown): unknown {
 }
 
 export const renderActivityInfo = ErrorBoundary.wrap((props: ActivityInfoProps) => {
+    if (!isModuleEnabled("activity-banner")) {
+        return (
+            <>
+                {props.defaultTitle}
+                {props.defaultStatus}
+            </>
+        );
+    }
     return <ActivityInfo {...props} />;
 }, {
     fallback: ({ wrappedProps }: { wrappedProps: ActivityInfoProps; }) => (
@@ -78,6 +88,9 @@ export const renderActivityInfo = ErrorBoundary.wrap((props: ActivityInfoProps) 
 });
 
 export const renderActivityIcon = ErrorBoundary.wrap((props: ActivityIconProps) => {
+    if (!isModuleEnabled("activity-banner")) {
+        return <>{props.defaultIcon}</>;
+    }
     return <ActivityIcon {...props} />;
 }, {
     fallback: ({ wrappedProps }: { wrappedProps: ActivityIconProps; }) => <>{wrappedProps.defaultIcon}</>
@@ -86,7 +99,6 @@ export const renderActivityIcon = ErrorBoundary.wrap((props: ActivityIconProps) 
 export const activityBannerPatches = [
     {
         find: "isForceShowSharingPopout",
-        predicate: () => isModuleEnabled("activity-banner"),
         replacement: [
             {
                 match: /children:\[null!=(\i)\?\(0,(\i)\.jsx\)\((\i),{name:\1,applicationId:(\i)\?\.id}\):null,\(0,\2\.jsx\)\((\i),{isCurrentlyRunningGame:(\i),onClickNotSharing:(\i)}\)\]/,

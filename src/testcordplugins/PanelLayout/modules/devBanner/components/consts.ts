@@ -4,10 +4,13 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { migratePluginSettings } from "@api/Settings";
 import { OptionType } from "@utils/types";
 
 import { defineModuleSettings } from "../../moduleSettings";
 import { FormatSetting } from ".";
+
+migratePluginSettings("discordDevBanner", "DiscordDevBanner", "devBanner");
 
 export const settings = defineModuleSettings("discordDevBanner", {
     format: {
@@ -15,7 +18,32 @@ export const settings = defineModuleSettings("discordDevBanner", {
         type: OptionType.COMPONENT,
         default: "{testcordIcon} Testcord {testcordVersion} ({testcordHash})",
         restartNeeded: true
-    }
+    },
+    color: {
+        type: OptionType.STRING,
+        description: "Text color for the Developer Banner",
+        default: "var(--text-muted)",
+    },
+    backgroundColor: {
+        type: OptionType.STRING,
+        description: "Background color for the Developer Banner",
+        default: "",
+    },
+    fontSize: {
+        type: OptionType.SLIDER,
+        description: "Font size in pixels",
+        default: 11,
+        markers: [9, 10, 11, 12, 13, 14, 15, 16],
+    },
+    textAlign: {
+        type: OptionType.SELECT,
+        description: "Text alignment",
+        options: [
+            { label: "Center", value: "center", default: true },
+            { label: "Left", value: "left" },
+            { label: "Right", value: "right" },
+        ],
+    },
 });
 
 export const names: Record<string, string> = {

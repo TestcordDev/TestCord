@@ -494,10 +494,14 @@ function buildCSS(): string {
         }
     `);
     lines.push(`
-        .deracul-scrollbar::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
-        .deracul-scrollbar::-webkit-scrollbar-track { background: var(--scrollbar-thin-track, transparent) !important; border-radius: 4px !important; }
-        .deracul-scrollbar::-webkit-scrollbar-thumb { background: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) !important; border-radius: 4px !important; }
-        .deracul-scrollbar { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) transparent; }
+        .deracul-scrollbar::-webkit-scrollbar,
+        .panellayout-scrollbar::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+        .deracul-scrollbar::-webkit-scrollbar-track,
+        .panellayout-scrollbar::-webkit-scrollbar-track { background: var(--scrollbar-thin-track, transparent) !important; border-radius: 4px !important; }
+        .deracul-scrollbar::-webkit-scrollbar-thumb,
+        .panellayout-scrollbar::-webkit-scrollbar-thumb { background: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) !important; border-radius: 4px !important; }
+        .deracul-scrollbar,
+        .panellayout-scrollbar { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) transparent; }
     `);
 
     lines.push(`

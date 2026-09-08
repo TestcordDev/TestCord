@@ -16,7 +16,6 @@ import { Devs, EquicordDevs } from "@utils/constants";
 import type { RenderModalProps } from "@vencord/discord-types";
 import { Modal, openModalLazy, React, Select, showToast, Toasts, useState } from "@webpack/common";
 
-import { isModuleEnabled } from "../state";
 import type { UserAreaModule } from "../types";
 import { settings, toggleBetterSpotifyControls, toggleHoverControls } from "./settings";
 import { clearLyricsCache, migrateOldLyrics } from "./spotify/lyrics/api";
@@ -147,16 +146,7 @@ export function stopMusicControls() {
 
 export const musicControlsPatches = [
     {
-        find: "#{intl::USER_PROFILE_ACCOUNT_POPOUT_BUTTON_A11Y_LABEL}",
-        predicate: () => !isModuleEnabled("music-controls"),
-        replacement: {
-            match: /(?<=\i\.jsxs?\)\()(\i),{(?=[^}]*?userTag:\i,occluded:)/,
-            replace: "$self.PanelWrapper,{VencordOriginal:$1,"
-        },
-    },
-    {
         find: ".PLAYER_DEVICES",
-        predicate: () => !isModuleEnabled("music-controls"),
         replacement: [{
             match: /get:(\i)\.bind\(null,(\i\.\i)\.get\)/,
             replace: "post:$1.bind(null,$2.post),vcSpotifyMarker:1,$&"
@@ -168,7 +158,6 @@ export const musicControlsPatches = [
     },
     {
         find: 'repeat:"off"!==',
-        predicate: () => !isModuleEnabled("music-controls"),
         replacement: [
             {
                 match: /repeat:"off"!==(\i),/,
