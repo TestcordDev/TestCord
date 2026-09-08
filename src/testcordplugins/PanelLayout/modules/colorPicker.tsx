@@ -65,6 +65,27 @@ export function isValidHex(v: string): boolean {
     return /^#?[0-9a-fA-F]{6}$/.test(v.trim());
 }
 
+export function applyColorAlpha(color: string, transparency: number): string {
+    const t = Math.max(0, Math.min(100, Number(transparency) || 0));
+    if (t === 100) return "transparent";
+    if (!color) return "transparent";
+    if (t === 0) return color;
+    const alpha = (100 - t) / 100;
+    const trimmed = color.trim();
+    if (/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(trimmed)) {
+        const aHex = Math.round(alpha * 255).toString(16).padStart(2, "0");
+        return `${trimmed.slice(0, 7)}${aHex}`;
+    }
+    if (/^#[0-9a-fA-F]{3}$/.test(trimmed)) {
+        const r = trimmed[1] + trimmed[1];
+        const g = trimmed[2] + trimmed[2];
+        const b = trimmed[3] + trimmed[3];
+        const aHex = Math.round(alpha * 255).toString(16).padStart(2, "0");
+        return `#${r}${g}${b}${aHex}`;
+    }
+    return `color-mix(in srgb, ${trimmed} ${100 - t}%, transparent)`;
+}
+
 export const COLOR_PRESETS = [
     "#EB459E", "#ED4245", "#FEE75C",
     "#57F287", "#00C7D9", "#FFFFFF", "#23272A",

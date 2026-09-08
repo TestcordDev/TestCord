@@ -22,6 +22,7 @@ import { Modal, openModalLazy, React, Select, Slider } from "@webpack/common";
 
 import {
     activityBannerPatches,
+    applyColorAlpha,
     BtnItem,
     devBannerPatches,
     getAllButtons,
@@ -115,6 +116,7 @@ const settings = definePluginSettings({
         onChange: () => apply()
     },
     panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#0e1852", onChange: () => apply() },
+    panelBackgroundTransparency: { type: OptionType.SLIDER, description: "Panel background color transparency (0-100%)", default: 0, markers: makeRange(0, 100, 10), stickToMarkers: false, onChange: () => apply() },
     glowColor: { type: OptionType.STRING, description: "Glow hover color", default: "#ffffff", onChange: () => apply() },
     forceNativeButtonColor: { type: OptionType.BOOLEAN, default: false, description: "Force the icon color on Discord's native buttons (Mute, Deafen, Settings) even when no custom icon color is set", onChange: () => apply() },
     hideChevrons: { type: OptionType.BOOLEAN, default: false, description: "Hide dropdown chevrons next to Mute and Deafen", onChange: () => apply() },
@@ -126,6 +128,7 @@ const settings = definePluginSettings({
     hideMute: { type: OptionType.BOOLEAN, default: false, description: "Hide Mute button", onChange: () => apply() },
     hideDeafen: { type: OptionType.BOOLEAN, default: false, description: "Hide Deafen button", onChange: () => apply() },
     hideSettings: { type: OptionType.BOOLEAN, default: false, description: "Hide User Settings button", onChange: () => apply() },
+    hideUserPanelButton: { type: OptionType.BOOLEAN, default: false, description: "Hide the user panel button from the user area", onChange: () => apply() },
     hideCamera: { type: OptionType.BOOLEAN, default: false, description: "Hide camera button in call controls", onChange: () => apply() },
     hideScreenShare: { type: OptionType.BOOLEAN, default: false, description: "Hide screen share button in call controls", onChange: () => apply() },
     hideActivity: { type: OptionType.BOOLEAN, default: false, description: "Hide activity button in call controls", onChange: () => apply() },
@@ -694,7 +697,18 @@ function buildCSS(): string {
     }
 
     if (st.panelBackgroundColor) {
-        lines.push(`${S.panelContainer} { background-color: ${st.panelBackgroundColor} !important; }`);
+        const bgColor = applyColorAlpha(st.panelBackgroundColor, st.panelBackgroundTransparency);
+        lines.push(`
+            section[class*="panels_"]:not(.vc-user-area-preview-panel):not(.vc-panels-preview),
+            .panels__5e434:not(.vc-user-area-preview-panel):not(.vc-panels-preview) {
+                background: ${bgColor} !important;
+                background-color: ${bgColor} !important;
+            }
+            ${S.panelContainer} {
+                background: transparent !important;
+                background-color: transparent !important;
+            }
+        `);
     }
 
     switch (st.hoverEffect) {
@@ -721,6 +735,7 @@ function buildCSS(): string {
     if (st.hideCamera) lines.push(`${getBtnSelector("Camera")} { display: none !important; }`);
     if (st.hideScreenShare) lines.push(`${getBtnSelector("Screen Share")} { display: none !important; }`);
     if (st.hideActivity) lines.push(`${getBtnSelector("Activity")} { display: none !important; }`);
+    if (st.hideUserPanelButton) lines.push(`${getBtnSelector("Panel Layout")} { display: none !important; }`);
 
     if (st.lockButtonPosition) {
         const isSplit = ["split_row", "split_grid2", "split_grid3", "split_grid4", "all_top"].includes(st.userPanelLayout);
@@ -1418,6 +1433,7 @@ function ButtonsDragTab() {
                                     const canonical = getCanonicalLabel(item.label);
                                     const isMute = canonical === "Mute";
                                     const isDeafen = canonical === "Deafen";
+                                    const isPanelLayout = canonical === "Panel Layout" || item.id === "Panel Layout" || item.label === "Panel Layout";
 
                                     return (
                                         <div
@@ -1439,6 +1455,7 @@ function ButtonsDragTab() {
                                                 opacity: isDragging ? 0.35 : 1,
                                                 transform: isDragging ? "scale(0.94)" : "scale(1)",
                                                 transition: "opacity 0.1s ease, transform 0.1s ease",
+                                                userSelect: "none",
                                             }}
                                             title={item.label}
                                         >
@@ -1491,12 +1508,17 @@ function ButtonsDragTab() {
                                                     }} />
                                             )}
 
-                                            <MiniToggle
-                                                value={!cfg.hidden}
-                                                onChange={v => {
-                                                    setBtnCfg(item.id, { hidden: !v });
-                                                    apply(); forceUpdate();
-                                                }} />
+                                            {!isPanelLayout ? (
+                                                <MiniToggle
+                                                    value={!cfg.hidden}
+                                                    onChange={v => {
+                                                        setBtnCfg(item.id, { hidden: !v });
+                                                        apply(); forceUpdate();
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div style={{ width: "26px", height: "14px" }} />
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -2437,6 +2459,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("buttonStyle", "default");
         set("hoverEffect", "default");
         set("panelBackgroundColor", "#0e1852");
+        set("panelBackgroundTransparency", 0);
         set("glowColor", "#ffffff");
         set("forceNativeButtonColor", false);
         set("hideChevrons", false);
@@ -2448,6 +2471,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("hideMute", false);
         set("hideDeafen", false);
         set("hideSettings", false);
+        set("hideUserPanelButton", false);
         set("hideCamera", false);
         set("hideScreenShare", false);
         set("hideActivity", false);
@@ -2592,6 +2616,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <Card variant="primary">
                             <div style={{ display: "grid", gap: "8px" }}>
                                 <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} preset="#0e1852" />
+                                <SliderRow label="Background Transparency" value={s.panelBackgroundTransparency ?? 0} min={0} max={100} unit="%" onChange={v => set("panelBackgroundTransparency", Math.round(v))} resetKey={resetKey} />
 
                                 {settings.store.hoverEffect === "glow" && <>
                                     <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} preset="#ffffff" />
@@ -2610,7 +2635,8 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <Card variant="primary">
                             <FormSwitch title="Hide Mute" value={s.hideMute} onChange={v => set("hideMute", v)} />
                             <FormSwitch title="Hide Deafen" value={s.hideDeafen} onChange={v => set("hideDeafen", v)} />
-                            <FormSwitch title="Hide User Settings" value={s.hideSettings} onChange={v => set("hideSettings", v)} hideBorder />
+                            <FormSwitch title="Hide User Settings" value={s.hideSettings} onChange={v => set("hideSettings", v)} />
+                            <FormSwitch title="Hide User Panel Button" value={s.hideUserPanelButton} onChange={v => set("hideUserPanelButton", v)} hideBorder />
                         </Card>
 
                         <SectionHeading>Call Buttons</SectionHeading>
@@ -2641,7 +2667,12 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
 
 // ─── Panel Button ─────────────────────────────────────────────────────────────
 
+const PANEL_BUTTON_SETTINGS_KEYS = ["hideUserPanelButton"] as const;
+
 function PanelLayoutButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
+    const { hideUserPanelButton } = settings.use(PANEL_BUTTON_SETTINGS_KEYS);
+    if (hideUserPanelButton) return null;
+
     const handleOpen = () => openModalLazy(async () => modalProps => <PanelLayoutModal modalProps={modalProps} />);
 
     return (
@@ -2663,6 +2694,15 @@ export default definePlugin({
     authors: [TestcordDevs.deracul, TestcordDevs.Aviv, TestcordDevs.x2b, TestcordDevs.sirphantom89],
     dependencies: ["UserSettingsAPI"],
     settings,
+    settingsAboutComponent: () => (
+        <Button
+            onClick={() => openModalLazy(async () => modalProps => <PanelLayoutModal modalProps={modalProps} />)}
+            size="small"
+            style={{ marginBottom: "16px" }}
+        >
+            Open Panel Layout Editor
+        </Button>
+    ),
     required: true,
 
     patches: [
