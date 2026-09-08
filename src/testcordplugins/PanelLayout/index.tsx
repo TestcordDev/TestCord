@@ -14,6 +14,7 @@ import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
+import { TooltipContainer } from "@components/TooltipContainer";
 import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
@@ -454,46 +455,114 @@ function buildCSS(): string {
             justify-content: space-between;
             gap: 16px;
             padding: 9px 14px;
-            border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 14%, var(--border-subtle));
+            border: 1px solid var(--border-subtle);
             border-radius: 8px;
             background: var(--background-base-lower-alt);
             cursor: pointer;
             overflow: hidden;
-            box-shadow: 0 1px #ffffff08 inset;
-            transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+            transition: background-color .12s ease, border-color .12s ease, transform .12s ease;
         }
 
         .SubModalButton:hover {
             background: var(--background-base-low);
-            border-color:
-                color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 32%, var(--border-subtle));
-            box-shadow: var(--elevation-low), 0 1px #ffffff0d inset;
+            border-color: var(--border-subtle);
             transform: translateY(-1px);
         }
 
         .SubModalButton:active {
-            box-shadow: none;
             transform: translateY(0) scale(.99);
         }
 
-        .SubModalButton:before {
-            content: "";
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 3px;
-            border-radius: 8px 0 0 8px;
-            background: var(--brand, var(--brand-experiment, var(--background-brand)));
-            opacity: .35;
-            transform: scaleY(.35);
-            transform-origin: center;
-            transition: opacity .16s ease, transform .16s ease;
+        .vc-pl-custom-btn-wrapper {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+            transition: transform 0.16s ease;
         }
 
-        .SubModalButton:hover:before {
+        .vc-pl-custom-btn-wrapper:hover {
+            transform: translateY(-2px);
+        }
+
+        .vc-pl-custom-btn-wrapper:active {
+            transform: translateY(0) scale(0.96);
+        }
+
+        .vc-pl-custom-btn-preview {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: inherit;
+            background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: opacity 0.2s ease, filter 0.2s ease, transform 0.2s ease;
+        }
+
+        .vc-pl-custom-btn-wrapper:hover .vc-pl-custom-btn-preview {
+            opacity: 0.75;
+            filter: blur(3px);
+        }
+
+        .vc-pl-custom-btn-settings {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: inherit;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            color: #ffffff;
+        }
+
+        .vc-pl-custom-btn-wrapper:hover .vc-pl-custom-btn-settings {
             opacity: 1;
-            transform: scaleY(1);
+            pointer-events: auto;
+        }
+
+        .vc-pl-custom-btn-settings-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            color: #ffffff;
+            transition: transform 0.2s ease;
+        }
+
+        .vc-pl-custom-btn-settings:hover .vc-pl-custom-btn-settings-icon {
+            transform: rotate(30deg) scale(1.1);
+        }
+
+        .vc-pl-custom-btn-settings svg,
+        .vc-pl-custom-btn-settings svg path {
+            fill: #ffffff !important;
+            color: #ffffff !important;
+        }
+
+        .vc-pl-btn-custom-modal {
+            max-width: min(92vw, 1100px) !important;
+            min-width: 380px !important;
+            overflow-x: hidden !important;
+        }
+
+        .vc-pl-custom-btn-row > div {
+            flex-shrink: 0;
+            display: inline-flex;
         }
     `);
     lines.push(`
@@ -1956,96 +2025,224 @@ function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean; }
     );
 }
 
-function SubModalButton({
+function CustomizationRowButton({
     item,
-    cfg,
     handleOpenSubModal,
+    onHover,
+    onUnhover,
 }: {
     item: BtnItem;
-    cfg: any;
     handleOpenSubModal: (item: BtnItem) => void;
+    onHover: (label: string) => void;
+    onUnhover: () => void;
 }) {
+    const cfg = getBtnCfg(item.id);
     const canonical = getCanonicalLabel(item.label);
     const isMute = canonical === "Mute";
     const isDeafen = canonical === "Deafen";
 
+    const hasColorfulInactive = Boolean(cfg.colorfulInActiveButton);
+    const baseColor = cfg.colorOff || "#000000";
+    const alphaVal = Math.round(((cfg.opacityOff ?? 22) / 100) * 255).toString(16).padStart(2, "0");
+    const previewBg = hasColorfulInactive
+        ? `${baseColor.slice(0, 7)}${alphaVal}`
+        : undefined;
+    const previewRadius = cfg.radiusOff != null
+        ? `${cfg.radiusOff}px`
+        : (cfg.radius != null ? `${cfg.radius}px` : undefined);
+
     return (
-        <button
-            onClick={() => handleOpenSubModal(item)}
-            className="SubModalButton"
-        >
-            <BaseText size="sm" color="text-muted" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                {isMute && (
-                    <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                )}
+        <TooltipContainer text={item.label}>
+            <div
+                className="vc-pl-custom-btn-wrapper"
+                onClick={() => handleOpenSubModal(item)}
+                onMouseEnter={() => onHover(item.label)}
+                onMouseLeave={onUnhover}
+                style={{
+                    borderRadius: previewRadius,
+                }}
+            >
+                <div
+                    className="vc-pl-custom-btn-preview"
+                    style={{
+                        backgroundColor: previewBg,
+                        borderRadius: previewRadius,
+                    }}
+                >
+                    {isMute && (
+                        <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                    )}
 
-                {isDeafen && (
-                    <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                )}
+                    {isDeafen && (
+                        <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                    )}
 
-                {!isMute && !isDeafen && (
-                    <SvgPreview icon={item.iconHTML} enabled={true} />
-                )}
+                    {!isMute && !isDeafen && (
+                        <SvgPreview icon={item.iconHTML} enabled={true} />
+                    )}
+                </div>
 
-                {cfg.label}
-            </BaseText>
-        </button>
+                <div
+                    className="vc-pl-custom-btn-settings"
+                    style={{
+                        borderRadius: previewRadius,
+                    }}
+                    title={`Customize ${item.label}`}
+                >
+                    <span
+                        dangerouslySetInnerHTML={{ __html: svgs.settings }}
+                        className="vc-pl-custom-btn-settings-icon"
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+                    />
+                </div>
+            </div>
+        </TooltipContainer>
     );
 }
 
 function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const [items] = React.useState<BtnItem[]>(getBtnItems());
+    const [hoveredLabel, setHoveredLabel] = React.useState<string | null>(null);
 
     const handleOpenSubModal = (item: BtnItem) => {
         openModalLazy(async () => (props: RenderModalProps) => (
-            <SettingModal modalProps={props} label={item.label} icon={{ __html: item.iconHTML }} />
+            <SettingModal
+                modalProps={{
+                    ...props,
+                    onClose: () => {
+                        props.onClose();
+                        forceUpdate();
+                    },
+                }}
+                label={item.label}
+                icon={{ __html: item.iconHTML }}
+            />
         ));
     };
 
+    const customizableItems = (items ?? []).filter(item =>
+        !getBtnCfg(item.id).hidden &&
+        getCanonicalLabel(item.label) !== "Soundboard disabled when deafened" &&
+        getCanonicalLabel(item.label) !== "Open Soundboard" &&
+        getCanonicalLabel(item.label) !== "User Settings" &&
+        getCanonicalLabel(item.label) !== "Panel Layout"
+    );
+
+    const modalWidth = Math.min(Math.max(customizableItems.length * 60 + 84, 440), 1100);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    React.useLayoutEffect(() => {
+        const modalEl = containerRef.current?.closest<HTMLElement>(".vc-pl-btn-custom-modal");
+        if (modalEl) {
+            modalEl.style.setProperty("width", `${modalWidth}px`, "important");
+            modalEl.style.setProperty("max-width", "min(92vw, 1100px)", "important");
+        }
+    }, [modalWidth]);
+
     return (
-        <Modal title={<BaseText size="sm" color="text-muted">Button customization</BaseText>} {...modalProps} size="md">
-            {items.length === 0 ? (
-                <BaseText size="sm" color="text-muted">
-                    No buttons detected. Open this tab again once buttons load.
-                </BaseText>
-            ) : (
-                <div style={{ display: "flex", flexDirection: "column", maxHeight: "200px" }}>
-                    <div className="deracul-scrollbar" style={{ paddingTop: "1px", overflowY: "auto", paddingRight: "4px" }}>
-                        <Flex flexDirection="column" gap={8}>
-                            {(items ?? [])
-                                .filter(item => !getBtnCfg(item.id).hidden &&
-                                    getCanonicalLabel(item.label) !== "Soundboard disabled when deafened" &&
-                                    getCanonicalLabel(item.label) !== "Open Soundboard" &&
-                                    getCanonicalLabel(item.label) !== "User Settings" &&
-                                    getCanonicalLabel(item.label) !== "Panel Layout"
-                                )
-                                .map(item => {
-                                    const cfg = getBtnCfg(item.id);
-
-                                    return (
-                                        <SubModalButton
-                                            key={item.id}
-                                            item={item}
-                                            cfg={cfg}
-                                            handleOpenSubModal={handleOpenSubModal}
-                                        />
-                                    );
-                                })}
-                        </Flex>
+        <Modal
+            title={<BaseText size="sm" color="text-muted">Button customization</BaseText>}
+            {...modalProps}
+            size="dynamic"
+            className="vc-pl-btn-custom-modal"
+        >
+            <style>{`
+                .vc-pl-btn-custom-modal {
+                    width: ${modalWidth}px !important;
+                    max-width: min(92vw, 1100px) !important;
+                }
+            `}</style>
+            <div ref={containerRef} style={{ width: "100%" }}>
+                {customizableItems.length === 0 ? (
+                    <div style={{ padding: "24px 16px", textAlign: "center" }}>
+                        <BaseText size="sm" color="text-muted">
+                            No buttons detected or all buttons are hidden. Open this tab again once buttons load.
+                        </BaseText>
                     </div>
-                </div>
-            )}
+                ) : (
+                    <div
+                        style={{
+                            background: "var(--background-base-lower-alt, rgba(0, 0, 0, 0.2))",
+                            border: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))",
+                            borderRadius: "10px",
+                            padding: "20px 20px 16px",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "100%",
+                            boxSizing: "border-box",
+                        }}
+                    >
+                        <div
+                            className="deracul-scrollbar vc-pl-custom-btn-row"
+                            style={{
+                                display: "flex",
+                                flexDirection: "row",
+                                flexWrap: "nowrap",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "12px",
+                                maxWidth: "100%",
+                                width: "100%",
+                                padding: "8px 4px",
+                                boxSizing: "border-box",
+                                overflowX: "auto",
+                            }}
+                        >
+                            {customizableItems.map(item => (
+                                <CustomizationRowButton
+                                    key={item.id}
+                                    item={item}
+                                    handleOpenSubModal={handleOpenSubModal}
+                                    onHover={setHoveredLabel}
+                                    onUnhover={() => setHoveredLabel(null)}
+                                />
+                            ))}
+                        </div>
 
-            <Flex gap={8} justifyContent="flex-end" style={{ width: "100%", marginTop: "var(--custom-modal-padding-md)" }}>
-                <div style={{ flex: 1 }} />
-                <Button
-                    variant="secondary"
-                    style={{ backgroundColor: "#174b71", color: "#fff" }}
-                    onClick={() => modalProps.onClose()}
+                        <div
+                            style={{
+                                marginTop: "12px",
+                                minHeight: "22px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                textAlign: "center",
+                            }}
+                        >
+                            <BaseText
+                                size="sm"
+                                color={hoveredLabel ? "text-default" : "text-muted"}
+                                style={{
+                                    transition: "all 0.15s ease",
+                                    fontWeight: hoveredLabel ? "600" : "400",
+                                }}
+                            >
+                                {hoveredLabel ? `Customize: ${hoveredLabel}` : "Hover over a button to customize"}
+                            </BaseText>
+                        </div>
+                    </div>
+                )}
+
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        width: "100%",
+                        marginTop: "var(--custom-modal-padding-md, 16px)",
+                    }}
                 >
-                    Done
-                </Button>
-            </Flex>
+                    <Button
+                        variant="secondary"
+                        style={{ backgroundColor: "#174b71", color: "#fff" }}
+                        onClick={() => modalProps.onClose()}
+                    >
+                        Done
+                    </Button>
+                </div>
+            </div>
         </Modal>
     );
 }
