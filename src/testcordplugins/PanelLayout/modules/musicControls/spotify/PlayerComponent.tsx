@@ -30,7 +30,6 @@ import { classes } from "@utils/misc";
 import { formatDuration } from "@utils/text";
 import { ContextMenuApi, FluxDispatcher, Menu, React, useEffect, useState, useStateFromStores } from "@webpack/common";
 
-import { MusicControlsComponent } from "..";
 import { settings } from "../settings";
 import { SeekBar } from "./SeekBar";
 import { SpotifyStore, Track } from "./SpotifyStore";
@@ -109,7 +108,9 @@ function Controls() {
     const { showSpotifyLyrics } = settings.use(["showSpotifyLyrics"]);
     const [isPlaying, shuffle, repeat] = useStateFromStores(
         [SpotifyStore],
-        () => [SpotifyStore.isPlaying, SpotifyStore.shuffle, SpotifyStore.repeat]
+        () => [SpotifyStore.isPlaying, SpotifyStore.shuffle, SpotifyStore.repeat],
+        null,
+        (prev, next) => prev?.[0] === next?.[0] && prev?.[1] === next?.[1] && prev?.[2] === next?.[2]
     );
 
     const [nextRepeat, repeatClassName] = (() => {
@@ -153,7 +154,7 @@ function Controls() {
                 <TooltipContainer text={showSpotifyLyrics ? "Disable Lyrics" : "Enable Lyrics"}>
                     <Button
                         className={classes(cl("button"), cl("lyrics"), cl(showSpotifyLyrics ? "repeat-context" : ""))}
-                        onClick={() => { settings.store.showSpotifyLyrics = !showSpotifyLyrics; forceUpdate(); MusicControlsComponent(); }}
+                        onClick={() => { settings.store.showSpotifyLyrics = !showSpotifyLyrics; forceUpdate(); }}
                     >
                         <LyricsButtonIcon />
                     </Button>
@@ -167,7 +168,7 @@ const seek = debounce((v: number) => {
     SpotifyStore.seek(v);
 });
 
-function SpotifySeekBar() {
+function SpotifySeekBar({ isPreview }: { isPreview: boolean }) {
     const { duration } = SpotifyStore.track!;
 
     const [storePosition, isSettingPosition, isPlaying] = useStateFromStores(
@@ -204,14 +205,24 @@ function SpotifySeekBar() {
             >
                 {formatDuration(position)}
             </Span>
-            <SeekBar
-                initialValue={position}
-                minValue={0}
-                maxValue={duration}
-                onValueChange={onChange}
-                asValueChanges={onChange}
-                onValueRender={formatDuration}
-            />
+            {isPreview && (
+                <SeekBar
+                    initialValue={position}
+                    minValue={0}
+                    maxValue={duration}
+                    onValueRender={formatDuration}
+                />
+            )}
+            {!isPreview && (
+                <SeekBar
+                    initialValue={position}
+                    minValue={0}
+                    maxValue={duration}
+                    onValueChange={onChange}
+                    asValueChanges={onChange}
+                    onValueRender={formatDuration}
+                />
+            )}
             <Span
                 size="xs"
                 weight="medium"
@@ -356,7 +367,7 @@ function Info({ track }: { track: Track; }) {
     );
 }
 
-export function SpotifyPlayer() {
+export function SpotifyPlayer({ fiveMinuteHide, isPreview }: { fiveMinuteHide: boolean; isPreview?: boolean; }) {
     const track = useStateFromStores(
         [SpotifyStore],
         () => SpotifyStore.track,
@@ -375,15 +386,15 @@ export function SpotifyPlayer() {
 
     const [shouldHide, setShouldHide] = useState(false);
 
-    // Hide player after 5 minutes of inactivity
-
-    React.useEffect(() => {
-        setShouldHide(false);
-        if (!isPlaying) {
-            const timeout = setTimeout(() => setShouldHide(true), 1000 * 60 * 5);
-            return () => clearTimeout(timeout);
-        }
-    }, [isPlaying]);
+    if (fiveMinuteHide === true) {
+        React.useEffect(() => {
+            setShouldHide(false);
+            if (!isPlaying) {
+                const timeout = setTimeout(() => setShouldHide(true), 1000 * 60 * 5);
+                return () => clearTimeout(timeout);
+            }
+        }, [isPlaying]);
+    }
 
     if (!track || !device?.is_active || shouldHide)
         return null;
@@ -398,7 +409,7 @@ export function SpotifyPlayer() {
             style={exportTrackImageStyle}
         >
             <Info track={track} />
-            <SpotifySeekBar />
+            <SpotifySeekBar isPreview />
             <Controls />
         </div>
     );

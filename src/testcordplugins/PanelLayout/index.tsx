@@ -58,7 +58,7 @@ migratePluginSettings("deracul-panel-layout", "PanelLayout");
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
-const settings = definePluginSettings({
+export const settings = definePluginSettings({
     userPanelLayout: {
         type: OptionType.SELECT,
         description: "Layout for user panel buttons",
@@ -768,8 +768,8 @@ function buildCSS(): string {
     if (st.panelBackgroundColor) {
         const bgColor = applyColorAlpha(st.panelBackgroundColor, st.panelBackgroundTransparency);
         lines.push(`
-            section[class*="panels_"]:not(.vc-user-area-preview-panel):not(.vc-panels-preview),
-            .panels__5e434:not(.vc-user-area-preview-panel):not(.vc-panels-preview) {
+            section[class*="panels_"],
+            .panels__5e434 {
                 background: ${bgColor} !important;
                 background-color: ${bgColor} !important;
             }
@@ -2144,7 +2144,7 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
         <Modal
             title={<BaseText size="sm" color="text-muted">Button customization</BaseText>}
             {...modalProps}
-            size="dynamic"
+            size="sm"
             className="vc-pl-btn-custom-modal"
         >
             <style>{`

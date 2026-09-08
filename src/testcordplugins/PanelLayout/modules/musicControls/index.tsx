@@ -171,7 +171,7 @@ export const musicControlsPatches = [
     },
 ];
 
-export function MusicControlsComponent() {
+export function MusicControlsComponent({ isPreview }: { isPreview?: boolean; }) {
     const { showTidalControls, showTidalLyrics, showSpotifyLyrics, showSpotifyControls, lyricsPosition } = settings.use([
         "showTidalControls",
         "showTidalLyrics",
@@ -193,7 +193,7 @@ export function MusicControlsComponent() {
                 {showTidalControls && <TidalPlayer />}
                 {showTidalLyrics && lyricsPosition === "below" && <TidalLyrics />}
                 {showSpotifyLyrics && lyricsPosition === "above" && <SpotifyLyrics />}
-                {showSpotifyControls && <SpotifyPlayer />}
+                {showSpotifyControls && <SpotifyPlayer fiveMinuteHide={settings.store.fiveMinuteHide} isPreview={isPreview} />}
                 {showSpotifyLyrics && lyricsPosition === "below" && <SpotifyLyrics />}
             </ErrorBoundary>
         </div>
@@ -214,6 +214,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
         "lyricsProvider",
         "fallbackProvider",
         "showFailedToasts",
+        "fiveMinuteHide",
     ]);
 
     const [tab, setTab] = useState<"spotify" | "tidal" | "lyrics">("spotify");
@@ -260,7 +261,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 title="Show Spotify Controls"
                                 description="Display Spotify player controls (play/pause, skip, progress bar) in the user panel."
                                 value={s.showSpotifyControls}
-                                onChange={v => { settings.store.showSpotifyControls = v; forceUpdate(); MusicControlsComponent(); }}
+                                onChange={v => { settings.store.showSpotifyControls = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Album Art Background"
@@ -276,7 +277,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 title="Show Spotify Synced Lyrics"
                                 description="Display synchronized karaoke lyrics above or below the player."
                                 value={s.showSpotifyLyrics}
-                                onChange={v => { settings.store.showSpotifyLyrics = v; forceUpdate(); MusicControlsComponent(); }}
+                                onChange={v => { settings.store.showSpotifyLyrics = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Open Spotify Desktop URIs"
@@ -289,6 +290,12 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 description="Restart playing track when pressing previous if playtime is over 3s."
                                 value={s.previousButtonRestartsTrack}
                                 onChange={v => { settings.store.previousButtonRestartsTrack = v; forceUpdate(); }}
+                            />
+                            <FormSwitch
+                                title="Five Minute Hide"
+                                description="Hide the Spotify Controls after five minutes"
+                                value={s.fiveMinuteHide}
+                                onChange={v => { settings.store.fiveMinuteHide = v; forceUpdate(); }}
                                 hideBorder
                             />
                         </Card>
@@ -401,7 +408,7 @@ export const musicControlsModule: Omit<UserAreaModule, "order" | "enabled"> = {
     version: "2.0.0",
     tags: ["Media", "Audio", "Spotify", "Tidal"],
     position: "above",
-    render: MusicControlsComponent,
+    render: () => <MusicControlsComponent isPreview={false} />,
     onEnable: startMusicControls,
     onDisable: stopMusicControls,
     settingsComponent: MusicControlsSettingsModal,
