@@ -127,6 +127,7 @@ export function UserAreaReorderTab({
     const dragFromIndex = useRef<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const [activeDragIndex, setActiveDragIndex] = useState<number | null>(null);
+    const [dropPosition, setDropPosition] = useState<"above" | "below">("above");
 
     const isActivityBannerActive = modules.some(m => m.id === "activity-banner" && m.enabled);
     const visibleItems = items.filter(it => {
@@ -153,7 +154,10 @@ export function UserAreaReorderTab({
     const handleDragOver = (e: React.DragEvent, index: number) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
+        const rect = e.currentTarget.getBoundingClientRect();
+        const pos = e.clientY < rect.top + rect.height / 2 ? "above" : "below";
         if (dragOverIndex !== index) setDragOverIndex(index);
+        if (dropPosition !== pos) setDropPosition(pos);
     };
 
     const applyNewVisibleOrder = (newVisible: UserAreaReorderItem[]) => {
@@ -180,16 +184,19 @@ export function UserAreaReorderTab({
         const fromIndex = dragFromIndex.current;
         if (
             fromIndex !== null &&
-            fromIndex !== targetIndex &&
             fromIndex >= 0 &&
             fromIndex < visibleItems.length &&
             targetIndex >= 0 &&
             targetIndex < visibleItems.length
         ) {
-            const next = [...visibleItems];
-            const [moved] = next.splice(fromIndex, 1);
-            next.splice(targetIndex, 0, moved);
-            applyNewVisibleOrder(next);
+            const desiredSlot = dropPosition === "below" ? targetIndex + 1 : targetIndex;
+            const insertIndex = fromIndex < desiredSlot ? desiredSlot - 1 : desiredSlot;
+            if (insertIndex !== fromIndex && insertIndex >= 0 && insertIndex < visibleItems.length) {
+                const next = [...visibleItems];
+                const [moved] = next.splice(fromIndex, 1);
+                next.splice(insertIndex, 0, moved);
+                applyNewVisibleOrder(next);
+            }
         }
         dragFromIndex.current = null;
         setActiveDragIndex(null);
@@ -308,7 +315,7 @@ export function UserAreaReorderTab({
                     </BaseText>
                 </Flex>
 
-                <div className="panellayout-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px", gap: "6px", display: "flex", flexDirection: "column" }}>
+                <div className="panellayout-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", padding: "4px 4px 4px 0", gap: "6px", display: "flex", flexDirection: "column" }}>
                     {visibleItems.map((item, index) => {
                         const isDragging = activeDragIndex === index;
                         const isOver = dragOverIndex === index && activeDragIndex !== index;
@@ -319,7 +326,11 @@ export function UserAreaReorderTab({
                                 draggable
                                 onDragStart={e => handleDragStart(e, index)}
                                 onDragOver={e => handleDragOver(e, index)}
-                                onDragLeave={() => { if (dragOverIndex === index) setDragOverIndex(null); }}
+                                onDragLeave={e => {
+                                    if (!e.currentTarget.contains(e.relatedTarget as Node) && dragOverIndex === index) {
+                                        setDragOverIndex(null);
+                                    }
+                                }}
                                 onDrop={e => { e.preventDefault(); commitDrop(index); }}
                                 onDragEnd={() => {
                                     dragFromIndex.current = null;
@@ -327,23 +338,36 @@ export function UserAreaReorderTab({
                                     setDragOverIndex(null);
                                 }}
                                 style={{
+                                    position: "relative",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "space-between",
                                     padding: "8px 12px",
                                     borderRadius: "8px",
-                                    backgroundColor: isOver
-                                        ? "rgba(88, 101, 242, 0.18)"
-                                        : "var(--background-secondary, rgba(255, 255, 255, 0.04))",
-                                    border: isOver
-                                        ? "2px solid var(--brand-experiment, #5865f2)"
-                                        : "1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.06))",
+                                    backgroundColor: "var(--background-secondary, rgba(255, 255, 255, 0.04))",
+                                    border: "1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.06))",
                                     cursor: isDragging ? "grabbing" : "grab",
                                     opacity: isDragging ? 0.35 : item.enabled ? 1 : 0.6,
                                     transform: isDragging ? "scale(0.98)" : "none",
-                                    transition: "all 0.12s ease",
+                                    transition: "opacity 0.12s ease, transform 0.12s ease",
                                 }}
                             >
+                                {isOver && (
+                                    <div
+                                        style={{
+                                            position: "absolute",
+                                            left: "0px",
+                                            right: "0px",
+                                            top: dropPosition === "above" ? "-4px" : undefined,
+                                            bottom: dropPosition === "below" ? "-4px" : undefined,
+                                            height: "2px",
+                                            borderRadius: "2px",
+                                            backgroundColor: "var(--brand-experiment, #5865f2)",
+                                            zIndex: 10,
+                                            pointerEvents: "none",
+                                        }}
+                                    />
+                                )}
                                 <Flex alignItems="center" gap={10} style={{ flex: 1, minWidth: 0 }}>
                                     <div
                                         style={{

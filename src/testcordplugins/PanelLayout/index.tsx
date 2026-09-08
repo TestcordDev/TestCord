@@ -1317,6 +1317,7 @@ function ButtonsDragTab() {
     const dragFromIndex = React.useRef<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
     const [activeDragIndex, setActiveDragIndex] = React.useState<number | null>(null);
+    const [dropPosition, setDropPosition] = React.useState<"before" | "after">("before");
 
     React.useEffect(() => {
         if (!listeningId) return;
@@ -1344,20 +1345,27 @@ function ButtonsDragTab() {
     const handleDragOver = (e: React.DragEvent, index: number) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
+        const rect = e.currentTarget.getBoundingClientRect();
+        const pos = e.clientX < rect.left + rect.width / 2 ? "before" : "after";
         if (dragOverIndex !== index) setDragOverIndex(index);
+        if (dropPosition !== pos) setDropPosition(pos);
     };
 
     const commitDrop = (targetIndex: number) => {
         const fromIndex = dragFromIndex.current;
-        if (fromIndex !== null && fromIndex !== targetIndex) {
-            setItems(prev => {
-                const next = [...prev];
-                const [moved] = next.splice(fromIndex, 1);
-                next.splice(targetIndex, 0, moved);
-                next.forEach((it, idx) => setBtnCfg(it.id, { order: idx * 10 }));
-                apply();
-                return next;
-            });
+        if (fromIndex !== null && fromIndex >= 0 && fromIndex < items.length && targetIndex >= 0 && targetIndex < items.length) {
+            const desiredSlot = dropPosition === "after" ? targetIndex + 1 : targetIndex;
+            const insertIndex = fromIndex < desiredSlot ? desiredSlot - 1 : desiredSlot;
+            if (insertIndex !== fromIndex && insertIndex >= 0 && insertIndex < items.length) {
+                setItems(prev => {
+                    const next = [...prev];
+                    const [moved] = next.splice(fromIndex, 1);
+                    next.splice(insertIndex, 0, moved);
+                    next.forEach((it, idx) => setBtnCfg(it.id, { order: idx * 10 }));
+                    apply();
+                    return next;
+                });
+            }
         }
         dragFromIndex.current = null;
         setActiveDragIndex(null);
@@ -1396,7 +1404,8 @@ function ButtonsDragTab() {
                                 overflowX: "auto",
                                 flex: 1,
                                 minWidth: 0,
-                                alignItems: "center"
+                                alignItems: "center",
+                                padding: "4px 8px",
                             }}>
                                 {items.map((item, index) => {
                                     const cfg = getBtnCfg(item.id);
@@ -1412,20 +1421,39 @@ function ButtonsDragTab() {
                                             draggable
                                             onDragStart={e => handleDragStart(e, index)}
                                             onDragOver={e => handleDragOver(e, index)}
-                                            onDragLeave={() => { if (dragOverIndex === index) setDragOverIndex(null); }}
+                                            onDragLeave={e => {
+                                                if (!e.currentTarget.contains(e.relatedTarget as Node) && dragOverIndex === index) {
+                                                    setDragOverIndex(null);
+                                                }
+                                            }}
                                             onDrop={e => handleDrop(e, index)}
                                             onDragEnd={handleDragEnd}
                                             style={{
+                                                position: "relative",
                                                 display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
                                                 cursor: isDragging ? "grabbing" : "grab",
                                                 opacity: isDragging ? 0.35 : 1,
                                                 transform: isDragging ? "scale(0.94)" : "scale(1)",
-                                                borderLeft: isOver ? "3px solid var(--brand-experiment, var(--background-brand))" : "3px solid transparent",
-                                                paddingLeft: isOver ? "6px" : "0px",
-                                                transition: "border 0.1s ease, padding 0.1s ease, opacity 0.1s ease, transform 0.1s ease",
+                                                transition: "opacity 0.1s ease, transform 0.1s ease",
                                             }}
                                             title={item.label}
                                         >
+                                            {isOver && (
+                                                <div
+                                                    style={{
+                                                        position: "absolute",
+                                                        top: "0px",
+                                                        bottom: "0px",
+                                                        left: dropPosition === "before" ? "-7px" : undefined,
+                                                        right: dropPosition === "after" ? "-7px" : undefined,
+                                                        width: "2px",
+                                                        borderRadius: "2px",
+                                                        backgroundColor: "var(--brand-experiment, var(--background-brand))",
+                                                        zIndex: 10,
+                                                        pointerEvents: "none",
+                                                    }}
+                                                />
+                                            )}
                                             {isMute && (
                                                 <div
                                                     className="deracul-btn-preview"
