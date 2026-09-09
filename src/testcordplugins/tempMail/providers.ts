@@ -411,7 +411,7 @@ const TempMailLolProvider: TempProvider = {
                     intro: (m.body ?? m.text ?? "").slice(0, 120),
                     createdAt: new Date(m.date ?? m.createdAt ?? Date.now()).toISOString(),
                     seen: !!m.seen,
-                    html: m.html ? [m.html] : [],
+                    html: m.html ? [String(m.html)] : [] as string[],
                     text: m.body ?? m.text ?? "",
                 }));
             }
@@ -456,7 +456,7 @@ const MaildropProvider: TempProvider = {
                 intro: (m.message ?? m.html ?? "").replace(/<[^>]+>/g, " ").slice(0, 120),
                 createdAt: new Date(m.date ?? m.headers?.date ?? Date.now()).toISOString(),
                 seen: false,
-                html: m.html ? [m.html] : [],
+                html: m.html ? [String(m.html)] : [] as string[],
                 text: (m.message ?? "").replace(/<[^>]+>/g, " "),
             }));
         } catch { return []; }
@@ -471,12 +471,12 @@ const MaildropProvider: TempProvider = {
                     const data: any = await r.json();
                     return {
                         ...found,
-                        html: data.html ? [data.html] : found.html,
+                        html: data.html ? [String(data.html)] : (found.html ?? []),
                         text: data.data ?? found.text,
                     };
                 }
             } catch { }
-            return { ...found, html: found.html ?? [], text: found.text ?? "" };
+            return { ...found, html: (found.html ?? []) as string[], text: found.text ?? "" };
         }
         throw new Error("Message not found");
     },
@@ -530,7 +530,7 @@ const DropMailProvider: TempProvider = {
                 intro: (m.text ?? m.html ?? "").replace(/<[^>]+>/g, " ").slice(0, 120),
                 createdAt: new Date(m.receivedAt ?? Date.now()).toISOString(),
                 seen: false,
-                html: m.html ? [m.html] : [],
+                html: m.html ? [String(m.html)] : [] as string[],
                 text: m.text ?? "",
             }));
         } catch { return []; }
@@ -582,7 +582,7 @@ const TMailorProvider: TempProvider = {
                 intro: (m.text ?? m.html ?? "").replace(/<[^>]+>/g, " ").slice(0, 120),
                 createdAt: new Date(m.date ?? Date.now()).toISOString(),
                 seen: !!m.seen,
-                html: m.html ? [m.html] : [],
+                html: m.html ? [String(m.html)] : [] as string[],
                 text: m.text ?? "",
             }));
         } catch { return []; }
