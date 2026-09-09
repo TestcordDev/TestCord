@@ -565,7 +565,7 @@ function CalendarModal(props: any) {
                                 <input type="number" value={year} onChange={e => setYear(parseInt(e.target.value) || year)} className={cl("time-input")} />
                             </div>
                         )}
-                        <div className={cl("weekday-row")}>
+                        <div className={cl("weekday-row", { "with-wn": settings.store.showWeekNumbers })}>
                             {settings.store.showWeekNumbers && <div className={cl("weekday", "wn")} >Wk</div>}
                             {weekdays.map(d => <div key={d} className={cl("weekday")}>{d}</div>)}
                         </div>

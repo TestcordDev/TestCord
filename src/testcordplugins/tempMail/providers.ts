@@ -119,16 +119,25 @@ function createMailTmProvider(base: string, id: string, name: string, accent: st
 
         async getMessages(account) {
             if (!account.token) return [];
-            const r = await fetch(`${base}/messages?page=1`, {
-                headers: { Authorization: `Bearer ${account.token}` }
-            });
-            if (!r.ok) throw new Error(`Fetch inbox ${r.status}`);
-            const data = await r.json();
-            const list: TmMessage[] = data["hydra:member"] ?? [];
-            return list.map(m => ({
-                ...m,
-                seen: m.seen ?? false,
-            }));
+            try {
+                const r = await fetch(`${base}/messages?page=1`, {
+                    headers: { Authorization: `Bearer ${account.token}`, Accept: "application/json" }
+                });
+                if (!r.ok) {
+                    // 401/403 means bad token — let UI show error, otherwise return empty to avoid spam
+                    if (r.status === 401 || r.status === 403) throw new Error(`Auth failed ${r.status}`);
+                    return [];
+                }
+                const data = await r.json();
+                const list: TmMessage[] = data["hydra:member"] ?? data.member ?? [];
+                return list.map(m => ({
+                    ...m,
+                    seen: m.seen ?? false,
+                }));
+            } catch (e: any) {
+                if (String(e?.message).includes("Auth failed")) throw e;
+                return [];
+            }
         },
 
         async getMessage(account, mid) {
@@ -198,21 +207,23 @@ const OneSecMailProvider: TempProvider = {
 
     async getMessages(account) {
         if (!account.login || !account.domain) return [];
-        const url = `https://www.1secmail.com/api/v1/?action=getMessages&login=${encodeURIComponent(account.login)}&domain=${encodeURIComponent(account.domain)}`;
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`1SecMail inbox ${r.status}`);
-        const list: any[] = await r.json();
-        if (!Array.isArray(list)) return [];
-        return list.map(m => ({
-            id: String(m.id),
-            from: { address: m.from ?? "", name: "" },
-            subject: m.subject ?? "",
-            intro: (m.body ?? "").slice(0, 120),
-            createdAt: new Date(m.date).toISOString(),
-            seen: false,
-            html: [],
-            text: m.body ?? "",
-        }));
+        try {
+            const url = `https://www.1secmail.com/api/v1/?action=getMessages&login=${encodeURIComponent(account.login)}&domain=${encodeURIComponent(account.domain)}`;
+            const r = await fetch(url, { headers: { Accept: "application/json" } });
+            if (!r.ok) return [];
+            const list: any[] = await r.json();
+            if (!Array.isArray(list)) return [];
+            return list.map(m => ({
+                id: String(m.id),
+                from: { address: m.from ?? "", name: "" },
+                subject: m.subject ?? "",
+                intro: (m.body ?? "").slice(0, 120),
+                createdAt: new Date(m.date).toISOString(),
+                seen: false,
+                html: [],
+                text: m.body ?? "",
+            }));
+        } catch { return []; }
     },
 
     async getMessage(account, mid) {
@@ -292,23 +303,23 @@ const GuerrillaProvider: TempProvider = {
 
     async getMessages(account) {
         if (!account.sidToken) return [];
-        const login = account.login ?? account.address.split("@")[0];
-        const url = `https://api.guerrillamail.com/ajax.php?f=check_email&seq=${account.seq ?? 0}&sid_token=${encodeURIComponent(account.sidToken)}&site=guerrillamail.com`;
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`Guerrilla check ${r.status}`);
-        const data: any = await r.json();
-        const list: any[] = data.list ?? [];
-        // update seq implicitly via caller if needed; we don't persist seq but fine
-        return list.map(m => ({
-            id: String(m.mail_id),
-            from: { address: m.mail_from ?? "", name: "" },
-            subject: m.mail_subject ?? "",
-            intro: (m.mail_excerpt ?? m.mail_body ?? "").slice(0, 120).replace(/<[^>]+>/g, " "),
-            createdAt: mapGuerrillaDate(m.mail_date ?? m.mail_timestamp ?? Date.now()),
-            seen: m.mail_read === "1",
-            html: [],
-            text: m.mail_body ?? "",
-        }));
+        try {
+            const url = `https://api.guerrillamail.com/ajax.php?f=check_email&seq=${account.seq ?? 0}&sid_token=${encodeURIComponent(account.sidToken)}&site=guerrillamail.com`;
+            const r = await fetch(url, { headers: { Accept: "application/json" } });
+            if (!r.ok) return [];
+            const data: any = await r.json();
+            const list: any[] = data.list ?? [];
+            return list.map(m => ({
+                id: String(m.mail_id),
+                from: { address: m.mail_from ?? "", name: "" },
+                subject: m.mail_subject ?? "",
+                intro: (m.mail_excerpt ?? m.mail_body ?? "").slice(0, 120).replace(/<[^>]+>/g, " "),
+                createdAt: mapGuerrillaDate(m.mail_date ?? m.mail_timestamp ?? Date.now()),
+                seen: m.mail_read === "1",
+                html: [],
+                text: m.mail_body ?? "",
+            }));
+        } catch { return []; }
     },
 
     async getMessage(account, mid) {
@@ -382,25 +393,23 @@ const TempMailLolProvider: TempProvider = {
     async getMessages(account) {
         if (!account.token) return [];
         try {
-            const r = await fetch(`https://api.tempmail.lol/auth/${encodeURIComponent(account.token)}`);
-            if (r.ok) {
-                const j: any = await r.json();
-                const emails: any[] = j.email ?? j.emails ?? j.messages ?? [];
-                if (Array.isArray(emails)) {
-                    return emails.map((m: any, idx: number) => ({
-                        id: String(m.id ?? m._id ?? idx),
-                        from: { address: m.from ?? m.sender ?? "", name: "" },
-                        subject: m.subject ?? "",
-                        intro: (m.body ?? m.text ?? "").slice(0, 120),
-                        createdAt: new Date(m.date ?? m.createdAt ?? Date.now()).toISOString(),
-                        seen: !!m.seen,
-                        html: m.html ? [m.html] : [],
-                        text: m.body ?? m.text ?? "",
-                    }));
-                }
+            const r = await fetch(`https://api.tempmail.lol/auth/${encodeURIComponent(account.token)}`, { headers: { Accept: "application/json" } });
+            if (!r.ok) return [];
+            const j: any = await r.json();
+            const emails: any[] = j.email ?? j.emails ?? j.messages ?? [];
+            if (Array.isArray(emails)) {
+                return emails.map((m: any, idx: number) => ({
+                    id: String(m.id ?? m._id ?? idx),
+                    from: { address: m.from ?? m.sender ?? "", name: "" },
+                    subject: m.subject ?? "",
+                    intro: (m.body ?? m.text ?? "").slice(0, 120),
+                    createdAt: new Date(m.date ?? m.createdAt ?? Date.now()).toISOString(),
+                    seen: !!m.seen,
+                    html: m.html ? [m.html] : [],
+                    text: m.body ?? m.text ?? "",
+                }));
             }
         } catch { }
-        // fallback empty
         return [];
     },
 

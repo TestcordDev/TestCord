@@ -1,3 +1,16 @@
+/* Testcord TempMail — dark inputs like TestcordOSINT */
+.vc-tm-shell input,
+.vc-tm-shell textarea,
+.vc-tm-shell select,
+.vc-tm-shell [class*="input"],
+.vc-tm-shell [class*="textArea"] {
+    color: #fff !important;
+}
+.vc-tm-shell input::placeholder,
+.vc-tm-shell textarea::placeholder {
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
 /* Testcord TempMail — refactored Testcord styled UI */
 
 .vc-tm-shell {
@@ -91,10 +104,10 @@
 .vc-tm-legend-chip {
     display: inline-flex; align-items: center; gap: 5px;
     font-size: 11px; font-weight: 650; padding: 4px 8px; border-radius: 999px;
-    background: var(--background-secondary); border: 1px solid var(--background-modifier-accent); color: var(--text-muted);
+    background: var(--background-secondary, #2b2d31); border: 1px solid var(--background-modifier-accent, rgba(255,255,255,0.08)); color: var(--header-primary, #f2f3f5) !important;
     cursor: pointer; transition: background .12s, color .12s, border-color .12s;
 }
-.vc-tm-legend-chip.vc-tm-active { color: var(--text-normal); background: var(--background-modifier-hover); }
+.vc-tm-legend-chip.vc-tm-active { color: var(--header-primary, #f2f3f5) !important; background: var(--background-modifier-hover, rgba(79,84,92,0.4)) !important; }
 .vc-tm-chip-dot { width: 7px; height: 7px; border-radius: 50%; }
 
 /* Footer */
@@ -236,8 +249,8 @@
 .vc-tm-provider-card:hover { background: var(--background-modifier-hover); }
 .vc-tm-provider-card.vc-tm-selected { background: color-mix(in srgb, var(--brand-500) 8%, var(--background-secondary)); }
 .vc-tm-prov-dot { width: 8px; height: 8px; border-radius: 50%; }
-.vc-tm-prov-name { font-size: 13px; font-weight: 750; color: var(--text-normal); }
-.vc-tm-prov-desc { font-size: 11px; color: var(--text-muted); line-height: 1.3; }
+.vc-tm-prov-name { font-size: 13px; font-weight: 750; color: var(--header-primary, var(--text-normal, #f2f3f5)) !important; }
+.vc-tm-prov-desc { font-size: 11px; color: var(--text-muted, #949ba4) !important; line-height: 1.3; }
 .vc-tm-prov-check { position: absolute; top: 8px; right: 8px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 900; }
 .vc-tm-new-section { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--background-modifier-accent); border-radius: 10px; background: var(--background-secondary); }
 .vc-tm-section-label { font-size: 12px; font-weight: 800; color: var(--text-normal); }

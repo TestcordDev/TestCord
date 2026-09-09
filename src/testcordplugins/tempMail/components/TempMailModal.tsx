@@ -256,12 +256,6 @@ export function TempMailModal({ modalProps }: { modalProps: RenderModalProps; })
                         </div>
                     </div>
 
-                    <div className={cl("sidebar-footer")}>
-                        <div className={cl("testcord-footer")}>
-                            <div className={cl("footer-title")}>Testcord Styled</div>
-                            <div className={cl("footer-sub")}>Disposable inboxes, native feel. Data saved locally via IndexedDB.</div>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Content */}
