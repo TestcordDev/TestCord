@@ -10,15 +10,34 @@
  */
 
 import { app } from "electron";
+import EventEmitter from "events";
 import { dirname, join } from "path";
 
 import { findStaleSibling, patchResourcesDir } from "./applyHostPatch";
 
-app.on("before-quit", () => {
+function patchLatest() {
+    if (process.env.DISABLE_UPDATER_AUTO_PATCHING) return;
+
     try {
         const stale = findStaleSibling(dirname(process.execPath));
         if (stale) patchResourcesDir(stale, join(__dirname, "patcher.js"));
     } catch (err) {
         console.error("[Testcord] Failed to repatch latest host update", err);
     }
-});
+}
+
+if (process.platform === "win32" || process.platform === "linux") {
+    EventEmitter.prototype.emit = new Proxy(EventEmitter.prototype.emit, {
+        apply(target, thisArg, argArray) {
+            if (argArray[0] === "host-updated") {
+                patchLatest();
+            }
+
+            return Reflect.apply(target, thisArg, argArray);
+        },
+    });
+
+    // Try to patch latest on before-quit
+    // Discord's Win32 updater will call app.quit() on restart and open new version on will-quit
+    app.on("before-quit", patchLatest);
+}

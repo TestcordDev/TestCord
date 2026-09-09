@@ -58,11 +58,11 @@ export default definePlugin({
             find: '"stream-settings-audio-enable"',
             replacement: [
                 {
-                    match: /(?<=action:\(\)=>(\i)\((\i),\i,\i,(\i\.\i\.RESOLUTION)\)\},.{0,200}#{intl::SCREENSHARE_FRAME_RATE}\),children:)(\i)/,
+                    match: /(?<=(\i)\((\i),\i,\i,(\i\.\i\.RESOLUTION)\)\}.{0,200}#{intl::SCREENSHARE_FRAME_RATE}\),children:)\i/,
                     replace: "[...$self.SettingsRange($1,[$2,$3],false)]"
                 },
                 {
-                    match: /(?<=action:\(\)=>(\i)\((\i),\i,\i,(\i\.\i\.RESOLUTION)\)\},.{0,300}#{intl::STREAM_RESOLUTION}\),children:)(\i)/,
+                    match: /(?<=(\i)\((\i),\i,\i,(\i\.\i\.RESOLUTION)\)\}.{0,300}#{intl::STREAM_RESOLUTION}\),children:)\i/,
                     replace: "[...$self.SettingsRange($1,[$2,$3],true)]"
                 },
             ]
