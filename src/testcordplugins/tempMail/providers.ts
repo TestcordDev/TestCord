@@ -90,13 +90,20 @@ function createMailTmProvider(base: string, id: string, name: string, accent: st
         },
 
         async createAccount(address: string, password: string) {
-            const r = await fetch(`${base}/accounts`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ address, password }),
-            });
+            let r: Response;
+            try {
+                r = await fetch(`${base}/accounts`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Accept: "application/json" },
+                    body: JSON.stringify({ address, password }),
+                });
+            } catch (e: any) {
+                if (id === "mail.gw") throw new Error("Mail.gw is temporarily offline — please use Mail.tm");
+                throw new Error(`${name} network failed: ${e?.message ?? String(e)}`);
+            }
             if (!r.ok) {
                 const txt = await r.text().catch(() => "");
+                if (id === "mail.gw" && r.status === 502) throw new Error("Mail.gw is currently offline (502) — please use Mail.tm for now");
                 throw new Error(`${name} create failed ${r.status} ${txt.slice(0, 120)}`);
             }
             const data = await r.json();

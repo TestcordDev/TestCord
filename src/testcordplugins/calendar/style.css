@@ -176,16 +176,30 @@ button[class*="closeButton"]:active { background-color: var(--background-modifie
     .vc-cal-notes-side { border-left: none; border-top: 1px solid var(--background-modifier-accent); padding-left: 0; padding-top: 12px; flex-basis: auto; }
 }
 
-/* Overrides — white search + no clipping + alignment (like TestcordOSINT) */
+/* Overrides — white search + no clipping + alignment (like TestcordOSINT) — whole size background */
 .vc-cal-modal-content .vc-cal-toolbar input,
 .vc-cal-modal-content .vc-cal-toolbar [class*="input"],
+.vc-cal-modal-content .vc-cal-toolbar [class*="inputWrapper"],
+.vc-cal-modal-content .vc-cal-toolbar [class*="inputDefault"],
 .vc-cal-modal-content .vc-cal-notes-panel input,
 .vc-cal-modal-content .vc-cal-notes-panel [class*="input"],
+.vc-cal-modal-content .vc-cal-notes-panel [class*="inputWrapper"],
 .vc-cal-modal-content .vc-cal-add-form input,
 .vc-cal-modal-content .vc-cal-add-form textarea,
-.vc-cal-modal-content .vc-cal-add-form select {
+.vc-cal-modal-content .vc-cal-add-form select,
+.vc-cal-modal-content .vc-cal-add-form [class*="input"],
+.vc-cal-modal-content .vc-cal-add-form [class*="inputWrapper"] {
     background: var(--background-tertiary, #2b2d31) !important;
     background-color: var(--background-tertiary, #2b2d31) !important;
     color: #fff !important;
     border-color: var(--background-modifier-accent, rgba(255,255,255,0.08)) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+.vc-cal-global-search,
+.vc-cal-global-search > div,
+.vc-cal-toolbar .vc-cal-global-search {
+    background: var(--background-tertiary, #2b2d31) !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
 }

@@ -135,17 +135,27 @@
 .vc-tm-view-sub { font-size: 11px; color: var(--text-muted, #949ba4) !important; margin-top: 2px; word-break: break-all; }
 .vc-tm-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .vc-tm-search-input { width: 180px; flex-shrink: 0; }
-/* Fix white search — force dark input like TestcordOSINT (override Visual Refresh white) */
+/* Fix white search — force dark input like TestcordOSINT (whole size background) */
 .vc-tm-search-input,
-.vc-tm-search-input [class*="input"],
+.vc-tm-search-input > div,
 .vc-tm-search-input [class*="inputWrapper"],
+.vc-tm-search-input [class*="inputDefault"],
+.vc-tm-search-input [class*="input"],
 .vc-tm-search-input input,
 .vc-tm-search-input textarea {
     background: var(--background-tertiary, #2b2d31) !important;
     background-color: var(--background-tertiary, #2b2d31) !important;
-    border: 1px solid var(--background-modifier-accent, rgba(255,255,255,0.08)) !important;
+    border-color: var(--background-modifier-accent, rgba(255,255,255,0.08)) !important;
     color: #fff !important;
     border-radius: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
+.vc-tm-search-input {
+    background: var(--background-tertiary, #2b2d31) !important;
+    border-radius: 8px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
 }
 .vc-tm-search-input [class*="input"]::placeholder,
 .vc-tm-search-input input::placeholder,
