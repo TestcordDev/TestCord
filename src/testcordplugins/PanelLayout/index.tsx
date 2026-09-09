@@ -781,12 +781,20 @@ function buildCSS(): string {
         `);
     }
 
-    if (st.callBackgroundButtonOpacity) {
+    if (st.callBackgroundButtonOpacity !== undefined) {
         lines.push(`
             .button_e131a9 .buttonColor_e131a9, .button_e131a9.buttonColor_e131a9 {
                 background-color: hsl(from var(--control-secondary-background-default) h s l / ${st.callBackgroundButtonOpacity / 100});
             }
         `);
+
+        if (st.callBackgroundButtonOpacity === 0) {
+            lines.push(`
+                .button_e131a9 .buttonColor_e131a9, .button_e131a9.buttonColor_e131a9 {
+                    border-width: 0px;
+                }
+            `);
+        }
     }
 
     switch (st.hoverEffect) {
