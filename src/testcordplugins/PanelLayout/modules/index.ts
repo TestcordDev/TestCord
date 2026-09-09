@@ -7,6 +7,7 @@
 export * from "./activityBanner";
 export * from "./builtin";
 export * from "./buttonDetection";
+export * from "./colorPicker";
 export * from "./container";
 export { devBannerModule, devBannerPatches, DevBannerSettingsModal, DevBannerWidget, makeDevBanner } from "./devBanner";
 export * from "./marketplace/CustomModuleModal";

@@ -11,9 +11,11 @@ import { gitHashShort } from "@shared/vencordUserAgent";
 import { React } from "@webpack/common";
 import { JSX } from "react";
 
+import { isModuleEnabled } from "../../state";
 import { ChromiumIcon, ClientIcon, DevBannerIcon, DiscordIcon, ElectronIcon, names, settings } from ".";
 
-export function makeDevBanner(state?: string): string | JSX.Element {
+export function makeDevBanner(state?: string): string | JSX.Element | null {
+    if (!state && !isModuleEnabled("dev-banner")) return null;
     const { RELEASE_CHANNEL, BUILD_NUMBER, VERSION_HASH } = window.GLOBAL_ENV;
     const buildChannel = names[RELEASE_CHANNEL] || RELEASE_CHANNEL.charAt(0).toUpperCase() + RELEASE_CHANNEL.slice(1);
     const { chromiumVersion, electronVersion, getVersionInfo } = SettingsPlugin;
@@ -38,8 +40,10 @@ export function makeDevBanner(state?: string): string | JSX.Element {
         .replace(/{equibopPlatform}/g, `v${clientInfo?.dev ? "Dev Build" : "Standalone"}`)
         .replace(/\\n|{newline}/g, "__NEWLINE__");
 
+    const textColor = settings.store.color || "var(--text-muted)";
+
     if (!replaced.includes("__NEWLINE__") && !/{.*Icon}/.test(baseFormat)) {
-        return replaced;
+        return <span style={{ color: textColor }}>{replaced}</span>;
     }
 
     const parts = replaced.split(/({.*?}|__NEWLINE__)/).filter(Boolean).map((part, i) => {
@@ -65,5 +69,5 @@ export function makeDevBanner(state?: string): string | JSX.Element {
         }
     });
 
-    return <div style={{ display: "inline" }}>{parts}</div>;
+    return <div style={{ display: "inline", color: textColor }}>{parts}</div>;
 }

@@ -14,6 +14,7 @@ import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
+import { TooltipContainer } from "@components/TooltipContainer";
 import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
@@ -22,6 +23,7 @@ import { Modal, openModalLazy, React, Select, Slider } from "@webpack/common";
 
 import {
     activityBannerPatches,
+    applyColorAlpha,
     BtnItem,
     devBannerPatches,
     getAllButtons,
@@ -56,7 +58,7 @@ migratePluginSettings("deracul-panel-layout", "PanelLayout");
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
-const settings = definePluginSettings({
+export const settings = definePluginSettings({
     userPanelLayout: {
         type: OptionType.SELECT,
         description: "Layout for user panel buttons",
@@ -115,17 +117,20 @@ const settings = definePluginSettings({
         onChange: () => apply()
     },
     panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#0e1852", onChange: () => apply() },
+    panelBackgroundOpacity: { type: OptionType.SLIDER, description: "Panel background color opacity", default: 100, markers: makeRange(0, 100, 10), stickToMarkers: false, onChange: () => apply() },
     glowColor: { type: OptionType.STRING, description: "Glow hover color", default: "#ffffff", onChange: () => apply() },
     forceNativeButtonColor: { type: OptionType.BOOLEAN, default: false, description: "Force the icon color on Discord's native buttons (Mute, Deafen, Settings) even when no custom icon color is set", onChange: () => apply() },
     hideChevrons: { type: OptionType.BOOLEAN, default: false, description: "Hide dropdown chevrons next to Mute and Deafen", onChange: () => apply() },
     lockButtonPosition: { type: OptionType.BOOLEAN, default: false, description: "Lock Button Position (prevents buttons dropping down on long status)", onChange: () => apply() },
     callCompact: { type: OptionType.BOOLEAN, default: false, description: "Compact mode for call control buttons", onChange: () => apply() },
+    callBackgroundButtonOpacity: { type: OptionType.SLIDER, default: 12, markers: makeRange(0, 100, 10), stickToMarkers: false, description: "Compact mode for call control buttons", onChange: () => apply() },
     hideDisconnect: { type: OptionType.BOOLEAN, default: false, description: "Hide the disconnect button", onChange: () => apply() },
     hideVoiceStatus: { type: OptionType.BOOLEAN, default: false, description: "Hide the 'Voice Connected' status text and channel name", onChange: () => apply() },
     hidePingIcon: { type: OptionType.BOOLEAN, default: false, description: "Hide the ping/connection quality icon", onChange: () => apply() },
     hideMute: { type: OptionType.BOOLEAN, default: false, description: "Hide Mute button", onChange: () => apply() },
     hideDeafen: { type: OptionType.BOOLEAN, default: false, description: "Hide Deafen button", onChange: () => apply() },
     hideSettings: { type: OptionType.BOOLEAN, default: false, description: "Hide User Settings button", onChange: () => apply() },
+    hideUserPanelButton: { type: OptionType.BOOLEAN, default: false, description: "Hide the user panel button from the user area", onChange: () => apply() },
     hideCamera: { type: OptionType.BOOLEAN, default: false, description: "Hide camera button in call controls", onChange: () => apply() },
     hideScreenShare: { type: OptionType.BOOLEAN, default: false, description: "Hide screen share button in call controls", onChange: () => apply() },
     hideActivity: { type: OptionType.BOOLEAN, default: false, description: "Hide activity button in call controls", onChange: () => apply() },
@@ -217,7 +222,7 @@ function cssVal(val: string): string {
 }
 
 function getBtnSelector(canonical: string): string {
-    return `html body div${S.panelContainer} div:is(${S.panelButtons}, ${S.callControls}) > [data-panellayout-label=${cssVal(canonical)}]`;
+    return `html body div${S.panelContainer} div:is(${S.panelButtons}, ${S.callControls}) > [data-deracul-label=${cssVal(canonical)}]`;
 }
 
 // ─── Global Keybind Logic ─────────────────────────────────────────────────────
@@ -297,10 +302,10 @@ function onGlobalClick(e: MouseEvent) {
     const target = e.target as HTMLElement | null;
     if (!target) return;
 
-    const btnEl = target.closest<HTMLElement>("[data-panellayout-label]");
+    const btnEl = target.closest<HTMLElement>("[data-deracul-label]");
     if (!btnEl) return;
 
-    const label = btnEl.getAttribute("data-panellayout-label");
+    const label = btnEl.getAttribute("data-deracul-label");
     if (!label) return;
 
     const cfg = buttonConfigs[label];
@@ -331,7 +336,7 @@ function toggleGroupLink(labelA: string, labelB: string, linked: boolean) {
 }
 
 function getButtonLabel(button: HTMLElement): string | null {
-    const customLabel = button.getAttribute("data-panellayout-label");
+    const customLabel = button.getAttribute("data-deracul-label");
     if (customLabel) return customLabel;
 
     const aria = button.getAttribute("aria-label")?.toLowerCase() || "";
@@ -354,8 +359,8 @@ function updateDomAttributes() {
         const rawLabel = getBtnLabel(el);
         if (!rawLabel) continue;
         const canonical = getCanonicalLabel(rawLabel);
-        if (el.getAttribute("data-panellayout-label") !== canonical) {
-            el.setAttribute("data-panellayout-label", canonical);
+        if (el.getAttribute("data-deracul-label") !== canonical) {
+            el.setAttribute("data-deracul-label", canonical);
         }
     }
 }
@@ -388,8 +393,8 @@ function stopObserver() {
 
 // ─── CSS Builders ─────────────────────────────────────────────────────────────
 
-const STYLE_ID = "panellayout-styles";
-const CUSTOM_STYLE_ID = "panellayout-custom-styles";
+const STYLE_ID = "deracul-panel-layout";
+const CUSTOM_STYLE_ID = "deracul-panel-custom";
 
 function gridCSS(selector: string, cols: number, gap: number) {
     return `
@@ -451,52 +456,124 @@ function buildCSS(): string {
             justify-content: space-between;
             gap: 16px;
             padding: 9px 14px;
-            border: 1px solid color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 14%, var(--border-subtle));
+            border: 1px solid var(--border-subtle);
             border-radius: 8px;
             background: var(--background-base-lower-alt);
             cursor: pointer;
             overflow: hidden;
-            box-shadow: 0 1px #ffffff08 inset;
-            transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease, transform .12s ease;
+            transition: background-color .12s ease, border-color .12s ease, transform .12s ease;
         }
 
         .SubModalButton:hover {
             background: var(--background-base-low);
-            border-color:
-                color-mix(in srgb, var(--brand, var(--brand-experiment, var(--background-brand))) 32%, var(--border-subtle));
-            box-shadow: var(--elevation-low), 0 1px #ffffff0d inset;
+            border-color: var(--border-subtle);
             transform: translateY(-1px);
         }
 
         .SubModalButton:active {
-            box-shadow: none;
             transform: translateY(0) scale(.99);
         }
 
-        .SubModalButton:before {
-            content: "";
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 3px;
-            border-radius: 8px 0 0 8px;
-            background: var(--brand, var(--brand-experiment, var(--background-brand)));
-            opacity: .35;
-            transform: scaleY(.35);
-            transform-origin: center;
-            transition: opacity .16s ease, transform .16s ease;
+        .vc-pl-custom-btn-wrapper {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+            transition: transform 0.16s ease;
         }
 
-        .SubModalButton:hover:before {
+        .vc-pl-custom-btn-wrapper:hover {
+            transform: translateY(-2px);
+        }
+
+        .vc-pl-custom-btn-wrapper:active {
+            transform: translateY(0) scale(0.96);
+        }
+
+        .vc-pl-custom-btn-preview {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: inherit;
+            background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: opacity 0.2s ease, filter 0.2s ease, transform 0.2s ease;
+        }
+
+        .vc-pl-custom-btn-wrapper:hover .vc-pl-custom-btn-preview {
+            opacity: 0.75;
+            filter: blur(3px);
+        }
+
+        .vc-pl-custom-btn-settings {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: inherit;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            color: #ffffff;
+        }
+
+        .vc-pl-custom-btn-wrapper:hover .vc-pl-custom-btn-settings {
             opacity: 1;
-            transform: scaleY(1);
+            pointer-events: auto;
+        }
+
+        .vc-pl-custom-btn-settings-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            color: #ffffff;
+            transition: transform 0.2s ease;
+        }
+
+        .vc-pl-custom-btn-settings:hover .vc-pl-custom-btn-settings-icon {
+            transform: rotate(30deg) scale(1.1);
+        }
+
+        .vc-pl-custom-btn-settings svg,
+        .vc-pl-custom-btn-settings svg path {
+            fill: #ffffff !important;
+            color: #ffffff !important;
+        }
+
+        .vc-pl-btn-custom-modal {
+            max-width: min(92vw, 1100px) !important;
+            min-width: 380px !important;
+            overflow-x: hidden !important;
+        }
+
+        .vc-pl-custom-btn-row > div {
+            flex-shrink: 0;
+            display: inline-flex;
         }
     `);
     lines.push(`
+        .deracul-scrollbar::-webkit-scrollbar,
         .panellayout-scrollbar::-webkit-scrollbar { width: 8px !important; height: 8px !important; }
+        .deracul-scrollbar::-webkit-scrollbar-track,
         .panellayout-scrollbar::-webkit-scrollbar-track { background: var(--scrollbar-thin-track, transparent) !important; border-radius: 4px !important; }
+        .deracul-scrollbar::-webkit-scrollbar-thumb,
         .panellayout-scrollbar::-webkit-scrollbar-thumb { background: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) !important; border-radius: 4px !important; }
+        .deracul-scrollbar,
         .panellayout-scrollbar { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) transparent; }
     `);
 
@@ -544,7 +621,7 @@ function buildCSS(): string {
     lines.push(`${S.panelContainer} { height: auto !important; min-height: unset !important; }`);
 
     lines.push(`
-        .panellayout-btn-preview svg, .panellayout-btn-preview [class*="lottieIcon"] {
+        .deracul-btn-preview svg, .deracul-btn-preview [class*="lottieIcon"] {
             width: 22px !important; height: 22px !important;
             color: var(--interactive-normal, var(--interactive-text-default)) !important; fill: currentColor !important;
         }
@@ -594,14 +671,14 @@ function buildCSS(): string {
                     order: 30000 !important; flex: 1 1 auto !important; min-width: 0 !important; margin-right: auto !important;
                 }
                 ${S.panelButtons} { display: contents !important; }
-                ${S.panelButtons} > *:not(${S.audioParent}):not([data-panellayout-label="User Settings"]) {
+                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) {
                     order: 10000 !important; display: flex !important; justify-content: center !important; align-items: center !important; flex: ${flexSize} !important;
                 }
-                ${S.panelButtons} > *:not(${S.audioParent}):not([data-panellayout-label="User Settings"]) > button {
+                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) > button {
                     width: 100% !important; display: flex !important; justify-content: center !important; align-items: center !important;
                 }
                 ${S.panelButtons} > ${S.audioParent},
-                ${S.panelButtons} > [data-panellayout-label="User Settings"] {
+                ${S.panelButtons} > [data-deracul-label="User Settings"] {
                     order: 40000 !important; margin: 0 !important;
                 }
             `);
@@ -690,7 +767,34 @@ function buildCSS(): string {
     }
 
     if (st.panelBackgroundColor) {
-        lines.push(`${S.panelContainer} { background-color: ${st.panelBackgroundColor} !important; }`);
+        const bgColor = applyColorAlpha(st.panelBackgroundColor, 100 - st.panelBackgroundOpacity);
+        lines.push(`
+            section[class*="panels_"],
+            .panels__5e434 {
+                background: ${bgColor} !important;
+                background-color: ${bgColor} !important;
+            }
+            ${S.panelContainer} {
+                background: transparent !important;
+                background-color: transparent !important;
+            }
+        `);
+    }
+
+    if (st.callBackgroundButtonOpacity !== undefined) {
+        lines.push(`
+            .button_e131a9 .buttonColor_e131a9, .button_e131a9.buttonColor_e131a9 {
+                background-color: hsl(from var(--control-secondary-background-default) h s l / ${st.callBackgroundButtonOpacity / 100});
+            }
+        `);
+
+        if (st.callBackgroundButtonOpacity === 0) {
+            lines.push(`
+                .button_e131a9 .buttonColor_e131a9, .button_e131a9.buttonColor_e131a9 {
+                    border-width: 0px;
+                }
+            `);
+        }
     }
 
     switch (st.hoverEffect) {
@@ -717,6 +821,7 @@ function buildCSS(): string {
     if (st.hideCamera) lines.push(`${getBtnSelector("Camera")} { display: none !important; }`);
     if (st.hideScreenShare) lines.push(`${getBtnSelector("Screen Share")} { display: none !important; }`);
     if (st.hideActivity) lines.push(`${getBtnSelector("Activity")} { display: none !important; }`);
+    if (st.hideUserPanelButton) lines.push(`${getBtnSelector("Panel Layout")} { display: none !important; }`);
 
     if (st.lockButtonPosition) {
         const isSplit = ["split_row", "split_grid2", "split_grid3", "split_grid4", "all_top"].includes(st.userPanelLayout);
@@ -765,6 +870,10 @@ function buildCustomCSS(): string {
         .panels__5e434 {
             display: flex !important;
             flex-direction: column !important;
+        }
+
+        .container__37e49.vc-account-profile-preview {
+            background: linear-gradient(90deg, rgba(115, 11, 200, 0.1) 0%, rgba(115, 11, 200, 0.4) 100%) !important;
         }
     `);
 
@@ -834,8 +943,8 @@ function buildCustomCSS(): string {
             const finalRadius = cfg.radius != null ? `${cfg.radius}px` : "10px";
 
             lines.push(`
-                ${S.previewButtonOn}[data-panellayout-label="${cfg.label}"]:hover,
-                ${S.previewButtonOn}[data-panellayout-label="${cfg.label}"],
+                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"]:hover,
+                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"],
                 ${sel} button[role="switch"][aria-checked="true"]:hover,
                 ${sel} button[role="switch"][aria-checked="true"],
                 ${sel} button[aria-checked="true"]:hover,
@@ -847,7 +956,7 @@ function buildCustomCSS(): string {
                     border-radius: ${finalRadius} !important;
                 }
 
-                ${S.previewButtonOn}[data-panellayout-label="${cfg.label}"] svg,
+                ${S.previewButtonOn}[data-deracul-label="${cfg.label}"] svg,
                 ${sel} button[role="switch"][aria-checked="true"] svg,
                 ${sel} button[aria-checked="true"] svg,
                 ${sel}[aria-checked="true"] svg {
@@ -865,7 +974,7 @@ function buildCustomCSS(): string {
             const finalRadius = cfg.radiusOff != null ? `${cfg.radiusOff}px` : "10px";
 
             lines.push(`
-                ${S.previewButtonOff}[data-panellayout-label="${cfg.label}"],
+                ${S.previewButtonOff}[data-deracul-label="${cfg.label}"],
                 ${sel} button[role="switch"][aria-checked="false"],
                 ${sel} button[aria-checked="false"],
                 ${sel}[aria-checked="false"] {
@@ -875,7 +984,7 @@ function buildCustomCSS(): string {
                     border-radius: ${finalRadius} !important;
                 }
 
-                ${S.previewButtonOff}[data-panellayout-label="${cfg.label}"]:hover,
+                ${S.previewButtonOff}[data-deracul-label="${cfg.label}"]:hover,
                 ${sel} button[role="switch"][aria-checked="false"]:hover,
                 ${sel} button[aria-checked="false"]:hover,
                 ${sel}[aria-checked="false"]:hover {
@@ -1317,6 +1426,7 @@ function ButtonsDragTab() {
     const dragFromIndex = React.useRef<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
     const [activeDragIndex, setActiveDragIndex] = React.useState<number | null>(null);
+    const [dropPosition, setDropPosition] = React.useState<"before" | "after">("before");
 
     React.useEffect(() => {
         if (!listeningId) return;
@@ -1344,20 +1454,27 @@ function ButtonsDragTab() {
     const handleDragOver = (e: React.DragEvent, index: number) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
+        const rect = e.currentTarget.getBoundingClientRect();
+        const pos = e.clientX < rect.left + rect.width / 2 ? "before" : "after";
         if (dragOverIndex !== index) setDragOverIndex(index);
+        if (dropPosition !== pos) setDropPosition(pos);
     };
 
     const commitDrop = (targetIndex: number) => {
         const fromIndex = dragFromIndex.current;
-        if (fromIndex !== null && fromIndex !== targetIndex) {
-            setItems(prev => {
-                const next = [...prev];
-                const [moved] = next.splice(fromIndex, 1);
-                next.splice(targetIndex, 0, moved);
-                next.forEach((it, idx) => setBtnCfg(it.id, { order: idx * 10 }));
-                apply();
-                return next;
-            });
+        if (fromIndex !== null && fromIndex >= 0 && fromIndex < items.length && targetIndex >= 0 && targetIndex < items.length) {
+            const desiredSlot = dropPosition === "after" ? targetIndex + 1 : targetIndex;
+            const insertIndex = fromIndex < desiredSlot ? desiredSlot - 1 : desiredSlot;
+            if (insertIndex !== fromIndex && insertIndex >= 0 && insertIndex < items.length) {
+                setItems(prev => {
+                    const next = [...prev];
+                    const [moved] = next.splice(fromIndex, 1);
+                    next.splice(insertIndex, 0, moved);
+                    next.forEach((it, idx) => setBtnCfg(it.id, { order: idx * 10 }));
+                    apply();
+                    return next;
+                });
+            }
         }
         dragFromIndex.current = null;
         setActiveDragIndex(null);
@@ -1389,14 +1506,15 @@ function ButtonsDragTab() {
                         <div style={{
                             display: "flex",
                         }}>
-                            <div className="panellayout-scrollbar" style={{
+                            <div className="deracul-scrollbar" style={{
                                 display: "flex",
                                 flexDirection: "row",
                                 gap: "12px",
                                 overflowX: "auto",
                                 flex: 1,
                                 minWidth: 0,
-                                alignItems: "center"
+                                alignItems: "center",
+                                padding: "4px 8px",
                             }}>
                                 {items.map((item, index) => {
                                     const cfg = getBtnCfg(item.id);
@@ -1405,6 +1523,7 @@ function ButtonsDragTab() {
                                     const canonical = getCanonicalLabel(item.label);
                                     const isMute = canonical === "Mute";
                                     const isDeafen = canonical === "Deafen";
+                                    const isPanelLayout = canonical === "Panel Layout" || item.id === "Panel Layout" || item.label === "Panel Layout";
 
                                     return (
                                         <div
@@ -1412,23 +1531,43 @@ function ButtonsDragTab() {
                                             draggable
                                             onDragStart={e => handleDragStart(e, index)}
                                             onDragOver={e => handleDragOver(e, index)}
-                                            onDragLeave={() => { if (dragOverIndex === index) setDragOverIndex(null); }}
+                                            onDragLeave={e => {
+                                                if (!e.currentTarget.contains(e.relatedTarget as Node) && dragOverIndex === index) {
+                                                    setDragOverIndex(null);
+                                                }
+                                            }}
                                             onDrop={e => handleDrop(e, index)}
                                             onDragEnd={handleDragEnd}
                                             style={{
+                                                position: "relative",
                                                 display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
                                                 cursor: isDragging ? "grabbing" : "grab",
                                                 opacity: isDragging ? 0.35 : 1,
                                                 transform: isDragging ? "scale(0.94)" : "scale(1)",
-                                                borderLeft: isOver ? "3px solid var(--brand-experiment, var(--background-brand))" : "3px solid transparent",
-                                                paddingLeft: isOver ? "6px" : "0px",
-                                                transition: "border 0.1s ease, padding 0.1s ease, opacity 0.1s ease, transform 0.1s ease",
+                                                transition: "opacity 0.1s ease, transform 0.1s ease",
+                                                userSelect: "none",
                                             }}
                                             title={item.label}
                                         >
+                                            {isOver && (
+                                                <div
+                                                    style={{
+                                                        position: "absolute",
+                                                        top: "0px",
+                                                        bottom: "0px",
+                                                        left: dropPosition === "before" ? "-7px" : undefined,
+                                                        right: dropPosition === "after" ? "-7px" : undefined,
+                                                        width: "2px",
+                                                        borderRadius: "2px",
+                                                        backgroundColor: "var(--brand-experiment, var(--background-brand))",
+                                                        zIndex: 10,
+                                                        pointerEvents: "none",
+                                                    }}
+                                                />
+                                            )}
                                             {isMute && (
                                                 <div
-                                                    className="panellayout-btn-preview"
+                                                    className="deracul-btn-preview"
                                                     dangerouslySetInnerHTML={{ __html: svgs.muteOff }}
                                                     style={{
                                                         width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
@@ -1439,7 +1578,7 @@ function ButtonsDragTab() {
 
                                             {isDeafen && (
                                                 <div
-                                                    className="panellayout-btn-preview"
+                                                    className="deracul-btn-preview"
                                                     dangerouslySetInnerHTML={{ __html: svgs.deafenOff }}
                                                     style={{
                                                         width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
@@ -1450,7 +1589,7 @@ function ButtonsDragTab() {
 
                                             {!isMute && !isDeafen && (
                                                 <div
-                                                    className="panellayout-btn-preview"
+                                                    className="deracul-btn-preview"
                                                     dangerouslySetInnerHTML={{ __html: item.iconHTML }}
                                                     style={{
                                                         width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
@@ -1459,12 +1598,17 @@ function ButtonsDragTab() {
                                                     }} />
                                             )}
 
-                                            <MiniToggle
-                                                value={!cfg.hidden}
-                                                onChange={v => {
-                                                    setBtnCfg(item.id, { hidden: !v });
-                                                    apply(); forceUpdate();
-                                                }} />
+                                            {!isPanelLayout ? (
+                                                <MiniToggle
+                                                    value={!cfg.hidden}
+                                                    onChange={v => {
+                                                        setBtnCfg(item.id, { hidden: !v });
+                                                        apply(); forceUpdate();
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div style={{ width: "26px", height: "14px" }} />
+                                            )}
                                         </div>
                                     );
                                 })}
@@ -1501,7 +1645,7 @@ function ButtonsDragTab() {
                         </div>
                     </Card>
 
-                    <div className="panellayout-scrollbar" style={{
+                    <div className="deracul-scrollbar" style={{
                         display: "flex",
                         flexDirection: "column",
                         gap: "12px",
@@ -1902,96 +2046,224 @@ function SvgPreview({ icon, enabled = true }: { icon?: any; enabled?: boolean; }
     );
 }
 
-function SubModalButton({
+function CustomizationRowButton({
     item,
-    cfg,
     handleOpenSubModal,
+    onHover,
+    onUnhover,
 }: {
     item: BtnItem;
-    cfg: any;
     handleOpenSubModal: (item: BtnItem) => void;
+    onHover: (label: string) => void;
+    onUnhover: () => void;
 }) {
+    const cfg = getBtnCfg(item.id);
     const canonical = getCanonicalLabel(item.label);
     const isMute = canonical === "Mute";
     const isDeafen = canonical === "Deafen";
 
+    const hasColorfulInactive = Boolean(cfg.colorfulInActiveButton);
+    const baseColor = cfg.colorOff || "#000000";
+    const alphaVal = Math.round(((cfg.opacityOff ?? 22) / 100) * 255).toString(16).padStart(2, "0");
+    const previewBg = hasColorfulInactive
+        ? `${baseColor.slice(0, 7)}${alphaVal}`
+        : undefined;
+    const previewRadius = cfg.radiusOff != null
+        ? `${cfg.radiusOff}px`
+        : (cfg.radius != null ? `${cfg.radius}px` : undefined);
+
     return (
-        <button
-            onClick={() => handleOpenSubModal(item)}
-            className="SubModalButton"
-        >
-            <BaseText size="sm" color="text-muted" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                {isMute && (
-                    <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                )}
+        <TooltipContainer text={item.label}>
+            <div
+                className="vc-pl-custom-btn-wrapper"
+                onClick={() => handleOpenSubModal(item)}
+                onMouseEnter={() => onHover(item.label)}
+                onMouseLeave={onUnhover}
+                style={{
+                    borderRadius: previewRadius,
+                }}
+            >
+                <div
+                    className="vc-pl-custom-btn-preview"
+                    style={{
+                        backgroundColor: previewBg,
+                        borderRadius: previewRadius,
+                    }}
+                >
+                    {isMute && (
+                        <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                    )}
 
-                {isDeafen && (
-                    <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                )}
+                    {isDeafen && (
+                        <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                    )}
 
-                {!isMute && !isDeafen && (
-                    <SvgPreview icon={item.iconHTML} enabled={true} />
-                )}
+                    {!isMute && !isDeafen && (
+                        <SvgPreview icon={item.iconHTML} enabled={true} />
+                    )}
+                </div>
 
-                {cfg.label}
-            </BaseText>
-        </button>
+                <div
+                    className="vc-pl-custom-btn-settings"
+                    style={{
+                        borderRadius: previewRadius,
+                    }}
+                    title={`Customize ${item.label}`}
+                >
+                    <span
+                        dangerouslySetInnerHTML={{ __html: svgs.settings }}
+                        className="vc-pl-custom-btn-settings-icon"
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+                    />
+                </div>
+            </div>
+        </TooltipContainer>
     );
 }
 
 function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const [items] = React.useState<BtnItem[]>(getBtnItems());
+    const [hoveredLabel, setHoveredLabel] = React.useState<string | null>(null);
 
     const handleOpenSubModal = (item: BtnItem) => {
         openModalLazy(async () => (props: RenderModalProps) => (
-            <SettingModal modalProps={props} label={item.label} icon={{ __html: item.iconHTML }} />
+            <SettingModal
+                modalProps={{
+                    ...props,
+                    onClose: () => {
+                        props.onClose();
+                        forceUpdate();
+                    },
+                }}
+                label={item.label}
+                icon={{ __html: item.iconHTML }}
+            />
         ));
     };
 
+    const customizableItems = (items ?? []).filter(item =>
+        !getBtnCfg(item.id).hidden &&
+        getCanonicalLabel(item.label) !== "Soundboard disabled when deafened" &&
+        getCanonicalLabel(item.label) !== "Open Soundboard" &&
+        getCanonicalLabel(item.label) !== "User Settings" &&
+        getCanonicalLabel(item.label) !== "Panel Layout"
+    );
+
+    const modalWidth = Math.min(Math.max(customizableItems.length * 60 + 84, 440), 1100);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    React.useLayoutEffect(() => {
+        const modalEl = containerRef.current?.closest<HTMLElement>(".vc-pl-btn-custom-modal");
+        if (modalEl) {
+            modalEl.style.setProperty("width", `${modalWidth}px`, "important");
+            modalEl.style.setProperty("max-width", "min(92vw, 1100px)", "important");
+        }
+    }, [modalWidth]);
+
     return (
-        <Modal title={<BaseText size="sm" color="text-muted">Button customization</BaseText>} {...modalProps} size="md">
-            {items.length === 0 ? (
-                <BaseText size="sm" color="text-muted">
-                    No buttons detected. Open this tab again once buttons load.
-                </BaseText>
-            ) : (
-                <div style={{ display: "flex", flexDirection: "column", maxHeight: "200px" }}>
-                    <div className="panellayout-scrollbar" style={{ paddingTop: "1px", overflowY: "auto", paddingRight: "4px" }}>
-                        <Flex flexDirection="column" gap={8}>
-                            {(items ?? [])
-                                .filter(item => !getBtnCfg(item.id).hidden &&
-                                    getCanonicalLabel(item.label) !== "Soundboard disabled when deafened" &&
-                                    getCanonicalLabel(item.label) !== "Open Soundboard" &&
-                                    getCanonicalLabel(item.label) !== "User Settings" &&
-                                    getCanonicalLabel(item.label) !== "Panel Layout"
-                                )
-                                .map(item => {
-                                    const cfg = getBtnCfg(item.id);
-
-                                    return (
-                                        <SubModalButton
-                                            key={item.id}
-                                            item={item}
-                                            cfg={cfg}
-                                            handleOpenSubModal={handleOpenSubModal}
-                                        />
-                                    );
-                                })}
-                        </Flex>
+        <Modal
+            title={<BaseText size="sm" color="text-muted">Button customization</BaseText>}
+            {...modalProps}
+            size="sm"
+            className="vc-pl-btn-custom-modal"
+        >
+            <style>{`
+                .vc-pl-btn-custom-modal {
+                    width: ${modalWidth}px !important;
+                    max-width: min(92vw, 1100px) !important;
+                }
+            `}</style>
+            <div ref={containerRef} style={{ width: "100%" }}>
+                {customizableItems.length === 0 ? (
+                    <div style={{ padding: "24px 16px", textAlign: "center" }}>
+                        <BaseText size="sm" color="text-muted">
+                            No buttons detected or all buttons are hidden. Open this tab again once buttons load.
+                        </BaseText>
                     </div>
-                </div>
-            )}
+                ) : (
+                    <div
+                        style={{
+                            background: "var(--background-base-lower-alt, rgba(0, 0, 0, 0.2))",
+                            border: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))",
+                            borderRadius: "10px",
+                            padding: "20px 20px 16px",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "100%",
+                            boxSizing: "border-box",
+                        }}
+                    >
+                        <div
+                            className="deracul-scrollbar vc-pl-custom-btn-row"
+                            style={{
+                                display: "flex",
+                                flexDirection: "row",
+                                flexWrap: "nowrap",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "12px",
+                                maxWidth: "100%",
+                                width: "100%",
+                                padding: "8px 4px",
+                                boxSizing: "border-box",
+                                overflowX: "auto",
+                            }}
+                        >
+                            {customizableItems.map(item => (
+                                <CustomizationRowButton
+                                    key={item.id}
+                                    item={item}
+                                    handleOpenSubModal={handleOpenSubModal}
+                                    onHover={setHoveredLabel}
+                                    onUnhover={() => setHoveredLabel(null)}
+                                />
+                            ))}
+                        </div>
 
-            <Flex gap={8} justifyContent="flex-end" style={{ width: "100%", marginTop: "var(--custom-modal-padding-md)" }}>
-                <div style={{ flex: 1 }} />
-                <Button
-                    variant="secondary"
-                    style={{ backgroundColor: "#174b71", color: "#fff" }}
-                    onClick={() => modalProps.onClose()}
+                        <div
+                            style={{
+                                marginTop: "12px",
+                                minHeight: "22px",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                textAlign: "center",
+                            }}
+                        >
+                            <BaseText
+                                size="sm"
+                                color={hoveredLabel ? "text-default" : "text-muted"}
+                                style={{
+                                    transition: "all 0.15s ease",
+                                    fontWeight: hoveredLabel ? "600" : "400",
+                                }}
+                            >
+                                {hoveredLabel ? `Customize: ${hoveredLabel}` : "Hover over a button to customize"}
+                            </BaseText>
+                        </div>
+                    </div>
+                )}
+
+                <div
+                    style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        width: "100%",
+                        marginTop: "var(--custom-modal-padding-md, 16px)",
+                    }}
                 >
-                    Done
-                </Button>
-            </Flex>
+                    <Button
+                        variant="secondary"
+                        style={{ backgroundColor: "#174b71", color: "#fff" }}
+                        onClick={() => modalProps.onClose()}
+                    >
+                        Done
+                    </Button>
+                </div>
+            </div>
         </Modal>
     );
 }
@@ -2032,7 +2304,7 @@ function SettingModalItem({
 
         if (typeof label === "string") {
             targetEl =
-                document.querySelector(`${S.panelContainer} [data-panellayout-label="${label}"]`) ||
+                document.querySelector(`${S.panelContainer} [data-deracul-label="${label}"]`) ||
                 document.querySelector(`${S.panelContainer} ${S.panelButton}`) ||
                 document.querySelector(S.panelButton);
         } else if (label && "current" in label) {
@@ -2059,9 +2331,9 @@ function SettingModalItem({
         if (!label) return;
 
         const buttonEl = document.querySelector<HTMLElement>(
-            `${S.panelContainer} [data-panellayout-label="${label}"]`
+            `${S.panelContainer} [data-deracul-label="${label}"]`
         ) || document.querySelector<HTMLElement>(
-            `${S.panelContainer} ${S.panelButton}[data-panellayout-label="${label}"]`
+            `${S.panelContainer} ${S.panelButton}[data-deracul-label="${label}"]`
         );
 
         if (!buttonEl) return;
@@ -2122,7 +2394,7 @@ function SettingModalItem({
             size="xl"
         >
             <div style={{ display: "flex", flexDirection: "row-reverse", gap: "24px", height: `${MODAL_BODY_HEIGHT}px` }}>
-                <div className="panellayout-scrollbar" style={{ flex: 1, height: "100%", overflowY: "auto", paddingRight: "4px" }}>
+                <div className="deracul-scrollbar" style={{ flex: 1, height: "100%", overflowY: "auto", paddingRight: "4px" }}>
                     <Flex flexDirection="column" gap={16}>
                         {!isUserSettings && !isPanelLayout && (
                             <>
@@ -2224,7 +2496,7 @@ function SettingModalItem({
                                 <BaseText size="xs" color="text-muted">OFF State</BaseText>
                                 <button
                                     className={!isMute && !isDeafen ? "buttonPreview previewButtonOff plateMuted__67645" : "buttonPreview previewButtonOff"}
-                                    data-panellayout-label={cfg.label}
+                                    data-deracul-label={cfg.label}
                                     style={{
                                         "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
                                         "--custom-nameplate-neutral": customNameplateNeutral,
@@ -2254,7 +2526,7 @@ function SettingModalItem({
                                 <BaseText size="xs" color="text-muted">ON State</BaseText>
                                 <button
                                     className={isMute || isDeafen ? "buttonPreview previewButtonOn button__201d5 lookBlank__201d5 plateMuted__67645" : "buttonPreview previewButtonOn button__201d5 lookBlank__201d5"}
-                                    data-panellayout-label={cfg.label}
+                                    data-deracul-label={cfg.label}
                                     style={{
                                         "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
                                         "--custom-nameplate-neutral": customNameplateNeutral,
@@ -2405,6 +2677,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("buttonStyle", "default");
         set("hoverEffect", "default");
         set("panelBackgroundColor", "#0e1852");
+        set("panelBackgroundOpacity", 0);
         set("glowColor", "#ffffff");
         set("forceNativeButtonColor", false);
         set("hideChevrons", false);
@@ -2416,6 +2689,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("hideMute", false);
         set("hideDeafen", false);
         set("hideSettings", false);
+        set("hideUserPanelButton", false);
         set("hideCamera", false);
         set("hideScreenShare", false);
         set("hideActivity", false);
@@ -2505,7 +2779,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
             {...modalProps}
             size="xl"
         >
-            <div className="panellayout-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px" }}>
+            <div className="deracul-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px" }}>
                 <Flex flexDirection="column" gap={16}>
                     {tab === "panel" && <>
                         <SectionHeading>Layout Structure</SectionHeading>
@@ -2536,6 +2810,11 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <Dropdown label="Call Controls Alignment" options={CALL_LAYOUTS} value={s.callControlsLayout} onChange={v => set("callControlsLayout", v)} />
                         </Card>
 
+                        <SectionHeading>Background Button Opacity</SectionHeading>
+                        <Card variant="primary">
+                            <SliderRow label="Background Button Opacity" value={s.callBackgroundButtonOpacity ?? 12} min={0} max={100} unit="%" onChange={v => set("callBackgroundButtonOpacity", Math.round(v))} resetKey={resetKey} />
+                        </Card>
+
                         <SectionHeading>Voice Settings</SectionHeading>
                         <Card variant="primary">
                             <FormSwitch title="Compact Mode" description="Reduces padding inside call buttons to save space." value={s.callCompact} onChange={v => set("callCompact", v)} />
@@ -2560,6 +2839,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <Card variant="primary">
                             <div style={{ display: "grid", gap: "8px" }}>
                                 <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} preset="#0e1852" />
+                                <SliderRow label="Background Opacity" value={s.panelBackgroundOpacity ?? 100} min={0} max={100} unit="%" onChange={v => set("panelBackgroundOpacity", Math.round(v))} resetKey={resetKey} />
 
                                 {settings.store.hoverEffect === "glow" && <>
                                     <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} preset="#ffffff" />
@@ -2578,7 +2858,8 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <Card variant="primary">
                             <FormSwitch title="Hide Mute" value={s.hideMute} onChange={v => set("hideMute", v)} />
                             <FormSwitch title="Hide Deafen" value={s.hideDeafen} onChange={v => set("hideDeafen", v)} />
-                            <FormSwitch title="Hide User Settings" value={s.hideSettings} onChange={v => set("hideSettings", v)} hideBorder />
+                            <FormSwitch title="Hide User Settings" value={s.hideSettings} onChange={v => set("hideSettings", v)} />
+                            <FormSwitch title="Hide User Panel Button" value={s.hideUserPanelButton} onChange={v => set("hideUserPanelButton", v)} hideBorder />
                         </Card>
 
                         <SectionHeading>Call Buttons</SectionHeading>
@@ -2609,7 +2890,12 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
 
 // ─── Panel Button ─────────────────────────────────────────────────────────────
 
+const PANEL_BUTTON_SETTINGS_KEYS = ["hideUserPanelButton"] as const;
+
 function PanelLayoutButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
+    const { hideUserPanelButton } = settings.use(PANEL_BUTTON_SETTINGS_KEYS);
+    if (hideUserPanelButton) return null;
+
     const handleOpen = () => openModalLazy(async () => modalProps => <PanelLayoutModal modalProps={modalProps} />);
 
     return (
@@ -2628,9 +2914,18 @@ function PanelLayoutButton({ iconForeground, hideTooltips, nameplate }: UserArea
 export default definePlugin({
     name: "PanelLayout",
     description: "Customize the layout, style, and visibility of panel and call buttons, and manage user area modules.",
-    authors: [TestcordDevs.Aviv, TestcordDevs.x2b, TestcordDevs.sirphantom89],
+    authors: [TestcordDevs.deracul, TestcordDevs.Aviv, TestcordDevs.x2b, TestcordDevs.sirphantom89],
     dependencies: ["UserSettingsAPI"],
     settings,
+    settingsAboutComponent: () => (
+        <Button
+            onClick={() => openModalLazy(async () => modalProps => <PanelLayoutModal modalProps={modalProps} />)}
+            size="small"
+            style={{ marginBottom: "16px" }}
+        >
+            Open Panel Layout Editor
+        </Button>
+    ),
     required: true,
 
     patches: [

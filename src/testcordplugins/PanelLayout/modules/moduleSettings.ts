@@ -13,6 +13,26 @@ export function defineModuleSettings<Def extends SettingsDefinition>(
 ): DefinedSettings<Def> {
     (PlainSettings.plugins as any)[moduleName] ??= {};
 
+    if (moduleName === "discordDevBanner") {
+        const legacyPlain = (PlainSettings.plugins as any).DiscordDevBanner || (PlainSettings.plugins as any).devBanner;
+        if (legacyPlain) {
+            for (const [k, v] of Object.entries(legacyPlain)) {
+                if ((PlainSettings.plugins as any)[moduleName][k] === undefined) {
+                    (PlainSettings.plugins as any)[moduleName][k] = v;
+                }
+            }
+        }
+        const legacySettings = (Settings.plugins as any)?.DiscordDevBanner || (Settings.plugins as any)?.devBanner;
+        if (legacySettings) {
+            (Settings.plugins as any)[moduleName] ??= {};
+            for (const [k, v] of Object.entries(legacySettings)) {
+                if ((Settings.plugins as any)[moduleName][k] === undefined) {
+                    (Settings.plugins as any)[moduleName][k] = v;
+                }
+            }
+        }
+    }
+
     function getDefault(key: string) {
         const setting = def[key];
         if (!setting) return undefined;

@@ -222,7 +222,7 @@
 
 .vc-settings-theme-market-card:hover {
     border-color: color-mix(in srgb, var(--brand-500, #5865f2) 60%, var(--border-subtle, rgb(255 255 255 / 15%)));
-    transform: translateY(-4px) scale(1.01);
+    transform: translateY(-2px);
     box-shadow: 0 8px 24px rgb(0 0 0 / 30%), 0 1px 0 rgb(255 255 255 / 8%) inset;
 }
 

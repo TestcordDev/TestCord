@@ -176,7 +176,6 @@ const TestcordArtistBadge: ProfileBadge = {
     id: "testcord_artist",
     description: "Testcord Artist",
     iconSrc: TESTCORD_ARTIST_BADGE,
-    link: TESTCORD_ARTIST_BADGE_URL,
     position: BadgePosition.START,
     shouldShow: ({ userId }) => isTestcordArtist(userId),
     props: {

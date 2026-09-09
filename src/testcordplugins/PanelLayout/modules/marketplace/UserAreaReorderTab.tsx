@@ -106,8 +106,6 @@ import {
 } from "../registry";
 import type { UserAreaReorderItem } from "../types";
 
-const MODAL_BODY_HEIGHT = 350;
-
 export function UserAreaReorderTab({
     pluginSettings,
     onOpenModuleSettings,
@@ -127,6 +125,7 @@ export function UserAreaReorderTab({
     const dragFromIndex = useRef<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const [activeDragIndex, setActiveDragIndex] = useState<number | null>(null);
+    const [dropPosition, setDropPosition] = useState<"above" | "below">("above");
 
     const isActivityBannerActive = modules.some(m => m.id === "activity-banner" && m.enabled);
     const visibleItems = items.filter(it => {
@@ -153,7 +152,10 @@ export function UserAreaReorderTab({
     const handleDragOver = (e: React.DragEvent, index: number) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
+        const rect = e.currentTarget.getBoundingClientRect();
+        const pos = e.clientY < rect.top + rect.height / 2 ? "above" : "below";
         if (dragOverIndex !== index) setDragOverIndex(index);
+        if (dropPosition !== pos) setDropPosition(pos);
     };
 
     const applyNewVisibleOrder = (newVisible: UserAreaReorderItem[]) => {
@@ -180,16 +182,19 @@ export function UserAreaReorderTab({
         const fromIndex = dragFromIndex.current;
         if (
             fromIndex !== null &&
-            fromIndex !== targetIndex &&
             fromIndex >= 0 &&
             fromIndex < visibleItems.length &&
             targetIndex >= 0 &&
             targetIndex < visibleItems.length
         ) {
-            const next = [...visibleItems];
-            const [moved] = next.splice(fromIndex, 1);
-            next.splice(targetIndex, 0, moved);
-            applyNewVisibleOrder(next);
+            const desiredSlot = dropPosition === "below" ? targetIndex + 1 : targetIndex;
+            const insertIndex = fromIndex < desiredSlot ? desiredSlot - 1 : desiredSlot;
+            if (insertIndex !== fromIndex && insertIndex >= 0 && insertIndex < visibleItems.length) {
+                const next = [...visibleItems];
+                const [moved] = next.splice(fromIndex, 1);
+                next.splice(insertIndex, 0, moved);
+                applyNewVisibleOrder(next);
+            }
         }
         dragFromIndex.current = null;
         setActiveDragIndex(null);
@@ -268,8 +273,8 @@ export function UserAreaReorderTab({
                         flexDirection: "column",
                         boxShadow: "0 4px 16px rgba(0, 0, 0, 0.3)",
                         overflow: "hidden",
-                        maxHeight: `${MODAL_BODY_HEIGHT}px`,
                         overflowY: "auto",
+                        position: "unset",
                     }}
                 >
                     {visibleItems.filter(i => i.enabled).map((item, idx, arr) => (
@@ -305,241 +310,256 @@ export function UserAreaReorderTab({
                     </BaseText>
                 </Flex>
 
-                <div className="panellayout-scrollbar" style={{ height: `${MODAL_BODY_HEIGHT}px`, overflowY: "auto", paddingRight: "4px", gap: "6px", display: "flex", flexDirection: "column" }}>
-                    {visibleItems.map((item, index) => {
-                        const isDragging = activeDragIndex === index;
-                        const isOver = dragOverIndex === index && activeDragIndex !== index;
+                {visibleItems.map((item, index) => {
+                    const isDragging = activeDragIndex === index;
+                    const isOver = dragOverIndex === index && activeDragIndex !== index;
 
-                        return (
-                            <div
-                                key={item.id}
-                                draggable
-                                onDragStart={e => handleDragStart(e, index)}
-                                onDragOver={e => handleDragOver(e, index)}
-                                onDragLeave={() => { if (dragOverIndex === index) setDragOverIndex(null); }}
-                                onDrop={e => { e.preventDefault(); commitDrop(index); }}
-                                onDragEnd={() => {
-                                    dragFromIndex.current = null;
-                                    setActiveDragIndex(null);
+                    return (
+                        <div
+                            key={item.id}
+                            draggable
+                            onDragStart={e => handleDragStart(e, index)}
+                            onDragOver={e => handleDragOver(e, index)}
+                            onDragLeave={e => {
+                                if (!e.currentTarget.contains(e.relatedTarget as Node) && dragOverIndex === index) {
                                     setDragOverIndex(null);
-                                }}
-                                style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                    padding: "8px 12px",
-                                    borderRadius: "8px",
-                                    backgroundColor: isOver
-                                        ? "rgba(88, 101, 242, 0.18)"
-                                        : "var(--background-secondary, rgba(255, 255, 255, 0.04))",
-                                    border: isOver
-                                        ? "2px solid var(--brand-experiment, #5865f2)"
-                                        : "1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.06))",
-                                    cursor: isDragging ? "grabbing" : "grab",
-                                    opacity: isDragging ? 0.35 : item.enabled ? 1 : 0.6,
-                                    transform: isDragging ? "scale(0.98)" : "none",
-                                    transition: "all 0.12s ease",
-                                }}
-                            >
-                                <Flex alignItems="center" gap={10} style={{ flex: 1, minWidth: 0 }}>
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            color: "var(--text-muted)",
-                                            cursor: "grab",
-                                            padding: "0 4px",
-                                            opacity: 0.7,
-                                        }}
-                                        title="Drag to reorder"
-                                    >
-                                        <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
-                                            <circle cx="4" cy="3" r="1.5" />
-                                            <circle cx="8" cy="3" r="1.5" />
-                                            <circle cx="4" cy="8" r="1.5" />
-                                            <circle cx="8" cy="8" r="1.5" />
-                                            <circle cx="4" cy="13" r="1.5" />
-                                            <circle cx="8" cy="13" r="1.5" />
-                                        </svg>
-                                    </div>
+                                }
+                            }}
+                            onDrop={e => { e.preventDefault(); commitDrop(index); }}
+                            onDragEnd={() => {
+                                dragFromIndex.current = null;
+                                setActiveDragIndex(null);
+                                setDragOverIndex(null);
+                            }}
+                            style={{
+                                position: "relative",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                padding: "8px 12px",
+                                borderRadius: "8px",
+                                backgroundColor: "var(--background-secondary, rgba(255, 255, 255, 0.04))",
+                                border: "1px solid var(--background-modifier-accent, rgba(255, 255, 255, 0.06))",
+                                cursor: isDragging ? "grabbing" : "grab",
+                                opacity: isDragging ? 0.35 : item.enabled ? 1 : 0.6,
+                                transform: isDragging ? "scale(0.98)" : "none",
+                                transition: "opacity 0.12s ease, transform 0.12s ease",
+                            }}
+                        >
+                            {isOver && (
+                                <div
+                                    style={{
+                                        position: "absolute",
+                                        left: "0px",
+                                        right: "0px",
+                                        top: dropPosition === "above" ? "-4px" : undefined,
+                                        bottom: dropPosition === "below" ? "-4px" : undefined,
+                                        height: "2px",
+                                        borderRadius: "2px",
+                                        backgroundColor: "var(--brand-experiment, #5865f2)",
+                                        zIndex: 10,
+                                        pointerEvents: "none",
+                                    }}
+                                />
+                            )}
+                            <Flex alignItems="center" gap={10} style={{ flex: 1, minWidth: 0 }}>
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        color: "var(--text-muted)",
+                                        cursor: "grab",
+                                        padding: "0 4px",
+                                        opacity: 0.7,
+                                    }}
+                                    title="Drag to reorder"
+                                >
+                                    <svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor">
+                                        <circle cx="4" cy="3" r="1.5" />
+                                        <circle cx="8" cy="3" r="1.5" />
+                                        <circle cx="4" cy="8" r="1.5" />
+                                        <circle cx="8" cy="8" r="1.5" />
+                                        <circle cx="4" cy="13" r="1.5" />
+                                        <circle cx="8" cy="13" r="1.5" />
+                                    </svg>
+                                </div>
 
-                                    <div
-                                        style={{
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            width: "28px",
-                                            height: "28px",
-                                            borderRadius: "6px",
-                                            backgroundColor: item.type.startsWith("voice")
-                                                ? "rgba(35, 165, 90, 0.15)"
-                                                : item.type === "account-panel"
-                                                    ? "rgba(88, 101, 242, 0.15)"
-                                                    : "var(--background-modifier-accent, rgba(255, 255, 255, 0.08))",
-                                            color: item.type.startsWith("voice")
-                                                ? "var(--status-positive, #23a55a)"
-                                                : item.type === "account-panel"
-                                                    ? "var(--brand-experiment, #5865f2)"
-                                                    : "var(--interactive-normal)",
-                                            flexShrink: 0,
-                                        }}
-                                    >
-                                        {getItemIcon(item)}
-                                    </div>
+                                <div
+                                    style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        width: "28px",
+                                        height: "28px",
+                                        borderRadius: "6px",
+                                        backgroundColor: item.type.startsWith("voice")
+                                            ? "rgba(35, 165, 90, 0.15)"
+                                            : item.type === "account-panel"
+                                                ? "rgba(88, 101, 242, 0.15)"
+                                                : "var(--background-modifier-accent, rgba(255, 255, 255, 0.08))",
+                                        color: item.type.startsWith("voice")
+                                            ? "var(--status-positive, #23a55a)"
+                                            : item.type === "account-panel"
+                                                ? "var(--brand-experiment, #5865f2)"
+                                                : "var(--interactive-normal)",
+                                        flexShrink: 0,
+                                    }}
+                                >
+                                    {getItemIcon(item)}
+                                </div>
 
-                                    <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-                                        <Flex alignItems="center" gap={6}>
-                                            <BaseText size="sm" weight="semibold" color="text-strong">
-                                                {item.name}
-                                            </BaseText>
-                                            {item.type !== "module" && (
-                                                <span
-                                                    style={{
-                                                        fontSize: "9px",
-                                                        fontWeight: 700,
-                                                        color: "var(--text-muted)",
-                                                        backgroundColor: "var(--background-tertiary, rgba(0,0,0,0.3))",
-                                                        padding: "1px 5px",
-                                                        borderRadius: "4px",
-                                                        textTransform: "uppercase",
-                                                    }}
-                                                >
-                                                    Discord Native
-                                                </span>
-                                            )}
-                                        </Flex>
-                                        <BaseText size="xs" color="text-muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                            {item.description}
+                                <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                                    <Flex alignItems="center" gap={6}>
+                                        <BaseText size="sm" weight="semibold" color="text-strong">
+                                            {item.name}
                                         </BaseText>
-                                    </div>
-                                </Flex>
-
-                                <Flex gap={4} alignItems="center" style={{ flexShrink: 0, marginLeft: "8px" }} onMouseDown={e => e.stopPropagation()}>
-                                    <Flex gap={2} alignItems="center">
-                                        <button
-                                            type="button"
-                                            onClick={e => {
-                                                e.stopPropagation();
-                                                moveItem(index, -1);
-                                            }}
-                                            disabled={index === 0}
-                                            title="Move Up"
-                                            style={{
-                                                width: "26px",
-                                                height: "26px",
-                                                borderRadius: "4px",
-                                                backgroundColor: "transparent",
-                                                color: index === 0 ? "var(--text-muted)" : "var(--interactive-normal)",
-                                                border: "none",
-                                                cursor: index === 0 ? "default" : "pointer",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                opacity: index === 0 ? 0.3 : 1,
-                                                transition: "all 0.12s ease",
-                                                padding: 0,
-                                            }}
-                                            onMouseEnter={e => {
-                                                if (index !== 0) {
-                                                    e.currentTarget.style.color = "var(--interactive-active)";
-                                                    e.currentTarget.style.backgroundColor = "var(--background-modifier-hover, rgba(255, 255, 255, 0.08))";
-                                                }
-                                            }}
-                                            onMouseLeave={e => {
-                                                e.currentTarget.style.color = index === 0 ? "var(--text-muted)" : "var(--interactive-normal)";
-                                                e.currentTarget.style.backgroundColor = "transparent";
-                                            }}
-                                        >
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="18 15 12 9 6 15" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={e => {
-                                                e.stopPropagation();
-                                                moveItem(index, 1);
-                                            }}
-                                            disabled={index === visibleItems.length - 1}
-                                            title="Move Down"
-                                            style={{
-                                                width: "26px",
-                                                height: "26px",
-                                                borderRadius: "4px",
-                                                backgroundColor: "transparent",
-                                                color: index === visibleItems.length - 1 ? "var(--text-muted)" : "var(--interactive-normal)",
-                                                border: "none",
-                                                cursor: index === visibleItems.length - 1 ? "default" : "pointer",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                opacity: index === visibleItems.length - 1 ? 0.3 : 1,
-                                                transition: "all 0.12s ease",
-                                                padding: 0,
-                                            }}
-                                            onMouseEnter={e => {
-                                                if (index !== visibleItems.length - 1) {
-                                                    e.currentTarget.style.color = "var(--interactive-active)";
-                                                    e.currentTarget.style.backgroundColor = "var(--background-modifier-hover, rgba(255, 255, 255, 0.08))";
-                                                }
-                                            }}
-                                            onMouseLeave={e => {
-                                                e.currentTarget.style.color = index === visibleItems.length - 1 ? "var(--text-muted)" : "var(--interactive-normal)";
-                                                e.currentTarget.style.backgroundColor = "transparent";
-                                            }}
-                                        >
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                                <polyline points="6 9 12 15 18 9" />
-                                            </svg>
-                                        </button>
+                                        {item.type !== "module" && (
+                                            <span
+                                                style={{
+                                                    fontSize: "9px",
+                                                    fontWeight: 700,
+                                                    color: "var(--text-muted)",
+                                                    backgroundColor: "var(--background-tertiary, rgba(0,0,0,0.3))",
+                                                    padding: "1px 5px",
+                                                    borderRadius: "4px",
+                                                    textTransform: "uppercase",
+                                                }}
+                                            >
+                                                Discord Native
+                                            </span>
+                                        )}
                                     </Flex>
+                                    <BaseText size="xs" color="text-muted" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        {item.description}
+                                    </BaseText>
+                                </div>
+                            </Flex>
 
-                                    {item.hasSettings && (
-                                        <button
-                                            type="button"
-                                            onClick={e => {
-                                                e.stopPropagation();
-                                                handleSettingsClick(item);
-                                            }}
-                                            title={item.id === "voice-connected" || item.type === "voice-connected" ? "Configure Call Bar" : "Settings"}
-                                            style={{
-                                                width: "28px",
-                                                height: "28px",
-                                                borderRadius: "4px",
-                                                backgroundColor: "transparent",
-                                                color: "var(--interactive-normal)",
-                                                border: "none",
-                                                cursor: "pointer",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "center",
-                                                transition: "background-color 0.15s ease, color 0.15s ease",
-                                            }}
-                                            onMouseEnter={e => {
+                            <Flex gap={4} alignItems="center" style={{ flexShrink: 0, marginLeft: "8px" }} onMouseDown={e => e.stopPropagation()}>
+                                <Flex gap={2} alignItems="center">
+                                    <button
+                                        type="button"
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            moveItem(index, -1);
+                                        }}
+                                        disabled={index === 0}
+                                        title="Move Up"
+                                        style={{
+                                            width: "26px",
+                                            height: "26px",
+                                            borderRadius: "4px",
+                                            backgroundColor: "transparent",
+                                            color: index === 0 ? "var(--text-muted)" : "var(--interactive-normal)",
+                                            border: "none",
+                                            cursor: index === 0 ? "default" : "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            opacity: index === 0 ? 0.3 : 1,
+                                            transition: "all 0.12s ease",
+                                            padding: 0,
+                                        }}
+                                        onMouseEnter={e => {
+                                            if (index !== 0) {
                                                 e.currentTarget.style.color = "var(--interactive-active)";
                                                 e.currentTarget.style.backgroundColor = "var(--background-modifier-hover, rgba(255, 255, 255, 0.08))";
-                                            }}
-                                            onMouseLeave={e => {
-                                                e.currentTarget.style.color = "var(--interactive-normal)";
-                                                e.currentTarget.style.backgroundColor = "transparent";
-                                            }}
-                                        >
-                                            <SettingsGearIcon size={16} />
-                                        </button>
-                                    )}
-
-                                    <FormSwitch
-                                        title=""
-                                        value={item.enabled}
-                                        onChange={v => toggleItem(item.id, v)}
-                                        hideBorder
-                                    />
+                                            }
+                                        }}
+                                        onMouseLeave={e => {
+                                            e.currentTarget.style.color = index === 0 ? "var(--text-muted)" : "var(--interactive-normal)";
+                                            e.currentTarget.style.backgroundColor = "transparent";
+                                        }}
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="18 15 12 9 6 15" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            moveItem(index, 1);
+                                        }}
+                                        disabled={index === visibleItems.length - 1}
+                                        title="Move Down"
+                                        style={{
+                                            width: "26px",
+                                            height: "26px",
+                                            borderRadius: "4px",
+                                            backgroundColor: "transparent",
+                                            color: index === visibleItems.length - 1 ? "var(--text-muted)" : "var(--interactive-normal)",
+                                            border: "none",
+                                            cursor: index === visibleItems.length - 1 ? "default" : "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            opacity: index === visibleItems.length - 1 ? 0.3 : 1,
+                                            transition: "all 0.12s ease",
+                                            padding: 0,
+                                        }}
+                                        onMouseEnter={e => {
+                                            if (index !== visibleItems.length - 1) {
+                                                e.currentTarget.style.color = "var(--interactive-active)";
+                                                e.currentTarget.style.backgroundColor = "var(--background-modifier-hover, rgba(255, 255, 255, 0.08))";
+                                            }
+                                        }}
+                                        onMouseLeave={e => {
+                                            e.currentTarget.style.color = index === visibleItems.length - 1 ? "var(--text-muted)" : "var(--interactive-normal)";
+                                            e.currentTarget.style.backgroundColor = "transparent";
+                                        }}
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="6 9 12 15 18 9" />
+                                        </svg>
+                                    </button>
                                 </Flex>
-                            </div>
-                        );
-                    })}
-                </div>
+
+                                {item.hasSettings && (
+                                    <button
+                                        type="button"
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            handleSettingsClick(item);
+                                        }}
+                                        title={item.id === "voice-connected" || item.type === "voice-connected" ? "Configure Call Bar" : "Settings"}
+                                        style={{
+                                            width: "28px",
+                                            height: "28px",
+                                            borderRadius: "4px",
+                                            backgroundColor: "transparent",
+                                            color: "var(--interactive-normal)",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            transition: "background-color 0.15s ease, color 0.15s ease",
+                                        }}
+                                        onMouseEnter={e => {
+                                            e.currentTarget.style.color = "var(--interactive-active)";
+                                            e.currentTarget.style.backgroundColor = "var(--background-modifier-hover, rgba(255, 255, 255, 0.08))";
+                                        }}
+                                        onMouseLeave={e => {
+                                            e.currentTarget.style.color = "var(--interactive-normal)";
+                                            e.currentTarget.style.backgroundColor = "transparent";
+                                        }}
+                                    >
+                                        <SettingsGearIcon size={16} />
+                                    </button>
+                                )}
+
+                                <FormSwitch
+                                    title=""
+                                    value={item.enabled}
+                                    onChange={v => toggleItem(item.id, v)}
+                                    hideBorder
+                                />
+                            </Flex>
+                        </div>
+                    );
+                })}
             </div>
         </Flex>
     );
@@ -616,7 +636,7 @@ function LivePreviewBlock({
             content = <LiveAccountProfilePreview pluginSettings={pluginSettings} />;
             break;
         case "module":
-            content = <LiveModuleBlock item={item} />;
+            content = <LiveModuleBlock item={item} isPreview />;
             break;
         default:
             return null;
@@ -749,7 +769,7 @@ function IdleMusicControlsPreview() {
     );
 }
 
-function LiveModuleBlock({ item }: { item: UserAreaReorderItem; }) {
+function LiveModuleBlock({ item, isPreview }: { item: UserAreaReorderItem; isPreview?: boolean }) {
     const moduleId = item.moduleId || item.id;
 
     if (moduleId === "activity-banner" || moduleId === "native-activity-banner") {
@@ -761,7 +781,7 @@ function LiveModuleBlock({ item }: { item: UserAreaReorderItem; }) {
         if (hasTrack) {
             return (
                 <ErrorBoundary fallback={() => <IdleMusicControlsPreview />}>
-                    <MusicControlsComponent />
+                    <MusicControlsComponent isPreview={isPreview} />
                 </ErrorBoundary>
             );
         }
@@ -935,22 +955,22 @@ function ActionButtonsRow({ pluginSettings }: { pluginSettings?: any; }) {
     );
 }
 
-function getActiveNameplate(user: any): { src?: string; bg?: string; neutral?: string; neutralHovered?: string; } | null {
+function getActiveNameplate(user: any): { src?: string; video?: string; poster?: string; bg?: string; neutral?: string; neutralHovered?: string; } | null {
     try {
-
         const realPanels = document.querySelectorAll(
             'section[class*="panels_"]:not(.vc-panels-preview), .panels__5e434:not(.vc-panels-preview), [class*="sidebar_"] [class*="panels_"]'
         );
 
         for (const p of Array.from(realPanels)) {
-            const img = p.querySelector<HTMLImageElement>(
-                '.container_df39b2 img, [class*="container_df39b2"] img, [class*="nameplate"] img, img[src*="collectibles"], img[src*="nameplate"]'
+            const video = p.querySelector<HTMLVideoElement>(
+                '.container_df39b2 video, [class*="container_df39b2"] video, [class*="nameplate"] video'
             );
-            if (img?.src) {
-                const parent = img.closest('.container_df39b2, [class*="container_df39b2"], .container__37e49') || img.parentElement;
+            if (video?.poster || video?.currentSrc || video?.src) {
+                const parent = video.closest('.container_df39b2, [class*="container_df39b2"], .container__37e49') || video.parentElement;
                 const computed = parent ? window.getComputedStyle(parent) : null;
                 return {
-                    src: img.src,
+                    video: video.currentSrc || video.src || undefined,
+                    poster: video.poster || undefined,
                     neutral: computed?.getPropertyValue("--custom-nameplate-neutral").trim() || undefined,
                     neutralHovered: computed?.getPropertyValue("--custom-nameplate-neutral-hovered").trim() || undefined,
                 };
@@ -984,12 +1004,15 @@ function getActiveNameplate(user: any): { src?: string; bg?: string; neutral?: s
             }
         }
 
-        // Also check document-wide for any active user area nameplate img
-        const anyNameplateImg = document.querySelector<HTMLImageElement>(
-            '.container_df39b2 img, [class*="container_df39b2"] img, .container__37e49 [class*="nameplate"] img'
+        // Also check document-wide for any active user area nameplate video
+        const anyNameplateVideo = document.querySelector<HTMLVideoElement>(
+            '.container_df39b2 video, [class*="container_df39b2"] video, .container__37e49 [class*="nameplate"] video'
         );
-        if (anyNameplateImg?.src) {
-            return { src: anyNameplateImg.src };
+        if (anyNameplateVideo?.poster || anyNameplateVideo?.currentSrc || anyNameplateVideo?.src) {
+            return {
+                video: anyNameplateVideo.currentSrc || anyNameplateVideo.src || undefined,
+                poster: anyNameplateVideo.poster || undefined,
+            };
         }
 
         if (user) {
@@ -1073,10 +1096,8 @@ function LiveAccountProfilePreview({ pluginSettings }: { pluginSettings?: any; }
             className="container__37e49 vc-account-profile-preview"
             style={{
                 position: "relative",
-                backgroundColor: "var(--background-secondary-alt, #1e1f22)",
                 display: "flex",
                 flexDirection: "column",
-                width: "100%",
                 boxSizing: "border-box",
                 borderRadius: "8px",
                 overflow: "hidden",
@@ -1095,14 +1116,20 @@ function LiveAccountProfilePreview({ pluginSettings }: { pluginSettings?: any; }
                         zIndex: 0,
                     }}
                 >
-                    {nameplate.src ? (
-                        <img
-                            src={nameplate.src}
-                            alt="Nameplate"
+                    {nameplate.video ? (
+                        <video
+                            className="img_df39b2 account_df39b2"
+                            src={nameplate.video}
+                            poster={nameplate.poster}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
                             style={{
                                 width: "100%",
                                 height: "100%",
-                                objectFit: "cover",
+                                objectFit: "unset",
+                                background: "linear-gradient(90deg, rgba(115, 11, 200, 0.1) 0%, rgba(115, 11, 200, 0.4) 100%)",
                                 objectPosition: "center",
                                 display: "block",
                             }}
@@ -1286,7 +1313,6 @@ function LiveVoiceConnectedPreview({ pluginSettings }: { pluginSettings?: any; }
         <div
             className="container_e131a9 vc-call-bar-preview"
             style={{
-                backgroundColor: "var(--background-secondary, #2b2d31)",
                 padding: compact ? "6px 8px" : "8px 10px",
                 display: "flex",
                 flexDirection: "column",

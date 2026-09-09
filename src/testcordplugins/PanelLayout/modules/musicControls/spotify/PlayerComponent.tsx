@@ -86,31 +86,31 @@ function CopyContextMenu({ name, type, path }: { type: string; name: string; pat
                 label={`Copy ${type} Name`}
                 action={() => copyWithToast(name)}
                 icon={CopyIcon}
-                leadingAccessory={{ type: "icon", icon: CopyIcon }}
             />
             <Menu.MenuItem
                 id="vc-spotify-copy-link"
                 label={`Copy ${type} Link`}
                 action={() => copyWithToast("https://open.spotify.com" + path)}
                 icon={LinkIcon}
-                leadingAccessory={{ type: "icon", icon: LinkIcon }}
             />
             <Menu.MenuItem
                 id="vc-spotify-open"
                 label={`Open ${type} in Spotify`}
                 action={() => SpotifyStore.openExternal(path)}
                 icon={OpenExternalIcon}
-                leadingAccessory={{ type: "icon", icon: OpenExternalIcon }}
             />
         </Menu.Menu>
     );
 }
 
 function Controls() {
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const { showSpotifyLyrics } = settings.use(["showSpotifyLyrics"]);
     const [isPlaying, shuffle, repeat] = useStateFromStores(
         [SpotifyStore],
-        () => [SpotifyStore.isPlaying, SpotifyStore.shuffle, SpotifyStore.repeat]
+        () => [SpotifyStore.isPlaying, SpotifyStore.shuffle, SpotifyStore.repeat],
+        null,
+        (prev, next) => prev?.[0] === next?.[0] && prev?.[1] === next?.[1] && prev?.[2] === next?.[2]
     );
 
     const [nextRepeat, repeatClassName] = (() => {
@@ -127,12 +127,12 @@ function Controls() {
         <Flex className={cl("button-row")} gap="0" style={{ position: "relative" }}>
             <Button
                 className={classes(cl("button"), cl("shuffle"), cl(shuffle ? "shuffle-on" : "shuffle-off"))}
-                onClick={() => SpotifyStore.setShuffle(!shuffle)}
+                onClick={() => { SpotifyStore.setShuffle(!shuffle); forceUpdate(); }}
             >
                 <Shuffle />
             </Button>
             <Button onClick={() => {
-                settings.store.previousButtonRestartsTrack && SpotifyStore.position > 3000 ? SpotifyStore.seek(0) : SpotifyStore.prev();
+                settings.store.previousButtonRestartsTrack && SpotifyStore.position > 3000 ? SpotifyStore.seek(0) : SpotifyStore.prev(); forceUpdate();
             }}>
                 <SkipPrev />
             </Button>
@@ -144,7 +144,7 @@ function Controls() {
             </Button>
             <Button
                 className={classes(cl("button"), cl("repeat"), cl(repeatClassName))}
-                onClick={() => SpotifyStore.setRepeat(nextRepeat)}
+                onClick={() => { SpotifyStore.setRepeat(nextRepeat); forceUpdate(); }}
                 style={{ position: "relative" }}
             >
                 {repeat === "track" && <span className={cl("repeat-1")}>1</span>}
@@ -154,7 +154,7 @@ function Controls() {
                 <TooltipContainer text={showSpotifyLyrics ? "Disable Lyrics" : "Enable Lyrics"}>
                     <Button
                         className={classes(cl("button"), cl("lyrics"), cl(showSpotifyLyrics ? "repeat-context" : ""))}
-                        onClick={() => { settings.store.showSpotifyLyrics = !showSpotifyLyrics; }}
+                        onClick={() => { settings.store.showSpotifyLyrics = !showSpotifyLyrics; forceUpdate(); }}
                     >
                         <LyricsButtonIcon />
                     </Button>
@@ -168,7 +168,7 @@ const seek = debounce((v: number) => {
     SpotifyStore.seek(v);
 });
 
-function SpotifySeekBar() {
+function SpotifySeekBar({ isPreview }: { isPreview: boolean }) {
     const { duration } = SpotifyStore.track!;
 
     const [storePosition, isSettingPosition, isPlaying] = useStateFromStores(
@@ -205,14 +205,24 @@ function SpotifySeekBar() {
             >
                 {formatDuration(position)}
             </Span>
-            <SeekBar
-                initialValue={position}
-                minValue={0}
-                maxValue={duration}
-                onValueChange={onChange}
-                asValueChanges={onChange}
-                onValueRender={formatDuration}
-            />
+            {isPreview && (
+                <SeekBar
+                    initialValue={position}
+                    minValue={0}
+                    maxValue={duration}
+                    onValueRender={formatDuration}
+                />
+            )}
+            {!isPreview && (
+                <SeekBar
+                    initialValue={position}
+                    minValue={0}
+                    maxValue={duration}
+                    onValueChange={onChange}
+                    asValueChanges={onChange}
+                    onValueRender={formatDuration}
+                />
+            )}
             <Span
                 size="xs"
                 weight="medium"
@@ -240,7 +250,6 @@ function AlbumContextMenu({ track }: { track: Track; }) {
                 label="Open Album"
                 action={() => SpotifyStore.openExternal(`/album/${track.album.id}`)}
                 icon={OpenExternalIcon}
-                leadingAccessory={{ type: "icon", icon: OpenExternalIcon }}
             />
             <Menu.MenuItem
                 key="view-cover"
@@ -249,7 +258,6 @@ function AlbumContextMenu({ track }: { track: Track; }) {
                 // trolley
                 action={() => openImageModal(track.album.image)}
                 icon={ImageIcon}
-                leadingAccessory={{ type: "icon", icon: ImageIcon }}
             />
             <Menu.MenuControlItem
                 id="spotify-volume"
@@ -359,7 +367,7 @@ function Info({ track }: { track: Track; }) {
     );
 }
 
-export function SpotifyPlayer() {
+export function SpotifyPlayer({ fiveMinuteHide, isPreview }: { fiveMinuteHide: boolean; isPreview?: boolean; }) {
     const track = useStateFromStores(
         [SpotifyStore],
         () => SpotifyStore.track,
@@ -378,15 +386,15 @@ export function SpotifyPlayer() {
 
     const [shouldHide, setShouldHide] = useState(false);
 
-    // Hide player after 5 minutes of inactivity
-
-    React.useEffect(() => {
-        setShouldHide(false);
-        if (!isPlaying) {
-            const timeout = setTimeout(() => setShouldHide(true), 1000 * 60 * 5);
-            return () => clearTimeout(timeout);
-        }
-    }, [isPlaying]);
+    if (fiveMinuteHide === true) {
+        React.useEffect(() => {
+            setShouldHide(false);
+            if (!isPlaying) {
+                const timeout = setTimeout(() => setShouldHide(true), 1000 * 60 * 5);
+                return () => clearTimeout(timeout);
+            }
+        }, [isPlaying]);
+    }
 
     if (!track || !device?.is_active || shouldHide)
         return null;
@@ -401,7 +409,7 @@ export function SpotifyPlayer() {
             style={exportTrackImageStyle}
         >
             <Info track={track} />
-            <SpotifySeekBar />
+            <SpotifySeekBar isPreview />
             <Controls />
         </div>
     );

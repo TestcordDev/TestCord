@@ -16,7 +16,6 @@ import { Devs, EquicordDevs } from "@utils/constants";
 import type { RenderModalProps } from "@vencord/discord-types";
 import { Modal, openModalLazy, React, Select, showToast, Toasts, useState } from "@webpack/common";
 
-import { isModuleEnabled } from "../state";
 import type { UserAreaModule } from "../types";
 import { settings, toggleBetterSpotifyControls, toggleHoverControls } from "./settings";
 import { clearLyricsCache, migrateOldLyrics } from "./spotify/lyrics/api";
@@ -148,7 +147,6 @@ export function stopMusicControls() {
 export const musicControlsPatches = [
     {
         find: ".PLAYER_DEVICES",
-        predicate: () => isModuleEnabled("music-controls"),
         replacement: [{
             match: /get:(\i)\.bind\(null,(\i\.\i)\.get\)/,
             replace: "post:$1.bind(null,$2.post),vcSpotifyMarker:1,$&"
@@ -160,7 +158,6 @@ export const musicControlsPatches = [
     },
     {
         find: 'repeat:"off"!==',
-        predicate: () => isModuleEnabled("music-controls"),
         replacement: [
             {
                 match: /repeat:"off"!==(\i),/,
@@ -174,7 +171,7 @@ export const musicControlsPatches = [
     },
 ];
 
-export function MusicControlsComponent() {
+export function MusicControlsComponent({ isPreview }: { isPreview?: boolean; }) {
     const { showTidalControls, showTidalLyrics, showSpotifyLyrics, showSpotifyControls, lyricsPosition } = settings.use([
         "showTidalControls",
         "showTidalLyrics",
@@ -196,7 +193,7 @@ export function MusicControlsComponent() {
                 {showTidalControls && <TidalPlayer />}
                 {showTidalLyrics && lyricsPosition === "below" && <TidalLyrics />}
                 {showSpotifyLyrics && lyricsPosition === "above" && <SpotifyLyrics />}
-                {showSpotifyControls && <SpotifyPlayer />}
+                {showSpotifyControls && <SpotifyPlayer fiveMinuteHide={settings.store.fiveMinuteHide} isPreview={isPreview} />}
                 {showSpotifyLyrics && lyricsPosition === "below" && <SpotifyLyrics />}
             </ErrorBoundary>
         </div>
@@ -217,10 +214,12 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
         "lyricsProvider",
         "fallbackProvider",
         "showFailedToasts",
+        "fiveMinuteHide",
     ]);
 
     const [tab, setTab] = useState<"spotify" | "tidal" | "lyrics">("spotify");
     const handleClose = () => (modalProps?.onClose ?? onClose)?.();
+    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
 
     return (
         <Modal title="Music Controls Settings" size="lg" {...modalProps!} actionBarInput={
@@ -233,28 +232,28 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                 </Button>
             </div>
         }>
-            <div className="panellayout-scrollbar" style={{ padding: "16px", height: "540px", minHeight: "540px", maxHeight: "80vh", overflowY: "auto", boxSizing: "border-box" }}>
-                <Flex gap={8} style={{ marginBottom: "16px" }}>
-                    <div
-                        onClick={() => setTab("spotify")}
-                        className={`vc-pl-subtab ${tab === "spotify" ? "active" : ""}`}
-                    >
-                        Spotify
-                    </div>
-                    <div
-                        onClick={() => setTab("tidal")}
-                        className={`vc-pl-subtab ${tab === "tidal" ? "active" : ""}`}
-                    >
-                        Tidal
-                    </div>
-                    <div
-                        onClick={() => setTab("lyrics")}
-                        className={`vc-pl-subtab ${tab === "lyrics" ? "active" : ""}`}
-                    >
-                        Lyrics & Hover
-                    </div>
-                </Flex>
+            <Flex gap={8} style={{ marginBottom: "16px" }}>
+                <div
+                    onClick={() => setTab("spotify")}
+                    className={`vc-pl-subtab ${tab === "spotify" ? "active" : ""}`}
+                >
+                    Spotify
+                </div>
+                <div
+                    onClick={() => setTab("tidal")}
+                    className={`vc-pl-subtab ${tab === "tidal" ? "active" : ""}`}
+                >
+                    Tidal
+                </div>
+                <div
+                    onClick={() => setTab("lyrics")}
+                    className={`vc-pl-subtab ${tab === "lyrics" ? "active" : ""}`}
+                >
+                    Lyrics & Hover
+                </div>
+            </Flex>
 
+            <div className="panellayout-scrollbar" style={{ padding: "16px", height: "540px", minHeight: "540px", maxHeight: "80vh", overflowY: "auto", boxSizing: "border-box" }}>
                 {tab === "spotify" && (
                     <div style={{ display: "grid", gap: "10px" }}>
                         <Card variant="primary">
@@ -262,7 +261,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 title="Show Spotify Controls"
                                 description="Display Spotify player controls (play/pause, skip, progress bar) in the user panel."
                                 value={s.showSpotifyControls}
-                                onChange={v => { settings.store.showSpotifyControls = v; }}
+                                onChange={v => { settings.store.showSpotifyControls = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Album Art Background"
@@ -271,25 +270,32 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 onChange={v => {
                                     settings.store.betterSpotifyControls = v;
                                     toggleBetterSpotifyControls(v);
+                                    forceUpdate();
                                 }}
                             />
                             <FormSwitch
                                 title="Show Spotify Synced Lyrics"
                                 description="Display synchronized karaoke lyrics above or below the player."
                                 value={s.showSpotifyLyrics}
-                                onChange={v => { settings.store.showSpotifyLyrics = v; }}
+                                onChange={v => { settings.store.showSpotifyLyrics = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Open Spotify Desktop URIs"
                                 description="Open Spotify URIs (spotify:track:...) instead of web links."
                                 value={s.useSpotifyUris}
-                                onChange={v => { settings.store.useSpotifyUris = v; }}
+                                onChange={v => { settings.store.useSpotifyUris = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Previous Restarts Track"
                                 description="Restart playing track when pressing previous if playtime is over 3s."
                                 value={s.previousButtonRestartsTrack}
-                                onChange={v => { settings.store.previousButtonRestartsTrack = v; }}
+                                onChange={v => { settings.store.previousButtonRestartsTrack = v; forceUpdate(); }}
+                            />
+                            <FormSwitch
+                                title="Five Minute Hide"
+                                description="Hide the Spotify Controls after five minutes"
+                                value={s.fiveMinuteHide}
+                                onChange={v => { settings.store.fiveMinuteHide = v; forceUpdate(); }}
                                 hideBorder
                             />
                         </Card>
@@ -303,13 +309,13 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 title="Show Tidal Controls"
                                 description="Display Tidal player controls when connected to TidaLuna."
                                 value={s.showTidalControls}
-                                onChange={v => { settings.store.showTidalControls = v; }}
+                                onChange={v => { settings.store.showTidalControls = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Show Tidal Synced Lyrics"
                                 description="Display synchronized lyrics for Tidal playback."
                                 value={s.showTidalLyrics}
-                                onChange={v => { settings.store.showTidalLyrics = v; }}
+                                onChange={v => { settings.store.showTidalLyrics = v; forceUpdate(); }}
                                 hideBorder
                             />
                         </Card>
@@ -326,19 +332,20 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 onChange={v => {
                                     settings.store.hoverControls = v;
                                     toggleHoverControls(v);
+                                    forceUpdate();
                                 }}
                             />
                             <FormSwitch
                                 title="Fallback Lyrics Provider"
                                 description="Try alternative providers when the primary provider has no lyrics."
                                 value={s.fallbackProvider}
-                                onChange={v => { settings.store.fallbackProvider = v; }}
+                                onChange={v => { settings.store.fallbackProvider = v; forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Hide Toast on Missing Lyrics"
                                 description="Do not show a toast notification when lyrics cannot be found."
                                 value={s.showFailedToasts}
-                                onChange={v => { settings.store.showFailedToasts = v; }}
+                                onChange={v => { settings.store.showFailedToasts = v; forceUpdate(); }}
                             />
                             <div style={{ padding: "10px 0" }}>
                                 <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
@@ -350,7 +357,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                         { label: "Below player", value: "below" },
                                     ]}
                                     isSelected={v => v === s.lyricsPosition}
-                                    select={v => { settings.store.lyricsPosition = v as "above" | "below"; }}
+                                    select={v => { settings.store.lyricsPosition = v as "above" | "below"; forceUpdate(); }}
                                     serialize={v => String(v)}
                                 />
                             </div>
@@ -364,7 +371,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                         { label: "Spotify (Musixmatch)", value: Provider.Spotify },
                                     ]}
                                     isSelected={v => v === s.lyricsProvider}
-                                    select={v => { settings.store.lyricsProvider = v as Provider; }}
+                                    select={v => { settings.store.lyricsProvider = v as Provider; forceUpdate(); }}
                                     serialize={v => String(v)}
                                 />
                             </div>
@@ -375,6 +382,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                     onClick={() => {
                                         clearLyricsCache();
                                         showToast("Lyrics cache purged", Toasts.Type.SUCCESS);
+                                        forceUpdate();
                                     }}
                                 >
                                     Purge Lyrics Cache
@@ -400,7 +408,7 @@ export const musicControlsModule: Omit<UserAreaModule, "order" | "enabled"> = {
     version: "2.0.0",
     tags: ["Media", "Audio", "Spotify", "Tidal"],
     position: "above",
-    render: MusicControlsComponent,
+    render: () => <MusicControlsComponent isPreview={false} />,
     onEnable: startMusicControls,
     onDisable: stopMusicControls,
     settingsComponent: MusicControlsSettingsModal,

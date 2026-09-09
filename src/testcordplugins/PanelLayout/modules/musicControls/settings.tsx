@@ -194,6 +194,11 @@ export const settings = defineModuleSettings("MusicControls", {
         type: OptionType.BOOLEAN,
         default: false,
     },
+    fiveMinuteHide: {
+        description: "Hide the Spotify Controls after five minutes",
+        type: OptionType.BOOLEAN,
+        default: true,
+    },
     betterSpotifyControls: {
         description: "Use album cover as SpotifyControls background",
         type: OptionType.BOOLEAN,
