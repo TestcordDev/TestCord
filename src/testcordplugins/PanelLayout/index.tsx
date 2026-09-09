@@ -188,12 +188,10 @@ async function loadConfigs() {
         const diskConfigs = plPlain?.buttonConfigs;
         const dsConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ??
             (await DataStore.get<Record<string, ButtonConfig>>(OLD_BUTTON_CONFIG_KEY));
-        // Merge, but don't wipe existing in-memory configs with empty on early load
-        const merged = { ...(diskConfigs ?? {}), ...(dsConfigs ?? {}) };
+        // Prefer disk (plain) over DataStore — plain is source of truth, DataStore is cache.
+        // Previously it was disk then ds overwriting, which let stale DataStore wipe new plain.
+        const merged = { ...(dsConfigs ?? {}), ...(diskConfigs ?? {}) };
         if (Object.keys(merged).length > 0) buttonConfigs = merged;
-        else if (Object.keys(buttonConfigs).length === 0 && Object.keys(merged).length === 0) {
-            // keep existing (likely empty on first install) — don't overwrite with empty
-        }
     } catch {
         const fallback = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ??
             (await DataStore.get<Record<string, ButtonConfig>>(OLD_BUTTON_CONFIG_KEY)) ?? {};
@@ -204,19 +202,15 @@ async function loadConfigs() {
 }
 
 function saveConfigs() {
-    // Always rebuild index, but only persist if we have data or plain is empty
     try {
         const plPlain = getPanelLayoutPlainSettings();
-        if (Object.keys(buttonConfigs).length > 0) {
-            plPlain.buttonConfigs = buttonConfigs;
-            SettingsStore.markAsChanged();
-        } else if (!plPlain.buttonConfigs) {
-            plPlain.buttonConfigs = {};
-            SettingsStore.markAsChanged();
-        }
+        // Always persist current in-memory configs to plain — plain is source of truth.
+        // Don't skip when empty: user may have cleared all, that should be saved as {}.
+        plPlain.buttonConfigs = { ...buttonConfigs };
+        SettingsStore.markAsChanged();
     } catch { }
 
-    if (Object.keys(buttonConfigs).length > 0) DataStore.set(BUTTON_CONFIG_KEY, buttonConfigs);
+    DataStore.set(BUTTON_CONFIG_KEY, { ...buttonConfigs });
     rebuildLinkIndex();
 }
 

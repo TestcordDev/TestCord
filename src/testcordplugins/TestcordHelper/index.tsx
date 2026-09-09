@@ -528,7 +528,7 @@ function getMemoryUsage(): string {
     return `${round2(mem.usedJSHeapSize / MB)}MB used / ${round2(mem.totalJSHeapSize / MB)}MB total (limit: ${round2(mem.jsHeapSizeLimit / MB)}MB)`;
 }
 
-const settings = definePluginSettings({
+export const settings = definePluginSettings({
     tcpAutocomplete: {
         type: OptionType.BOOLEAN,
         description: "Show an extend-up autocomplete panel when typing tcp:, vcp:, eqp:, or plg: in chat to reference plugins",
@@ -725,6 +725,11 @@ const settings = definePluginSettings({
     liveFixRequireToken: {
         type: OptionType.BOOLEAN,
         description: "Require the per-session auth token on LiveFix requests. Leave this on unless your tooling cannot send it.",
+        default: true
+    },
+    splitPluginNames: {
+        type: OptionType.BOOLEAN,
+        description: "Split plugin names in the Plugins tab for readability (e.g., PanelLayout → Panel Layout). Disable to show raw names.",
         default: true
     }
 });

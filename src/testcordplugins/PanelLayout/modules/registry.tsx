@@ -172,10 +172,6 @@ export function getUserAreaOrder(): UserAreaReorderItem[] {
                 existing.hasSettings = !!mod.settingsComponent;
                 changed = true;
             }
-            if (existing.enabled !== mod.enabled) {
-                existing.enabled = mod.enabled;
-                changed = true;
-            }
         }
     }
 

@@ -88,14 +88,14 @@ button[class*="closeButton"]:active { background-color: var(--background-modifie
 .vc-cal-weekday-row.vc-cal-with-wn { grid-template-columns: 26px repeat(7, 1fr); }
 .vc-cal-grid-with-wn { display: flex; gap: 6px; align-items: flex-start; }
 .vc-cal-wn-col { display: flex; flex-direction: column; gap: 3px; padding-top: 2px; }
-.vc-cal-wn-cell { width: 26px; font-size: 10px; color: var(--text-muted, #949ba4) !important; display: grid; place-items: center; font-weight: 600; height: 38px; }
+.vc-cal-wn-cell { width: 26px; font-size: 10px; color: var(--text-muted, #949ba4) !important; display: grid; place-items: center; font-weight: 600; height: 32px; }
 .vc-cal-weekday { text-align: center; font-size: 11px; font-weight: 700; color: var(--text-muted, #949ba4) !important; text-transform: uppercase; padding: 5px 0; letter-spacing: 0.3px; }
 .vc-cal-weekday.vc-cal-wn { color: var(--brand-500) !important; }
 .vc-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; flex: 1; min-width: 0; }
 .vc-cal-day-cell {
     position: relative; aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    border-radius: 10px; cursor: pointer; font-size: 13px; color: var(--header-primary, var(--text-normal, #f2f3f5)) !important;
-    transition: background 0.12s, color 0.12s, transform 0.08s; min-height: 38px; min-width: 0; overflow: hidden;
+    border-radius: 6px; cursor: pointer; font-size: 11px; color: var(--header-primary, var(--text-normal, #f2f3f5)) !important;
+    transition: background 0.12s, color 0.12s, transform 0.08s; min-height: 28px; min-width: 0; overflow: hidden;
     border: 1px solid transparent; background: var(--background-secondary, #2b2d31);
     box-sizing: border-box;
 }

@@ -11,6 +11,7 @@ import { Settings, useSettings } from "@api/Settings";
 import { CogWheel, InfoIcon } from "@components/Icons";
 import { Paragraph } from "@components/Paragraph";
 import { AddonCard } from "@components/settings/AddonCard";
+import { settings as TestcordHelperSettings } from "@testcordplugins/TestcordHelper";
 import { classNameFactory } from "@utils/css";
 import { Logger } from "@utils/Logger";
 import { Margins } from "@utils/margins";
@@ -377,7 +378,7 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
 
     return (
         <AddonCard
-            name={plugin.name.replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2").replace(/([a-z])([A-Z])/g, "$1 $2")}
+            name={(TestcordHelperSettings?.store?.splitPluginNames ?? true) ? plugin.name.replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2").replace(/([a-z])([A-Z])/g, "$1 $2") : plugin.name}
             tooltip={tooltip}
             description={plugin.description}
             isNew={isNew}
