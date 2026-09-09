@@ -7,21 +7,30 @@
 import "../styles.css";
 
 import { copyToClipboard } from "@utils/clipboard";
+import { classNameFactory } from "@utils/css";
 import type { RenderModalProps } from "@vencord/discord-types";
-import { Modal, React, showToast, TextInput, Toasts, useEffect, useRef, useState } from "@webpack/common";
+import { Modal, React, ScrollerThin, showToast, TextInput, Toasts, Tooltip, useEffect, useRef, useState } from "@webpack/common";
+import { Button } from "@components/Button";
 
-import {
-    createAccount, deleteAccount, deleteMessage,
-    getDomains, getMessage, getMessages, getToken,
-    randomString, TmMessage, TmMessageFull,
-} from "../api";
-import {
-deleteMessageFromStore,
-    getActiveId, getDataStorePath, getSavedAccounts, getSavedMessages,
-    mergeAndSaveMessages, removeAccount, saveAccount, SavedAccount, setActiveId,
-} from "../store";
+import { settings } from "..";
+import { getProvider, listProviders, providers, randomString, SavedAccount, TmMessage, TmMessageFull } from "../providers";
+import { deleteMessageFromStore, getActiveId, getSavedAccounts, getSavedMessages, mergeAndSaveMessages, removeAccount, saveAccount, setActiveId } from "../store";
 
+const cl = classNameFactory("vc-tm-");
 type View = "inbox" | "message" | "new" | "accounts";
+
+function fmtDate(iso: string) {
+    const d = new Date(iso);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleDateString([], { month: "short", day: "numeric", year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined });
+}
+function stripHtml(html: string) {
+    return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+function providerColor(pid: string) {
+    return getProvider(pid)?.accent ?? "#5865f2";
+}
 
 export function TempMailModal({ modalProps }: { modalProps: RenderModalProps; }) {
     const [view, setView] = useState<View>("inbox");
@@ -35,7 +44,16 @@ export function TempMailModal({ modalProps }: { modalProps: RenderModalProps; })
     const [domains, setDomains] = useState<string[]>([]);
     const [selDomain, setSelDomain] = useState("");
     const [customUser, setCustomUser] = useState("");
+    const [search, setSearch] = useState("");
+    const [selectedProvider, setSelectedProvider] = useState<string>(() => {
+        try { return settings.store.defaultProvider ?? "mail.tm"; } catch { return "mail.tm"; }
+    });
+    const [htmlPreview, setHtmlPreview] = useState(true);
     const pollRef = useRef<any>(null);
+
+    const intervalMs = (() => {
+        try { const s = settings.store.autoRefreshSeconds ?? 15; return s <= 0 ? 0 : s * 1000; } catch { return 15000; }
+    })();
 
     useEffect(() => {
         (async () => {
@@ -48,37 +66,46 @@ export function TempMailModal({ modalProps }: { modalProps: RenderModalProps; })
                 const stored = await getSavedMessages(act.id);
                 if (stored.length) setMessages(stored);
                 fetchInbox(act);
+                setSelectedProvider(act.providerId ?? selectedProvider);
             }
+            fetchDomains(selectedProvider);
         })();
-        fetchDomains();
         return () => clearInterval(pollRef.current);
     }, []);
 
     useEffect(() => {
-        clearInterval(pollRef.current);
-        if (!active) return;
-        pollRef.current = setInterval(() => fetchInbox(active, true), 15_000);
-        return () => clearInterval(pollRef.current);
-    }, [active]);
+        fetchDomains(selectedProvider);
+    }, [selectedProvider]);
 
-    async function fetchDomains() {
+    useEffect(() => {
+        clearInterval(pollRef.current);
+        if (!active || intervalMs === 0) return;
+        pollRef.current = setInterval(() => fetchInbox(active, true), intervalMs);
+        return () => clearInterval(pollRef.current);
+    }, [active, intervalMs]);
+
+    async function fetchDomains(pid: string) {
         try {
-            const d = await getDomains();
-            const names = d.filter(x => x.isActive).map(x => x.domain);
-            setDomains(names);
-            if (names.length) setSelDomain(names[0]);
-        } catch { }
+            const prov = getProvider(pid);
+            if (!prov) return;
+            const list = await prov.getDomains();
+            setDomains(list);
+            if (list.length) setSelDomain(list[0]);
+        } catch { setDomains([]); }
     }
 
     async function fetchInbox(acc: SavedAccount, silent = false) {
+        if (!acc) return;
         if (!silent) setLoading(true);
         setError("");
         try {
-            const fresh = await getMessages(acc.token);
+            const prov = getProvider(acc.providerId);
+            if (!prov) throw new Error("Unknown provider " + acc.providerId);
+            const fresh = await prov.getMessages(acc);
             const merged = await mergeAndSaveMessages(acc.id, fresh);
             setMessages(merged);
         } catch (e: any) {
-            if (!silent) setError("Failed to load inbox: " + e.message);
+            if (!silent) setError("Failed to load inbox: " + (e?.message ?? String(e)));
         } finally {
             if (!silent) setLoading(false);
         }
@@ -88,9 +115,12 @@ export function TempMailModal({ modalProps }: { modalProps: RenderModalProps; })
         if (!active) return;
         setMsgLoading(true);
         try {
-            const full = await getMessage(msg.id, active.token);
+            const prov = getProvider(active.providerId);
+            if (!prov) throw new Error("No provider");
+            const full = await prov.getMessage(active, msg.id);
             setOpenMsg(full);
             setView("message");
+            setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, seen: true } : m));
         } catch (e: any) {
             setError("Could not load message: " + e.message);
         } finally {
@@ -100,26 +130,28 @@ export function TempMailModal({ modalProps }: { modalProps: RenderModalProps; })
 
     async function handleDeleteMessage(id: string) {
         if (!active) return;
-        try { await deleteMessage(id, active.token); } catch { }
+        const prov = getProvider(active.providerId);
+        try { await prov?.deleteMessage(active, id); } catch { }
         await deleteMessageFromStore(active.id, id);
         setMessages(m => m.filter(x => x.id !== id));
         if (openMsg?.id === id) { setOpenMsg(null); setView("inbox"); }
+        showToast("Deleted message", Toasts.Type.SUCCESS);
     }
 
     async function createAddress(random: boolean) {
+        const prov = getProvider(selectedProvider);
+        if (!prov) { setError("Select a provider"); return; }
         const domain = selDomain || domains[0];
-        if (!domain) { setError("No domains available yet."); return; }
+        if (!domain && prov.id !== "guerrillamail" && prov.id !== "tempmail.lol") { setError("No domains available yet."); return; }
         const user = random ? randomString(10) : customUser.trim();
         if (!user) { setError("Enter a username first."); return; }
         setLoading(true); setError("");
         try {
-            const address = `${user}@${domain}`;
+            const address = domain ? `${user}@${domain}` : user;
             const password = randomString(16);
-            const { id } = await createAccount(address, password);
-            const token = await getToken(address, password);
-            const acc: SavedAccount = { id, address, token, createdAt: Date.now() };
+            const acc = await prov.createAccount(address, password);
             await saveAccount(acc);
-            await setActiveId(id);
+            await setActiveId(acc.id);
             const fresh = await getSavedAccounts();
             setAccounts(fresh);
             setActive(acc);
@@ -127,9 +159,9 @@ export function TempMailModal({ modalProps }: { modalProps: RenderModalProps; })
             fetchInbox(acc);
             setView("inbox");
             setCustomUser("");
-            showToast("Created: " + address, Toasts.Type.SUCCESS);
+            showToast("Created: " + acc.address, Toasts.Type.SUCCESS);
         } catch (e: any) {
-            setError(e.message);
+            setError(e.message ?? String(e));
         } finally {
             setLoading(false);
         }
@@ -138,15 +170,19 @@ export function TempMailModal({ modalProps }: { modalProps: RenderModalProps; })
     async function switchTo(acc: SavedAccount) {
         setActive(acc);
         await setActiveId(acc.id);
+        setSelectedProvider(acc.providerId);
         const stored = await getSavedMessages(acc.id);
         setMessages(stored);
         fetchInbox(acc);
         setView("inbox");
+        fetchDomains(acc.providerId);
     }
 
     async function deleteAcc(acc: SavedAccount) {
-        if (!confirm(`Delete ${acc.address} permanently?`)) return;
-        try { await deleteAccount(acc.id, acc.token); } catch { }
+        const confirmNeeded = (() => { try { return settings.store.confirmDelete ?? true; } catch { return true; } })();
+        if (confirmNeeded && !confirm(`Delete ${acc.address} permanently?`)) return;
+        const prov = getProvider(acc.providerId);
+        try { await prov?.deleteAccount(acc); } catch { }
         await removeAccount(acc.id);
         const fresh = await getSavedAccounts();
         setAccounts(fresh);
@@ -154,242 +190,279 @@ export function TempMailModal({ modalProps }: { modalProps: RenderModalProps; })
             const next = fresh[0] ?? null;
             setActive(next);
             setMessages([]);
-            if (next) { await setActiveId(next.id); fetchInbox(next); }
+            if (next) { await setActiveId(next.id); fetchInbox(next); setSelectedProvider(next.providerId); }
         }
+        showToast("Deleted account", Toasts.Type.SUCCESS);
     }
 
+    const filtered = messages.filter(m => {
+        if (!search.trim()) return true;
+        const q = search.toLowerCase();
+        return (m.subject?.toLowerCase().includes(q) || m.from.address.toLowerCase().includes(q) || m.from.name?.toLowerCase().includes(q) || m.intro.toLowerCase().includes(q));
+    });
     const unread = messages.filter(m => !m.seen).length;
+    const activeProv = active ? getProvider(active.providerId) : null;
 
     return (
-        <Modal {...modalProps} size="lg" title="Temp Mail">
-            <div className="tm-shell">
-
-                {/* ── Sidebar ─────────────────────────────────────── */}
-                <div className="tm-sidebar">
-                    <div className="tm-brand">
-                        <svg viewBox="0 0 24 24" width={18} height={18} fill="currentColor"><path d="M20 4H4C2.9 4 2 4.9 2 6v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z" /></svg>
-                        <span>Temp Mail</span>
+        <Modal {...modalProps} size="lg" title={<span className={cl("modal-title")}>Temp Mail <span className={cl("modal-title-sub")}>— Testcord Edition</span></span>}>
+            <div className={cl("shell")}>
+                {/* Sidebar */}
+                <div className={cl("sidebar")}>
+                    <div className={cl("brand")}>
+                        <div className={cl("brand-icon")}><svg viewBox="0 0 24 24" width={18} height={18} fill="currentColor"><path d="M20 4H4C2.9 4 2 4.9 2 6v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z" /></svg></div>
+                        <div><div className={cl("brand-name")}>Temp Mail</div><div className={cl("brand-tag")}>5 providers • Testcord</div></div>
+                        <span className={cl("brand-pill")}>TC</span>
                     </div>
 
                     {active && (
-                        <div className="tm-active-addr">
-                            <div className="tm-active-label">Active</div>
-                            <div className="tm-active-text">{active.address}</div>
-                            <button className="tm-copy-btn" onClick={() => { copyToClipboard(active.address); showToast("Copied!", Toasts.Type.SUCCESS); }}>
-                                Copy address
-                            </button>
+                        <div className={cl("active-card")}>
+                            <div className={cl("active-head")}>
+                                <span className={cl("active-label")}>Active Inbox</span>
+                                <span className={cl("provider-dot")} style={{ background: providerColor(active.providerId) }} />
+                                <span className={cl("provider-name")}>{activeProv?.name ?? active.providerId}</span>
+                            </div>
+                            <div className={cl("active-addr")}>{active.address}</div>
+                            <div className={cl("active-actions")}>
+                                <Button size="small" variant="secondary" onClick={() => { copyToClipboard(active.address); showToast("Copied!", Toasts.Type.SUCCESS); }}>Copy</Button>
+                                <Button size="small" variant="secondary" onClick={() => active && fetchInbox(active)}>Refresh</Button>
+                            </div>
                         </div>
                     )}
 
-                    <nav className="tm-nav">
-                        <button className={`tm-nav-item ${view === "inbox" ? "tm-active" : ""}`} onClick={() => setView("inbox")}>
-                            <span className="tm-nav-icon">📥</span>
-                            <span>Inbox</span>
-                            {unread > 0 && <span className="tm-unread-pill">{unread}</span>}
+                    <nav className={cl("nav")}>
+                        <button className={cl("nav-item", { active: view === "inbox" })} onClick={() => setView("inbox")}>
+                            <span className={cl("nav-ico")}>📥</span><span>Inbox</span>{unread > 0 && <span className={cl("pill", "unread")}>{unread}</span>}
                         </button>
-                        <button className={`tm-nav-item ${view === "accounts" ? "tm-active" : ""}`} onClick={() => setView("accounts")}>
-                            <span className="tm-nav-icon">👤</span>
-                            <span>Accounts</span>
-                            <span className="tm-count-dim">{accounts.length}</span>
+                        <button className={cl("nav-item", { active: view === "accounts" })} onClick={() => setView("accounts")}>
+                            <span className={cl("nav-ico")}>👤</span><span>Accounts</span><span className={cl("pill", "dim")}>{accounts.length}</span>
                         </button>
-                        <button className={`tm-nav-item ${view === "new" ? "tm-active" : ""}`} onClick={() => setView("new")}>
-                            <span className="tm-nav-icon">✉</span>
-                            <span>New address</span>
+                        <button className={cl("nav-item", { active: view === "new" })} onClick={() => setView("new")}>
+                            <span className={cl("nav-ico")}>✉️</span><span>New address</span>
                         </button>
                     </nav>
 
-                    <div className="tm-sidebar-footer">
-                        <div className="tm-storage-info">
-                            <span className="tm-storage-icon">💾</span>
-                            <div>
-                                <div className="tm-storage-title">Emails saved to</div>
-                                <div className="tm-storage-path">{getDataStorePath()}</div>
-                            </div>
+                    <div className={cl("provider-legend")}>
+                        <div className={cl("legend-title")}>Providers</div>
+                        <div className={cl("legend-grid")}>
+                            {providers.map(p => (
+                                <Tooltip key={p.id} text={`${p.name}: ${p.description}`}>
+                                    {(props: any) => (
+                                        <span {...props} className={cl("legend-chip", { active: selectedProvider === p.id })} style={{ borderColor: p.accent }} onClick={() => setSelectedProvider(p.id)}>
+                                            <span className={cl("chip-dot")} style={{ background: p.accent }} />{p.name}
+                                        </span>
+                                    )}
+                                </Tooltip>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className={cl("sidebar-footer")}>
+                        <div className={cl("testcord-footer")}>
+                            <div className={cl("footer-title")}>Testcord Styled</div>
+                            <div className={cl("footer-sub")}>Disposable inboxes, native feel. Data saved locally via IndexedDB.</div>
                         </div>
                     </div>
                 </div>
 
-                {/* ── Content ─────────────────────────────────────── */}
-                <div className="tm-content">
+                {/* Content */}
+                <div className={cl("content")}>
                     {error && (
-                        <div className="tm-error-bar">
-                            <span>⚠ {error}</span>
-                            <button onClick={() => setError("")}>✕</button>
+                        <div className={cl("error")}>
+                            <span>⚠ {error}</span><button className={cl("error-close")} onClick={() => setError("")}>✕</button>
                         </div>
                     )}
 
-                    {/* INBOX */}
                     {view === "inbox" && (
-                        <div className="tm-view">
-                            <div className="tm-view-header">
+                        <div className={cl("view")}>
+                            <div className={cl("view-header")}>
                                 <div>
-                                    <div className="tm-view-title">Inbox</div>
-                                    {active && <div className="tm-view-sub">{active.address}</div>}
+                                    <div className={cl("view-title")}>Inbox {activeProv && <span className={cl("view-provider")} style={{ background: activeProv.accent }}>{activeProv.name}</span>}</div>
+                                    {active && <div className={cl("view-sub")}>{active.address} • {filtered.length}/{messages.length} {search ? "filtered" : "messages"}</div>}
                                 </div>
-                                <button className="tm-icon-btn" title="Refresh" onClick={() => active && fetchInbox(active)} disabled={loading}>
-                                    <svg viewBox="0 0 24 24" width={16} height={16} fill="currentColor"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z" /></svg>
-                                </button>
+                                <div className={cl("header-actions")}>
+                                    <TextInput value={search} onChange={setSearch} placeholder="Search inbox…" className={cl("search-input")} />
+                                    <Tooltip text="Refresh">
+                                        {(p: any) => <button {...p} className={cl("icon-btn")} onClick={() => active && fetchInbox(active)} disabled={loading || !active}>↻</button>}
+                                    </Tooltip>
+                                </div>
                             </div>
 
                             {!active && (
-                                <div className="tm-empty-state">
-                                    <div className="tm-empty-icon">✉</div>
-                                    <div className="tm-empty-title">No account yet</div>
-                                    <div className="tm-empty-sub">Create a temporary address to start receiving emails</div>
-                                    <button className="tm-btn-primary" onClick={() => setView("new")}>Create address</button>
+                                <div className={cl("empty")}>
+                                    <div className={cl("empty-icon")}>✉️</div>
+                                    <div className={cl("empty-title")}>No inbox yet</div>
+                                    <div className={cl("empty-sub")}>Pick a provider and generate a temporary address to start receiving mail.</div>
+                                    <Button variant="primary" onClick={() => setView("new")}>Create address</Button>
+                                    <div className={cl("empty-providers")}>
+                                        {providers.map(p => (
+                                            <span key={p.id} className={cl("empty-prov")} style={{ borderColor: p.accent }}>{p.name}</span>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
-                            {active && loading && <div className="tm-spinner">Loading…</div>}
+                            {active && loading && <div className={cl("spinner")}>Loading inbox…</div>}
 
-                            {active && !loading && messages.length === 0 && (
-                                <div className="tm-empty-state">
-                                    <div className="tm-empty-icon">📭</div>
-                                    <div className="tm-empty-title">No messages yet</div>
-                                    <div className="tm-empty-sub">Auto-refreshes every 15 seconds</div>
+                            {active && !loading && filtered.length === 0 && messages.length === 0 && (
+                                <div className={cl("empty")}>
+                                    <div className={cl("empty-icon")}>📭</div>
+                                    <div className={cl("empty-title")}>Inbox empty</div>
+                                    <div className={cl("empty-sub")}>Waiting for mail{intervalMs ? ` • Auto-refresh every ${intervalMs / 1000}s` : " • Manual refresh only"}.</div>
+                                    <Button variant="secondary" onClick={() => active && fetchInbox(active)}>Refresh now</Button>
                                 </div>
                             )}
 
-                            {active && !loading && messages.length > 0 && (
-                                <div className="tm-message-list">
-                                    {messages.map(m => (
-                                        <div key={m.id} className={`tm-msg-row ${!m.seen ? "tm-msg-unread" : ""}`} onClick={() => openMessage(m)}>
-                                            <div className="tm-msg-left">
-                                                <div className="tm-msg-from">{m.from.name || m.from.address}</div>
-                                                <div className="tm-msg-subject">{m.subject || "(no subject)"}</div>
-                                                <div className="tm-msg-preview">{m.intro}</div>
+                            {active && !loading && filtered.length === 0 && messages.length > 0 && (
+                                <div className={cl("empty")}><div className={cl("empty-title")}>No results for “{search}”</div><Button variant="secondary" onClick={() => setSearch("")}>Clear search</Button></div>
+                            )}
+
+                            {active && !loading && filtered.length > 0 && (
+                                <ScrollerThin className={cl("msg-list")}>
+                                    {filtered.map(m => (
+                                        <div key={m.id} className={cl("msg-row", { unread: !m.seen })} onClick={() => openMessage(m)}>
+                                            <div className={cl("msg-left")}>
+                                                <div className={cl("msg-from")}>{m.from.name || m.from.address}</div>
+                                                <div className={cl("msg-subj")}>{m.subject || "(no subject)"}</div>
+                                                <div className={cl("msg-preview")}>{m.intro}</div>
                                             </div>
-                                            <div className="tm-msg-right">
-                                                <div className="tm-msg-time">{fmtDate(m.createdAt)}</div>
-                                                <button className="tm-del-btn" title="Delete" onClick={e => { e.stopPropagation(); handleDeleteMessage(m.id); }}>
-                                                    <svg viewBox="0 0 24 24" width={14} height={14} fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>
-                                                </button>
+                                            <div className={cl("msg-right")}>
+                                                <div className={cl("msg-time")}>{fmtDate(m.createdAt)}</div>
+                                                <div className={cl("row-actions")}>
+                                                    <Tooltip text="Copy preview">
+                                                        {(pp: any) => <button {...pp} className={cl("mini-btn")} onClick={e => { e.stopPropagation(); copyToClipboard(m.intro); showToast("Copied preview", Toasts.Type.SUCCESS); }}>⎘</button>}
+                                                    </Tooltip>
+                                                    <button className={cl("mini-btn", "danger")} title="Delete" onClick={e => { e.stopPropagation(); handleDeleteMessage(m.id); }}>🗑</button>
+                                                </div>
                                             </div>
+                                            {!m.seen && <span className={cl("unread-bar")} style={{ background: providerColor(active.providerId) }} />}
                                         </div>
                                     ))}
-                                </div>
+                                </ScrollerThin>
                             )}
                         </div>
                     )}
 
-                    {/* MESSAGE VIEW */}
                     {view === "message" && (
-                        <div className="tm-view">
-                            <div className="tm-view-header">
-                                <button className="tm-back-btn" onClick={() => setView("inbox")}>← Back</button>
-                                {openMsg && (
-                                    <button className="tm-btn-danger-sm" onClick={() => openMsg && handleDeleteMessage(openMsg.id)}>Delete</button>
-                                )}
+                        <div className={cl("view")}>
+                            <div className={cl("view-header")}>
+                                <Button size="small" variant="secondary" onClick={() => setView("inbox")}>← Back</Button>
+                                {openMsg && <div className={cl("header-actions")}>
+                                    <label className={cl("toggle")}>
+                                        <input type="checkbox" checked={htmlPreview} onChange={e => setHtmlPreview(e.target.checked)} /> HTML
+                                    </label>
+                                    <Button size="small" variant="secondary" onClick={() => { copyToClipboard(openMsg.text || stripHtml(openMsg.html?.[0] ?? "")); showToast("Copied!", Toasts.Type.SUCCESS); }}>Copy</Button>
+                                    <Button size="small" variant="dangerPrimary" onClick={() => openMsg && handleDeleteMessage(openMsg.id)}>Delete</Button>
+                                </div>}
                             </div>
-                            {msgLoading && <div className="tm-spinner">Loading message…</div>}
+                            {msgLoading && <div className={cl("spinner")}>Loading message…</div>}
                             {openMsg && !msgLoading && (
-                                <div className="tm-msg-view">
-                                    <div className="tm-msg-view-subject">{openMsg.subject || "(no subject)"}</div>
-                                    <div className="tm-msg-view-meta">
-                                        <span>From <strong>{openMsg.from.name || openMsg.from.address}</strong></span>
-                                        <span>{fmtDate(openMsg.createdAt)}</span>
+                                <ScrollerThin className={cl("msg-view")}>
+                                    <div className={cl("msg-subject")}>{openMsg.subject || "(no subject)"}</div>
+                                    <div className={cl("msg-meta")}>
+                                        <span>From <strong>{openMsg.from.name || openMsg.from.address}</strong> &lt;{openMsg.from.address}&gt;</span>
+                                        <span>{new Date(openMsg.createdAt).toLocaleString()}</span>
+                                        {active && <span className={cl("view-provider")} style={{ background: providerColor(active.providerId) }}>{getProvider(active.providerId)?.name}</span>}
                                     </div>
-                                    <div className="tm-msg-view-body">
-                                        {openMsg.text || stripHtml(openMsg.html?.[0] ?? "") || "(empty)"}
+                                    <div className={cl("msg-body")}>
+                                        {htmlPreview && openMsg.html?.[0] ? (
+                                            <iframe
+                                                sandbox="allow-same-origin"
+                                                srcDoc={openMsg.html[0]}
+                                                className={cl("html-frame")}
+                                                title="Email HTML"
+                                            />
+                                        ) : (
+                                            <pre className={cl("text-body")}>{openMsg.text || stripHtml(openMsg.html?.[0] ?? "") || "(empty)"}</pre>
+                                        )}
                                     </div>
-                                </div>
+                                    <div className={cl("raw-toggle")}>
+                                        <details>
+                                            <summary>Raw source</summary>
+                                            <pre className={cl("raw-pre")}>{openMsg.text || openMsg.html?.[0] || "(empty)"}</pre>
+                                        </details>
+                                    </div>
+                                </ScrollerThin>
                             )}
                         </div>
                     )}
 
-                    {/* ACCOUNTS */}
                     {view === "accounts" && (
-                        <div className="tm-view">
-                            <div className="tm-view-header">
-                                <div className="tm-view-title">Accounts</div>
-                                <button className="tm-btn-primary-sm" onClick={() => setView("new")}>+ New</button>
+                        <div className={cl("view")}>
+                            <div className={cl("view-header")}>
+                                <div className={cl("view-title")}>Accounts <span className={cl("pill", "dim")}>{accounts.length}</span></div>
+                                <Button size="small" variant="primary" onClick={() => setView("new")}>+ New</Button>
                             </div>
                             {accounts.length === 0 && (
-                                <div className="tm-empty-state">
-                                    <div className="tm-empty-icon">👤</div>
-                                    <div className="tm-empty-title">No saved accounts</div>
-                                </div>
+                                <div className={cl("empty")}><div className={cl("empty-icon")}>👤</div><div className={cl("empty-title")}>No saved accounts</div><div className={cl("empty-sub")}>Your generated inboxes will appear here.</div></div>
                             )}
-                            <div className="tm-account-list">
-                                {accounts.map(acc => (
-                                    <div key={acc.id} className={`tm-account-card ${active?.id === acc.id ? "tm-account-active" : ""}`}>
-                                        <div className="tm-account-main">
-                                            {active?.id === acc.id && <span className="tm-active-dot" />}
-                                            <div>
-                                                <div className="tm-account-addr">{acc.address}</div>
-                                                <div className="tm-account-date">Created {new Date(acc.createdAt).toLocaleDateString()}</div>
+                            <ScrollerThin className={cl("acc-list")}>
+                                {accounts.map(acc => {
+                                    const prov = getProvider(acc.providerId);
+                                    return (
+                                        <div key={acc.id} className={cl("acc-card", { active: active?.id === acc.id })}>
+                                            <div className={cl("acc-main")}>
+                                                <span className={cl("acc-dot")} style={{ background: prov?.accent ?? "#5865f2" }} />
+                                                <div className={cl("acc-info")}>
+                                                    <div className={cl("acc-addr")}>{acc.address}</div>
+                                                    <div className={cl("acc-meta")}>{prov?.name ?? acc.providerId} • {new Date(acc.createdAt).toLocaleDateString()}</div>
+                                                </div>
+                                                {active?.id === acc.id && <span className={cl("active-badge")}>Active</span>}
+                                            </div>
+                                            <div className={cl("acc-actions")}>
+                                                {active?.id !== acc.id && <Button size="small" variant="primary" onClick={() => switchTo(acc)}>Use</Button>}
+                                                <Tooltip text="Copy address">{(p: any) => <button {...p} className={cl("icon-btn")} onClick={() => { copyToClipboard(acc.address); showToast("Copied!", Toasts.Type.SUCCESS); }}>⎘</button>}</Tooltip>
+                                                <Tooltip text="Delete">{(p: any) => <span {...p}><Button size="small" variant="dangerPrimary" onClick={() => deleteAcc(acc)}>🗑</Button></span>}</Tooltip>
                                             </div>
                                         </div>
-                                        <div className="tm-account-btns">
-                                            {active?.id !== acc.id && (
-                                                <button className="tm-btn-primary-sm" onClick={() => switchTo(acc)}>Use</button>
-                                            )}
-                                            <button className="tm-icon-btn" title="Copy" onClick={() => { copyToClipboard(acc.address); showToast("Copied!", Toasts.Type.SUCCESS); }}>
-                                                <svg viewBox="0 0 24 24" width={14} height={14} fill="currentColor"><path d="M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" /></svg>
-                                            </button>
-                                            <button className="tm-icon-btn tm-icon-btn-danger" title="Delete account" onClick={() => deleteAcc(acc)}>
-                                                <svg viewBox="0 0 24 24" width={14} height={14} fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" /></svg>
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                                    );
+                                })}
+                            </ScrollerThin>
                         </div>
                     )}
 
-                    {/* NEW ADDRESS */}
                     {view === "new" && (
-                        <div className="tm-view">
-                            <div className="tm-view-header">
-                                <div className="tm-view-title">New address</div>
-                            </div>
-                            <div className="tm-new-section">
-                                <div className="tm-new-label">Quick generate</div>
-                                <div className="tm-new-desc">Creates a random address instantly</div>
-                                <button className="tm-btn-primary" onClick={() => createAddress(true)} disabled={loading || !domains.length}>
-                                    {loading ? "Creating…" : "⚡ Generate random address"}
-                                </button>
+                        <ScrollerThin className={cl("view", "new-view")}>
+                            <div className={cl("new-hero")}>
+                                <div className={cl("new-hero-title")}>Create a disposable address</div>
+                                <div className={cl("new-hero-sub")}>Choose a provider, then generate a random address or pick your own username. Each provider has independent inbox storage.</div>
                             </div>
 
-                            <div className="tm-divider"><span>or choose your own</span></div>
+                            <div className={cl("provider-grid")}>
+                                {providers.map(p => (
+                                    <button key={p.id} className={cl("provider-card", { selected: selectedProvider === p.id })} style={{ borderColor: selectedProvider === p.id ? p.accent : undefined }} onClick={() => setSelectedProvider(p.id)}>
+                                        <span className={cl("prov-dot")} style={{ background: p.accent }} />
+                                        <span className={cl("prov-name")}>{p.name}</span>
+                                        <span className={cl("prov-desc")}>{p.description}</span>
+                                        {selectedProvider === p.id && <span className={cl("prov-check")} style={{ background: p.accent }}>✓</span>}
+                                    </button>
+                                ))}
+                            </div>
 
-                            <div className="tm-new-section">
-                                <div className="tm-new-label">Custom address</div>
-                                <div className="tm-custom-input-row">
-                                    <TextInput
-                                        placeholder="username"
-                                        value={customUser}
-                                        onChange={v => setCustomUser(v)}
-                                        className="tm-text-input"
-                                    />
-                                    <span className="tm-at-sign">@</span>
-                                    <select className="tm-domain-select" value={selDomain} onChange={e => setSelDomain(e.currentTarget.value)}>
+                            <div className={cl("new-section")}>
+                                <div className={cl("section-label")}>Quick generate</div>
+                                <div className={cl("section-desc")}>Random username on {getProvider(selectedProvider)?.name} — instant inbox.</div>
+                                <Button variant="primary" disabled={loading} onClick={() => createAddress(true)}>{loading ? "Creating…" : "⚡ Generate random address"}</Button>
+                            </div>
+
+                            <div className={cl("divider")}><span>or custom</span></div>
+
+                            <div className={cl("new-section")}>
+                                <div className={cl("section-label")}>Custom username</div>
+                                <div className={cl("custom-row")}>
+                                    <TextInput placeholder="username" value={customUser} onChange={v => setCustomUser(v)} className={cl("custom-input")} />
+                                    <span className={cl("at")}>@</span>
+                                    <select className={cl("domain-select")} value={selDomain} onChange={e => setSelDomain(e.currentTarget.value)}>
                                         {domains.map(d => <option key={d} value={d}>{d}</option>)}
+                                        {domains.length === 0 && <option>loading…</option>}
                                     </select>
                                 </div>
-                                <button
-                                    className="tm-btn-primary"
-                                    onClick={() => createAddress(false)}
-                                    disabled={loading || !customUser.trim() || !domains.length}
-                                >
-                                    {loading ? "Creating…" : "Create address"}
-                                </button>
+                                <Button variant="primary" disabled={loading || !customUser.trim()} onClick={() => createAddress(false)}>{loading ? "Creating…" : "Create address"}</Button>
+                                <div className={cl("hint")}>Provider: <strong style={{ color: providerColor(selectedProvider) }}>{getProvider(selectedProvider)?.name}</strong> • {domains.length} domain{domains.length !== 1 ? "s" : ""} available</div>
                             </div>
-                        </div>
+                        </ScrollerThin>
                     )}
                 </div>
             </div>
         </Modal>
     );
-}
-
-function fmtDate(iso: string) {
-    const d = new Date(iso);
-    const now = new Date();
-    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    return d.toLocaleDateString([], { month: "short", day: "numeric" });
-}
-
-function stripHtml(html: string) {
-    return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }

@@ -6,18 +6,37 @@
 
 import * as DataStore from "@api/DataStore";
 
-import { TmAccount, TmMessage } from "./api";
+import { SavedAccount as ProviderAccount, TmMessage } from "./providers";
 
-const ACCOUNTS_KEY = "TempMail_accounts";
+const ACCOUNTS_KEY = "TempMail_accounts_v2";
 const ACTIVE_KEY = "TempMail_activeId";
 const MESSAGES_KEY = "TempMail_messages"; // { [accountId]: TmMessage[] }
+const LEGACY_ACCOUNTS_KEY = "TempMail_accounts";
 
-export interface SavedAccount extends TmAccount {
-    createdAt: number;
+export type SavedAccount = ProviderAccount;
+
+// ── Migration from v1 (mail.tm only) ────────────────────────────────────────
+async function migrateIfNeeded(): Promise<void> {
+    const v2 = await DataStore.get<SavedAccount[]>(ACCOUNTS_KEY);
+    if (v2 != null) return;
+    const legacy: any[] = (await DataStore.get<any[]>(LEGACY_ACCOUNTS_KEY)) ?? [];
+    if (!legacy.length) return;
+    const migrated: SavedAccount[] = legacy.map(a => ({
+        id: a.id,
+        providerId: a.providerId ?? "mail.tm",
+        address: a.address,
+        token: a.token,
+        password: a.password,
+        createdAt: a.createdAt ?? Date.now(),
+        login: a.address?.split("@")[0],
+        domain: a.address?.split("@")[1],
+    }));
+    await DataStore.set(ACCOUNTS_KEY, migrated);
 }
 
 // ── Accounts ──────────────────────────────────────────────────────────────────
 export async function getSavedAccounts(): Promise<SavedAccount[]> {
+    await migrateIfNeeded();
     return (await DataStore.get<SavedAccount[]>(ACCOUNTS_KEY)) ?? [];
 }
 

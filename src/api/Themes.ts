@@ -22,6 +22,7 @@ import { isNonNullish } from "@utils/guards";
 import { Logger } from "@utils/Logger";
 import { ThemeStore } from "@vencord/discord-types";
 import { PopoutWindowStore } from "@webpack/common";
+import { parseThemeIdFromCss, themeFileToId } from "@utils/themeIds";
 
 import { coreStyleRootNode, managedStyleRootNode, userStyleRootNode, vencordRootNode } from "./Styles";
 
@@ -61,6 +62,40 @@ let previousThemeBlobObjectURLs = [] as string[];
 
 const warnedMissingThemes = new Set<string>();
 
+// Cache for id → fileName resolution
+let themeIdToFile = new Map<string, string>();
+
+async function buildThemeIdMap(): Promise<Map<string, string>> {
+    if (IS_WEB) return new Map();
+    try {
+        const list = await VencordNative.themes.getThemesList();
+        const m = new Map<string, string>();
+        for (const h of list) {
+            const id = (h as any).id ?? themeFileToId(h.fileName);
+            m.set(id.toLowerCase(), h.fileName);
+            m.set(h.fileName.toLowerCase(), h.fileName);
+            // also parse css @id to be safe
+            try {
+                const css = await VencordNative.themes.getThemeData(h.fileName).catch(() => "");
+                if (css) {
+                    const parsed = parseThemeIdFromCss(css, h.fileName);
+                    m.set(parsed.toLowerCase(), h.fileName);
+                }
+            } catch { }
+        }
+        themeIdToFile = m;
+        return m;
+    } catch { return themeIdToFile; }
+}
+
+function resolveThemeFile(entry: string, map: Map<string, string>): string {
+    const lower = entry.toLowerCase();
+    if (map.has(lower)) return map.get(lower)!;
+    // entry may be id without extension; try with .css
+    if (!lower.endsWith(".css") && map.has(lower + ".css")) return map.get(lower + ".css")!;
+    return entry;
+}
+
 async function initThemes() {
     themesStyle ??= createAndAppendStyle("vencord-themes", userStyleRootNode);
 
@@ -86,15 +121,20 @@ async function initThemes() {
         }
     }
 
+    // Build id → file map once per init; on web themes are fetched by entry as-is
+    const idMap = IS_WEB ? new Map<string, string>() : await buildThemeIdMap();
+
     if (IS_WEB) {
         previousThemeBlobObjectURLs.forEach(url => URL.revokeObjectURL(url));
 
-        const themesToApply = enabledThemes.filter(theme =>
-            shouldApplyTheme(getThemeActivationMode(theme), activeTheme)
-        );
+        const themesToApply = enabledThemes.filter(theme => {
+            const file = resolveThemeFile(theme, idMap);
+            return shouldApplyTheme(getThemeActivationMode(theme) ?? getThemeActivationMode(file), activeTheme);
+        });
 
         const objectUrls = await Promise.all(themesToApply.map(async theme => {
-            const themeData = await VencordNative.themes.getThemeData(theme);
+            const file = resolveThemeFile(theme, idMap);
+            const themeData = await VencordNative.themes.getThemeData(file).catch(() => VencordNative.themes.getThemeData(theme).catch(() => undefined));
             if (!themeData) return null;
 
             const blob = new Blob([themeData], { type: "text/css" });
@@ -105,19 +145,26 @@ async function initThemes() {
         previousThemeBlobObjectURLs.forEach(url => links.add(url));
     } else {
         const version = Date.now();
-        for (const theme of enabledThemes) {
-            const mode = getThemeActivationMode(theme);
+        for (const entry of enabledThemes) {
+            const themeFile = resolveThemeFile(entry, idMap);
+            const mode = getThemeActivationMode(entry) ?? getThemeActivationMode(themeFile);
             if (!shouldApplyTheme(mode, activeTheme)) continue;
             // A missing file would silently produce a dead @import; surface it instead
-            const exists = await VencordNative.themes.getThemeData(theme).then(() => true).catch(() => false);
+            const exists = await VencordNative.themes.getThemeData(themeFile).then(() => true).catch(() => false);
             if (!exists) {
-                if (!warnedMissingThemes.has(theme)) {
-                    warnedMissingThemes.add(theme);
-                    new Logger("Themes").warn(`Enabled theme "${theme}" was not found in the themes folder, skipping`);
+                // try fallback to raw entry
+                const fallbackExists = entry !== themeFile ? await VencordNative.themes.getThemeData(entry).then(() => true).catch(() => false) : false;
+                if (!fallbackExists) {
+                    if (!warnedMissingThemes.has(entry)) {
+                        warnedMissingThemes.add(entry);
+                        new Logger("Themes").warn(`Enabled theme "${entry}" (resolved "${themeFile}") was not found in the themes folder, skipping`);
+                    }
+                    continue;
                 }
+                links.add(`vencord:///themes/${entry}?v=${version}`);
                 continue;
             }
-            links.add(`vencord:///themes/${theme}?v=${version}`);
+            links.add(`vencord:///themes/${themeFile}?v=${version}`);
         }
     }
 

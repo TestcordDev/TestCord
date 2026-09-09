@@ -23,6 +23,8 @@ const escapedAtRegex = /^\\@/;
 
 export interface UserThemeHeader {
     fileName: string;
+    /** Stable id — declared via @id in the header block, or fallback to file basename. */
+    id: string;
     name: string;
     author: string;
     description: string;
@@ -36,8 +38,10 @@ export interface UserThemeHeader {
 }
 
 function makeHeader(fileName: string, opts: Partial<UserThemeHeader> = {}): UserThemeHeader {
+    const fallbackId = fileName.replace(/\.css$/i, "").toLowerCase();
     return {
         fileName,
+        id: (opts as any).id?.toLowerCase() ?? fallbackId,
         name: opts.name ?? fileName.replace(/\.css$/i, ""),
         author: opts.author ?? "Unknown Author",
         description: opts.description ?? "A Discord Theme.",

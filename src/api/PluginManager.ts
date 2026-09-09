@@ -48,6 +48,7 @@ import { addChannelToolbarButton, addHeaderBarButton, removeChannelToolbarButton
 import { addProfileCollection, removeProfileCollection } from "./ProfileCollections";
 import { addProfileSection, removeProfileSection } from "./ProfileSections";
 import { addUserAreaButton, removeUserAreaButton } from "./UserArea";
+import { getPluginId } from "@utils/pluginIds";
 
 const logger = new Logger("PluginManager", "#a6d189");
 
@@ -58,20 +59,35 @@ export const pluginStartTimings = new Map<string, { duration: number; success: b
 let enabledPluginsSubscribedFlux = false;
 const subscribedFluxEventsPlugins = new Set<string>();
 
+function canonicalKey(p: string): string {
+    const plugin = (Plugins as any)[p];
+    if (!plugin) return p;
+    return getPluginId(plugin);
+}
+
 export function isPluginEnabled(p: string) {
-    if (Plugins[p]?.required) return true;
+    const plugin = (Plugins as any)[p];
+    const canonical = plugin ? getPluginId(plugin) : p;
+    // allow lookup by either canonical id or legacy name for backwards compat
+    const legacy = p !== canonical ? p : null;
+    if (plugin?.required) return true;
     if (PluginHealth.isSafeModeEnabled()) return false;
-    if (PluginHealth.isQuarantined(p)) return false;
+    if (PluginHealth.isQuarantined(canonical) || (legacy && PluginHealth.isQuarantined(legacy))) return false;
 
     return (
-        Plugins[p]?.isDependency ||
-        Settings.plugins[p]?.enabled
+        plugin?.isDependency ||
+        Settings.plugins[canonical]?.enabled ||
+        (legacy ? Settings.plugins[legacy]?.enabled : false)
     ) ?? false;
 }
 export function isPluginRequired(p: string) {
     return (
-        Plugins[p]?.required
+        (Plugins as any)[p]?.required
     ) ?? false;
+}
+export function getEffectivePluginSettingsKey(p: string): string {
+    const plugin = (Plugins as any)[p];
+    return plugin ? getPluginId(plugin) : p;
 }
 
 export function isSettingHidden(settings: DefinedSettings, setting: PluginSettingDef) {
@@ -189,17 +205,21 @@ export const startAllPlugins = traceFunction("startAllPlugins", async function s
 });
 
 export function startDependenciesRecursive(p: Plugin) {
-    const settings = Settings.plugins;
+    const settings = Settings.plugins as Record<string, any>;
     let restartNeeded = false;
     const failures: string[] = [];
 
     p.dependencies?.forEach(d => {
-        if (!settings[d].enabled) {
-            const dep = Plugins[d];
+        const canonicalD = (Plugins as any)[d] ? getPluginId((Plugins as any)[d]) : d;
+        const enabled = Settings.plugins[canonicalD]?.enabled ?? Settings.plugins[d]?.enabled;
+        if (!enabled) {
+            const dep = (Plugins as any)[d] ?? (Plugins as any)[canonicalD];
+            if (!dep) return;
             startDependenciesRecursive(dep);
 
             // If the plugin has patches, don't start the plugin, just enable it.
-            settings[d].enabled = true;
+            (Settings.plugins as any)[canonicalD] = (Settings.plugins as any)[canonicalD] ?? {};
+            (Settings.plugins as any)[canonicalD].enabled = true;
             dep.isDependency = true;
 
             if (pluginRequiresRestart(dep)) {
@@ -456,8 +476,29 @@ export const stopPlugin = traceFunction("stopPlugin", function stopPlugin(p: Plu
 }, p => `stopPlugin ${p.name}`);
 
 export const initPluginManager = onlyOnce(function init() {
-    const pluginsValues = Object.values(Plugins);
-    const settings = Settings.plugins;
+    const pluginsValues = Object.values(Plugins) as Plugin[];
+    const settings = Settings.plugins as Record<string, any>;
+
+    // Migrate legacy name-keyed settings to stable ids.
+    // This runs once at startup; it copies enabled + per-plugin settings
+    // from the old `name` key to the new `id` key if the latter is empty.
+    for (const p of pluginsValues) {
+        const cid = getPluginId(p);
+        if (cid !== p.name) {
+            const legacy = (Settings.plugins as any)[p.name];
+            const canonical = (Settings.plugins as any)[cid];
+            if (legacy && !canonical) {
+                (Settings.plugins as any)[cid] = legacy;
+            } else if (legacy && canonical && legacy.enabled !== undefined && canonical.enabled === undefined) {
+                canonical.enabled = legacy.enabled;
+            }
+            // alias migration
+            for (const alias of (p as any).aliases ?? []) {
+                const aVal = (Settings.plugins as any)[alias];
+                if (aVal && !(Settings.plugins as any)[cid]) (Settings.plugins as any)[cid] = aVal;
+            }
+        }
+    }
 
     const pluginKeysToBind: Array<keyof PluginDef & `${"on" | "render"}${string}`> = [
         "onBeforeMessageEdit", "onBeforeMessageSend", "onMessageClick",
@@ -522,12 +563,13 @@ export const initPluginManager = onlyOnce(function init() {
 
     for (const p of pluginsValues) {
         if (p.settings) {
-            p.settings.pluginName = p.name;
+            p.settings.pluginName = getPluginId(p);
 
             if (isPluginEnabled(p.name)) {
+                const keyBase = getPluginId(p);
                 for (const [key, def] of Object.entries(p.settings.def)) {
                     if (def.onChange)
-                        SettingsStore.addChangeListener(`plugins.${p.name}.${key}`, def.onChange);
+                        SettingsStore.addChangeListener(`plugins.${keyBase}.${key}`, def.onChange);
                 }
             }
         }

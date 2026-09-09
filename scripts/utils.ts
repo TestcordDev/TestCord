@@ -36,6 +36,7 @@ export interface Command {
 }
 
 export interface PluginData {
+    id?: string;
     name: string;
     description: string;
     tags: string[];
@@ -51,6 +52,7 @@ export interface PluginData {
     filePath: string;
     dirName: string;
     isModified: boolean;
+    aliases?: string[];
 }
 
 export const devs = {} as Record<string, Dev>;
@@ -300,6 +302,17 @@ export async function parseFile(fileName: string) {
                 if (elements.some(e => !isStringLiteral(e))) throw fail("dependencies array contains non-string elements");
                 data.dependencies = (elements as NodeArray<StringLiteral>).map(e => e.text);
                 break;
+            case "id":
+                if (!isStringLiteral(value) && !isNoSubstitutionTemplateLiteral(value)) throw fail("id is not a string literal");
+                (data as any).id = (value as StringLiteral).text;
+                break;
+            case "aliases":
+                if (!isArrayLiteralExpression(value)) throw fail("aliases is not an array literal");
+                (data as any).aliases = value.elements.map(e => {
+                    if (!isStringLiteral(e)) throw fail("aliases array contains non-string literals");
+                    return (e as StringLiteral).text;
+                });
+                break;
             case "required":
             case "isModified":
             case "enabledByDefault":
@@ -309,6 +322,7 @@ export async function parseFile(fileName: string) {
     }
 
     if (!data.name || !data.description || !data.authors) throw fail("name, description or authors are missing");
+    if ((data as any).id && !/^[a-z0-9_-]+$/i.test((data as any).id)) throw fail("id must be alphanumeric with -_");
 
     const target = getPluginTarget(fileName);
     if (target) {

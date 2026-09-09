@@ -24,6 +24,17 @@ import { React, useEffect } from "@webpack/common";
 
 import plugins from "~plugins";
 
+function findPluginByIdOrName(idOrName: string) {
+    if (idOrName in plugins) return (plugins as any)[idOrName];
+    for (const p of Object.values(plugins as any)) {
+        const canonical = (p as any).id ?? (p as any).name;
+        if (canonical === idOrName) return p;
+        if ((p as any).aliases?.includes(idOrName)) return p;
+        if ((p as any).name === idOrName) return p;
+    }
+    return undefined;
+}
+
 const logger = new Logger("Settings");
 
 export type ThemeActivationMode = "always" | "light" | "dark";
@@ -173,17 +184,21 @@ export const SettingsStore = new SettingsStoreClass(settings, {
         const v = target[key];
         if (!plugins) return v; // plugins not initialised yet. this means this path was reached by being called on the top level
 
-        if (path === "plugins" && key in plugins)
-            return target[key] = {
-                enabled: IS_REPORTER || plugins[key].required || plugins[key].enabledByDefault || false
-            };
+        if (path === "plugins") {
+            const pl = findPluginByIdOrName(key);
+            if (pl)
+                return target[key] = {
+                    enabled: IS_REPORTER || (pl as any).required || (pl as any).enabledByDefault || false
+                };
+        }
 
         // Since the property is not set, check if this is a plugin's setting and if so, try to resolve
         // the default value.
         if (path.startsWith("plugins.")) {
-            const plugin = path.slice("plugins.".length);
-            if (plugin in plugins) {
-                const setting = plugins[plugin].settings?.def[key];
+            const pluginId = path.slice("plugins.".length);
+            const pl = findPluginByIdOrName(pluginId);
+            if (pl) {
+                const setting = (pl as any).settings?.def[key];
                 if (!setting) return v;
 
                 if ("default" in setting)

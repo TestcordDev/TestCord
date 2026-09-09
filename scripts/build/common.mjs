@@ -241,10 +241,11 @@ export const globPlugins = (kind) => ({
                         "",
                     )}";\n`;
                     pluginsCode += `[${mod}.name]:${mod},\n`;
-                    metaCode += `[${mod}.name]:${JSON.stringify({
+                    // Expose stable id in PluginMeta for tooling and migrations
+                    metaCode += `[${mod}.name]:{...${JSON.stringify({
                         folderName,
                         userPlugin,
-                    })},\n`;
+                    })},id:(${mod}.id??${mod}.name),aliases:(${mod}.aliases??[])},\n`;
                     i++;
                 }
             }

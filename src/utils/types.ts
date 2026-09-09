@@ -37,7 +37,8 @@ import type { LiteralUnion } from "type-fest";
 // exists to export default definePlugin({...})
 export default function definePlugin<P extends PluginDef>(p: P & Record<PropertyKey, any>) {
     if (p.settings) {
-        p.settings.pluginName = p.name;
+        const canonical = (p as any).id ?? p.name;
+        p.settings.pluginName = canonical;
     }
     return p as typeof p & Plugin;
 }
@@ -141,6 +142,13 @@ export interface Plugin extends PluginDef {
 export type IconComponent = (props: IconProps & Record<string, any>) => ReactNode;
 export type IconProps = { height?: number | string; width?: number | string; className?: string; };
 export interface PluginDef {
+    /**
+     * Stable unique identifier for this plugin. Changing `name` will no longer
+     * disable the plugin as long as `id` stays the same. If omitted, `name`
+     * is used as the id for backwards compatibility.
+     * Must be lower-cased, `kebab` or `camel`, and never change after first release.
+     */
+    id?: string;
     name: string;
     description: string;
     /** Additional search terms that will bring up your plugin */
@@ -257,6 +265,13 @@ export interface PluginDef {
      * A Vencord plugin that is modified for extra features in Equicord
      */
     isModified?: boolean;
+
+    /**
+     * Previous names/ids this plugin was known by. Used by the stable-ID
+     * migration to move `Settings.plugins[oldId]` → `Settings.plugins[id]` so
+     * a rename never orphans the user's enabled flag or per-plugin settings.
+     */
+    aliases?: string[];
 }
 
 export const enum StartAt {
