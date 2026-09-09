@@ -135,25 +135,35 @@
 .vc-tm-view-sub { font-size: 11px; color: var(--text-muted, #949ba4) !important; margin-top: 2px; word-break: break-all; }
 .vc-tm-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .vc-tm-search-input { width: 180px; flex-shrink: 0; }
-/* Fix white search — force Discord dark input styling inside modal */
+/* Fix white search — force dark input like TestcordOSINT (override Visual Refresh white) */
+.vc-tm-search-input,
 .vc-tm-search-input [class*="input"],
+.vc-tm-search-input [class*="inputWrapper"],
 .vc-tm-search-input input,
 .vc-tm-search-input textarea {
-    background: var(--input-background, var(--background-tertiary, #2b2d31)) !important;
+    background: var(--background-tertiary, #2b2d31) !important;
+    background-color: var(--background-tertiary, #2b2d31) !important;
     border: 1px solid var(--background-modifier-accent, rgba(255,255,255,0.08)) !important;
-    color: var(--header-primary, var(--text-normal, #f2f3f5)) !important;
+    color: #fff !important;
     border-radius: 8px !important;
 }
 .vc-tm-search-input [class*="input"]::placeholder,
-.vc-tm-search-input input::placeholder {
-    color: var(--text-muted, #949ba4) !important;
+.vc-tm-search-input input::placeholder,
+.vc-tm-search-input textarea::placeholder {
+    color: rgba(255,255,255,0.5) !important;
 }
-/* Domain select + custom input — use same dark styling */
+/* Domain select + custom input — same dark */
 .vc-tm-custom-input input,
-.vc-tm-custom-input [class*="input"] {
-    background: var(--input-background, var(--background-tertiary, #2b2d31)) !important;
-    color: var(--header-primary, var(--text-normal, #f2f3f5)) !important;
-    border: 1px solid var(--background-modifier-accent) !important;
+.vc-tm-custom-input textarea,
+.vc-tm-custom-input [class*="input"],
+.vc-tm-custom-input [class*="inputWrapper"] {
+    background: var(--background-tertiary, #2b2d31) !important;
+    background-color: var(--background-tertiary, #2b2d31) !important;
+    color: #fff !important;
+    border: 1px solid var(--background-modifier-accent, rgba(255,255,255,0.08)) !important;
+}
+.vc-tm-custom-input input::placeholder {
+    color: rgba(255,255,255,0.5) !important;
 }
 .vc-tm-icon-btn {
     width: 32px; height: 32px; display: grid; place-items: center;
@@ -261,12 +271,37 @@
 .vc-tm-custom-input { flex: 1; min-width: 0; }
 .vc-tm-at { font-size: 14px; font-weight: 700; color: var(--text-muted); }
 .vc-tm-domain-select {
-    flex: 1; background: var(--background-tertiary); border: 1px solid var(--background-modifier-accent); border-radius: 8px;
-    color: var(--text-normal); padding: 8px 10px; font-size: 13px; cursor: pointer; outline: none; font-family: var(--font-primary);
+    flex: 1; background: var(--background-tertiary, #2b2d31) !important; border: 1px solid var(--background-modifier-accent, rgba(255,255,255,0.08)) !important; border-radius: 8px;
+    color: #fff !important; padding: 8px 10px; font-size: 13px; cursor: pointer; outline: none; font-family: var(--font-primary);
 }
+.vc-tm-domain-select option { background: #2b2d31; color: #fff; }
 .vc-tm-hint { font-size: 11px; color: var(--text-muted); }
 .vc-tm-modal-title { display: flex; align-items: center; gap: 8px; }
 .vc-tm-modal-title-sub { font-weight: 600; color: var(--text-muted); font-size: 12px; }
 
 /* legacy tm- compat */
 .tm-shell, .tm-sidebar, .tm-content, .tm-view { display: none; }
+
+/* Final overrides — ensure no black-on-black and no white search after Visual Refresh */
+.vc-tm-shell .vc-tm-provider-name,
+.vc-tm-shell .vc-tm-active-head,
+.vc-tm-shell .vc-tm-nav-item,
+.vc-tm-shell .vc-tm-brand-pill,
+.vc-tm-shell .vc-tm-pill.vc-tm-dim,
+.vc-tm-shell .vc-tm-msg-time,
+.vc-tm-shell .vc-tm-icon-btn,
+.vc-tm-shell .vc-tm-empty-prov,
+.vc-tm-shell .vc-tm-spinner,
+.vc-tm-shell .vc-tm-hint,
+.vc-tm-shell .vc-tm-at,
+.vc-tm-shell .vc-tm-divider,
+.vc-tm-shell .vc-tm-section-desc,
+.vc-tm-shell .vc-tm-footer-sub {
+    color: var(--text-muted, #949ba4) !important;
+}
+.vc-tm-shell .vc-tm-nav-item.vc-tm-active,
+.vc-tm-shell .vc-tm-brand-name,
+.vc-tm-shell .vc-tm-msg-from,
+.vc-tm-shell .vc-tm-acc-addr {
+    color: var(--header-primary, #f2f3f5) !important;
+}
