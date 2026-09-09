@@ -64,17 +64,29 @@ function mapGuerrillaDate(ts: string | number): string {
 }
 
 // ── mail.tm / mail.gw generic ───────────────────────────────────────────────
+const MAILTM_FALLBACK: Record<string, string[]> = {
+    "mail.tm": ["fexbox.org", "fexpost.com", "fexbox.rs", "mail.tm"],
+    "mail.gw": ["0box.eu", "mail.gw", "s0ny.flu.cc", "tmail.ws"],
+};
+
 function createMailTmProvider(base: string, id: string, name: string, accent: string): TempProvider {
     return {
         id, name, accent,
         description: `Powered by ${base.replace("https://", "")}`,
 
         async getDomains() {
-            const r = await fetch(`${base}/domains?page=1`);
-            if (!r.ok) throw new Error(`${name} domains failed ${r.status}`);
-            const data = await r.json();
-            const list: TmDomain[] = data["hydra:member"] ?? data.member ?? [];
-            return list.filter(x => x.isActive !== false).map(x => x.domain);
+            try {
+                const r = await fetch(`${base}/domains?page=1`, { headers: { Accept: "application/json" } });
+                if (!r.ok) throw new Error(`${name} domains failed ${r.status}`);
+                const data = await r.json();
+                const list: TmDomain[] = data["hydra:member"] ?? data.member ?? data["hydra:member"] ?? [];
+                const domains = list.filter(x => x.isActive !== false).map(x => x.domain).filter(Boolean);
+                if (domains.length) return domains;
+                throw new Error("empty");
+            } catch (e) {
+                // fallback so UI never bricks — user can still create address
+                return MAILTM_FALLBACK[id] ?? ["mail.tm"];
+            }
         },
 
         async createAccount(address: string, password: string) {
@@ -159,10 +171,15 @@ const OneSecMailProvider: TempProvider = {
     accent: "#23a55a",
 
     async getDomains() {
-        const r = await fetch("https://www.1secmail.com/api/v1/?action=getDomainList");
-        if (!r.ok) throw new Error(`1SecMail domains ${r.status}`);
-        const data: string[] = await r.json();
-        return data;
+        try {
+            const r = await fetch("https://www.1secmail.com/api/v1/?action=getDomainList", { headers: { Accept: "application/json" } });
+            if (!r.ok) throw new Error(`${r.status}`);
+            const data: string[] = await r.json();
+            if (Array.isArray(data) && data.length) return data;
+            throw new Error("empty");
+        } catch {
+            return ["1secmail.com", "1secmail.org", "1secmail.net", "wwjmp.com", "esiix.com", "yoggm.com"];
+        }
     },
 
     async createAccount(address: string) {
