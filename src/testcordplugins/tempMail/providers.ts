@@ -63,6 +63,28 @@ function mapGuerrillaDate(ts: string | number): string {
     return new Date(ts).toISOString();
 }
 
+async function doFetch(url: string, init?: RequestInit): Promise<Response> {
+    try {
+        const Native: any = (globalThis as any).VencordNative?.pluginHelpers?.TempMail;
+        if (Native?.fetchTempMail) {
+            const opts: any = {};
+            if (init?.method) opts.method = init.method;
+            if (init?.headers) opts.headers = init.headers as Record<string, string>;
+            if (init?.body) opts.body = typeof init.body === "string" ? init.body : String(init.body);
+            const res: any = await Native.fetchTempMail(url, opts);
+            return {
+                ok: res.ok,
+                status: res.status,
+                statusText: res.statusText,
+                headers: new Headers(res.headers ?? {}),
+                json: async () => res.json ?? (res.text ? JSON.parse(res.text) : undefined),
+                text: async () => res.text ?? "",
+            } as unknown as Response;
+        }
+    } catch {}
+    return doFetch(url, init);
+}
+
 // ── mail.tm / mail.gw generic ───────────────────────────────────────────────
 const MAILTM_FALLBACK: Record<string, string[]> = {
     "mail.tm": ["fexbox.org", "fexpost.com", "fexbox.rs", "mail.tm"],
@@ -76,7 +98,7 @@ function createMailTmProvider(base: string, id: string, name: string, accent: st
 
         async getDomains() {
             try {
-                const r = await fetch(`${base}/domains?page=1`, { headers: { Accept: "application/json" } });
+                const r = await doFetch(`${base}/domains?page=1`, { headers: { Accept: "application/json" } });
                 if (!r.ok) throw new Error(`${name} domains failed ${r.status}`);
                 const data = await r.json();
                 const list: TmDomain[] = data["hydra:member"] ?? data.member ?? data["hydra:member"] ?? [];
@@ -92,7 +114,7 @@ function createMailTmProvider(base: string, id: string, name: string, accent: st
         async createAccount(address: string, password: string) {
             let r: Response;
             try {
-                r = await fetch(`${base}/accounts`, {
+                r = await doFetch(`${base}/accounts`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json", Accept: "application/json" },
                     body: JSON.stringify({ address, password }),
@@ -107,7 +129,7 @@ function createMailTmProvider(base: string, id: string, name: string, accent: st
                 throw new Error(`${name} create failed ${r.status} ${txt.slice(0, 120)}`);
             }
             const data = await r.json();
-            const tokenRes = await fetch(`${base}/token`, {
+            const tokenRes = await doFetch(`${base}/token`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ address, password }),
@@ -127,7 +149,7 @@ function createMailTmProvider(base: string, id: string, name: string, accent: st
         async getMessages(account) {
             if (!account.token) return [];
             try {
-                const r = await fetch(`${base}/messages?page=1`, {
+                const r = await doFetch(`${base}/messages?page=1`, {
                     headers: { Authorization: `Bearer ${account.token}`, Accept: "application/json" }
                 });
                 if (!r.ok) {
@@ -149,7 +171,7 @@ function createMailTmProvider(base: string, id: string, name: string, accent: st
 
         async getMessage(account, mid) {
             if (!account.token) throw new Error("No token");
-            const r = await fetch(`${base}/messages/${mid}`, {
+            const r = await doFetch(`${base}/messages/${mid}`, {
                 headers: { Authorization: `Bearer ${account.token}` }
             });
             if (!r.ok) throw new Error(`Fetch message ${r.status}`);
@@ -163,7 +185,7 @@ function createMailTmProvider(base: string, id: string, name: string, accent: st
 
         async deleteMessage(account, mid) {
             if (!account.token) return;
-            await fetch(`${base}/messages/${mid}`, {
+            await doFetch(`${base}/messages/${mid}`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${account.token}` }
             });
@@ -171,7 +193,7 @@ function createMailTmProvider(base: string, id: string, name: string, accent: st
 
         async deleteAccount(account) {
             if (!account.token) return;
-            await fetch(`${base}/accounts/${account.id}`, {
+            await doFetch(`${base}/accounts/${account.id}`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${account.token}` }
             });
@@ -188,7 +210,7 @@ const OneSecMailProvider: TempProvider = {
 
     async getDomains() {
         try {
-            const r = await fetch("https://www.1secmail.com/api/v1/?action=getDomainList", { headers: { Accept: "application/json" } });
+            const r = await doFetch("https://www.1secmail.com/api/v1/?action=getDomainList", { headers: { Accept: "application/json" } });
             if (!r.ok) throw new Error(`${r.status}`);
             const data: string[] = await r.json();
             if (Array.isArray(data) && data.length) return data;
@@ -216,7 +238,7 @@ const OneSecMailProvider: TempProvider = {
         if (!account.login || !account.domain) return [];
         try {
             const url = `https://www.1secmail.com/api/v1/?action=getMessages&login=${encodeURIComponent(account.login)}&domain=${encodeURIComponent(account.domain)}`;
-            const r = await fetch(url, { headers: { Accept: "application/json" } });
+            const r = await doFetch(url, { headers: { Accept: "application/json" } });
             if (!r.ok) return [];
             const list: any[] = await r.json();
             if (!Array.isArray(list)) return [];
@@ -236,7 +258,7 @@ const OneSecMailProvider: TempProvider = {
     async getMessage(account, mid) {
         if (!account.login || !account.domain) throw new Error("Missing login");
         const url = `https://www.1secmail.com/api/v1/?action=readMessage&login=${encodeURIComponent(account.login)}&domain=${encodeURIComponent(account.domain)}&id=${encodeURIComponent(mid)}`;
-        const r = await fetch(url);
+        const r = await doFetch(url);
         if (!r.ok) throw new Error(`1SecMail read ${r.status}`);
         const m: any = await r.json();
         const html = m.htmlBody ? [m.htmlBody] : [];
@@ -271,7 +293,7 @@ const GuerrillaProvider: TempProvider = {
     async createAccount(address: string) {
         const user = address.split("@")[0] || randomString(10);
         // try set_email_user to claim custom
-        const sidRes = await fetch("https://api.guerrillamail.com/ajax.php?f=get_email_address&ip=127.0.0.1&agent=Mozilla_5.0&lang=en");
+        const sidRes = await doFetch("https://api.guerrillamail.com/ajax.php?f=get_email_address&ip=127.0.0.1&agent=Mozilla_5.0&lang=en");
         const sidData: any = await sidRes.json().catch(() => ({}));
         const sidToken: string = sidData.sid_token ?? randomString(20);
         const fallbackEmail: string = sidData.email_addr ?? `${user}@guerrillamail.com`;
@@ -279,7 +301,7 @@ const GuerrillaProvider: TempProvider = {
         // Attempt to set custom username if provided
         if (user && user !== randomString(10)) {
             try {
-                const setRes = await fetch(`https://api.guerrillamail.com/ajax.php?f=set_email_user&email_user=${encodeURIComponent(user)}&lang=en&sid_token=${encodeURIComponent(sidToken)}&site=guerrillamail.com`);
+                const setRes = await doFetch(`https://api.guerrillamail.com/ajax.php?f=set_email_user&email_user=${encodeURIComponent(user)}&lang=en&sid_token=${encodeURIComponent(sidToken)}&site=guerrillamail.com`);
                 const setData: any = await setRes.json().catch(() => ({}));
                 if (setData.email_addr) {
                     return {
@@ -312,7 +334,7 @@ const GuerrillaProvider: TempProvider = {
         if (!account.sidToken) return [];
         try {
             const url = `https://api.guerrillamail.com/ajax.php?f=check_email&seq=${account.seq ?? 0}&sid_token=${encodeURIComponent(account.sidToken)}&site=guerrillamail.com`;
-            const r = await fetch(url, { headers: { Accept: "application/json" } });
+            const r = await doFetch(url, { headers: { Accept: "application/json" } });
             if (!r.ok) return [];
             const data: any = await r.json();
             const list: any[] = data.list ?? [];
@@ -332,7 +354,7 @@ const GuerrillaProvider: TempProvider = {
     async getMessage(account, mid) {
         if (!account.sidToken) throw new Error("No session");
         const url = `https://api.guerrillamail.com/ajax.php?f=fetch_email&email_id=${encodeURIComponent(mid)}&sid_token=${encodeURIComponent(account.sidToken)}&site=guerrillamail.com`;
-        const r = await fetch(url);
+        const r = await doFetch(url);
         if (!r.ok) throw new Error(`Guerrilla fetch ${r.status}`);
         const m: any = await r.json();
         return {
@@ -349,7 +371,7 @@ const GuerrillaProvider: TempProvider = {
 
     async deleteMessage(account, mid) {
         if (!account.sidToken) return;
-        await fetch(`https://api.guerrillamail.com/ajax.php?f=del_email&email_ids[]=${encodeURIComponent(mid)}&sid_token=${encodeURIComponent(account.sidToken)}&site=guerrillamail.com`).catch(() => {});
+        await doFetch(`https://api.guerrillamail.com/ajax.php?f=del_email&email_ids[]=${encodeURIComponent(mid)}&sid_token=${encodeURIComponent(account.sidToken)}&site=guerrillamail.com`).catch(() => {});
     },
 
     async deleteAccount() { /* guerrilla session expires */ },
@@ -364,7 +386,7 @@ const TempMailLolProvider: TempProvider = {
 
     async getDomains() {
         try {
-            const r = await fetch("https://api.tempmail.lol/domains");
+            const r = await doFetch("https://api.tempmail.lol/domains");
             if (!r.ok) throw new Error("domains fail");
             const data: any = await r.json();
             if (Array.isArray(data)) return data as string[];
@@ -375,7 +397,7 @@ const TempMailLolProvider: TempProvider = {
 
     async createAccount(address: string) {
         try {
-            const r = await fetch("https://api.tempmail.lol/generate", { method: "POST" });
+            const r = await doFetch("https://api.tempmail.lol/generate", { method: "POST" });
             if (r.ok) {
                 const j: any = await r.json();
                 const email: string = j.address ?? j.email ?? address;
@@ -399,7 +421,7 @@ const TempMailLolProvider: TempProvider = {
     async getMessages(account) {
         if (!account.token) return [];
         try {
-            const r = await fetch(`https://api.tempmail.lol/auth/${encodeURIComponent(account.token)}`, { headers: { Accept: "application/json" } });
+            const r = await doFetch(`https://api.tempmail.lol/auth/${encodeURIComponent(account.token)}`, { headers: { Accept: "application/json" } });
             if (!r.ok) return [];
             const j: any = await r.json();
             const emails: any[] = j.email ?? j.emails ?? j.messages ?? [];
@@ -445,7 +467,7 @@ const MaildropProvider: TempProvider = {
     async getMessages(account) {
         if (!account.login) return [];
         try {
-            const r = await fetch(`https://maildrop.cc/api/inbox/${encodeURIComponent(account.login)}`, { headers: { Accept: "application/json" } });
+            const r = await doFetch(`https://maildrop.cc/api/inbox/${encodeURIComponent(account.login)}`, { headers: { Accept: "application/json" } });
             if (!r.ok) return [];
             const data: any = await r.json();
             const list: any[] = Array.isArray(data) ? data : data.messages ?? [];
@@ -466,7 +488,7 @@ const MaildropProvider: TempProvider = {
         const found = msgs.find(m => m.id === mid);
         if (found) {
             try {
-                const r = await fetch(`https://maildrop.cc/api/message/${encodeURIComponent(account.login!)}/${encodeURIComponent(mid)}`);
+                const r = await doFetch(`https://maildrop.cc/api/message/${encodeURIComponent(account.login!)}/${encodeURIComponent(mid)}`);
                 if (r.ok) {
                     const data: any = await r.json();
                     return {
@@ -494,7 +516,7 @@ const DropMailProvider: TempProvider = {
     async createAccount(address: string) {
         const user = address.split("@")[0] || randomString(8);
         try {
-            const r = await fetch("https://dropmail.me/api/graphql", {
+            const r = await doFetch("https://dropmail.me/api/graphql", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ query: "mutation { introduceSession { id, addresses, expiresAt } }" }),
@@ -515,7 +537,7 @@ const DropMailProvider: TempProvider = {
         if (!account.token) return [];
         try {
             const q = `query { session(id:"${account.token}") { mails { rawSize, fromAddr, toAddr, downloadUrl, text, html, headerSubject, receivedAt } } }`;
-            const r = await fetch("https://dropmail.me/api/graphql", {
+            const r = await doFetch("https://dropmail.me/api/graphql", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ query: q }),
@@ -553,7 +575,7 @@ const TMailorProvider: TempProvider = {
     accent: "#f97316",
     async getDomains() {
         try {
-            const r = await fetch("https://api.tmailor.com/api/domain/list", { headers: { Accept: "application/json" } });
+            const r = await doFetch("https://api.tmailor.com/api/domain/list", { headers: { Accept: "application/json" } });
             if (r.ok) {
                 const j: any = await r.json();
                 const list: string[] = j?.data ?? j?.domains ?? [];
@@ -571,7 +593,7 @@ const TMailorProvider: TempProvider = {
     async getMessages(account) {
         if (!account.login || !account.domain) return [];
         try {
-            const r = await fetch(`https://api.tmailor.com/api/email/list?email=${encodeURIComponent(account.address)}`, { headers: { Accept: "application/json" } });
+            const r = await doFetch(`https://api.tmailor.com/api/email/list?email=${encodeURIComponent(account.address)}`, { headers: { Accept: "application/json" } });
             if (!r.ok) return [];
             const j: any = await r.json();
             const list: any[] = j?.data ?? [];
