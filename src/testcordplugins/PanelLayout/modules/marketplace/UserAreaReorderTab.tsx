@@ -1096,7 +1096,6 @@ function LiveAccountProfilePreview({ pluginSettings }: { pluginSettings?: any; }
             className="container__37e49 vc-account-profile-preview"
             style={{
                 position: "relative",
-                backgroundColor: "linear-gradient(90deg, rgba(115, 11, 200, 0.1) 0%, rgba(115, 11, 200, 0.4) 100%) !important",
                 display: "flex",
                 flexDirection: "column",
                 boxSizing: "border-box",
