@@ -134,7 +134,31 @@
 .vc-tm-view-provider { font-size: 10px; font-weight: 800; color: #fff !important; padding: 2px 7px; border-radius: 999px; letter-spacing: .4px; text-transform: uppercase; }
 .vc-tm-view-sub { font-size: 11px; color: var(--text-muted, #949ba4) !important; margin-top: 2px; word-break: break-all; }
 .vc-tm-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.vc-tm-search-input { width: 180px; flex-shrink: 0; }
+/* Fix white search — whole input background like TestcordOSINT Fanboy club */
+.vc-tm-search-input {
+    background: var(--background-tertiary, #2b2d31) !important;
+    border: 1px solid var(--background-modifier-accent, rgba(255,255,255,0.08)) !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 0 8px !important;
+    width: 180px !important;
+    flex-shrink: 0 !important;
+}
+.vc-tm-search-input [class*="inputWrapper"],
+.vc-tm-search-input [class*="inputDefault"],
+.vc-tm-search-input [class*="input"],
+.vc-tm-search-input input,
+.vc-tm-search-input textarea {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #fff !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}
 /* Fix white search — force dark input like TestcordOSINT (whole size background) */
 .vc-tm-search-input,
 .vc-tm-search-input > div,
@@ -162,17 +186,31 @@
 .vc-tm-search-input textarea::placeholder {
     color: rgba(255,255,255,0.5) !important;
 }
-/* Domain select + custom input — same dark */
-.vc-tm-custom-input input,
-.vc-tm-custom-input textarea,
-.vc-tm-custom-input [class*="input"],
-.vc-tm-custom-input [class*="inputWrapper"] {
+/* Domain select + custom input — whole dark like OSINT, fix white weird */
+.vc-tm-custom-input {
     background: var(--background-tertiary, #2b2d31) !important;
-    background-color: var(--background-tertiary, #2b2d31) !important;
-    color: #fff !important;
     border: 1px solid var(--background-modifier-accent, rgba(255,255,255,0.08)) !important;
+    border-radius: 8px !important;
+    overflow: hidden !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 0 8px !important;
+    flex: 1 !important;
 }
-.vc-tm-custom-input input::placeholder {
+.vc-tm-custom-input [class*="inputWrapper"],
+.vc-tm-custom-input [class*="inputDefault"],
+.vc-tm-custom-input [class*="input"],
+.vc-tm-custom-input input,
+.vc-tm-custom-input textarea {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #fff !important;
+    width: 100% !important;
+}
+.vc-tm-custom-input input::placeholder,
+.vc-tm-custom-input textarea::placeholder {
     color: rgba(255,255,255,0.5) !important;
 }
 .vc-tm-icon-btn {
@@ -196,17 +234,17 @@
 /* Message list */
 .vc-tm-msg-list { flex: 1; padding: 8px 0; }
 .vc-tm-msg-row {
-    position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-    padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--background-modifier-accent);
-    transition: background .12s; background: transparent;
+    position: relative; display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+    padding: 14px 16px; cursor: pointer; border-bottom: 1px solid var(--background-modifier-accent, rgba(255,255,255,0.06));
+    transition: background .12s; background: transparent; min-height: 58px;
 }
 .vc-tm-msg-row:hover { background: var(--background-modifier-hover); }
 .vc-tm-msg-row.vc-tm-unread { background: color-mix(in srgb, var(--brand-500) 6%, transparent); }
 .vc-tm-unread-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 0 2px 2px 0; }
 .vc-tm-msg-left { flex: 1; min-width: 0; overflow: hidden; }
-.vc-tm-msg-from { font-size: 13px; font-weight: 700; color: var(--header-primary, var(--text-normal, #f2f3f5)) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.vc-tm-msg-subj { font-size: 13px; font-weight: 500; color: var(--text-default, var(--text-normal, #dbdee1)) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
-.vc-tm-msg-preview { font-size: 12px; color: var(--text-muted, #949ba4) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.vc-tm-msg-from { font-size: 13px; font-weight: 700; color: var(--header-primary, var(--text-normal, #f2f3f5)) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3; }
+.vc-tm-msg-subj { font-size: 13px; font-weight: 500; color: var(--text-default, var(--text-normal, #dbdee1)) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; line-height: 1.3; }
+.vc-tm-msg-preview { font-size: 12px; color: var(--text-muted, #949ba4) !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; line-height: 1.4; }
 .vc-tm-msg-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
 .vc-tm-msg-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 .vc-tm-row-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .12s; }
@@ -262,9 +300,9 @@
 .vc-tm-new-hero-sub { font-size: 12.5px; color: var(--text-muted); line-height: 1.5; margin-top: 4px; }
 .vc-tm-provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .vc-tm-provider-card {
-    position: relative; display: flex; flex-direction: column; gap: 4px; text-align: left;
-    padding: 12px; border-radius: 10px; background: var(--background-secondary);
-    border: 1.5px solid var(--background-modifier-accent); cursor: pointer; transition: border-color .12s, background .12s;
+    position: relative; display: flex; flex-direction: column; gap: 6px; text-align: left;
+    padding: 14px; border-radius: 10px; background: var(--background-secondary, #2b2d31);
+    border: 1.5px solid var(--background-modifier-accent, rgba(255,255,255,0.08)); cursor: pointer; transition: border-color .12s, background .12s; min-height: 64px;
 }
 .vc-tm-provider-card:hover { background: var(--background-modifier-hover); }
 .vc-tm-provider-card.vc-tm-selected { background: color-mix(in srgb, var(--brand-500) 8%, var(--background-secondary)); }

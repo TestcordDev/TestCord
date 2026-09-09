@@ -349,9 +349,13 @@ export async function initModuleManager(): Promise<void> {
 
     getUserAreaOrder();
 
-    plain.moduleStates = savedStates;
-    plain.customModules = customList;
-    plain.userAreaOrder = currentUserAreaOrder;
+    // Fix resetting after restarts — don't overwrite existing plain settings with empty merges
+    if (Object.keys(savedStates).length > 0) plain.moduleStates = savedStates;
+    else plain.moduleStates ??= {};
+    if (customList.length > 0) plain.customModules = customList;
+    else plain.customModules ??= [];
+    if (currentUserAreaOrder.length > 0) plain.userAreaOrder = currentUserAreaOrder;
+    else plain.userAreaOrder ??= [...DEFAULT_USER_AREA_ORDER];
     SettingsStore.markAsChanged();
 
     notify();
@@ -371,6 +375,7 @@ export function stopModuleManager(): void {
 }
 
 export async function persistModuleStates(): Promise<void> {
+    if (registeredModules.size === 0) return; // don't wipe with empty on early call
     const states: Record<string, StoredModuleState> = {};
     for (const [id, mod] of registeredModules.entries()) {
         states[id] = {
@@ -379,9 +384,11 @@ export async function persistModuleStates(): Promise<void> {
             position: mod.position,
         };
     }
+    if (Object.keys(states).length === 0) return;
     try {
         const plain = getPanelLayoutPlainSettings();
-        plain.moduleStates = states;
+        // only overwrite if we have something to save, or if plain was empty
+        if (Object.keys(states).length > 0 || !plain.moduleStates) plain.moduleStates = states;
         SettingsStore.markAsChanged();
     } catch (e) {
         console.error("[PanelLayout] Error saving module states to plain settings:", e);

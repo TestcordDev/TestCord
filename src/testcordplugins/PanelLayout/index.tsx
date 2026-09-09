@@ -188,19 +188,24 @@ async function loadConfigs() {
         const diskConfigs = plPlain?.buttonConfigs;
         const dsConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ??
             (await DataStore.get<Record<string, ButtonConfig>>(OLD_BUTTON_CONFIG_KEY));
-        buttonConfigs = { ...(diskConfigs ?? {}), ...(dsConfigs ?? {}) };
+        const merged = { ...(diskConfigs ?? {}), ...(dsConfigs ?? {}) };
+        // don't wipe with empty — keep existing if both empty and we already have configs
+        if (Object.keys(merged).length > 0 || Object.keys(buttonConfigs).length === 0) buttonConfigs = merged;
     } catch {
-        buttonConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ??
+        const fallback = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ??
             (await DataStore.get<Record<string, ButtonConfig>>(OLD_BUTTON_CONFIG_KEY)) ?? {};
+        if (Object.keys(fallback).length > 0) buttonConfigs = fallback;
     }
     configsLoaded = true;
     rebuildLinkIndex();
 }
 
 function saveConfigs() {
+    if (Object.keys(buttonConfigs).length === 0) { rebuildLinkIndex(); return; }
     try {
         const plPlain = getPanelLayoutPlainSettings();
-        plPlain.buttonConfigs = buttonConfigs;
+        // only overwrite if we have something to save, or plain was empty
+        if (Object.keys(buttonConfigs).length > 0 || !plPlain.buttonConfigs) plPlain.buttonConfigs = buttonConfigs;
         SettingsStore.markAsChanged();
     } catch { }
 
