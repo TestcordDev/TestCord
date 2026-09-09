@@ -269,15 +269,17 @@ export function TempMailModal({ modalProps }: { modalProps: RenderModalProps; })
                     {view === "inbox" && (
                         <div className={cl("view")}>
                             <div className={cl("view-header")}>
-                                <div>
-                                    <div className={cl("view-title")}>Inbox {activeProv && <span className={cl("view-provider")} style={{ background: activeProv.accent }}>{activeProv.name}</span>}</div>
-                                    {active && <div className={cl("view-sub")}>{active.address} • {filtered.length}/{messages.length} {search ? "filtered" : "messages"}</div>}
-                                </div>
-                                <div className={cl("header-actions")}>
-                                    <TextInput value={search} onChange={setSearch} placeholder="Search inbox…" className={cl("search-input")} />
+                                <div className={cl("view-header-top")}>
+                                    <div>
+                                        <div className={cl("view-title")}>Inbox {activeProv && <span className={cl("view-provider")} style={{ background: activeProv.accent }}>{activeProv.name}</span>}</div>
+                                        {active && <div className={cl("view-sub")}>{active.address} • {filtered.length}/{messages.length} {search ? "filtered" : "messages"}</div>}
+                                    </div>
                                     <Tooltip text="Refresh">
                                         {(p: any) => <button {...p} className={cl("icon-btn")} onClick={() => active && fetchInbox(active)} disabled={loading || !active}>↻</button>}
                                     </Tooltip>
+                                </div>
+                                <div className={cl("header-actions")}>
+                                    <TextInput value={search} onChange={setSearch} placeholder="Search inbox…" className={cl("search-input")} />
                                 </div>
                             </div>
 

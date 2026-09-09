@@ -188,9 +188,12 @@ async function loadConfigs() {
         const diskConfigs = plPlain?.buttonConfigs;
         const dsConfigs = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ??
             (await DataStore.get<Record<string, ButtonConfig>>(OLD_BUTTON_CONFIG_KEY));
+        // Merge, but don't wipe existing in-memory configs with empty on early load
         const merged = { ...(diskConfigs ?? {}), ...(dsConfigs ?? {}) };
-        // don't wipe with empty — keep existing if both empty and we already have configs
-        if (Object.keys(merged).length > 0 || Object.keys(buttonConfigs).length === 0) buttonConfigs = merged;
+        if (Object.keys(merged).length > 0) buttonConfigs = merged;
+        else if (Object.keys(buttonConfigs).length === 0 && Object.keys(merged).length === 0) {
+            // keep existing (likely empty on first install) — don't overwrite with empty
+        }
     } catch {
         const fallback = (await DataStore.get<Record<string, ButtonConfig>>(BUTTON_CONFIG_KEY)) ??
             (await DataStore.get<Record<string, ButtonConfig>>(OLD_BUTTON_CONFIG_KEY)) ?? {};
@@ -201,15 +204,19 @@ async function loadConfigs() {
 }
 
 function saveConfigs() {
-    if (Object.keys(buttonConfigs).length === 0) { rebuildLinkIndex(); return; }
+    // Always rebuild index, but only persist if we have data or plain is empty
     try {
         const plPlain = getPanelLayoutPlainSettings();
-        // only overwrite if we have something to save, or plain was empty
-        if (Object.keys(buttonConfigs).length > 0 || !plPlain.buttonConfigs) plPlain.buttonConfigs = buttonConfigs;
-        SettingsStore.markAsChanged();
+        if (Object.keys(buttonConfigs).length > 0) {
+            plPlain.buttonConfigs = buttonConfigs;
+            SettingsStore.markAsChanged();
+        } else if (!plPlain.buttonConfigs) {
+            plPlain.buttonConfigs = {};
+            SettingsStore.markAsChanged();
+        }
     } catch { }
 
-    DataStore.set(BUTTON_CONFIG_KEY, buttonConfigs);
+    if (Object.keys(buttonConfigs).length > 0) DataStore.set(BUTTON_CONFIG_KEY, buttonConfigs);
     rebuildLinkIndex();
 }
 

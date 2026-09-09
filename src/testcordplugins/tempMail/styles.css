@@ -14,11 +14,11 @@
 /* Shell — bigger like OSINT Fanboy club (was 560px) */
 .vc-tm-shell {
     display: flex;
-    height: 680px;
+    height: 700px;
     min-height: 640px;
-    max-height: 82vh;
+    max-height: 85vh;
     width: 100%;
-    max-width: 960px;
+    max-width: 980px;
     overflow: hidden;
     background: var(--background-primary, #313338);
     border-radius: 12px;
@@ -123,15 +123,18 @@
 .vc-tm-error-close { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 13px; opacity: .8; }
 .vc-tm-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
 .vc-tm-view-header {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 14px 16px 10px; border-bottom: 1px solid var(--background-modifier-accent);
+    display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+    padding: 14px 16px 12px; border-bottom: 1px solid var(--background-modifier-accent);
     background: var(--background-primary);
     flex-shrink: 0;
+}
+.vc-tm-view-header-top {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
 }
 .vc-tm-view-title { font-size: 15px; font-weight: 800; color: var(--header-primary, var(--text-normal, #f2f3f5)) !important; display: flex; align-items: center; gap: 8px; }
 .vc-tm-view-provider { font-size: 10px; font-weight: 800; color: #fff !important; padding: 2px 7px; border-radius: 999px; letter-spacing: .4px; text-transform: uppercase; }
 .vc-tm-view-sub { font-size: 11px; color: var(--text-muted, #949ba4) !important; margin-top: 2px; word-break: break-all; }
-.vc-tm-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.vc-tm-header-actions { display: flex; align-items: center; gap: 8px; width: 100%; flex-shrink: 0; }
 
 /* Search — whole background dark like OSINT Fanboy club (TextInput) */
 .vc-tm-search-input {
