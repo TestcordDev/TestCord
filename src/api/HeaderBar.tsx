@@ -9,10 +9,9 @@ import "./PluginIconColor.css";
 import { useSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { getTestcordIconColor } from "@testcordplugins/TestcordHelper/iconColors";
-import { LazyComponent } from "@utils/lazyReact";
 import { Logger } from "@utils/Logger";
 import { classes } from "@utils/misc";
-import { find, findCssClassesLazy, findModuleId, wreq } from "@webpack";
+import { find, findComponentByCodeLazy, findCssClassesLazy, findModuleId, wreq } from "@webpack";
 import { Clickable, Tooltip, useEffect, useState } from "@webpack/common";
 import type { ComponentType, CSSProperties, JSX, MouseEventHandler, ReactNode } from "react";
 
@@ -49,7 +48,11 @@ function findDiscordHeaderBarIcon(): ComponentType<ChannelToolbarButtonProps> | 
     });
 }
 
-export const HeaderBarIcon: ComponentType<ChannelToolbarButtonProps> = LazyComponent(() => findDiscordHeaderBarIcon() as ComponentType<ChannelToolbarButtonProps>);
+// Equicord upstream now uses a direct findComponentByCodeLazy anchor — more resilient after minification.
+// Testcord keeps its thorough fallback (findDiscordHeaderBarIcon) but prefers upstream's anchor to get new logic without breaking color handling.
+// The fallback remains for resilience if Discord renames the anchor.
+export const HeaderBarIcon: ComponentType<ChannelToolbarButtonProps> = findComponentByCodeLazy("tooltipPosition:", '"aria-haspopup":', '"data-jump-section":') as ComponentType<ChannelToolbarButtonProps>;
+void findDiscordHeaderBarIcon;
 const TESTCORD_TOP_BAR_ICON_COLOR_SETTING: ["plugins.TestcordHelper.topBarButtonIconColor"] = ["plugins.TestcordHelper.topBarButtonIconColor"];
 const TESTCORD_HEADER_BAR_ICON_COLOR_SETTING: ["plugins.TestcordHelper.headerBarButtonIconColor"] = ["plugins.TestcordHelper.headerBarButtonIconColor"];
 
