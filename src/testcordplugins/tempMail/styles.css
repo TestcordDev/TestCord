@@ -11,6 +11,10 @@
     color: rgba(255, 255, 255, 0.5) !important;
 }
 
+/* Modal wide like HeartGifs (1400px) — fixes right side hidden */
+.vc-tm-modal-root { max-width: 1400px !important; width: 95vw !important; }
+.vc-tm-modal-root [class*="modalContent"] { max-width: 100% !important; width: 100% !important; }
+
 /* Shell — bigger like OSINT Fanboy club (was 560px) */
 .vc-tm-shell {
     display: flex;
@@ -18,7 +22,7 @@
     min-height: 640px;
     max-height: 85vh;
     width: 100%;
-    max-width: 980px;
+    max-width: 100%;
     overflow: hidden;
     background: var(--background-primary, #313338);
     border-radius: 12px;

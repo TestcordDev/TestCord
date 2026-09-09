@@ -1,10 +1,17 @@
-.vc-cal-modal-root { max-width: 1180px; width: 96vw; }
+.vc-cal-modal-root { max-width: 1400px !important; width: 95vw !important; }
+.vc-cal-modal-root [class*="modalContent"],
+.vc-cal-modal-root [class*="content"] {
+    max-height: 90vh !important;
+}
 .vc-cal-modal-content {
     padding: 0 16px 16px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    max-height: min(88vh, 840px);
+    max-height: 90vh;
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
 }
 .vc-cal-modal-content input,
 .vc-cal-modal-content textarea,
@@ -66,7 +73,7 @@ button[class*="closeButton"]:active { background-color: var(--background-modifie
 
 /* Layout — a lot bigger, fix clipping */
 .vc-cal-layout { display: flex; gap: 20px; min-height: 560px; max-width: 100%; overflow: hidden; align-items: flex-start; }
-.vc-cal-calendar-side { flex: 1 1 520px; min-width: 380px; max-width: 640px; overflow: hidden; display: flex; flex-direction: column; }
+.vc-cal-calendar-side { flex: 1 1 640px; min-width: 420px; max-width: 760px; overflow: hidden; display: flex; flex-direction: column; }
 .vc-cal-calendar-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
 .vc-cal-month-label {
     flex: 1; background: var(--background-secondary); border: 1px solid var(--background-modifier-accent);
@@ -117,8 +124,8 @@ button[class*="closeButton"]:active { background-color: var(--background-modifie
 
 /* Notes side — fix overflow and clipping */
 .vc-cal-notes-side {
-    flex: 0 0 400px; max-width: 420px; border-left: 1px solid var(--background-modifier-accent, rgba(255,255,255,0.06));
-    padding-left: 18px; display: flex; flex-direction: column; gap: 12px; min-height: 560px; max-height: 780px; overflow: hidden; min-width: 0;
+    flex: 0 0 460px; max-width: 520px; border-left: 1px solid var(--background-modifier-accent, rgba(255,255,255,0.06));
+    padding-left: 20px; display: flex; flex-direction: column; gap: 12px; min-height: 560px; max-height: 780px; overflow: hidden; min-width: 0;
 }
 .vc-cal-notes-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted, #949ba4) !important; font-size: 13px; font-style: italic; text-align: center; padding: 16px; }
 .vc-cal-notes-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; flex-shrink: 0; }
