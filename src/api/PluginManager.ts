@@ -43,12 +43,13 @@ import { patches, removePatchesByPlugin } from "@webpack/patcher";
 import Plugins from "~plugins";
 export { Plugins as plugins };
 
+import { getPluginId } from "@utils/pluginIds";
+
 import { addAudioProcessor, removeAudioProcessor } from "./AudioPlayer";
 import { addChannelToolbarButton, addHeaderBarButton, removeChannelToolbarButton, removeHeaderBarButton } from "./HeaderBar";
 import { addProfileCollection, removeProfileCollection } from "./ProfileCollections";
 import { addProfileSection, removeProfileSection } from "./ProfileSections";
 import { addUserAreaButton, removeUserAreaButton } from "./UserArea";
-import { getPluginId } from "@utils/pluginIds";
 
 const logger = new Logger("PluginManager", "#a6d189");
 

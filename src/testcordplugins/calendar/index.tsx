@@ -6,16 +6,16 @@
 
 import "./style.css";
 
-import { showNotification } from "@api/Notifications";
 import { HeaderBarButton } from "@api/HeaderBar";
 import { DataStore } from "@api/index";
+import { showNotification } from "@api/Notifications";
 import { definePluginSettings } from "@api/Settings";
+import { Button } from "@components/Button";
 import { classNameFactory } from "@utils/css";
 import { copyWithToast } from "@utils/discord";
-import { ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal, closeModal } from "@utils/modal";
+import { closeModal,ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
-import { Forms, Modal, moment, React, Select, TextArea, TextInput, Tooltip, ScrollerThin, useEffect, useRef, useState } from "@webpack/common";
-import { Button } from "@components/Button";
+import { Forms, Modal, moment, React, ScrollerThin, TextArea, TextInput, Tooltip, useEffect, useRef, useState } from "@webpack/common";
 
 const cl = classNameFactory("vc-cal-");
 const STORE_KEY = "Calendar_notes_v2";

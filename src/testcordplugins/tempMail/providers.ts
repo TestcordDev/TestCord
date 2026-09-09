@@ -236,7 +236,7 @@ const GuerrillaProvider: TempProvider = {
     async createAccount(address: string) {
         const user = address.split("@")[0] || randomString(10);
         // try set_email_user to claim custom
-        const sidRes = await fetch(`https://api.guerrillamail.com/ajax.php?f=get_email_address&ip=127.0.0.1&agent=Mozilla_5.0&lang=en`);
+        const sidRes = await fetch("https://api.guerrillamail.com/ajax.php?f=get_email_address&ip=127.0.0.1&agent=Mozilla_5.0&lang=en");
         const sidData: any = await sidRes.json().catch(() => ({}));
         const sidToken: string = sidData.sid_token ?? randomString(20);
         const fallbackEmail: string = sidData.email_addr ?? `${user}@guerrillamail.com`;

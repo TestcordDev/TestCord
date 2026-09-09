@@ -6,14 +6,14 @@
 
 import "../styles.css";
 
+import { Button } from "@components/Button";
 import { copyToClipboard } from "@utils/clipboard";
 import { classNameFactory } from "@utils/css";
 import type { RenderModalProps } from "@vencord/discord-types";
 import { Modal, React, ScrollerThin, showToast, TextInput, Toasts, Tooltip, useEffect, useRef, useState } from "@webpack/common";
-import { Button } from "@components/Button";
 
 import { settings } from "..";
-import { getProvider, listProviders, providers, randomString, SavedAccount, TmMessage, TmMessageFull } from "../providers";
+import { getProvider, providers, randomString, SavedAccount, TmMessage, TmMessageFull } from "../providers";
 import { deleteMessageFromStore, getActiveId, getSavedAccounts, getSavedMessages, mergeAndSaveMessages, removeAccount, saveAccount, setActiveId } from "../store";
 
 const cl = classNameFactory("vc-tm-");

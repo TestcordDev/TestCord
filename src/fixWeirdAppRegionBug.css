@@ -20,7 +20,7 @@ button[class*="closeButton"]:hover,
 button[class*="closeWithCircleBackground"]:hover,
 button[aria-label="Close"]:hover,
 button[aria-label="Close Modal"]:hover {
-    background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+    background-color: var(--background-modifier-hover, rgb(255 255 255 / 8%));
 }
 
 .vc-modal-close-btn:active,
@@ -28,6 +28,6 @@ button[class*="closeButton"]:active,
 button[class*="closeWithCircleBackground"]:active,
 button[aria-label="Close"]:active,
 button[aria-label="Close Modal"]:active {
-    background-color: var(--background-modifier-active, rgba(255, 255, 255, 0.16));
+    background-color: var(--background-modifier-active, rgb(255 255 255 / 16%));
 }
 

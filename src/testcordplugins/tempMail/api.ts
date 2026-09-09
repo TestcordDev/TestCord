@@ -8,4 +8,4 @@ export * from "./providers";
 
 /** @deprecated Use providers.ts directly */
 import { getProvider, providerMap, providers, randomString } from "./providers";
-export { providers, providerMap, getProvider, randomString };
+export { getProvider, providerMap, providers, randomString };

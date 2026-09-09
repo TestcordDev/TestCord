@@ -20,9 +20,9 @@ import { Settings, SettingsStore, type ThemeActivationMode } from "@api/Settings
 import { createAndAppendStyle } from "@utils/css";
 import { isNonNullish } from "@utils/guards";
 import { Logger } from "@utils/Logger";
+import { parseThemeIdFromCss, themeFileToId } from "@utils/themeIds";
 import { ThemeStore } from "@vencord/discord-types";
 import { PopoutWindowStore } from "@webpack/common";
-import { parseThemeIdFromCss, themeFileToId } from "@utils/themeIds";
 
 import { coreStyleRootNode, managedStyleRootNode, userStyleRootNode, vencordRootNode } from "./Styles";
 
