@@ -1,10 +1,10 @@
-.vc-cal-modal-root { max-width: 980px; }
+.vc-cal-modal-root { max-width: 1080px; width: 96vw; }
 .vc-cal-modal-content {
     padding: 0 16px 16px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    max-height: min(78vh, 720px);
+    max-height: min(85vh, 780px);
 }
 .vc-cal-modal-content input,
 .vc-cal-modal-content textarea,
@@ -28,7 +28,7 @@ button[class*="closeButton"]:active { background-color: var(--background-modifie
 
 /* Toolbar */
 .vc-cal-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--background-modifier-accent); margin-bottom: 12px; flex-wrap: wrap; flex-shrink: 0; }
-.vc-cal-global-search { min-width: 220px; flex: 1; max-width: 360px; }
+.vc-cal-global-search { min-width: 260px; flex: 1; max-width: 420px; }
 .vc-cal-global-search input,
 .vc-cal-global-search [class*="input"] {
     background: var(--input-background, var(--background-tertiary, #2b2d31)) !important;
@@ -40,7 +40,7 @@ button[class*="closeButton"]:active { background-color: var(--background-modifie
 .vc-cal-global-search [class*="input"]::placeholder {
     color: var(--text-muted, #949ba4) !important;
 }
-/* Notes panel search + add-form inputs — force dark like other Testcord plugins */
+/* Notes panel search + add-form inputs — force dark like OSINT Fanboy club */
 .vc-cal-notes-panel input,
 .vc-cal-notes-panel [class*="input"],
 .vc-cal-add-form input,
@@ -202,4 +202,7 @@ button[class*="closeButton"]:active { background-color: var(--background-modifie
     background: var(--background-tertiary, #2b2d31) !important;
     border-radius: 8px !important;
     overflow: hidden !important;
+    height: 38px !important;
+    display: flex !important;
+    align-items: center !important;
 }
