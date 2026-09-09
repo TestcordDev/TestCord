@@ -117,12 +117,13 @@ export const settings = definePluginSettings({
         onChange: () => apply()
     },
     panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#0e1852", onChange: () => apply() },
-    panelBackgroundTransparency: { type: OptionType.SLIDER, description: "Panel background color transparency (0-100%)", default: 0, markers: makeRange(0, 100, 10), stickToMarkers: false, onChange: () => apply() },
+    panelBackgroundOpacity: { type: OptionType.SLIDER, description: "Panel background color opacity", default: 100, markers: makeRange(0, 100, 10), stickToMarkers: false, onChange: () => apply() },
     glowColor: { type: OptionType.STRING, description: "Glow hover color", default: "#ffffff", onChange: () => apply() },
     forceNativeButtonColor: { type: OptionType.BOOLEAN, default: false, description: "Force the icon color on Discord's native buttons (Mute, Deafen, Settings) even when no custom icon color is set", onChange: () => apply() },
     hideChevrons: { type: OptionType.BOOLEAN, default: false, description: "Hide dropdown chevrons next to Mute and Deafen", onChange: () => apply() },
     lockButtonPosition: { type: OptionType.BOOLEAN, default: false, description: "Lock Button Position (prevents buttons dropping down on long status)", onChange: () => apply() },
     callCompact: { type: OptionType.BOOLEAN, default: false, description: "Compact mode for call control buttons", onChange: () => apply() },
+    callBackgroundButtonOpacity: { type: OptionType.SLIDER, default: 12, markers: makeRange(0, 100, 10), stickToMarkers: false, description: "Compact mode for call control buttons", onChange: () => apply() },
     hideDisconnect: { type: OptionType.BOOLEAN, default: false, description: "Hide the disconnect button", onChange: () => apply() },
     hideVoiceStatus: { type: OptionType.BOOLEAN, default: false, description: "Hide the 'Voice Connected' status text and channel name", onChange: () => apply() },
     hidePingIcon: { type: OptionType.BOOLEAN, default: false, description: "Hide the ping/connection quality icon", onChange: () => apply() },
@@ -766,7 +767,7 @@ function buildCSS(): string {
     }
 
     if (st.panelBackgroundColor) {
-        const bgColor = applyColorAlpha(st.panelBackgroundColor, st.panelBackgroundTransparency);
+        const bgColor = applyColorAlpha(st.panelBackgroundColor, 100 - st.panelBackgroundOpacity);
         lines.push(`
             section[class*="panels_"],
             .panels__5e434 {
@@ -776,6 +777,14 @@ function buildCSS(): string {
             ${S.panelContainer} {
                 background: transparent !important;
                 background-color: transparent !important;
+            }
+        `);
+    }
+
+    if (st.callBackgroundButtonOpacity) {
+        lines.push(`
+            .button_e131a9 .buttonColor_e131a9, .button_e131a9.buttonColor_e131a9 {
+                background-color: hsl(from var(--control-secondary-background-default) h s l / ${st.callBackgroundButtonOpacity / 100});
             }
         `);
     }
@@ -2660,7 +2669,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("buttonStyle", "default");
         set("hoverEffect", "default");
         set("panelBackgroundColor", "#0e1852");
-        set("panelBackgroundTransparency", 0);
+        set("panelBackgroundOpacity", 0);
         set("glowColor", "#ffffff");
         set("forceNativeButtonColor", false);
         set("hideChevrons", false);
@@ -2793,6 +2802,11 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             <Dropdown label="Call Controls Alignment" options={CALL_LAYOUTS} value={s.callControlsLayout} onChange={v => set("callControlsLayout", v)} />
                         </Card>
 
+                        <SectionHeading>Background Button Opacity</SectionHeading>
+                        <Card variant="primary">
+                            <SliderRow label="Background Button Opacity" value={s.callBackgroundButtonOpacity ?? 12} min={0} max={100} unit="%" onChange={v => set("callBackgroundButtonOpacity", Math.round(v))} resetKey={resetKey} />
+                        </Card>
+
                         <SectionHeading>Voice Settings</SectionHeading>
                         <Card variant="primary">
                             <FormSwitch title="Compact Mode" description="Reduces padding inside call buttons to save space." value={s.callCompact} onChange={v => set("callCompact", v)} />
@@ -2817,7 +2831,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <Card variant="primary">
                             <div style={{ display: "grid", gap: "8px" }}>
                                 <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} preset="#0e1852" />
-                                <SliderRow label="Background Transparency" value={s.panelBackgroundTransparency ?? 0} min={0} max={100} unit="%" onChange={v => set("panelBackgroundTransparency", Math.round(v))} resetKey={resetKey} />
+                                <SliderRow label="Background Opacity" value={s.panelBackgroundOpacity ?? 100} min={0} max={100} unit="%" onChange={v => set("panelBackgroundOpacity", Math.round(v))} resetKey={resetKey} />
 
                                 {settings.store.hoverEffect === "glow" && <>
                                     <ColorRow label="Glow Hover Color" value={s.glowColor} onChange={v => set("glowColor", v)} preset="#ffffff" />
