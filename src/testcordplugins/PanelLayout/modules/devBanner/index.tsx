@@ -21,6 +21,7 @@ import { FormatSetting, makeDevBanner, settings } from "./components";
 export function DevBannerWidget() {
     const s = settings.use(["format", "color", "backgroundColor", "fontSize", "textAlign"]);
     const content = makeDevBanner();
+    if (!content) return null;
     return (
         <div
             className="vc-devbanner-module-widget"
@@ -222,21 +223,7 @@ export function DevBannerSettingsModal({ modalProps, onClose }: { modalProps?: R
     );
 }
 
-export const devBannerPatches = [
-    {
-        find: '"isHideDevBanner"',
-        replacement: [
-            {
-                match: '"staging"===window.GLOBAL_ENV.RELEASE_CHANNEL',
-                replace: "true"
-            },
-            {
-                match: /children:\[.{0,60}(?:#{intl::BUILD_OVERRIDE}|#{intl::uyrfYF::raw}).{0,40}\{\}\)\]/g,
-                replace: "children:$self.makeDevBanner()"
-            }
-        ]
-    }
-];
+export const devBannerPatches: any[] = [];
 
 export const devBannerModule: Omit<UserAreaModule, "order" | "enabled"> = {
     id: "dev-banner",
