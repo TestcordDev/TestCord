@@ -168,3 +168,6 @@ export function getUserAvatarUrl(user: User, guildId?: string, canAnimate?: bool
 
     return IconUtils.getUserAvatarURL(user, canAnimate, size) ?? IconUtils.getDefaultAvatarURL(user.id, user?.discriminator);
 }
+
+// this is all the way down here because i dont feel like dealing with conflicts
+export const pluralize = pluralise;

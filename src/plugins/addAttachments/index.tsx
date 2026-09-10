@@ -7,7 +7,7 @@
 import { ChatBarButton } from "@api/ChatButtons";
 import { UploadIcon } from "@components/Icons";
 import { Devs } from "@utils/constants";
-import { pluralise } from "@utils/misc";
+import { pluralize } from "@utils/misc";
 import definePlugin from "@utils/types";
 import { Message } from "@vencord/discord-types";
 import { MessageFlags, MessageType } from "@vencord/discord-types/enums";
@@ -43,7 +43,7 @@ async function addAttachments(channelId: string, messageId: string, existingAtta
             return;
         }
 
-        showToast(`You can only add ${pluralise(remaining, "more attachment")} to this message.`, Toasts.Type.FAILURE);
+        showToast(`You can only add ${pluralize(remaining, "more attachment")} to this message.`, Toasts.Type.FAILURE);
         return;
     }
 
