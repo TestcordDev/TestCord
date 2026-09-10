@@ -7,7 +7,7 @@
 import { ModalContent, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import { ChannelStore, GuildStore } from "@webpack/common";
 
-import { analyzeMessages, MessageData, ResultSection } from "../TestcordOSINT/algorithms";
+import { analyzeMessages, MessageData, ResultSection } from "../testcordosinttoolkit/algorithms";
 import { getAllLogs, getDatabase } from "./db";
 import { LogRecord, LogStatus } from "./types";
 

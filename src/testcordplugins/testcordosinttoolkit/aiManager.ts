@@ -21,6 +21,10 @@ function getNativeFetch() {
     if (_nativeFetch) return _nativeFetch;
     try {
         const vn = (globalThis as any).VencordNative;
+        if (vn?.pluginHelpers?.TestcordOSINTToolkit?.osintFetch) {
+            _nativeFetch = vn.pluginHelpers.TestcordOSINTToolkit.osintFetch;
+            return _nativeFetch;
+        }
         if (vn?.pluginHelpers?.TestcordOSINT?.osintFetch) {
             _nativeFetch = vn.pluginHelpers.TestcordOSINT.osintFetch;
             return _nativeFetch;
@@ -33,6 +37,10 @@ function getNativeCordCat() {
     if (_nativeCordCat) return _nativeCordCat;
     try {
         const vn = (globalThis as any).VencordNative;
+        if (vn?.pluginHelpers?.TestcordOSINTToolkit?.fetchCordCat) {
+            _nativeCordCat = vn.pluginHelpers.TestcordOSINTToolkit.fetchCordCat;
+            return _nativeCordCat;
+        }
         if (vn?.pluginHelpers?.TestcordOSINT?.fetchCordCat) {
             _nativeCordCat = vn.pluginHelpers.TestcordOSINT.fetchCordCat;
             return _nativeCordCat;

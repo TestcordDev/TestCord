@@ -273,7 +273,7 @@ const contextMenuPatch: NavContextMenuPatchCallback = (children, props: MenuProp
                         id="testcord-ml-osint-full"
                         label="Full OSINT Scan Of Author"
                         action={() => {
-                            void import("../TestcordOSINT/index").then(({ openOsintScanFor }) =>
+                            void import("../testcordosinttoolkit/index").then(({ openOsintScanFor }) =>
                                 openOsintScanFor(message.author.id, message.channel_id)
                             );
                         }}

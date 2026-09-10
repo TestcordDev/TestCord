@@ -139,7 +139,7 @@ export const CspPolicies: PolicyMap = {
     "assets.ppy.sh": ConnectSrc,
     "free.freeipapi.com": ConnectSrc,
     "ipwho.is": ConnectSrc,
-    "ip-api.com": ConnectSrc, // OSINTToolkit IP provider
+    "ip-api.com": ConnectSrc, // OSINT IP provider
     "huskapi.nin0.dev": ConnectSrc,
     "placeholder.nin0.dev": ImageSrc,
     "images-ext-1.discordapp.net": ImageSrc,

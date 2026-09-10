@@ -4,12 +4,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import "./styles.css";
-
 import * as DataStore from "@api/DataStore";
 import { HeadingPrimary, HeadingTertiary } from "@components/Heading";
 import { SettingsTab, wrapTab } from "@components/settings/tabs/BaseTab";
-import { classNameFactory } from "@utils/css";
 import { copyWithToast, openUserProfile } from "@utils/discord";
 import { Avatar, Button, Checkbox, MaskedLink, TextArea, TextInput, useEffect, UserStore, useState } from "@webpack/common";
 import type { PointerEvent, ReactNode } from "react";
@@ -69,26 +66,55 @@ interface ResourceGroupProps {
     items: readonly ResourceItem[];
 }
 
-const SETTING_KEYS = ["cordCatApiKey", "geoSeeerApiKey", "enableLogging", "clearRecentInvestigationsOnRestart"] satisfies Array<keyof typeof settings.store>;
-const cl = classNameFactory("vc-osint-club-");
+const SETTING_KEYS = ["cordCatApiKey", "geoSeeerApiKey", "enableLogging", "clearRecentInvestigationsOnRestart"] as const;
 
-const sections: Array<{ id: SectionId; label: string; description: string; }> = [
-    { id: "cordcat", label: "CordCat", description: "Discord intelligence" },
-    { id: "network", label: "Network", description: "Domains and IPs" },
-    { id: "identity", label: "Identity", description: "Users and breaches" },
-    { id: "geo", label: "Geo Lab", description: "Images and locations" },
-    { id: "resources", label: "Resources", description: "OSINT launchpad" },
-    { id: "api", label: "API Vault", description: "Keys and diagnostics" }
+const sections: Array<{ id: SectionId; label: string; description: string; icon: ReactNode; }> = [
+    {
+        id: "cordcat", label: "CordCat", description: "Discord intelligence",
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2zm-2 12.5V17h4v-2.5a6.98 6.98 0 0 0 1.2-.7V13H8.8a6.9 6.9 0 0 0 1.2.7z" /></svg>
+    },
+    {
+        id: "network", label: "Network", description: "Domains and IPs",
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5zm4 4h-2v-2h2v2zm0-4h-2V7h2v5z" /></svg>
+    },
+    {
+        id: "identity", label: "Identity", description: "Users and breaches",
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg>
+    },
+    {
+        id: "geo", label: "Geo Lab", description: "Images and locations",
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5z" /></svg>
+    },
+    {
+        id: "resources", label: "Resources", description: "OSINT launchpad",
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z" /></svg>
+    },
+    {
+        id: "api", label: "API Vault", description: "Keys and diagnostics",
+        icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2z" /></svg>
+    },
 ];
 
 function ToolCard({ title, description, children }: ToolCardProps) {
+    // pick an icon based on title for visual weight
+    const iconMap: Record<string, ReactNode> = {
+        "Discord user intelligence": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2z" /></svg>,
+        "Invite intelligence": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 16l4-4-4-4v8zm8 2H6V6h12v12z" /></svg>,
+        "Guild widget": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05A3 3 0 0 1 19 16.5V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" /></svg>,
+        "Domain dossier": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5zm4 4h-2v-2h2v2zm0-4h-2V7h2v5z" /></svg>,
+        "IP intelligence": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm-1-4a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" /></svg>,
+    };
+    const icon = iconMap[title] ?? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5-10-5-10 5z" /></svg>;
     return (
-        <section className={cl("card")}>
-            <div className={cl("card-head")}>
-                <HeadingTertiary>{title}</HeadingTertiary>
-                <span>{description}</span>
+        <section className="vc-osint-card">
+            <div className="vc-osint-card-head">
+                <div className="vc-osint-card-icon">{icon}</div>
+                <div style={{ minWidth: 0 }}>
+                    <HeadingTertiary style={{ fontSize: 14 }}>{title}</HeadingTertiary>
+                    <p>{description}</p>
+                </div>
             </div>
-            <div className={cl("card-body")}>{children}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>{children}</div>
         </section>
     );
 }
@@ -100,7 +126,7 @@ function Toggle({ label, value, onChange }: ToggleProps) {
             size={20}
             onChange={(_event: PointerEvent<Element>, checked: boolean) => onChange(checked)}
         >
-            <span className={cl("toggle-label")}>{label}</span>
+            <span style={{ fontSize: 13 }}>{label}</span>
         </Checkbox>
     );
 }
@@ -108,9 +134,9 @@ function Toggle({ label, value, onChange }: ToggleProps) {
 function ResourceGroup({ title, items }: ResourceGroupProps) {
     return (
         <ToolCard title={title} description={`${items.length} curated destinations.`}>
-            <div className={cl("resource-grid")}>
+            <div className="vc-osint-resource-grid">
                 {items.map(item => (
-                    <div className={cl("resource")} key={item.id}>
+                    <div className="vc-osint-resource" key={item.id}>
                         <div>
                             <strong>{item.name}</strong>
                             <span>{item.description}</span>
@@ -187,12 +213,10 @@ function humanize(key: string): string {
 
 function formatTextResult(value: unknown, depth = 0): string {
     const indent = "  ".repeat(depth);
-
     if (Array.isArray(value)) {
         if (!value.length) return `${indent}No entries.`;
         return value.map((item, index) => `${indent}Result ${index + 1}:\n${formatTextResult(item, depth + 1)}`).join("\n\n");
     }
-
     if (isRecord(value)) {
         const entries = Object.entries(value);
         if (!entries.length) return `${indent}No details available.`;
@@ -201,7 +225,6 @@ function formatTextResult(value: unknown, depth = 0): string {
             : `${indent}${humanize(key)}: ${formatPrimitive(field)}`
         ).join("\n");
     }
-
     return `${indent}${formatPrimitive(value)}`;
 }
 
@@ -220,7 +243,7 @@ interface MetricProps {
 
 function Metric({ label, value, tone }: MetricProps) {
     return (
-        <div className={tone ? cl("metric", `metric-${tone}`) : cl("metric")}>
+        <div className={`vc-osint-metric ${tone ? `vc-osint-metric--${tone}` : ""}`}>
             <span>{label}</span>
             <strong>{formatPrimitive(value)}</strong>
         </div>
@@ -235,12 +258,12 @@ interface ResultSectionProps {
 
 function ResultSection({ title, subtitle, children }: ResultSectionProps) {
     return (
-        <section className={cl("visual-section")}>
-            <div className={cl("visual-section-head")}>
+        <section style={{ overflow: "hidden", border: "1px solid var(--background-modifier-accent)", borderRadius: 10, background: "var(--background-secondary)" }}>
+            <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--background-modifier-accent)", background: "var(--background-tertiary)" }}>
                 <HeadingTertiary>{title}</HeadingTertiary>
-                {subtitle ? <span>{subtitle}</span> : null}
+                {subtitle ? <span style={{ display: "block", marginTop: 2, color: "var(--text-muted)", fontSize: 11 }}>{subtitle}</span> : null}
             </div>
-            <div className={cl("visual-section-body")}>{children}</div>
+            <div style={{ padding: 10 }}>{children}</div>
         </section>
     );
 }
@@ -252,14 +275,13 @@ interface DataExplorerProps {
 
 function DataExplorer({ value, depth = 0 }: DataExplorerProps) {
     if (Array.isArray(value)) {
-        if (!value.length) return <div className={cl("data-empty")}>No entries.</div>;
-
+        if (!value.length) return <div style={{ padding: 8, color: "var(--text-muted)", fontSize: 12 }}>No entries.</div>;
         return (
-            <div className={cl("record-list")}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                 {value.map(item => {
                     const key = formatResult(item);
                     return (
-                        <div className={cl("record-card")} key={key}>
+                        <div key={key} style={{ padding: 8, border: "1px solid var(--background-modifier-accent)", borderRadius: 8, background: "var(--background-tertiary)" }}>
                             <DataExplorer value={item} depth={depth + 1} />
                         </div>
                     );
@@ -267,33 +289,28 @@ function DataExplorer({ value, depth = 0 }: DataExplorerProps) {
             </div>
         );
     }
-
-    if (!isRecord(value)) return <span className={cl("primitive")}>{formatPrimitive(value)}</span>;
-
+    if (!isRecord(value)) return <span style={{ color: "var(--text-muted)", fontSize: 12 }}>{formatPrimitive(value)}</span>;
     const entries = Object.entries(value);
-    if (!entries.length) return <div className={cl("data-empty")}>No details available.</div>;
-
+    if (!entries.length) return <div style={{ padding: 8, color: "var(--text-muted)", fontSize: 12 }}>No details available.</div>;
     return (
-        <div className={cl("data-grid")}>
+        <div className="vc-osint-data-grid">
             {entries.map(([key, field]) => {
                 if (Array.isArray(field) || isRecord(field)) {
                     return (
-                        <details className={cl("data-group")} key={key} open={depth === 0}>
-                            <summary>
+                        <details key={key} style={{ gridColumn: "1 / -1", border: "1px solid var(--background-modifier-accent)", borderRadius: 8, background: "var(--background-primary)" }} open={depth === 0}>
+                            <summary style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", padding: "8px 10px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
                                 <span>{humanize(key)}</span>
-                                <small>{Array.isArray(field) ? `${field.length} entries` : `${Object.keys(field).length} fields`}</small>
+                                <small style={{ color: "var(--text-muted)", fontWeight: 500 }}>{Array.isArray(field) ? `${field.length} entries` : `${Object.keys(field).length} fields`}</small>
                             </summary>
-                            <DataExplorer value={field} depth={depth + 1} />
+                            <div style={{ padding: "0 8px 8px" }}><DataExplorer value={field} depth={depth + 1} /></div>
                         </details>
                     );
                 }
-
                 return (
-                    <div className={cl("data-field")} key={key}>
-                        <div>
+                    <div className="vc-osint-data-field" key={key}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
                             <span>{humanize(key)}</span>
                             <Button
-                                className={cl("copy-mini")}
                                 color={Button.Colors.TRANSPARENT}
                                 size={Button.Sizes.SMALL}
                                 onClick={() => void copyWithToast(formatPrimitive(field), `${humanize(key)} copied.`)}
@@ -334,28 +351,28 @@ function ProfileResult({ data }: ProfileResultProps) {
     const riskTone = risk === undefined ? undefined : risk >= 60 ? "danger" : risk >= 25 ? "warning" : "positive";
 
     return (
-        <div className={cl("profile-result")}>
-            <div className={cl("profile-hero")}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="vc-osint-profile-hero">
                 {cachedUser ? (
                     <Avatar src={cachedUser.getAvatarURL(undefined, 80, true)} size="SIZE_80" />
                 ) : (
-                    <div className={cl("avatar-fallback")}>{displayName.slice(0, 2).toUpperCase()}</div>
+                    <div style={{ display: "grid", placeItems: "center", width: 56, height: 56, borderRadius: "50%", background: "var(--background-secondary)", border: "1px solid var(--background-modifier-accent)", fontSize: 20, fontWeight: 800, flexShrink: 0 }}>{displayName.slice(0, 2).toUpperCase()}</div>
                 )}
-                <div className={cl("profile-title")}>
-                    <span>Discord identity</span>
-                    <HeadingPrimary>{displayName}</HeadingPrimary>
-                    <p>@{username}{userId ? ` · ${userId}` : ""}</p>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ color: "var(--text-muted)", fontSize: 10, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase" }}>Discord identity</span>
+                    <HeadingPrimary style={{ fontSize: 18, lineHeight: "1.2" }}>{displayName}</HeadingPrimary>
+                    <p style={{ margin: 0, color: "var(--text-muted)", fontFamily: "var(--font-code)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>@{username}{userId ? ` · ${userId}` : ""}</p>
                 </div>
                 {userId ? (
-                    <Button color={Button.Colors.PRIMARY} onClick={() => openUserProfile(userId)}>
-                        Open in Discord
+                    <Button color={Button.Colors.PRIMARY} size={Button.Sizes.SMALL} onClick={() => openUserProfile(userId)} className="vc-osint-profile-open">
+                        Open
                     </Button>
                 ) : null}
             </div>
 
-            <div className={cl("metrics")}>
-                <Metric label="Risk" value={risk === undefined ? "Not scored" : `${risk}/100`} tone={riskTone} />
-                <Metric label="Risk level" value={getString(score, "level") ?? "Not scored"} tone={riskTone} />
+            <div className="vc-osint-metric-grid">
+                <Metric label="Risk" value={risk === undefined ? "Not scored" : `${risk}/100`} tone={riskTone as any} />
+                <Metric label="Risk level" value={getString(score, "level") ?? "Not scored"} tone={riskTone as any} />
                 <Metric label="Bot likelihood" value={getString(bot, "level") ?? "Unknown"} />
                 <Metric label="Breaches" value={breachCount} tone={breachCount ? "danger" : "positive"} />
                 <Metric label="FiveM records" value={fivemTotal} tone={fivemTotal ? "warning" : "positive"} />
@@ -381,10 +398,9 @@ function InviteResult({ data }: SpecializedResultProps) {
     const guild = getRecord(root, "guild");
     const channel = getRecord(root, "channel");
     const inviter = getRecord(root, "inviter");
-
     return (
-        <div className={cl("visual-stack")}>
-            <div className={cl("metrics")}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="vc-osint-metric-grid">
                 <Metric label="Server" value={getString(guild, "name") ?? "Unknown"} />
                 <Metric label="Members" value={getNumber(root, "approximate_member_count") ?? "Unknown"} />
                 <Metric label="Online" value={getNumber(root, "approximate_presence_count") ?? "Unknown"} tone="positive" />
@@ -401,10 +417,9 @@ function GuildResult({ data }: SpecializedResultProps) {
     const root = isRecord(data) ? data : undefined;
     const channels = getArray(root, "channels");
     const members = getArray(root, "members");
-
     return (
-        <div className={cl("visual-stack")}>
-            <div className={cl("metrics")}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="vc-osint-metric-grid">
                 <Metric label="Server" value={getString(root, "name") ?? "Unknown"} />
                 <Metric label="Online" value={getNumber(root, "presence_count") ?? members.length} tone="positive" />
                 <Metric label="Public channels" value={channels.length} />
@@ -420,21 +435,20 @@ function StatusResult({ data }: SpecializedResultProps) {
     const root = isRecord(data) ? data : undefined;
     const services = getRecord(root, "services");
     const stats = getRecord(root, "stats");
-
     return (
-        <div className={cl("visual-stack")}>
-            <div className={cl("service-grid")}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {Object.entries(services ?? {}).map(([name, value]) => {
                     const service = isRecord(value) ? value : undefined;
                     const healthy = service?.ok === true;
                     return (
-                        <div className={healthy ? cl("service", "service-up") : cl("service", "service-down")} key={name}>
-                            <span />
-                            <div>
-                                <strong>{humanize(name)}</strong>
-                                <small>{healthy ? "Operational" : "Unavailable"}</small>
+                        <div key={name} style={{ display: "flex", gap: 10, alignItems: "center", padding: 12, borderRadius: 10, border: `1px solid ${healthy ? "var(--status-positive)" : "var(--status-danger)"}`, background: healthy ? "var(--status-positive-10a)" : "var(--status-danger-10a)" }}>
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: healthy ? "var(--status-positive)" : "var(--status-danger)", flexShrink: 0 }} />
+                            <div style={{ flex: 1 }}>
+                                <strong style={{ fontSize: 12 }}>{humanize(name)}</strong>
+                                <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{healthy ? "Operational" : "Unavailable"}</div>
                             </div>
-                            {getNumber(service, "latency") !== undefined ? <b>{getNumber(service, "latency")} ms</b> : null}
+                            {getNumber(service, "latency") !== undefined ? <b style={{ fontSize: 11 }}>{getNumber(service, "latency")} ms</b> : null}
                         </div>
                     );
                 })}
@@ -447,15 +461,14 @@ function StatusResult({ data }: SpecializedResultProps) {
 function GeoResult({ data }: SpecializedResultProps) {
     const root = isRecord(data) ? data : undefined;
     const locations = getArray(root, "locations");
-
     return (
-        <div className={cl("visual-stack")}>
-            <div className={cl("metrics")}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div className="vc-osint-metric-grid">
                 <Metric label="Candidates" value={locations.length} />
                 <Metric label="Processing time" value={getString(root, "processingTime") ?? "Unknown"} />
                 <Metric label="Requests left" value={getNumber(root, "requestsRemaining") ?? "Unknown"} />
             </div>
-            <div className={cl("location-grid")}>
+            <div className="vc-osint-location-grid">
                 {locations.map(location => {
                     const record = isRecord(location) ? location : undefined;
                     const latitude = getNumber(record, "latitude");
@@ -465,12 +478,12 @@ function GeoResult({ data }: SpecializedResultProps) {
                     const coordinates = latitude !== undefined && longitude !== undefined ? `${latitude}, ${longitude}` : undefined;
                     const key = `${latitude ?? "x"}-${longitude ?? "y"}-${address}`;
                     return (
-                        <div className={cl("location-card")} key={key}>
-                            <span>{getNumber(record, "confidence") === undefined ? "Unknown confidence" : `${Math.round((getNumber(record, "confidence") ?? 0) * 100)}% confidence`}</span>
+                        <div className="vc-osint-location-card" key={key}>
+                            <span style={{ alignSelf: "flex-start", padding: "3px 7px", borderRadius: 999, background: "var(--status-positive-10a)", color: "var(--status-positive)", fontSize: 9, fontWeight: 800, textTransform: "uppercase" }}>{getNumber(record, "confidence") === undefined ? "Unknown confidence" : `${Math.round((getNumber(record, "confidence") ?? 0) * 100)}% confidence`}</span>
                             <strong>{address}</strong>
-                            <p>{latitude ?? "?"}, {longitude ?? "?"}</p>
-                            <small>{reasoning}</small>
-                            <div className={cl("location-actions")}>
+                            <p style={{ margin: 0, fontFamily: "var(--font-code)", fontSize: 11, color: "var(--text-muted)" }}>{latitude ?? "?"}, {longitude ?? "?"}</p>
+                            <small style={{ color: "var(--text-muted)", fontSize: 11 }}>{reasoning}</small>
+                            <div style={{ display: "flex", gap: 6, paddingTop: 7, marginTop: "auto", borderTop: "1px solid var(--background-modifier-accent)" }}>
                                 <Button
                                     color={Button.Colors.TRANSPARENT}
                                     size={Button.Sizes.SMALL}
@@ -503,14 +516,13 @@ function ResultVisual({ entry }: ResultVisualProps) {
     if (entry.status === "error") {
         const error = isRecord(entry.data) ? getString(entry.data, "error") : undefined;
         return (
-            <div className={cl("error-state")}>
-                <span>Lookup failed</span>
+            <div style={{ padding: 20, borderRadius: 12, background: "var(--status-danger-10a)", border: "1px solid var(--status-danger)", display: "flex", flexDirection: "column", gap: 8 }}>
+                <span style={{ alignSelf: "flex-start", padding: "3px 8px", borderRadius: 999, background: "var(--status-danger)", color: "#fff", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Lookup failed</span>
                 <HeadingTertiary>{error ?? "The service did not return a usable result."}</HeadingTertiary>
-                <p>Check the input and API key, then retry. CordCat profile lookups automatically fall back to the full query endpoint when its lightweight endpoint rejects a valid ID.</p>
+                <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 12 }}>Check the input and API key, then retry.</p>
             </div>
         );
     }
-
     switch (entry.kind) {
         case "cordcat":
             return <ProfileResult data={entry.data} />;
@@ -525,8 +537,8 @@ function ResultVisual({ entry }: ResultVisualProps) {
         case "breach": {
             const root = isRecord(entry.data) ? entry.data : undefined;
             return (
-                <div className={cl("visual-stack")}>
-                    <div className={cl("metrics")}><Metric label="Matching records" value={getNumber(root, "total") ?? 0} tone="warning" /></div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="vc-osint-metric-grid"><Metric label="Matching records" value={getNumber(root, "total") ?? 0} tone="warning" /></div>
                     <ResultSection title="Breach records"><DataExplorer value={getArray(root, "results")} /></ResultSection>
                 </div>
             );
@@ -534,10 +546,10 @@ function ResultVisual({ entry }: ResultVisualProps) {
         case "username": {
             const root = isRecord(entry.data) ? entry.data : undefined;
             return (
-                <div className={cl("pivot-grid")}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     {Object.entries(root ?? {}).map(([name, url]) => typeof url === "string" ? (
-                        <div className={cl("pivot-card")} key={name}>
-                            <div><span>Public search pivot</span><strong>{humanize(name)}</strong></div>
+                        <div key={name} style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", padding: 14, borderRadius: 10, background: "var(--background-tertiary)", border: "1px solid var(--background-modifier-accent)" }}>
+                            <div><span style={{ display: "block", color: "var(--text-muted)", fontSize: 10, textTransform: "uppercase" }}>Public search pivot</span><strong>{humanize(name)}</strong></div>
                             <Button onClick={() => openExternal(url)}>Open search</Button>
                         </div>
                     ) : null)}
@@ -549,8 +561,8 @@ function ResultVisual({ entry }: ResultVisualProps) {
     }
 }
 
-function OSINTFanboyClub() {
-    const { cordCatApiKey, geoSeeerApiKey, enableLogging, clearRecentInvestigationsOnRestart } = settings.use(SETTING_KEYS);
+function OSINTPanel() {
+    const { cordCatApiKey, geoSeeerApiKey, enableLogging, clearRecentInvestigationsOnRestart } = settings.use(SETTING_KEYS as any);
     const [section, setSection] = useState<SectionId>("cordcat");
     const [busy, setBusy] = useState<string>();
     const [result, setResult] = useState<ResultEntry>();
@@ -572,15 +584,12 @@ function OSINTFanboyClub() {
 
     useEffect(() => {
         let active = true;
-
         void getRecentInvestigations().then(stored => {
             if (!active || !Array.isArray(stored)) return;
-
             const entries = stored.filter(isResultEntry).slice(0, 20);
             setHistory(entries);
             setResult(entries[0]);
         });
-
         return () => { active = false; };
     }, []);
 
@@ -595,7 +604,6 @@ function OSINTFanboyClub() {
 
     const run = async (kind: ResultKind, title: string, task: () => Promise<unknown>) => {
         if (busy) return;
-
         setBusy(title);
         try {
             const data = await task();
@@ -630,46 +638,47 @@ function OSINTFanboyClub() {
 
     return (
         <SettingsTab>
-            <div className={cl("root")}>
-                <header className={cl("hero")}>
-                    <div>
-                        <span className={cl("eyebrow")}>OSINT TOOLKIT WORKSPACE</span>
-                        <HeadingPrimary>Osint Fanboy club</HeadingPrimary>
-                        <p>A unified investigation desk for Discord intelligence, public infrastructure and image analysis.</p>
-                    </div>
-                    <div className={cl("health")}>
-                        <span className={cordCatApiKey.trim() ? cl("ready") : cl("missing")}>
+            <div className="vc-osint-panel">
+                <div className="vc-osint-panel-hero">
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-muted)", fontSize: 10, fontWeight: 800, letterSpacing: ".14em" }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--brand-experiment)", boxShadow: "0 0 8px var(--brand-experiment)" }} />
+                        OSINT WORKSPACE
+                    </span>
+                    <HeadingPrimary>OSINT</HeadingPrimary>
+                    <p>Unified investigation workspace for Discord intelligence, network lookups and image geolocation.</p>
+                    <div className="vc-osint-panel-badges">
+                        <span className={`vc-osint-panel-badge ${cordCatApiKey.trim() ? "vc-osint-panel-badge--ok" : "vc-osint-panel-badge--warn"}`}>
                             CordCat {cordCatApiKey.trim() ? "ready" : "needs key"}
                         </span>
-                        <span className={geoKeyCount ? cl("ready") : cl("missing")}>
+                        <span className={`vc-osint-panel-badge ${geoKeyCount ? "vc-osint-panel-badge--ok" : "vc-osint-panel-badge--warn"}`}>
                             GeoSeeer {geoKeyCount ? `${geoKeyCount} key${geoKeyCount === 1 ? "" : "s"}` : "needs key"}
                         </span>
                     </div>
-                </header>
+                </div>
 
-                <nav className={cl("nav")} aria-label="Osint Fanboy club sections">
+                <nav className="vc-osint-panel-nav" aria-label="OSINT sections">
                     {sections.map(item => (
-                        <Button
+                        <button
                             key={item.id}
-                            className={cl("nav-button", { "nav-button-active": section === item.id })}
-                            color={Button.Colors.TRANSPARENT}
-                            size={Button.Sizes.SMALL}
+                            type="button"
+                            className={`vc-osint-panel-nav-tab ${section === item.id ? "vc-osint-panel-nav-tab--active" : ""}`}
                             onClick={() => setSection(item.id)}
+                            aria-current={section === item.id ? "page" : undefined}
                         >
-                            <span>{item.label}</span>
-                            <small>{item.description}</small>
-                        </Button>
+                            {item.icon}
+                            {item.label}
+                        </button>
                     ))}
                 </nav>
 
-                <div className={cl("workspace")}>
-                    <main className={cl("tools")}>
+                <div className="vc-osint-dashboard">
+                    <div className="vc-osint-dashboard-tools">
                         {section === "cordcat" ? (
                             <>
                                 <ToolCard title="Discord user intelligence" description="Full exposure, risk and public profile lookups.">
                                     <TextInput value={discordId} placeholder="Discord user ID" onChange={setDiscordId} />
-                                    <Toggle label="Bypass the cached full lookup and request changes." value={refreshCordCat} onChange={setRefreshCordCat} />
-                                    <div className={cl("actions")}>
+                                    <Toggle label="Bypass cached result and request changes." value={refreshCordCat} onChange={setRefreshCordCat} />
+                                    <div className="vc-osint-card-actions">
                                         <Button disabled={Boolean(busy)} onClick={() => void run("cordcat", "CordCat full lookup", () => lookupCordCat("query", discordId.trim(), refreshCordCat))}>
                                             Full lookup
                                         </Button>
@@ -679,20 +688,18 @@ function OSINTFanboyClub() {
                                     </div>
                                 </ToolCard>
 
-                                <div className={cl("split")}>
-                                    <ToolCard title="Invite intelligence" description="Validate a code and inspect its guild, channel and inviter.">
-                                        <TextInput value={inviteCode} placeholder="Invite code" onChange={setInviteCode} />
-                                        <Button disabled={Boolean(busy)} onClick={() => void run("invite", "CordCat invite lookup", () => lookupCordCat("invite", inviteCode.trim(), false))}>
-                                            Inspect invite
-                                        </Button>
-                                    </ToolCard>
-                                    <ToolCard title="Guild widget" description="Read a server's public widget, channels and online members.">
-                                        <TextInput value={guildId} placeholder="Discord server ID" onChange={setGuildId} />
-                                        <Button disabled={Boolean(busy)} onClick={() => void run("guild", "CordCat guild widget", () => lookupCordCat("guild", guildId.trim(), false))}>
-                                            Inspect server
-                                        </Button>
-                                    </ToolCard>
-                                </div>
+                                <ToolCard title="Invite intelligence" description="Validate a code and inspect its guild, channel and inviter.">
+                                    <TextInput value={inviteCode} placeholder="Invite code" onChange={setInviteCode} />
+                                    <Button disabled={Boolean(busy)} onClick={() => void run("invite", "CordCat invite lookup", () => lookupCordCat("invite", inviteCode.trim(), false))}>
+                                        Inspect invite
+                                    </Button>
+                                </ToolCard>
+                                <ToolCard title="Guild widget" description="Read a server's public widget, channels and online members.">
+                                    <TextInput value={guildId} placeholder="Discord server ID" onChange={setGuildId} />
+                                    <Button disabled={Boolean(busy)} onClick={() => void run("guild", "CordCat guild widget", () => lookupCordCat("guild", guildId.trim(), false))}>
+                                        Inspect server
+                                    </Button>
+                                </ToolCard>
 
                                 <ToolCard title="Service status" description="Check CordCat API, database, Discord and breach services without an API key.">
                                     <Button color={Button.Colors.GREEN} disabled={Boolean(busy)} onClick={() => void run("status", "CordCat service status", () => lookupCordCat("status", "", false))}>
@@ -703,7 +710,7 @@ function OSINTFanboyClub() {
                         ) : null}
 
                         {section === "network" ? (
-                            <div className={cl("split")}>
+                            <>
                                 <ToolCard title="Domain dossier" description="RDAP registration, lifecycle, DNSSEC and name servers.">
                                     <TextInput value={domain} placeholder="example.com" onChange={setDomain} />
                                     <Button disabled={Boolean(busy)} onClick={() => void run("domain", "Domain lookup", () => lookupDomain(domain))}>
@@ -712,7 +719,7 @@ function OSINTFanboyClub() {
                                 </ToolCard>
                                 <ToolCard title="IP intelligence" description="Public geolocation, ASN, ISP, timezone and coordinates.">
                                     <TextInput value={ip} placeholder="8.8.8.8" onChange={setIp} />
-                                    <div className={cl("actions")}>
+                                    <div className="vc-osint-card-actions">
                                         <Button disabled={Boolean(busy)} onClick={() => void run("ip", "IP lookup", () => lookupIP(ip))}>
                                             Analyze IP
                                         </Button>
@@ -721,14 +728,14 @@ function OSINTFanboyClub() {
                                         </Button>
                                     </div>
                                 </ToolCard>
-                            </div>
+                            </>
                         ) : null}
 
                         {section === "identity" ? (
                             <>
                                 <ToolCard title="Username footprint" description="Generate public search pivots without transmitting a Discord message.">
                                     <TextInput value={username} placeholder="Username" onChange={setUsername} />
-                                    <div className={cl("actions")}>
+                                    <div className="vc-osint-card-actions">
                                         <Button disabled={Boolean(busy) || !username.trim()} onClick={() => void run("username", "Username footprint", async () => lookupUsername(username))}>
                                             Generate pivots
                                         </Button>
@@ -742,11 +749,11 @@ function OSINTFanboyClub() {
                                 </ToolCard>
 
                                 <ToolCard title="Breach.vip explorer" description="Search selected public record fields with the same controls as /breachvip.">
-                                    <div className={cl("split")}>
+                                    <div className="vc-osint-panel-grid">
                                         <TextInput value={breachTerm} placeholder="Search term" onChange={setBreachTerm} />
                                         <TextInput value={breachFields} placeholder="email,username,discordid" onChange={setBreachFields} />
                                     </div>
-                                    <div className={cl("toggles")}>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                         <Toggle label="Minecraft records only." value={minecraftOnly} onChange={setMinecraftOnly} />
                                         <Toggle label="Enable * and ? wildcards." value={wildcard} onChange={setWildcard} />
                                         <Toggle label="Case-sensitive search." value={caseSensitive} onChange={setCaseSensitive} />
@@ -767,7 +774,7 @@ function OSINTFanboyClub() {
 
                                 <ToolCard title="Discord profile utilities" description="Copy or open a canonical Discord user URL.">
                                     <TextInput value={profileId} placeholder="Discord user ID" onChange={setProfileId} />
-                                    <div className={cl("actions")}>
+                                    <div className="vc-osint-card-actions">
                                         <Button color={Button.Colors.PRIMARY} disabled={!profileUrl} onClick={() => void copyWithToast(profileId.trim(), "User ID copied.")}>
                                             Copy ID
                                         </Button>
@@ -785,7 +792,7 @@ function OSINTFanboyClub() {
                         {section === "geo" ? (
                             <ToolCard title="Geo image laboratory" description="Analyze a public image with GeoSeeer or pivot into Google Lens.">
                                 <TextInput value={imageUrl} placeholder="https://example.com/photo.jpg" onChange={setImageUrl} />
-                                <div className={cl("actions")}>
+                                <div className="vc-osint-card-actions">
                                     <Button disabled={Boolean(busy)} onClick={() => void run("geo", "GeoSeeer image analysis", () => geolocateImage(imageUrl))}>
                                         Analyze location
                                     </Button>
@@ -793,7 +800,7 @@ function OSINTFanboyClub() {
                                         Reverse search
                                     </Button>
                                 </div>
-                                <div className={cl("note")}>
+                                <div style={{ padding: "8px 10px", borderRadius: 8, background: "var(--background-tertiary)", borderLeft: "3px solid var(--background-modifier-accent)", color: "var(--text-muted)", fontSize: 12 }}>
                                     The API receives the public image URL. Results include candidate coordinates, confidence, reasoning and request balance.
                                 </div>
                             </ToolCard>
@@ -817,7 +824,7 @@ function OSINTFanboyClub() {
                                         placeholder="cc_your_api_key_here"
                                         onChange={(value: string) => settings.store.cordCatApiKey = value}
                                     />
-                                    <div className={cl("links")}>
+                                    <div style={{ display: "flex", gap: 16, fontSize: 13 }}>
                                         <MaskedLink href="https://dis.cord.cat/dashboard">CordCat dashboard</MaskedLink>
                                         <MaskedLink href="https://dis.cord.cat/docs#intro">API documentation</MaskedLink>
                                     </div>
@@ -832,21 +839,21 @@ function OSINTFanboyClub() {
                                     <MaskedLink href="https://geoseeer.com/">Open GeoSeeer</MaskedLink>
                                 </ToolCard>
                                 <ToolCard title="Diagnostics" description="Optional local debug logging. API keys are never logged.">
-                                    <Toggle label="Enable OSINTToolkit debug logging." value={enableLogging} onChange={value => settings.store.enableLogging = value} />
-                                    <Toggle label="Clear recent investigations whenever OSINTToolkit starts." value={clearRecentInvestigationsOnRestart} onChange={value => settings.store.clearRecentInvestigationsOnRestart = value} />
+                                    <Toggle label="Enable debug logging." value={enableLogging} onChange={value => settings.store.enableLogging = value} />
+                                    <Toggle label="Clear recent investigations on start." value={clearRecentInvestigationsOnRestart} onChange={value => settings.store.clearRecentInvestigationsOnRestart = value} />
                                 </ToolCard>
                             </>
                         ) : null}
-                    </main>
+                    </div>
 
-                    <aside className={cl("results")} aria-live="polite">
-                        <div className={cl("results-head")}>
-                            <div>
-                                <span className={cl("eyebrow")}>INVESTIGATION BOARD</span>
+                    <div className="vc-osint-dashboard-output">
+                        <div className="vc-osint-dashboard-head">
+                            <div style={{ minWidth: 0 }}>
+                                <span style={{ color: "var(--text-muted)", fontSize: 10, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase" }}>Investigation board</span>
                                 <HeadingTertiary>{busy ?? result?.title ?? "Ready for a lookup"}</HeadingTertiary>
                             </div>
                             {result ? (
-                                <div className={cl("result-actions")}>
+                                <div style={{ display: "flex", gap: 6 }}>
                                     <Button
                                         color={Button.Colors.TRANSPARENT}
                                         size={Button.Sizes.SMALL}
@@ -865,52 +872,47 @@ function OSINTFanboyClub() {
                             ) : null}
                         </div>
 
-                        <div className={cl("history")}>
-                            <div className={cl("history-head")}>
-                                <strong>Recent investigations</strong>
-                                <span>{history.length}/20</span>
-                            </div>
-                            <div className={cl("history-track")}>
+                        <div className="vc-osint-history-row">
+                            <strong style={{ fontSize: 11, color: "var(--text-muted)", whiteSpace: "nowrap", alignSelf: "center" }}>Recent {history.length}/20</strong>
+                            <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
                                 {history.length ? history.map(entry => (
                                     <Button
                                         key={entry.id}
-                                        className={cl("history-item", { "history-item-active": result?.id === entry.id })}
-                                        color={Button.Colors.TRANSPARENT}
+                                        color={result?.id === entry.id ? Button.Colors.BRAND : Button.Colors.TRANSPARENT}
                                         size={Button.Sizes.SMALL}
                                         onClick={() => setResult(entry)}
                                     >
-                                        <span>{entry.title}</span>
-                                        <small>{new Date(entry.createdAt).toLocaleTimeString()}</small>
+                                        <span style={{ maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.title}</span>
                                     </Button>
-                                )) : <span className={cl("history-empty")}>Your completed lookups will appear here.</span>}
+                                )) : <span style={{ color: "var(--text-muted)", fontSize: 12, padding: "6px 0" }}>Your completed lookups will appear here.</span>}
                             </div>
                         </div>
 
-                        <div className={cl("visual-output")}>
+                        <div className="vc-osint-dashboard-body">
                             {busy ? (
-                                <div className={cl("loading")}>
-                                    <span />
+                                <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "center", minHeight: 200, color: "var(--text-muted)", fontSize: 13 }}>
+                                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: "var(--brand-experiment)", display: "inline-block", animation: "vc-osint-pulse 1s infinite" }} />
                                     Running {busy.toLowerCase()}...
                                 </div>
                             ) : result ? (
                                 <>
-                                    <div className={cl("result-meta")}>
-                                        <span className={result.status === "success" ? cl("success") : cl("error")}>{result.status}</span>
-                                        <time>{new Date(result.createdAt).toLocaleString()}</time>
+                                    <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", padding: "6px 0 10px", borderBottom: "1px solid var(--background-modifier-accent)", marginBottom: 12 }}>
+                                        <span style={{ padding: "3px 7px", borderRadius: 999, fontSize: 10, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", background: result.status === "success" ? "var(--status-positive-10a)" : "var(--status-danger-10a)", color: result.status === "success" ? "var(--status-positive)" : "var(--status-danger)" }}>{result.status}</span>
+                                        <time style={{ color: "var(--text-muted)", fontSize: 10 }}>{new Date(result.createdAt).toLocaleString()}</time>
                                     </div>
                                     <ResultVisual entry={result} />
                                 </>
                             ) : (
-                                <div className={cl("empty")}>
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200, color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: 20 }}>
                                     Run any tool to build a visual investigation report with identity cards, metrics, grouped records and service diagnostics.
                                 </div>
                             )}
                         </div>
-                    </aside>
+                    </div>
                 </div>
             </div>
         </SettingsTab>
     );
 }
 
-export default wrapTab(OSINTFanboyClub, "Osint Fanboy club");
+export default wrapTab(OSINTPanel, "OSINT");
