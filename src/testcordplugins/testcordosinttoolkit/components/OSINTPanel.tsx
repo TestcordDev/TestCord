@@ -131,15 +131,41 @@ function Toggle({ label, value, onChange }: ToggleProps) {
     );
 }
 
+const RESOURCE_TONE: Record<string, string> = {
+    "Lookup tools": "lookup",
+    "Resource lists": "lists",
+    "Opsec resources": "opsec",
+    "Privacy browsers": "privacy",
+};
+
 function ResourceGroup({ title, items }: ResourceGroupProps) {
+    const tone = RESOURCE_TONE[title] ?? "lookup";
     return (
-        <ToolCard title={title} description={`${items.length} curated destinations.`}>
+        <section className={`vc-osint-card vc-osint-card--resource vc-osint-card--${tone}`}>
+            <div className="vc-osint-card-head">
+                <div className={`vc-osint-card-icon vc-osint-card-icon--${tone}`}>
+                    {title === "Lookup tools" ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2z" /></svg>
+                        : title === "Resource lists" ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z" /></svg>
+                            : title === "Opsec resources" ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5z" /></svg>
+                                : <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2a7.2 7.2 0 0 1-6-3.22c.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08A7.2 7.2 0 0 1 12 19.2z" /></svg>}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <HeadingTertiary style={{ fontSize: 13, fontWeight: 650 }}>{title}</HeadingTertiary>
+                        <span className={`vc-osint-resource-count vc-osint-resource-count--${tone}`}>{items.length}</span>
+                    </div>
+                    <p>{items.length} curated destinations — opens externally.</p>
+                </div>
+            </div>
             <div className="vc-osint-resource-grid">
-                {items.map(item => (
-                    <div className="vc-osint-resource" key={item.id}>
-                        <div>
-                            <strong>{item.name}</strong>
-                            <span>{item.description}</span>
+                {items.map((item, idx) => (
+                    <div className={`vc-osint-resource vc-osint-resource--${tone}`} key={item.id}>
+                        <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0, flex: 1 }}>
+                            <span className="vc-osint-resource-index">{String(idx + 1).padStart(2, "0")}</span>
+                            <div style={{ minWidth: 0 }}>
+                                <strong>{item.name}</strong>
+                                <span>{item.description}</span>
+                            </div>
                         </div>
                         <Button
                             color={Button.Colors.PRIMARY}
@@ -151,7 +177,7 @@ function ResourceGroup({ title, items }: ResourceGroupProps) {
                     </div>
                 ))}
             </div>
-        </ToolCard>
+        </section>
     );
 }
 
@@ -641,8 +667,9 @@ function OSINTPanel() {
             <div className="vc-osint-panel">
                 <div className="vc-osint-panel-hero">
                     <span className="vc-osint-panel-hero-kicker">OSINT // WORKSPACE</span>
+                    <span className="vc-osint-panel-hero-stamp">REF // 2026-OSINT // LOCAL</span>
                     <HeadingPrimary style={{ fontSize: 19, lineHeight: "1.15", letterSpacing: "-0.02em" }}>Investigation Workspace</HeadingPrimary>
-                    <p>Forensic lookup board for Discord intel, network traces and image geolocation. All queries stay on your client.</p>
+                    <p>Forensic lookup board for Discord intel, network traces and image geolocation. All queries stay on your client — no data leaves without explicit action.</p>
                     <div className="vc-osint-panel-badges">
                         <span className={`vc-osint-panel-badge ${cordCatApiKey.trim() ? "vc-osint-panel-badge--ok" : "vc-osint-panel-badge--warn"}`}>
                             CordCat {cordCatApiKey.trim() ? "ready" : "needs key"}
@@ -668,7 +695,7 @@ function OSINTPanel() {
                     ))}
                 </nav>
 
-                <div className="vc-osint-dashboard">
+                <div className={`vc-osint-dashboard ${section === "resources" ? "vc-osint-dashboard--resources" : ""}`}>
                     <div className="vc-osint-dashboard-tools">
                         {section === "cordcat" ? (
                             <>
