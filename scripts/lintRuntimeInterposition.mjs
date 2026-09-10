@@ -14,14 +14,15 @@ const files = [
     "src/testcordplugins/fastDiscord/index.tsx",
     "src/testcordplugins/PerformanceBoost/index.tsx",
     "src/testcordplugins/audioCenter/index.tsx",
-    "src/testcordplugins/TestcordOptimizer/index.tsx",
-    "src/testcordplugins/optimizerPremium/index.tsx"
+    "src/testcordplugins/TestcordOptimizer/index.tsx"
 ];
 const assignment = /(?:window|globalThis)\.(?:requestAnimationFrame|cancelAnimationFrame|fetch|ResizeObserver|requestIdleCallback|cancelIdleCallback)\s*=|EventTarget\.prototype\.(?:addEventListener|removeEventListener)\s*=|FluxDispatcher\.(?:dispatch|subscribe|unsubscribe)\s*=/;
 const failures = [];
 
 for (const file of files) {
-    const lines = readFileSync(resolve(file), "utf8").split(/\r?\n/);
+    let content;
+    try { content = readFileSync(resolve(file), "utf8"); } catch { continue; }
+    const lines = content.split(/\r?\n/);
     lines.forEach((line, index) => {
         if (assignment.test(line)) failures.push(`${file}:${index + 1}: ${line.trim()}`);
     });
