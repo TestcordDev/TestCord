@@ -204,7 +204,7 @@ export function TempMailModal({ modalProps }: { modalProps: RenderModalProps; })
     const activeProv = active ? getProvider(active.providerId) : null;
 
     return (
-        <Modal {...modalProps} size="lg" title={<span className={cl("modal-title")}>Temp Mail <span className={cl("modal-title-sub")}>— Testcord Edition</span></span>}>
+        <Modal {...modalProps} size="lg" className={cl("modal-root")} title={<span className={cl("modal-title")}>Temp Mail <span className={cl("modal-title-sub")}>— Testcord Edition</span></span>}>
             <div className={cl("shell")}>
                 {/* Sidebar */}
                 <div className={cl("sidebar")}>
