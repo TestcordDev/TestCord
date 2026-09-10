@@ -14,7 +14,7 @@ migratePluginSettings("discordDevBanner", "DiscordDevBanner", "devBanner");
 
 export const settings = defineModuleSettings("discordDevBanner", {
     format: {
-        component: ({ setValue }) => FormatSetting(setValue),
+        component: ({ setValue }) => FormatSetting({ setValue }),
         type: OptionType.COMPONENT,
         default: "{testcordIcon} Testcord {testcordVersion} ({testcordHash})",
         restartNeeded: true
