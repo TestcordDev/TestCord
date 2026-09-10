@@ -813,7 +813,7 @@ function LinksModal({ modalProps, messages }: { modalProps: any; messages: Messa
         <Modal {...modalProps} size="lg" className="vc-osint-root" title={
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", paddingRight: 8 }}>
                 <div className="vc-osint-header-left">
-                    <div className="vc-osint-header-icon" style={{ background: "linear-gradient(135deg, #3ba55c, #5865f2)" }}>
+                    <div className="vc-osint-header-icon">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z" /></svg>
                     </div>
                     <div>
@@ -864,7 +864,7 @@ function AttachmentsModal({ modalProps, messages }: { modalProps: any; messages:
         <Modal {...modalProps} size="lg" className="vc-osint-root" title={
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", paddingRight: 8 }}>
                 <div className="vc-osint-header-left">
-                    <div className="vc-osint-header-icon" style={{ background: "linear-gradient(135deg, #eb459e, #fee75c)" }}>
+                    <div className="vc-osint-header-icon">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" /></svg>
                     </div>
                     <div>

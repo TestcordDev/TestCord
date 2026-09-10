@@ -258,9 +258,9 @@ interface ResultSectionProps {
 
 function ResultSection({ title, subtitle, children }: ResultSectionProps) {
     return (
-        <section style={{ overflow: "hidden", border: "1px solid var(--background-modifier-accent)", borderRadius: 10, background: "var(--background-secondary)" }}>
-            <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--background-modifier-accent)", background: "var(--background-tertiary)" }}>
-                <HeadingTertiary>{title}</HeadingTertiary>
+        <section style={{ overflow: "hidden", border: "1px solid var(--border-subtle)", borderRadius: 6, background: "var(--background-secondary)" }}>
+            <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border-subtle)", background: "var(--background-tertiary)" }}>
+                <HeadingTertiary style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.02em", textTransform: "uppercase", color: "var(--text-muted)" }}>{title}</HeadingTertiary>
                 {subtitle ? <span style={{ display: "block", marginTop: 2, color: "var(--text-muted)", fontSize: 11 }}>{subtitle}</span> : null}
             </div>
             <div style={{ padding: 10 }}>{children}</div>
@@ -281,7 +281,7 @@ function DataExplorer({ value, depth = 0 }: DataExplorerProps) {
                 {value.map(item => {
                     const key = formatResult(item);
                     return (
-                        <div key={key} style={{ padding: 8, border: "1px solid var(--background-modifier-accent)", borderRadius: 8, background: "var(--background-tertiary)" }}>
+                        <div key={key} style={{ padding: 8, border: "1px solid var(--border-subtle)", borderRadius: 4, background: "var(--background-tertiary)" }}>
                             <DataExplorer value={item} depth={depth + 1} />
                         </div>
                     );
@@ -297,7 +297,7 @@ function DataExplorer({ value, depth = 0 }: DataExplorerProps) {
             {entries.map(([key, field]) => {
                 if (Array.isArray(field) || isRecord(field)) {
                     return (
-                        <details key={key} style={{ gridColumn: "1 / -1", border: "1px solid var(--background-modifier-accent)", borderRadius: 8, background: "var(--background-primary)" }} open={depth === 0}>
+                        <details key={key} style={{ gridColumn: "1 / -1", border: "1px solid var(--border-subtle)", borderRadius: 4, background: "var(--background-primary)" }} open={depth === 0}>
                             <summary style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", padding: "8px 10px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>
                                 <span>{humanize(key)}</span>
                                 <small style={{ color: "var(--text-muted)", fontWeight: 500 }}>{Array.isArray(field) ? `${field.length} entries` : `${Object.keys(field).length} fields`}</small>
@@ -354,9 +354,9 @@ function ProfileResult({ data }: ProfileResultProps) {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div className="vc-osint-profile-hero">
                 {cachedUser ? (
-                    <Avatar src={cachedUser.getAvatarURL(undefined, 80, true)} size="SIZE_80" />
+                    <Avatar src={cachedUser.getAvatarURL(undefined, 80, true)} size="SIZE_56" />
                 ) : (
-                    <div style={{ display: "grid", placeItems: "center", width: 56, height: 56, borderRadius: "50%", background: "var(--background-secondary)", border: "1px solid var(--background-modifier-accent)", fontSize: 20, fontWeight: 800, flexShrink: 0 }}>{displayName.slice(0, 2).toUpperCase()}</div>
+                    <div style={{ display: "grid", placeItems: "center", width: 44, height: 44, borderRadius: 4, background: "var(--background-secondary)", border: "1px solid var(--border-subtle)", fontSize: 16, fontWeight: 700, flexShrink: 0, color: "var(--text-muted)", fontFamily: "var(--font-code, ui-monospace, Consolas, monospace)" }}>{displayName.slice(0, 2).toUpperCase()}</div>
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ color: "var(--text-muted)", fontSize: 10, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase" }}>Discord identity</span>
@@ -442,8 +442,8 @@ function StatusResult({ data }: SpecializedResultProps) {
                     const service = isRecord(value) ? value : undefined;
                     const healthy = service?.ok === true;
                     return (
-                        <div key={name} style={{ display: "flex", gap: 10, alignItems: "center", padding: 12, borderRadius: 10, border: `1px solid ${healthy ? "var(--status-positive)" : "var(--status-danger)"}`, background: healthy ? "var(--status-positive-10a)" : "var(--status-danger-10a)" }}>
-                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: healthy ? "var(--status-positive)" : "var(--status-danger)", flexShrink: 0 }} />
+                        <div key={name} style={{ display: "flex", gap: 10, alignItems: "center", padding: 12, borderRadius: 4, border: `1px solid ${healthy ? "var(--status-positive)" : "var(--status-danger)"}`, background: healthy ? "color-mix(in srgb, var(--status-positive) 10%, var(--background-secondary))" : "color-mix(in srgb, var(--status-danger) 10%, var(--background-secondary))" }}>
+                            <span style={{ width: 8, height: 8, borderRadius: 2, background: healthy ? "var(--status-positive)" : "var(--status-danger)", flexShrink: 0 }} />
                             <div style={{ flex: 1 }}>
                                 <strong style={{ fontSize: 12 }}>{humanize(name)}</strong>
                                 <div style={{ fontSize: 10, color: "var(--text-muted)" }}>{healthy ? "Operational" : "Unavailable"}</div>
@@ -479,11 +479,11 @@ function GeoResult({ data }: SpecializedResultProps) {
                     const key = `${latitude ?? "x"}-${longitude ?? "y"}-${address}`;
                     return (
                         <div className="vc-osint-location-card" key={key}>
-                            <span style={{ alignSelf: "flex-start", padding: "3px 7px", borderRadius: 999, background: "var(--status-positive-10a)", color: "var(--status-positive)", fontSize: 9, fontWeight: 800, textTransform: "uppercase" }}>{getNumber(record, "confidence") === undefined ? "Unknown confidence" : `${Math.round((getNumber(record, "confidence") ?? 0) * 100)}% confidence`}</span>
-                            <strong>{address}</strong>
-                            <p style={{ margin: 0, fontFamily: "var(--font-code)", fontSize: 11, color: "var(--text-muted)" }}>{latitude ?? "?"}, {longitude ?? "?"}</p>
-                            <small style={{ color: "var(--text-muted)", fontSize: 11 }}>{reasoning}</small>
-                            <div style={{ display: "flex", gap: 6, paddingTop: 7, marginTop: "auto", borderTop: "1px solid var(--background-modifier-accent)" }}>
+                            <span style={{ alignSelf: "flex-start", padding: "3px 7px", borderRadius: 4, background: "var(--background-tertiary)", border: "1px solid var(--border-subtle)", borderLeft: "2px solid var(--status-positive)", color: "var(--text-normal)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", fontFamily: "var(--font-code, ui-monospace, Consolas, monospace)" }}>{getNumber(record, "confidence") === undefined ? "Unknown confidence" : `${Math.round((getNumber(record, "confidence") ?? 0) * 100)}% confidence`}</span>
+                            <strong style={{ color: "var(--header-primary)", fontSize: 13 }}>{address}</strong>
+                            <p style={{ margin: 0, fontFamily: "var(--font-code, ui-monospace, Consolas, monospace)", fontSize: 11, color: "var(--text-muted)" }}>{latitude ?? "?"}, {longitude ?? "?"}</p>
+                            <small style={{ color: "var(--text-muted)", fontSize: 11, lineHeight: 1.4 }}>{reasoning}</small>
+                            <div style={{ display: "flex", gap: 6, paddingTop: 7, marginTop: "auto", borderTop: "1px solid var(--border-subtle)" }}>
                                 <Button
                                     color={Button.Colors.TRANSPARENT}
                                     size={Button.Sizes.SMALL}
@@ -516,9 +516,9 @@ function ResultVisual({ entry }: ResultVisualProps) {
     if (entry.status === "error") {
         const error = isRecord(entry.data) ? getString(entry.data, "error") : undefined;
         return (
-            <div style={{ padding: 20, borderRadius: 12, background: "var(--status-danger-10a)", border: "1px solid var(--status-danger)", display: "flex", flexDirection: "column", gap: 8 }}>
-                <span style={{ alignSelf: "flex-start", padding: "3px 8px", borderRadius: 999, background: "var(--status-danger)", color: "#fff", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>Lookup failed</span>
-                <HeadingTertiary>{error ?? "The service did not return a usable result."}</HeadingTertiary>
+            <div style={{ padding: 16, borderRadius: 6, background: "color-mix(in srgb, var(--status-danger) 8%, var(--background-secondary))", border: "1px solid var(--border-subtle)", borderLeft: "2px solid var(--status-danger)", display: "flex", flexDirection: "column", gap: 8 }}>
+                <span style={{ alignSelf: "flex-start", padding: "3px 8px", borderRadius: 4, background: "var(--background-tertiary)", border: "1px solid var(--border-subtle)", borderLeft: "2px solid var(--status-danger)", color: "var(--text-normal)", fontSize: 10, fontWeight: 700, textTransform: "uppercase", fontFamily: "var(--font-code, ui-monospace, Consolas, monospace)" }}>Lookup failed</span>
+                <HeadingTertiary style={{ color: "var(--header-primary)" }}>{error ?? "The service did not return a usable result."}</HeadingTertiary>
                 <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 12 }}>Check the input and API key, then retry.</p>
             </div>
         );
@@ -546,11 +546,11 @@ function ResultVisual({ entry }: ResultVisualProps) {
         case "username": {
             const root = isRecord(entry.data) ? entry.data : undefined;
             return (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                     {Object.entries(root ?? {}).map(([name, url]) => typeof url === "string" ? (
-                        <div key={name} style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", padding: 14, borderRadius: 10, background: "var(--background-tertiary)", border: "1px solid var(--background-modifier-accent)" }}>
-                            <div><span style={{ display: "block", color: "var(--text-muted)", fontSize: 10, textTransform: "uppercase" }}>Public search pivot</span><strong>{humanize(name)}</strong></div>
-                            <Button onClick={() => openExternal(url)}>Open search</Button>
+                        <div key={name} style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", padding: 12, borderRadius: 4, background: "var(--background-tertiary)", border: "1px solid var(--border-subtle)" }}>
+                            <div><span style={{ display: "block", color: "var(--text-muted)", fontSize: 10, textTransform: "uppercase", fontFamily: "var(--font-code, ui-monospace, monospace)", letterSpacing: "0.04em" }}>Public pivot</span><strong style={{ fontSize: 13 }}>{humanize(name)}</strong></div>
+                            <Button size={Button.Sizes.SMALL} onClick={() => openExternal(url)}>Open</Button>
                         </div>
                     ) : null)}
                 </div>
@@ -640,12 +640,9 @@ function OSINTPanel() {
         <SettingsTab>
             <div className="vc-osint-panel">
                 <div className="vc-osint-panel-hero">
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-muted)", fontSize: 10, fontWeight: 800, letterSpacing: ".14em" }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--brand-experiment)", boxShadow: "0 0 8px var(--brand-experiment)" }} />
-                        OSINT WORKSPACE
-                    </span>
-                    <HeadingPrimary>OSINT</HeadingPrimary>
-                    <p>Unified investigation workspace for Discord intelligence, network lookups and image geolocation.</p>
+                    <span className="vc-osint-panel-hero-kicker">OSINT // WORKSPACE</span>
+                    <HeadingPrimary style={{ fontSize: 19, lineHeight: "1.15", letterSpacing: "-0.02em" }}>Investigation Workspace</HeadingPrimary>
+                    <p>Forensic lookup board for Discord intel, network traces and image geolocation. All queries stay on your client.</p>
                     <div className="vc-osint-panel-badges">
                         <span className={`vc-osint-panel-badge ${cordCatApiKey.trim() ? "vc-osint-panel-badge--ok" : "vc-osint-panel-badge--warn"}`}>
                             CordCat {cordCatApiKey.trim() ? "ready" : "needs key"}
@@ -849,8 +846,8 @@ function OSINTPanel() {
                     <div className="vc-osint-dashboard-output">
                         <div className="vc-osint-dashboard-head">
                             <div style={{ minWidth: 0 }}>
-                                <span style={{ color: "var(--text-muted)", fontSize: 10, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase" }}>Investigation board</span>
-                                <HeadingTertiary>{busy ?? result?.title ?? "Ready for a lookup"}</HeadingTertiary>
+                                <span className="vc-osint-dashboard-head-kicker">Investigation board // {busy ? "active" : result ? result.kind : "standby"}</span>
+                                <HeadingTertiary style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.02em" }}>{busy ?? result?.title ?? "Ready for a lookup"}</HeadingTertiary>
                             </div>
                             {result ? (
                                 <div style={{ display: "flex", gap: 6 }}>
@@ -890,15 +887,15 @@ function OSINTPanel() {
 
                         <div className="vc-osint-dashboard-body">
                             {busy ? (
-                                <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "center", minHeight: 200, color: "var(--text-muted)", fontSize: 13 }}>
-                                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: "var(--brand-experiment)", display: "inline-block", animation: "vc-osint-pulse 1s infinite" }} />
+                                <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "center", minHeight: 200, color: "var(--text-muted)", fontSize: 13, fontFamily: "var(--font-code, ui-monospace, Consolas, monospace)" }}>
+                                    <span className="vc-osint-spinner-small" />
                                     Running {busy.toLowerCase()}...
                                 </div>
                             ) : result ? (
                                 <>
-                                    <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", padding: "6px 0 10px", borderBottom: "1px solid var(--background-modifier-accent)", marginBottom: 12 }}>
-                                        <span style={{ padding: "3px 7px", borderRadius: 999, fontSize: 10, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", background: result.status === "success" ? "var(--status-positive-10a)" : "var(--status-danger-10a)", color: result.status === "success" ? "var(--status-positive)" : "var(--status-danger)" }}>{result.status}</span>
-                                        <time style={{ color: "var(--text-muted)", fontSize: 10 }}>{new Date(result.createdAt).toLocaleString()}</time>
+                                    <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "space-between", padding: "6px 0 10px", borderBottom: "1px solid var(--border-subtle)", marginBottom: 12 }}>
+                                        <span className={result.status === "success" ? "vc-osint-status-pill vc-osint-status-pill--ok" : "vc-osint-status-pill vc-osint-status-pill--err"}>{result.status}</span>
+                                        <time style={{ color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-code, ui-monospace, monospace)" }}>{new Date(result.createdAt).toLocaleString()}</time>
                                     </div>
                                     <ResultVisual entry={result} />
                                 </>
