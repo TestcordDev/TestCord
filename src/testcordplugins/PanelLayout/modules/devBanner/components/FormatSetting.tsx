@@ -9,7 +9,7 @@ import { useState } from "@webpack/common";
 
 import { makeDevBanner, settings, settingVariables } from ".";
 
-export function FormatSetting(setValue) {
+export function FormatSetting({ setValue }: { setValue: (newValue: string) => void; }) {
     const { format } = settings.store;
     const [state, setState] = useState(format ?? "{devbannerIcon} {buildChannel} {buildNumber} ({buildHash}) | {testcordIcon} {testcordName} {testcordVersion} ({testcordHash})");
     const [error, setError] = useState<string | null>(null);
