@@ -1607,7 +1607,7 @@ const imageContextMenuPatch: NavContextMenuPatchCallback = (children, { src }: I
 
 export default definePlugin({
     name: "TestcordOSINTToolkit",
-    description: "Unified OSINT toolkit. Scan Discord users with algorithmic and AI analysis, plus network lookups, breach checks, CordCat intelligence and image geolocation. Replaces TestcordOSINT and OSINTToolkit.",
+    description: "OSINT scanner for Discord users. Analyzes messages, attachments, network lookups, breach records, CordCat intelligence, and image geolocation.",
     tags: ["Utility", "Privacy"],
     authors: [TestcordDevs.x2b],
     settings,
