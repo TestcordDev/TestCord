@@ -8,8 +8,9 @@ import * as DataStore from "@api/DataStore";
 import { HeadingPrimary, HeadingTertiary } from "@components/Heading";
 import { SettingsTab, wrapTab } from "@components/settings/tabs/BaseTab";
 import { copyWithToast, openUserProfile } from "@utils/discord";
+import { classes, parseUrl } from "@utils/misc";
 import { Avatar, Button, Checkbox, MaskedLink, TextArea, TextInput, useEffect, UserStore, useState } from "@webpack/common";
-import type { PointerEvent, ReactNode } from "react";
+import type { MouseEvent, PointerEvent, ReactNode } from "react";
 
 import {
     geolocateImage,
@@ -31,7 +32,7 @@ import {
 
 type SectionId = "cordcat" | "network" | "identity" | "geo" | "resources" | "api";
 type ResultStatus = "success" | "error";
-type ResultKind = "breach" | "cordcat" | "domain" | "geo" | "guild" | "invite" | "ip" | "status" | "username";
+type ResultKind = "breach" | "cordcat" | "domain" | "geo" | "guild" | "invite" | "ip" | "resource" | "status" | "username";
 
 interface ResultEntry {
     id: string;
@@ -63,7 +64,10 @@ interface ResourceItem {
 
 interface ResourceGroupProps {
     title: string;
+    description: string;
     items: readonly ResourceItem[];
+    selectedId?: string;
+    onSelect(item: ResourceItem, category: string): void;
 }
 
 const SETTING_KEYS = ["cordCatApiKey", "geoSeeerApiKey", "enableLogging", "clearRecentInvestigationsOnRestart"] as const;
@@ -96,13 +100,16 @@ const sections: Array<{ id: SectionId; label: string; description: string; icon:
 ];
 
 function ToolCard({ title, description, children }: ToolCardProps) {
-    // pick an icon based on title for visual weight
     const iconMap: Record<string, ReactNode> = {
         "Discord user intelligence": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2z" /></svg>,
         "Invite intelligence": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M10 16l4-4-4-4v8zm8 2H6V6h12v12z" /></svg>,
         "Guild widget": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05A3 3 0 0 1 19 16.5V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" /></svg>,
         "Domain dossier": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm0-4H9V7h2v5zm4 4h-2v-2h2v2zm0-4h-2V7h2v5z" /></svg>,
         "IP intelligence": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm-1-4a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" /></svg>,
+        "Lookup tools": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2z" /></svg>,
+        "Resource lists": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z" /></svg>,
+        "Opsec resources": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5z" /></svg>,
+        "Privacy browsers": <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2a7.2 7.2 0 0 1-6-3.22c.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08A7.2 7.2 0 0 1 12 19.2z" /></svg>,
     };
     const icon = iconMap[title] ?? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5-10-5-10 5z" /></svg>;
     return (
@@ -131,53 +138,34 @@ function Toggle({ label, value, onChange }: ToggleProps) {
     );
 }
 
-const RESOURCE_TONE: Record<string, string> = {
-    "Lookup tools": "lookup",
-    "Resource lists": "lists",
-    "Opsec resources": "opsec",
-    "Privacy browsers": "privacy",
-};
-
-function ResourceGroup({ title, items }: ResourceGroupProps) {
-    const tone = RESOURCE_TONE[title] ?? "lookup";
+function ResourceGroup({ title, description, items, selectedId, onSelect }: ResourceGroupProps) {
     return (
-        <section className={`vc-osint-card vc-osint-card--resource vc-osint-card--${tone}`}>
-            <div className="vc-osint-card-head">
-                <div className={`vc-osint-card-icon vc-osint-card-icon--${tone}`}>
-                    {title === "Lookup tools" ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.26A7 7 0 0 0 12 2z" /></svg>
-                        : title === "Resource lists" ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z" /></svg>
-                            : title === "Opsec resources" ? <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5z" /></svg>
-                                : <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2a7.2 7.2 0 0 1-6-3.22c.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08A7.2 7.2 0 0 1 12 19.2z" /></svg>}
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <HeadingTertiary style={{ fontSize: 13, fontWeight: 650 }}>{title}</HeadingTertiary>
-                        <span className={`vc-osint-resource-count vc-osint-resource-count--${tone}`}>{items.length}</span>
-                    </div>
-                    <p>{items.length} curated destinations — opens externally.</p>
-                </div>
-            </div>
-            <div className="vc-osint-resource-grid">
-                {items.map((item, idx) => (
-                    <div className={`vc-osint-resource vc-osint-resource--${tone}`} key={item.id}>
-                        <div style={{ display: "flex", gap: 10, alignItems: "center", minWidth: 0, flex: 1 }}>
-                            <span className="vc-osint-resource-index">{String(idx + 1).padStart(2, "0")}</span>
-                            <div style={{ minWidth: 0 }}>
-                                <strong>{item.name}</strong>
-                                <span>{item.description}</span>
-                            </div>
+        <ToolCard title={title} description={description}>
+            <div className="vc-osint-resource-list">
+                {items.map(item => (
+                    <div
+                        className={classes("vc-osint-resource", selectedId === item.id && "vc-osint-resource--active")}
+                        key={item.id}
+                        onClick={() => onSelect(item, title)}
+                    >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                            <strong>{item.name}</strong>
+                            <span>{item.description}</span>
                         </div>
                         <Button
                             color={Button.Colors.PRIMARY}
                             size={Button.Sizes.SMALL}
-                            onClick={() => openExternal(item.url)}
+                            onClick={(event: MouseEvent) => {
+                                event.stopPropagation();
+                                openExternal(item.url);
+                            }}
                         >
                             Open
                         </Button>
                     </div>
                 ))}
             </div>
-        </section>
+        </ToolCard>
     );
 }
 
@@ -197,6 +185,7 @@ function isResultKind(value: unknown): value is ResultKind {
         || value === "guild"
         || value === "invite"
         || value === "ip"
+        || value === "resource"
         || value === "status"
         || value === "username";
 }
@@ -582,6 +571,49 @@ function ResultVisual({ entry }: ResultVisualProps) {
                 </div>
             );
         }
+        case "resource": {
+            const root = isRecord(entry.data) ? entry.data : undefined;
+            const name = getString(root, "name") ?? entry.title;
+            const url = getString(root, "url") ?? "";
+            const category = getString(root, "category") ?? "Resource";
+            const desc = getString(root, "description") ?? "";
+            const hostname = parseUrl(url)?.hostname ?? "External";
+            return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div className="vc-osint-profile-hero">
+                        <div style={{ display: "grid", placeItems: "center", width: 44, height: 44, borderRadius: 4, background: "var(--background-secondary)", border: "1px solid var(--border-subtle)", flexShrink: 0, color: "var(--text-muted)" }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z" /></svg>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ color: "var(--text-muted)", fontSize: 10, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase" }}>{category}</span>
+                            <HeadingPrimary style={{ fontSize: 18, lineHeight: "1.2" }}>{name}</HeadingPrimary>
+                            <p style={{ margin: 0, color: "var(--text-muted)", fontFamily: "var(--font-code)", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{url}</p>
+                        </div>
+                        {url ? (
+                            <Button color={Button.Colors.BRAND} size={Button.Sizes.SMALL} onClick={() => openExternal(url)}>
+                                Launch
+                            </Button>
+                        ) : null}
+                    </div>
+                    <div className="vc-osint-metric-grid">
+                        <Metric label="Category" value={category} />
+                        <Metric label="Protocol" value={url.startsWith("https") ? "HTTPS" : "HTTP"} tone="positive" />
+                        <Metric label="Host" value={hostname} />
+                    </div>
+                    <ResultSection title="Overview">
+                        <p style={{ margin: 0, color: "var(--text-normal)", fontSize: 13, lineHeight: 1.5 }}>{desc}</p>
+                        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                            <Button color={Button.Colors.PRIMARY} size={Button.Sizes.SMALL} onClick={() => void copyWithToast(url, "URL copied.")}>
+                                Copy URL
+                            </Button>
+                            <Button color={Button.Colors.PRIMARY} size={Button.Sizes.SMALL} onClick={() => void copyWithToast(`${name} (${url})\n${desc}`, "Resource summary copied.")}>
+                                Copy Summary
+                            </Button>
+                        </div>
+                    </ResultSection>
+                </div>
+            );
+        }
         default:
             return <DataExplorer value={entry.data} />;
     }
@@ -662,6 +694,25 @@ function OSINTPanel() {
     const profileUrl = /^\d{17,20}$/.test(profileId.trim()) ? `https://discord.com/users/${profileId.trim()}` : undefined;
     const lensUrl = imageUrl.trim() ? `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(imageUrl.trim())}` : undefined;
 
+    const handleSelectResource = (item: ResourceItem, category: string) => {
+        const entry: ResultEntry = {
+            id: `resource-${item.id}`,
+            kind: "resource",
+            title: item.name,
+            status: "success",
+            data: {
+                name: item.name,
+                url: item.url,
+                category,
+                description: item.description,
+            },
+            createdAt: Date.now()
+        };
+        saveResult(entry);
+    };
+
+    const selectedResourceId = result?.id.startsWith("resource-") ? result.id.replace("resource-", "") : undefined;
+
     return (
         <SettingsTab>
             <div className="vc-osint-panel">
@@ -695,7 +746,7 @@ function OSINTPanel() {
                     ))}
                 </nav>
 
-                <div className={`vc-osint-dashboard ${section === "resources" ? "vc-osint-dashboard--resources" : ""}`}>
+                <div className="vc-osint-dashboard">
                     <div className="vc-osint-dashboard-tools">
                         {section === "cordcat" ? (
                             <>
@@ -832,10 +883,34 @@ function OSINTPanel() {
 
                         {section === "resources" ? (
                             <>
-                                <ResourceGroup title="Lookup tools" items={OSINT_TOOLS} />
-                                <ResourceGroup title="Resource lists" items={OSINT_RESOURCES} />
-                                <ResourceGroup title="Opsec resources" items={OPSEC_RESOURCES} />
-                                <ResourceGroup title="Privacy browsers" items={PRIVACY_BROWSERS} />
+                                <ResourceGroup
+                                    title="Lookup tools"
+                                    description="Curated external search and public intelligence platforms."
+                                    items={OSINT_TOOLS}
+                                    selectedId={selectedResourceId}
+                                    onSelect={handleSelectResource}
+                                />
+                                <ResourceGroup
+                                    title="Resource lists"
+                                    description="Catalogs, bookmark collections and intelligence directories."
+                                    items={OSINT_RESOURCES}
+                                    selectedId={selectedResourceId}
+                                    onSelect={handleSelectResource}
+                                />
+                                <ResourceGroup
+                                    title="Opsec resources"
+                                    description="Operational security tools and identity generators."
+                                    items={OPSEC_RESOURCES}
+                                    selectedId={selectedResourceId}
+                                    onSelect={handleSelectResource}
+                                />
+                                <ResourceGroup
+                                    title="Privacy browsers"
+                                    description="Hardened browsers engineered for anonymity and privacy."
+                                    items={PRIVACY_BROWSERS}
+                                    selectedId={selectedResourceId}
+                                    onSelect={handleSelectResource}
+                                />
                             </>
                         ) : null}
 
@@ -928,7 +1003,9 @@ function OSINTPanel() {
                                 </>
                             ) : (
                                 <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 200, color: "var(--text-muted)", fontSize: 13, textAlign: "center", padding: 20 }}>
-                                    Run any tool to build a visual investigation report with identity cards, metrics, grouped records and service diagnostics.
+                                    {section === "resources"
+                                        ? "Select any resource to view details, copy URLs, or launch directly."
+                                        : "Run any tool to build a visual investigation report with identity cards, metrics, grouped records and service diagnostics."}
                                 </div>
                             )}
                         </div>

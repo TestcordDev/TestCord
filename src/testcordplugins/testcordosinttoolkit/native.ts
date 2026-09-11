@@ -6,8 +6,6 @@
 
 import { safeFetch } from "@main/utils/safeFetch";
 import type { IpcMainInvokeEvent } from "electron";
-
-// ── shared ──
 const FETCH_TIMEOUT_MS = 30_000;
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const ALLOWED_METHODS = new Set(["GET", "POST"]);
@@ -89,7 +87,6 @@ export async function fetchCordCat(
     }
 }
 
-// ── OSINTToolkit natives (ported) ──
 type GeoAnalyzeResult = { success: true; data: unknown; } | { success: false; error: string; retryable?: boolean; };
 type BreachVipSearchResult = { success: true; results: unknown[]; total: number; } | { success: false; error: string; };
 type CordCatResult = { success: true; data: unknown; } | { success: false; error: string; };

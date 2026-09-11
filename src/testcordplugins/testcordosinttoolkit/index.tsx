@@ -31,7 +31,6 @@ import { AlgorithmResult, analyzeMessages, MessageData } from "./algorithms";
 
 const logger = new Logger("TestcordOSINTToolkit");
 
-// ── keys ──
 const SETTINGS_ENTRY_KEY = "testcord_osint";
 export const OSINT_HISTORY_KEY = "TestcordOSINTToolkit_recentInvestigations";
 const SCAN_HISTORY_KEY = "testcord-osint-history";
@@ -44,7 +43,6 @@ let nextGeoSeeerApiKey = 0;
 let recentInvestigationsReady = Promise.resolve();
 const activeRequests = new Set<AbortController>();
 
-// ── CordCat ──
 const CORDCAT_TITLES = {
     query: "full lookup",
     user: "user lookup",
@@ -54,7 +52,6 @@ const CORDCAT_TITLES = {
 } as const;
 type CordCatTool = keyof typeof CORDCAT_TITLES;
 
-// ── OSINT resources (kept for context menu + panel) ──
 export const OSINT_TOOLS = [
     { id: "see-know", name: "See-Know", url: "https://see-know.vip/", description: "Searches public web signals." },
     { id: "epieos", name: "Epieos", url: "https://epieos.com/", description: "Checks public email and phone traces." },
@@ -90,9 +87,7 @@ const BREACH_VIP_FIELDS: readonly string[] = [
     "uuid", "username", "ip", "domain", "discordid", "steamid", "email", "password", "name", "phone"
 ];
 
-// ── settings (merged) ──
 export const settings = definePluginSettings({
-    // Toolkit keys
     cordCatApiKey: {
         type: OptionType.STRING,
         description: "CordCat API key used by the CordCat slash commands.",
@@ -128,7 +123,6 @@ export const settings = definePluginSettings({
         description: "Clear recent investigations whenever OSINT starts.",
         default: true
     },
-    // Scanner settings
     useAI: {
         type: OptionType.BOOLEAN,
         description: "Use AI for user scan analysis (requires API key)",
@@ -659,7 +653,6 @@ function abortActiveRequests() {
     activeRequests.clear();
 }
 
-// ── Scan helpers (from TestcordOSINT) ──
 interface HistoryEntry {
     userId: string;
     username: string;
@@ -1487,7 +1480,6 @@ function openHistory() {
     }} />);
 }
 
-// ── Raid (kept for compat) ──
 let raiding = false;
 async function raidLoop(channelIds: string[], content: string) {
     let i = 0;
@@ -1503,7 +1495,6 @@ async function raidLoop(channelIds: string[], content: string) {
     }
 }
 
-// ── Header Bar Button ──
 function OSINTButton() {
     const [show, setShow] = useState(false);
     const buttonRef = useRef<HTMLDivElement>(null);
@@ -1532,7 +1523,6 @@ function OSINTButton() {
     );
 }
 
-// ── Context menus ──
 interface MessageContextProps { itemSrc?: string; message?: { author?: User; }; }
 interface ImageContextProps { src?: string; }
 
@@ -1615,7 +1605,6 @@ const imageContextMenuPatch: NavContextMenuPatchCallback = (children, { src }: I
     );
 };
 
-// ── Plugin ──
 export default definePlugin({
     name: "TestcordOSINTToolkit",
     description: "Unified OSINT toolkit. Scan Discord users with algorithmic and AI analysis, plus network lookups, breach checks, CordCat intelligence and image geolocation. Replaces TestcordOSINT and OSINTToolkit.",
@@ -1658,7 +1647,6 @@ export default definePlugin({
         pluginActive = true;
         activeRequests.clear();
         recentInvestigationsReady = settings.store.clearRecentInvestigationsOnRestart ? DataStore.del(OSINT_HISTORY_KEY).then(() => DataStore.del("OSINTToolkit_recentInvestigations" as any)).catch(() => {}) : Promise.resolve();
-        // Migrate old scan history key if needed
         try {
             const legacy = await DataStore.get("testcord-osint-history" as any) as unknown;
             const current = await DataStore.get(SCAN_HISTORY_KEY) as unknown;

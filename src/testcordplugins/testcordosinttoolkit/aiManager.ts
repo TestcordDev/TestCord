@@ -12,8 +12,6 @@ const DS_API_KEY = "testcord-osint-api-key";
 const DS_API_URL = "testcord-osint-api-url";
 const DS_MODEL = "testcord-osint-model";
 
-// ── Native IPC fetch ────────────────────────────────────────────────────────
-
 let _nativeFetch: ((url: string, method: string, headers: Record<string, string>, body?: string) => Promise<NativeOSINTResponse>) | null = null;
 let _nativeCordCat: ((parsedId: string) => Promise<NativeCordCatResult>) | null = null;
 
@@ -29,7 +27,9 @@ function getNativeFetch() {
             _nativeFetch = vn.pluginHelpers.TestcordOSINT.osintFetch;
             return _nativeFetch;
         }
-    } catch { /* renderer-only mode */ }
+    } catch {
+        return null;
+    }
     return null;
 }
 
@@ -45,7 +45,9 @@ function getNativeCordCat() {
             _nativeCordCat = vn.pluginHelpers.TestcordOSINT.fetchCordCat;
             return _nativeCordCat;
         }
-    } catch { /* renderer-only mode */ }
+    } catch {
+        return null;
+    }
     return null;
 }
 
@@ -129,8 +131,6 @@ export async function fetchCordCatData(parsedId: string): Promise<CordCatResult 
     }
 }
 
-// ── DataStore read/write ────────────────────────────────────────────────────
-
 export async function getApiKey(): Promise<string> {
     const key = await DataStore.get(DS_API_KEY) as string | null;
     return key?.trim() ?? "";
@@ -158,8 +158,6 @@ export async function setModel(model: string): Promise<void> {
     await DataStore.set(DS_MODEL, model.trim());
 }
 
-// ── Provider URL resolution ─────────────────────────────────────────────────
-
 export function resolveApiUrl(provider: string, customUrl?: string): string {
     if (provider === "custom" || provider === "localhost") {
         const base = customUrl?.trim() || "http://localhost:11434";
@@ -180,8 +178,6 @@ export function resolveApiUrl(provider: string, customUrl?: string): string {
             return "https://api.groq.com/openai/v1/chat/completions";
     }
 }
-
-// ── Main AI call ────────────────────────────────────────────────────────────
 
 export interface OSINTAIMessage {
     role: "system" | "user" | "assistant";

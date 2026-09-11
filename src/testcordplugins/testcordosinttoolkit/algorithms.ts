@@ -213,8 +213,6 @@ function detectLanguagePatterns(messages: MessageData[]): string[] {
     return patterns;
 }
 
-// ── Account intelligence ──
-
 const DISCORD_EPOCH = 1420070400000n;
 
 export function snowflakeToDate(id: string): Date | null {
@@ -284,8 +282,6 @@ function estimateAccountAge(messages: MessageData[]): string {
     if (spanDays < 365) return `${Math.round(spanDays / 30)} months`;
     return `${(spanDays / 365).toFixed(1)} years`;
 }
-
-// ── Personality archetypes ──
 
 interface Archetype {
     name: string;
@@ -405,7 +401,6 @@ function analyzePersonality(messages: MessageData[]): PersonalityScore[] {
                 signals.push(`${Math.round(lowerCount / total * 100)}% of messages fully lowercase`);
         }
 
-        // Normalise to a 0-100 affinity per archetype
         const score = Math.min(100, Math.round((rawScore / total) * 25));
         return { name: archetype.name, score, signals };
     }).sort((a, b) => b.score - a.score);
@@ -422,8 +417,6 @@ function buildPersonalitySection(messages: MessageData[]): ResultSection | null 
 
     return { title: "Personality Profile", content: lines.join("\n") };
 }
-
-// ── Danger assessment ──
 
 const IP_LOGGER_DOMAINS = [
     "grabify.link", "iplogger.org", "iplogger.com", "iplogger.ru", "2no.co",
@@ -445,8 +438,8 @@ const SCAM_PHRASES = [
 ];
 
 const PHISHY_DOMAIN_PATTERNS = [
-    /steamcom[a-z4-9]*unity/i, // steamcomrnunity etc
-    /d[i1l][s5]c[o0]rd[^a-z]/i, // discorcl, d1scord lookalikes with suffix
+    /steamcom[a-z4-9]*unity/i,
+    /d[i1l][s5]c[o0]rd[^a-z]/i,
     /d[i1]scorcl/i,
     /[n m]itro[-.]?(gift|free|claim)/i,
     /gift-?nitro/i,
@@ -566,8 +559,6 @@ const SCRIPT_RANGES: Array<{ name: string; regex: RegExp; }> = [
     { name: "Thai", regex: /[\u0E00-\u0E7F]/ },
     { name: "Devanagari (Hindi)", regex: /[\u0900-\u097F]/ }
 ];
-
-// ── Social network / channels / habits / commands / languages / platforms ──
 
 function buildSocialSection(messages: MessageData[]): ResultSection | null {
     const mentionCounts = new Map<string, { count: number; username: string; }>();
@@ -746,7 +737,6 @@ function buildPlatformSection(messages: MessageData[]): ResultSection | null {
                 }
             }
         }
-        // Spotify presence embeds count as listening signals
         if (msg.embeds?.some((e: any) => e?.provider?.name === "Spotify" || e?.author?.name === "Spotify")) {
             platformCounts.set("Spotify", (platformCounts.get("Spotify") ?? 0) + 1);
         }
@@ -1057,7 +1047,6 @@ export function analyzeMessages(messages: MessageData[], use24h = false): Algori
         if (section) sections.push(section);
     }
 
-    // Danger assessment goes last so it reads as the verdict
     const danger = analyzeDanger(messages);
     sections.push({
         title: `Danger Assessment — ${danger.score}/100 (${danger.level})`,

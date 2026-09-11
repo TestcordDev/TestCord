@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/* ── shell: modals / common ── */
 .vc-osint-root {
     display: flex;
     flex-direction: column;
@@ -550,7 +549,6 @@
 .vc-osint-picker-name { font-weight: 500; font-size: 14px; color: var(--header-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vc-osint-picker-tag { font-size: 12px; color: var(--text-muted); font-family: var(--font-code, ui-monospace, Consolas, monospace); }
 
-/* ── header overrides for modals (fallback) ── */
 .vc-osint-root .header__49fc1 { justify-content: space-between; }
 .vc-osint-root .flex__7c0ba.horizontalReverse__7c0ba.justifyStart_abf706.alignStretch_abf706.noWrap_abf706.footer__49fc1.footerSeparator__49fc1 {
     justify-content: flex-end;
@@ -558,15 +556,9 @@
     gap: 4px;
 }
 
-/* ── context menu labels ── */
 .vc-osint-geo-label,
 .vc-osint-toolkit-label { color: var(--text-muted); font-weight: 600; }
 
-/* ════════════════════════════════════════════
-   Investigation workspace — OSINT panel
-   Native Testcord: flat, bordered, sharp
-   OSINT vibe: casefile / analyst desk, not neon
-   ════════════════════════════════════════════ */
 .vc-osint-panel {
     display: flex;
     flex-direction: column;
@@ -596,7 +588,6 @@
     }
 }
 
-/* hero — casefile header */
 .vc-osint-panel-hero {
     position: relative;
     display: flex;
@@ -738,7 +729,6 @@
 
 .vc-osint-panel-badge--warn::before { background: var(--status-warning); }
 
-/* nav — segmented forensic tabs */
 .vc-osint-panel-nav {
     display: flex;
     gap: 4px;
@@ -795,7 +785,6 @@
     .vc-osint-panel-grid { grid-template-columns: 1fr; }
 }
 
-/* card — forensic file */
 .vc-osint-card {
     padding: 14px;
     border-radius: 6px;
@@ -852,93 +841,11 @@
     margin-top: 2px;
 }
 
-.vc-osint-card--resource {
-    border-left: 2px solid transparent;
-}
-
-.vc-osint-card--lookup { border-left-color: var(--brand-500); }
-.vc-osint-card--lists { border-left-color: var(--status-positive); }
-.vc-osint-card--opsec { border-left-color: var(--status-warning); }
-.vc-osint-card--privacy { border-left-color: oklch(70% 0.11 310); }
-
-.vc-osint-card-icon--lookup { color: var(--brand-500); border-color: color-mix(in srgb, var(--brand-500) 25%, var(--border-subtle)); background: color-mix(in srgb, var(--brand-500) 10%, var(--background-tertiary)); }
-.vc-osint-card-icon--lists { color: var(--status-positive); border-color: color-mix(in srgb, var(--status-positive) 25%, var(--border-subtle)); background: color-mix(in srgb, var(--status-positive) 10%, var(--background-tertiary)); }
-.vc-osint-card-icon--opsec { color: var(--status-warning); border-color: color-mix(in srgb, var(--status-warning) 25%, var(--border-subtle)); background: color-mix(in srgb, var(--status-warning) 10%, var(--background-tertiary)); }
-.vc-osint-card-icon--privacy { color: oklch(70% 0.11 310); border-color: color-mix(in srgb, oklch(70% 0.11 310) 25%, var(--border-subtle)); background: color-mix(in srgb, oklch(70% 0.11 310) 10%, var(--background-tertiary)); }
-
-.vc-osint-resource-count {
-    display: inline-flex;
-    align-items: center;
-    min-width: 20px;
-    height: 18px;
-    padding: 0 6px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 700;
-    font-family: var(--font-code, ui-monospace, Consolas, monospace);
-    background: var(--background-tertiary);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-muted);
-    justify-content: center;
-}
-
-.vc-osint-resource-count--lookup { color: var(--brand-500); border-color: color-mix(in srgb, var(--brand-500) 30%, var(--border-subtle)); }
-.vc-osint-resource-count--lists { color: var(--status-positive); border-color: color-mix(in srgb, var(--status-positive) 30%, var(--border-subtle)); }
-.vc-osint-resource-count--opsec { color: var(--status-warning); border-color: color-mix(in srgb, var(--status-warning) 30%, var(--border-subtle)); }
-.vc-osint-resource-count--privacy { color: oklch(70% 0.11 310); border-color: color-mix(in srgb, oklch(70% 0.11 310) 30%, var(--border-subtle)); }
-
-.vc-osint-resource-index {
-    display: grid;
-    place-items: center;
-    width: 26px;
-    height: 26px;
-    flex-shrink: 0;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 700;
-    font-family: var(--font-code, ui-monospace, Consolas, monospace);
-    background: var(--background-secondary);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-muted);
-}
-
-.vc-osint-resource--lookup .vc-osint-resource-index { color: var(--brand-500); border-color: color-mix(in srgb, var(--brand-500) 20%, var(--border-subtle)); }
-.vc-osint-resource--lists .vc-osint-resource-index { color: var(--status-positive); }
-.vc-osint-resource--opsec .vc-osint-resource-index { color: var(--status-warning); }
-.vc-osint-resource--privacy .vc-osint-resource-index { color: oklch(70% 0.11 310); }
-
-.vc-osint-resource--lookup { border-left-color: color-mix(in srgb, var(--brand-500) 45%, var(--border-subtle)); }
-.vc-osint-resource--lists { border-left-color: color-mix(in srgb, var(--status-positive) 45%, var(--border-subtle)); }
-.vc-osint-resource--opsec { border-left-color: color-mix(in srgb, var(--status-warning) 45%, var(--border-subtle)); }
-.vc-osint-resource--privacy { border-left-color: color-mix(in srgb, oklch(70% 0.11 310) 45%, var(--border-subtle)); }
-
-/* resource grid — forensic catalog */
-.vc-osint-resource-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 8px;
+.vc-osint-resource-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     min-width: 0;
-}
-
-.vc-osint-dashboard-tools .vc-osint-resource-grid {
-    grid-template-columns: minmax(0, 1fr);
-}
-
-@media (width >= 760px) {
-    .vc-osint-dashboard-tools .vc-osint-resource-grid {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    }
-}
-
-@media (width <= 980px) {
-    .vc-osint-dashboard-tools .vc-osint-resource-grid {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    }
-}
-
-@media (width <= 600px) {
-    .vc-osint-resource-grid,
-    .vc-osint-dashboard-tools .vc-osint-resource-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 .vc-osint-resource {
@@ -946,20 +853,24 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 10px 12px;
+    padding: 8px 10px;
     border-radius: 4px;
     background: var(--background-tertiary);
     border: 1px solid var(--border-subtle);
-    border-left: 2px solid var(--border-subtle);
     min-width: 0;
     overflow: hidden;
-    position: relative;
+    cursor: pointer;
     transition: border-color 0.12s, background 0.12s;
 }
 
 .vc-osint-resource:hover {
     background: var(--background-modifier-hover);
-    border-left-color: var(--brand-500);
+    border-color: var(--brand-500);
+}
+
+.vc-osint-resource--active {
+    background: var(--background-modifier-selected);
+    border-color: var(--brand-500);
 }
 
 .vc-osint-resource > div { min-width: 0; flex: 1; }
@@ -978,16 +889,14 @@
     font-size: 11px;
     color: var(--text-muted);
     line-height: 1.35;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    display: block;
     overflow: hidden;
-    word-break: break-word;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .vc-osint-resource button { flex-shrink: 0; }
 
-/* dashboard — analyst board */
 .vc-osint-dashboard {
     display: grid;
     grid-template-columns: 360px minmax(0, 1fr);
@@ -1010,30 +919,7 @@
     .vc-osint-dashboard { grid-template-columns: 1fr; }
 }
 
-.vc-osint-dashboard--resources {
-    grid-template-columns: 1fr;
-}
 
-.vc-osint-dashboard--resources .vc-osint-dashboard-tools {
-    gap: 12px;
-}
-
-/* resources: cards get more breathing room — resource items as 2-col catalog */
-.vc-osint-dashboard--resources .vc-osint-card--resource .vc-osint-resource-grid {
-    grid-template-columns: minmax(0, 1fr);
-}
-
-@media (width >= 700px) {
-    .vc-osint-dashboard--resources .vc-osint-card--resource .vc-osint-resource-grid {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    }
-}
-
-@media (width >= 980px) {
-    .vc-osint-dashboard--resources .vc-osint-card--resource .vc-osint-resource-grid {
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    }
-}
 
 .vc-osint-dashboard-tools {
     display: flex;
@@ -1222,7 +1108,6 @@
     font-family: var(--font-code, ui-monospace, Consolas, monospace);
 }
 
-/* clipping fixes */
 .vc-osint-dashboard-output,
 .vc-osint-dashboard-body {
     min-width: 0;
@@ -1258,7 +1143,6 @@
     max-width: 100%;
 }
 
-/* panel inputs — defer to Discord components, just ensure no radius pill */
 .vc-osint-panel input,
 .vc-osint-panel textarea {
     border-radius: 4px;
@@ -1268,7 +1152,6 @@
 
 .vc-osint-panel button { border-radius: 4px; }
 
-/* casefile accent bar — subtle forensic detail */
 .vc-osint-panel-hero::after {
     content: "";
     position: absolute;
@@ -1289,14 +1172,12 @@
     font-family: var(--font-code, ui-monospace, Consolas, monospace);
 }
 
-/* raw json / mono blocks */
 .vc-osint-mono {
     font-family: var(--font-code, ui-monospace, Consolas, monospace);
     font-size: 11px;
     line-height: 1.5;
 }
 
-/* status line in dashboard head */
 .vc-osint-status-pill {
     display: inline-flex;
     align-items: center;
@@ -1316,9 +1197,7 @@
 .vc-osint-status-pill--ok { border-left: 2px solid var(--status-positive); color: var(--text-normal); }
 .vc-osint-status-pill--err { border-left: 2px solid var(--status-danger); color: var(--text-normal); }
 
-/* legacy class shims */
 .vc-osint-toolkit-label,
 .vc-osint-geo-label { color: var(--text-muted); }
 
-/* ensure modal footer aligns like native */
 .vc-osint-root .footer__49fc1 { gap: 8px; }
