@@ -8,12 +8,12 @@ import { Settings } from "@api/Settings";
 import { BaseText } from "@components/BaseText";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Flex } from "@components/Flex";
-import { FormSwitch } from "@components/FormSwitch";
 import {
     AppsIcon as FallbackAppsIcon,
     ScreenshareIcon as FallbackScreenshareIcon,
     VideoIcon as FallbackVideoIcon,
 } from "@components/Icons";
+import { Switch } from "@components/Switch";
 import { iconsModule } from "@equicordplugins/_core/concatenatedModules";
 import { filters, find } from "@webpack";
 import {
@@ -530,8 +530,8 @@ export function UserAreaReorderTab({
                                         }}
                                         title={item.id === "voice-connected" || item.type === "voice-connected" ? "Configure Call Bar" : "Settings"}
                                         style={{
-                                            width: "28px",
-                                            height: "28px",
+                                            width: "26px",
+                                            height: "26px",
                                             borderRadius: "4px",
                                             backgroundColor: "transparent",
                                             color: "var(--interactive-normal)",
@@ -541,6 +541,7 @@ export function UserAreaReorderTab({
                                             alignItems: "center",
                                             justifyContent: "center",
                                             transition: "background-color 0.15s ease, color 0.15s ease",
+                                            padding: 0,
                                         }}
                                         onMouseEnter={e => {
                                             e.currentTarget.style.color = "var(--interactive-active)";
@@ -555,12 +556,12 @@ export function UserAreaReorderTab({
                                     </button>
                                 )}
 
-                                <FormSwitch
-                                    title=""
-                                    value={item.enabled}
-                                    onChange={v => toggleItem(item.id, v)}
-                                    hideBorder
-                                />
+                                <div style={{ display: "flex", alignItems: "center", marginLeft: "4px" }}>
+                                    <Switch
+                                        checked={item.enabled}
+                                        onChange={v => toggleItem(item.id, v)}
+                                    />
+                                </div>
                             </Flex>
                         </div>
                     );

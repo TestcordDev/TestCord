@@ -8,8 +8,8 @@ import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { Flex } from "@components/Flex";
-import { FormSwitch } from "@components/FormSwitch";
 import { Paragraph } from "@components/Paragraph";
+import { Switch } from "@components/Switch";
 import { React, TextInput, useMemo, useState } from "@webpack/common";
 
 import { MARKETPLACE_CATALOG } from "../builtin";
@@ -240,12 +240,12 @@ export function MarketplaceTab() {
                                             <BaseText size="xs" color="text-muted">{mod.description || "Custom module"}</BaseText>
                                         </div>
                                     </Flex>
-                                    <FormSwitch
-                                        title=""
-                                        value={mod.enabled}
-                                        onChange={v => setModuleEnabled(mod.id, v)}
-                                        hideBorder
-                                    />
+                                    <div style={{ display: "flex", alignItems: "center" }}>
+                                        <Switch
+                                            checked={mod.enabled}
+                                            onChange={v => setModuleEnabled(mod.id, v)}
+                                        />
+                                    </div>
                                 </Flex>
                             </Card>
                         ))}
