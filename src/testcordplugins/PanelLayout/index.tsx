@@ -14,7 +14,6 @@ import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
 import { Paragraph } from "@components/Paragraph";
-import { TooltipContainer } from "@components/TooltipContainer";
 import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin, { makeRange, OptionType } from "@utils/types";
@@ -492,14 +491,20 @@ function buildCSS(): string {
             user-select: none;
             flex-shrink: 0;
             transition: transform 0.16s ease;
+            box-shadow: none !important;
+            filter: none !important;
         }
 
         .vc-pl-custom-btn-wrapper:hover {
             transform: translateY(-2px);
+            box-shadow: none !important;
+            filter: none !important;
         }
 
         .vc-pl-custom-btn-wrapper:active {
             transform: translateY(0) scale(0.96);
+            box-shadow: none !important;
+            filter: none !important;
         }
 
         .vc-pl-custom-btn-preview {
@@ -511,7 +516,7 @@ function buildCSS(): string {
             border-radius: inherit;
             background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
             border: 1px solid rgba(255, 255, 255, 0.08);
-            transition: opacity 0.2s ease, filter 0.2s ease, transform 0.2s ease;
+            transition: opacity 0.2s ease, filter 0.2s ease;
         }
 
         .vc-pl-custom-btn-wrapper:hover .vc-pl-custom-btn-preview {
@@ -562,9 +567,33 @@ function buildCSS(): string {
         }
 
         .vc-pl-btn-custom-modal {
-            max-width: min(92vw, 1100px) !important;
-            min-width: 380px !important;
+            max-width: min(94vw, 1100px) !important;
+            margin: 0 auto !important;
             overflow-x: hidden !important;
+        }
+
+        .vc-pl-custom-btn-row {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+        }
+
+        .vc-pl-custom-btn-row::-webkit-scrollbar {
+            height: 4px !important;
+        }
+
+        .vc-pl-custom-btn-row::-webkit-scrollbar-track {
+            background: transparent !important;
+        }
+
+        .vc-pl-custom-btn-row::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15) !important;
+            border-radius: 4px !important;
+        }
+
+        .vc-pl-custom-btn-row::-webkit-scrollbar-button {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
         }
 
         .vc-pl-custom-btn-row > div {
@@ -2075,58 +2104,63 @@ function CustomizationRowButton({
         : (cfg.radius != null ? `${cfg.radius}px` : undefined);
 
     return (
-        <TooltipContainer text={item.label}>
+        <div
+            className="vc-pl-custom-btn-wrapper"
+            onClick={() => handleOpenSubModal(item)}
+            onMouseEnter={() => onHover(item.label)}
+            onMouseLeave={onUnhover}
+            title={`Customize ${item.label}`}
+            style={{
+                borderRadius: previewRadius,
+            }}
+        >
             <div
-                className="vc-pl-custom-btn-wrapper"
-                onClick={() => handleOpenSubModal(item)}
-                onMouseEnter={() => onHover(item.label)}
-                onMouseLeave={onUnhover}
+                className="vc-pl-custom-btn-preview"
+                style={{
+                    backgroundColor: previewBg,
+                    borderRadius: previewRadius,
+                }}
+            >
+                {isMute && (
+                    <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                )}
+
+                {isDeafen && (
+                    <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+                )}
+
+                {!isMute && !isDeafen && (
+                    <SvgPreview icon={item.iconHTML} enabled={true} />
+                )}
+            </div>
+
+            <div
+                className="vc-pl-custom-btn-settings"
                 style={{
                     borderRadius: previewRadius,
                 }}
             >
-                <div
-                    className="vc-pl-custom-btn-preview"
-                    style={{
-                        backgroundColor: previewBg,
-                        borderRadius: previewRadius,
-                    }}
-                >
-                    {isMute && (
-                        <span dangerouslySetInnerHTML={{ __html: svgs.muteOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                    )}
-
-                    {isDeafen && (
-                        <span dangerouslySetInnerHTML={{ __html: svgs.deafenOff }} className="icon-color-fix" style={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                    )}
-
-                    {!isMute && !isDeafen && (
-                        <SvgPreview icon={item.iconHTML} enabled={true} />
-                    )}
-                </div>
-
-                <div
-                    className="vc-pl-custom-btn-settings"
-                    style={{
-                        borderRadius: previewRadius,
-                    }}
-                    title={`Customize ${item.label}`}
-                >
-                    <span
-                        dangerouslySetInnerHTML={{ __html: svgs.settings }}
-                        className="vc-pl-custom-btn-settings-icon"
-                        style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-                    />
-                </div>
+                <span
+                    dangerouslySetInnerHTML={{ __html: svgs.settings }}
+                    className="vc-pl-custom-btn-settings-icon"
+                    style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+                />
             </div>
-        </TooltipContainer>
+        </div>
     );
 }
 
 function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
-    const [items] = React.useState<BtnItem[]>(getBtnItems());
+    const [items, setItems] = React.useState<BtnItem[]>(() => getBtnItems());
     const [hoveredLabel, setHoveredLabel] = React.useState<string | null>(null);
+
+    React.useEffect(() => {
+        const detected = getBtnItems();
+        if (detected.length !== items.length) {
+            setItems(detected);
+        }
+    }, [items.length]);
 
     const handleOpenSubModal = (item: BtnItem) => {
         openModalLazy(async () => (props: RenderModalProps) => (
@@ -2135,6 +2169,7 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
                     ...props,
                     onClose: () => {
                         props.onClose();
+                        setItems(getBtnItems());
                         forceUpdate();
                     },
                 }}
@@ -2152,31 +2187,32 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
         getCanonicalLabel(item.label) !== "Panel Layout"
     );
 
-    const modalWidth = Math.min(Math.max(customizableItems.length * 60 + 84, 440), 1100);
-    const containerRef = React.useRef<HTMLDivElement>(null);
-
-    React.useLayoutEffect(() => {
-        const modalEl = containerRef.current?.closest<HTMLElement>(".vc-pl-btn-custom-modal");
-        if (modalEl) {
-            modalEl.style.setProperty("width", `${modalWidth}px`, "important");
-            modalEl.style.setProperty("max-width", "min(92vw, 1100px)", "important");
-        }
-    }, [modalWidth]);
+    const btnCount = customizableItems.length;
+    const modalWidth = Math.min(Math.max(btnCount * 60 + 160, 480), 1080);
+    const modalSize: "sm" | "md" | "lg" | "xl" =
+        btnCount <= 4
+            ? "sm"
+            : btnCount <= 7
+                ? "md"
+                : btnCount <= 9
+                    ? "lg"
+                    : "xl";
 
     return (
         <Modal
             title={<BaseText size="sm" color="text-muted">Button customization</BaseText>}
             {...modalProps}
-            size="sm"
+            size={modalSize}
             className="vc-pl-btn-custom-modal"
         >
             <style>{`
                 .vc-pl-btn-custom-modal {
-                    width: ${modalWidth}px !important;
-                    max-width: min(92vw, 1100px) !important;
+                    width: min(94vw, ${modalWidth}px) !important;
+                    max-width: min(94vw, 1100px) !important;
+                    margin: 0 auto !important;
                 }
             `}</style>
-            <div ref={containerRef} style={{ width: "100%" }}>
+            <div style={{ width: "100%" }}>
                 {customizableItems.length === 0 ? (
                     <div style={{ padding: "24px 16px", textAlign: "center" }}>
                         <BaseText size="sm" color="text-muted">
@@ -2189,7 +2225,7 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             background: "var(--background-base-lower-alt, rgba(0, 0, 0, 0.2))",
                             border: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))",
                             borderRadius: "10px",
-                            padding: "20px 20px 16px",
+                            padding: "20px 24px 16px",
                             display: "flex",
                             flexDirection: "column",
                             alignItems: "center",
@@ -2199,7 +2235,7 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         }}
                     >
                         <div
-                            className="deracul-scrollbar vc-pl-custom-btn-row"
+                            className="vc-pl-custom-btn-row"
                             style={{
                                 display: "flex",
                                 flexDirection: "row",
@@ -2209,9 +2245,10 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                 gap: "12px",
                                 maxWidth: "100%",
                                 width: "100%",
-                                padding: "8px 4px",
+                                padding: "8px 0px",
                                 boxSizing: "border-box",
                                 overflowX: "auto",
+                                overflowY: "hidden",
                             }}
                         >
                             {customizableItems.map(item => (
