@@ -1107,6 +1107,7 @@ function LiveAccountProfilePreview({ pluginSettings }: { pluginSettings?: any; }
                 boxSizing: "border-box",
                 borderRadius: "8px",
                 overflow: "hidden",
+                backgroundColor: "var(--background-secondary-alt, #111214)",
                 ...(nameplate?.neutral ? { "--custom-nameplate-neutral": nameplate.neutral } as any : {}),
                 ...(nameplate?.neutralHovered ? { "--custom-nameplate-neutral-hovered": nameplate.neutralHovered } as any : {}),
             }}
@@ -1134,8 +1135,19 @@ function LiveAccountProfilePreview({ pluginSettings }: { pluginSettings?: any; }
                             style={{
                                 width: "100%",
                                 height: "100%",
-                                objectFit: "unset",
-                                background: "linear-gradient(90deg, rgba(115, 11, 200, 0.1) 0%, rgba(115, 11, 200, 0.4) 100%)",
+                                objectFit: "cover",
+                                objectPosition: "center",
+                                display: "block",
+                            }}
+                        />
+                    ) : nameplate.src ? (
+                        <img
+                            src={nameplate.src}
+                            alt="Nameplate"
+                            style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
                                 objectPosition: "center",
                                 display: "block",
                             }}
@@ -1151,13 +1163,6 @@ function LiveAccountProfilePreview({ pluginSettings }: { pluginSettings?: any; }
                             }}
                         />
                     ) : null}
-                    <div
-                        style={{
-                            position: "absolute",
-                            inset: 0,
-                            backgroundColor: "rgba(0, 0, 0, 0.25)",
-                        }}
-                    />
                 </div>
             )}
 

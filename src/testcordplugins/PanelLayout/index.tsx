@@ -877,10 +877,6 @@ function buildCustomCSS(): string {
             display: flex !important;
             flex-direction: column !important;
         }
-
-        .container__37e49.vc-account-profile-preview {
-            background: linear-gradient(90deg, rgba(115, 11, 200, 0.1) 0%, rgba(115, 11, 200, 0.4) 100%) !important;
-        }
     `);
 
     try {
