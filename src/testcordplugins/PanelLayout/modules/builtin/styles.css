@@ -1,0 +1,141 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+.vc-panel-clock-widget {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background-color: var(--background-secondary-alt, #111214);
+    border-bottom: 1px solid var(--border-subtle, var(--background-modifier-accent));
+    user-select: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.vc-panel-clock-widget:hover {
+    background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.04));
+}
+
+.vc-clock-time-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.vc-clock-icon-slot {
+    display: flex;
+    align-items: center;
+    color: var(--header-primary, #ffffff);
+    flex-shrink: 0;
+}
+
+.vc-clock-digits {
+    display: inline-flex;
+    align-items: baseline;
+    font-size: 13.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--header-primary, #ffffff);
+    line-height: 1;
+}
+
+.vc-clock-seconds {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted, #949ba4);
+    font-variant-numeric: tabular-nums;
+    margin-left: 2px;
+}
+
+.vc-clock-ampm {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted, #949ba4);
+    margin-left: 4px;
+}
+
+.vc-clock-date-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    color: var(--header-primary, #ffffff);
+}
+
+.vc-clock-date-str {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted, #949ba4);
+    white-space: nowrap;
+}
+
+.vc-panel-sysmonitor-widget {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px;
+    background-color: var(--background-secondary-alt, #111214);
+    border-bottom: 1px solid var(--border-subtle, var(--background-modifier-accent));
+    user-select: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.vc-panel-sysmonitor-widget:hover {
+    background-color: var(--background-modifier-hover, rgba(255, 255, 255, 0.04));
+}
+
+.vc-sysmonitor-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    color: var(--text-muted, #949ba4);
+    white-space: nowrap;
+}
+
+.vc-sysmonitor-ping-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.vc-sysmonitor-ping-dot.optimal,
+.vc-sysmonitor-ping-dot.good {
+    background-color: var(--status-positive, #23a55a);
+}
+
+.vc-sysmonitor-ping-dot.fair {
+    background-color: var(--status-warning, #f0b232);
+}
+
+.vc-sysmonitor-ping-dot.high {
+    background-color: var(--status-danger, #f23f43);
+}
+
+.vc-sysmonitor-value {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-normal, #dbdee1);
+}
+
+.vc-sysmonitor-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted, #949ba4);
+}
+
+.vc-sysmonitor-icon {
+    color: var(--header-primary, #ffffff);
+    flex-shrink: 0;
+}

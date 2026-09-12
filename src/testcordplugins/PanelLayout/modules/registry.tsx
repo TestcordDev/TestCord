@@ -66,6 +66,7 @@ export const DEFAULT_USER_AREA_ORDER: UserAreaReorderItem[] = [
         description: "Control Spotify & Tidal playback in the user area",
         order: 0,
         enabled: true,
+        installed: true,
         moduleId: "music-controls",
         hasSettings: true,
     },
@@ -76,6 +77,7 @@ export const DEFAULT_USER_AREA_ORDER: UserAreaReorderItem[] = [
         description: "Displays rich presence details and activity cards",
         order: 1,
         enabled: true,
+        installed: true,
         moduleId: "activity-banner",
     },
     {
@@ -85,6 +87,7 @@ export const DEFAULT_USER_AREA_ORDER: UserAreaReorderItem[] = [
         description: "Discord & Testcord client information banner",
         order: 2,
         enabled: true,
+        installed: true,
         moduleId: "dev-banner",
         hasSettings: true,
     },
@@ -95,6 +98,7 @@ export const DEFAULT_USER_AREA_ORDER: UserAreaReorderItem[] = [
         description: "Discord native voice connection status and call controls",
         order: 3,
         enabled: true,
+        installed: true,
         hasSettings: true,
     },
     {
@@ -104,6 +108,7 @@ export const DEFAULT_USER_AREA_ORDER: UserAreaReorderItem[] = [
         description: "Discord native game / stream banner",
         order: 4,
         enabled: true,
+        installed: true,
     },
     {
         id: "account-panel",
@@ -112,25 +117,8 @@ export const DEFAULT_USER_AREA_ORDER: UserAreaReorderItem[] = [
         description: "Avatar, username, mute, deafen, settings and panel buttons",
         order: 5,
         enabled: true,
+        installed: true,
         hasSettings: true,
-    },
-    {
-        id: "clock-widget",
-        type: "module",
-        name: "Digital Clock & Date",
-        description: "Digital clock and calendar widget",
-        order: 6,
-        enabled: false,
-        moduleId: "clock-widget",
-    },
-    {
-        id: "system-monitor",
-        type: "module",
-        name: "System & Ping Monitor",
-        description: "Live Discord gateway ping and memory monitor",
-        order: 7,
-        enabled: false,
-        moduleId: "system-monitor",
     },
 ];
 
@@ -138,19 +126,20 @@ let currentUserAreaOrder: UserAreaReorderItem[] = [...DEFAULT_USER_AREA_ORDER];
 
 export function getUserAreaOrder(): UserAreaReorderItem[] {
     const modules = getSortedModules();
-    const activeModuleIds = new Set(modules.map(m => m.id));
+    const installedModuleIds = new Set(modules.filter(m => m.installed !== false).map(m => m.id));
 
     const initialLen = currentUserAreaOrder.length;
     currentUserAreaOrder = currentUserAreaOrder.filter(item => {
         if (item.type !== "module") return true;
         const targetId = item.moduleId || item.id;
-        return activeModuleIds.has(targetId);
+        return installedModuleIds.has(targetId);
     });
     let changed = currentUserAreaOrder.length !== initialLen;
 
     let maxOrder = currentUserAreaOrder.reduce((acc, curr) => Math.max(acc, curr.order), 0);
 
     for (const mod of modules) {
+        if (mod.installed === false) continue;
         const existing = currentUserAreaOrder.find(i => i.id === mod.id || i.moduleId === mod.id);
         if (!existing) {
             maxOrder++;
@@ -161,15 +150,17 @@ export function getUserAreaOrder(): UserAreaReorderItem[] {
                 description: mod.description,
                 order: maxOrder,
                 enabled: mod.enabled,
+                installed: true,
                 moduleId: mod.id,
                 hasSettings: !!mod.settingsComponent,
             });
             changed = true;
         } else {
-            if (existing.name !== mod.name || existing.description !== mod.description || !!existing.hasSettings !== !!mod.settingsComponent) {
+            if (existing.name !== mod.name || existing.description !== mod.description || !!existing.hasSettings !== !!mod.settingsComponent || existing.installed !== true) {
                 existing.name = mod.name;
                 existing.description = mod.description;
                 existing.hasSettings = !!mod.settingsComponent;
+                existing.installed = true;
                 changed = true;
             }
         }
@@ -277,12 +268,15 @@ export async function initModuleManager(): Promise<void> {
         if (!mod) return;
         const saved = savedStates[mod.id];
         const orderItem = currentUserAreaOrder.find(i => i.id === mod.id || i.moduleId === mod.id);
-        const isEnabled = saved?.enabled ?? orderItem?.enabled ?? (mod.id === "music-controls" || mod.id === "dev-banner" || mod.id === "activity-banner");
+        const isDefaultCore = mod.id === "music-controls" || mod.id === "dev-banner" || mod.id === "activity-banner";
+        const isInstalled = saved?.installed ?? (saved?.enabled === true ? true : (saved?.enabled === false ? false : (orderItem ? orderItem.enabled : isDefaultCore)));
+        const isEnabled = saved?.enabled ?? orderItem?.enabled ?? (isInstalled && isDefaultCore);
         const order = saved?.order ?? orderItem?.order ?? idx;
         const position = saved?.position ?? mod.position ?? "above";
 
         const moduleInstance: UserAreaModule = {
             ...mod,
+            installed: isInstalled,
             enabled: isEnabled,
             order,
             position,
@@ -290,11 +284,12 @@ export async function initModuleManager(): Promise<void> {
         registeredModules.set(mod.id, moduleInstance);
 
         if (orderItem) {
+            orderItem.installed = isInstalled;
             orderItem.enabled = isEnabled;
             orderItem.order = order;
         }
 
-        if (isEnabled) {
+        if (isInstalled && isEnabled) {
             try {
                 void mod.onEnable?.();
             } catch (e) {
@@ -333,6 +328,7 @@ export async function initModuleManager(): Promise<void> {
             orderItem.enabled = saved.enabled;
         }
         const customMod = createCustomModule(data, saved);
+        customMod.installed = true;
         registeredModules.set(customMod.id, customMod);
         if (customMod.enabled) {
             try {
@@ -375,6 +371,7 @@ export async function persistModuleStates(): Promise<void> {
     const states: Record<string, StoredModuleState> = {};
     for (const [id, mod] of registeredModules.entries()) {
         states[id] = {
+            installed: mod.installed,
             enabled: mod.enabled,
             order: mod.order,
             position: mod.position,
@@ -395,6 +392,74 @@ export async function persistModuleStates(): Promise<void> {
     } catch (e) {
         console.error("[PanelLayout] Error setting module states in DataStore:", e);
     }
+}
+
+export function isModuleInstalled(id: string): boolean {
+    const mod = registeredModules.get(id);
+    if (!mod) return false;
+    return mod.installed !== false;
+}
+
+export async function installModule(id: string): Promise<void> {
+    const mod = registeredModules.get(id);
+    if (mod) {
+        mod.installed = true;
+        mod.enabled = true;
+        try {
+            void mod.onEnable?.();
+        } catch (e) {
+            console.error(`[PanelLayout] Error enabling module ${id}:`, e);
+        }
+    }
+
+    const orderItems = getUserAreaOrder();
+    const existing = orderItems.find(i => i.id === id || i.moduleId === id);
+    if (existing) {
+        existing.installed = true;
+        existing.enabled = true;
+        saveUserAreaOrderToStorage(orderItems);
+    } else if (mod) {
+        const maxOrder = orderItems.reduce((acc, curr) => Math.max(acc, curr.order), 0);
+        orderItems.push({
+            id: mod.id,
+            type: "module",
+            name: mod.name,
+            description: mod.description,
+            order: maxOrder + 1,
+            enabled: true,
+            installed: true,
+            moduleId: mod.id,
+            hasSettings: !!mod.settingsComponent,
+        });
+        saveUserAreaOrderToStorage(orderItems);
+    }
+
+    await persistModuleStates();
+    notify();
+}
+
+export async function uninstallModule(id: string): Promise<void> {
+    const mod = registeredModules.get(id);
+    if (mod) {
+        mod.installed = false;
+        mod.enabled = false;
+        try {
+            mod.onDisable?.();
+        } catch (e) {
+            console.error(`[PanelLayout] Error disabling module ${id}:`, e);
+        }
+    }
+
+    if (mod?.isCustom) {
+        await uninstallCustomModule(id);
+        return;
+    }
+
+    currentUserAreaOrder = currentUserAreaOrder.filter(i => i.id !== id && i.moduleId !== id);
+    saveUserAreaOrderToStorage(currentUserAreaOrder);
+
+    await persistModuleStates();
+    notify();
 }
 
 export async function setModuleEnabled(id: string, enabled: boolean): Promise<void> {

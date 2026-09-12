@@ -99,6 +99,7 @@ import { MusicControlsComponent, SpotifyStore } from "../musicControls";
 import {
     getPanelLayoutPlainSettings,
     getUserAreaOrder,
+    isModuleInstalled,
     registeredModules,
     setUserAreaItemEnabled,
     setUserAreaOrder,
@@ -127,8 +128,12 @@ export function UserAreaReorderTab({
     const [activeDragIndex, setActiveDragIndex] = useState<number | null>(null);
     const [dropPosition, setDropPosition] = useState<"above" | "below">("above");
 
-    const isActivityBannerActive = modules.some(m => m.id === "activity-banner" && m.enabled);
+    const isActivityBannerActive = modules.some(m => m.id === "activity-banner" && m.enabled && m.installed !== false);
     const visibleItems = items.filter(it => {
+        if (it.type === "module") {
+            const targetId = it.moduleId || it.id;
+            if (!isModuleInstalled(targetId)) return false;
+        }
         if (isActivityBannerActive && it.id === "native-activity-banner") return false;
         if (!isActivityBannerActive && (it.id === "activity-banner" || it.moduleId === "activity-banner")) return false;
         return true;

@@ -19,6 +19,7 @@ export interface UserAreaModule {
     tags?: string[];
     icon?: ComponentType<{ className?: string; style?: React.CSSProperties }> | string;
     enabled: boolean;
+    installed?: boolean;
     order: number;
     position?: ModulePosition;
     render: ComponentType<{ module: UserAreaModule }>;
@@ -33,6 +34,7 @@ export interface UserAreaModule {
 }
 
 export interface StoredModuleState {
+    installed?: boolean;
     enabled?: boolean;
     order?: number;
     position?: ModulePosition;
@@ -77,6 +79,7 @@ export interface UserAreaReorderItem {
     description: string;
     order: number;
     enabled: boolean;
+    installed?: boolean;
     moduleId?: string;
     hasSettings?: boolean;
 }
