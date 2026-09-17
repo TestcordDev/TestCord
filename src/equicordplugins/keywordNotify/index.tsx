@@ -16,13 +16,14 @@ import { classNameFactory } from "@utils/css";
 import { classes } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { Message, ScrollerBaseRef } from "@vencord/discord-types";
-import { findByCodeLazy, findCssClassesLazy } from "@webpack";
+import { findByCodeLazy, findComponentByCodeLazy, findCssClassesLazy } from "@webpack";
 import {
     ChannelStore,
     FluxDispatcher,
     ScrollerThin,
     TabBar,
     Tooltip,
+    useCallback,
     useRef,
     UserStore,
     useState
@@ -66,12 +67,13 @@ interface ScrollerOpts {
 const scrollerClass = findCssClassesLazy("singleMessage", "scroller");
 const tabClass = findCssClassesLazy("inboxTitle", "tab");
 
-const PopoutContainer = findByCodeLazy("navigator", "Provider");
+const PopoutContainer = findComponentByCodeLazy("navigator:", "containerProps:");
 const getMessageScrollerOptions: () => ScrollerOpts = findByCodeLazy("onKeyDown", "tabIndex", "useContext", "aria-orientation");
 const createNavigator = findByCodeLazy("keyboardModeEnabled)", "scrollIntoViewNode");
 const createMessageRecord = findByCodeLazy(".createFromServer(", ".isBlockedForMessage", "messageReference:");
 export const KEYWORD_ENTRIES_KEY = "KeywordNotify_keywordEntries";
 const KEYWORD_LOG_KEY = "KeywordNotify_log";
+const KEYWORD_TAB_ID = "vc-keywordnotify-keywords";
 
 export const cl = classNameFactory("vc-keywordnotify-");
 
@@ -172,7 +174,15 @@ export default definePlugin({
     description: "Sends a notification if a given message matches certain keywords or regexes",
     tags: ["Utility", "Notifications"],
     settings,
+    keywordTabId: KEYWORD_TAB_ID,
     patches: [
+        {
+            find: 'name:"InboxPopoutRenderer"',
+            replacement: {
+                match: /(?<=\[\i,\i\]=)\[\(0,\i\.\i\)\(\[\i\.\i\],\(\)=>\i\.\i\.settings\.inbox\?\.currentTab.{0,300}?\.FREQUENT_USER_ACTION\)\},\[\]\)\]/,
+                replace: "$self.useInboxTab($&)"
+            }
+        },
         {
             find: "#{intl::MENTIONS})",
             group: true,
@@ -183,11 +193,11 @@ export default definePlugin({
                 },
                 {
                     match: /:(\i)===\i\.\i\.MENTIONS\?\(0,.{0,500}null}/,
-                    replace: ": $1 === 8 ? $self.keywordClearButton() $&",
+                    replace: ": $1 === $self.keywordTabId ? $self.keywordClearButton() $&",
                 },
                 {
                     match: /:(\i)===\i\.\i\.MENTIONS\?\(0,.{0,500}onJump:(\i)}\)/,
-                    replace: ": $1 === 8 ? $self.tryKeywordMenu($2) $&",
+                    replace: ": $1 === $self.keywordTabId ? $self.tryKeywordMenu($2) $&",
                 },
                 {
                     match: /function (\i)\(\i\){let{message:\i,onJump/,
@@ -380,9 +390,19 @@ export default definePlugin({
         this.onUpdate();
     },
 
+    useInboxTab([tab, setTab]: [number, (tab: number) => void]) {
+        const [keywordsSelected, setKeywordsSelected] = useState(false);
+        const selectTab = useCallback((id: number | string) => {
+            setKeywordsSelected(id === KEYWORD_TAB_ID);
+            if (typeof id === "number") setTab(id);
+        }, [setTab]);
+
+        return [keywordsSelected ? KEYWORD_TAB_ID : tab, selectTab] as const;
+    },
+
     keywordTabBar() {
         return (
-            <TabBar.Item className={classes(tabClass.tab)} id={8}>
+            <TabBar.Item className={classes(tabClass.tab)} id={KEYWORD_TAB_ID}>
                 Keywords
             </TabBar.Item>
         );

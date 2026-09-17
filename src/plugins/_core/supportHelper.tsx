@@ -34,7 +34,7 @@ import { CONTRIB_ROLE_ID, Devs, DONOR_ROLE_ID, EQUICORD_GUILD_ID, EQUICORD_TEAM,
 import { sendMessage } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import { Margins } from "@utils/margins";
-import { isAnyPluginDev, isKnownIssuesCategory, isSupportChannel, isTestCordGuild, tryOrElse } from "@utils/misc";
+import { isAnyPluginDev, isEquicordGuild, isEquicordSupport, isKnownIssuesCategory, isSupportChannel, isTestCordGuild, tryOrElse } from "@utils/misc";
 import { relaunch } from "@utils/native";
 import { onlyOnce } from "@utils/onlyOnce";
 import { makeCodeblock } from "@utils/text";
@@ -423,13 +423,17 @@ export default definePlugin({
     },
 
     renderMessageAccessory(props) {
+        if (props.message.vencordEmbeddedBy) return null;
+
         const buttons = [] as JSX.Element[];
 
         const testCordSupport = isTestCordGuild(props.channel.id);
+        const equicordSupport = isEquicordGuild(props.message.channel_id) && isEquicordSupport(props.message.author.id);
+        const isSupportHelper = testCordSupport || equicordSupport;
 
         const shouldAddUpdateButton =
             !IS_UPDATER_DISABLED
-            && ((isSupportChannel(props.channel.id) && testCordSupport))
+            && ((isSupportChannel(props.channel.id) && isSupportHelper))
             && props.message.content?.toLowerCase().includes("update");
 
         if (shouldAddUpdateButton) {
@@ -454,8 +458,8 @@ export default definePlugin({
             );
         }
 
-        if (testCordSupport && isSupportChannel(props.channel.id) && PermissionStore.can(PermissionsBits.SEND_MESSAGES, props.channel)) {
-            if (props.message.content.includes("/testcord-debug") || props.message.content.includes("/testcord-plugins")) {
+        if (isSupportHelper && isSupportChannel(props.channel.id) && PermissionStore.can(PermissionsBits.SEND_MESSAGES, props.channel)) {
+            if (props.message.content.includes("/testcord-debug") || props.message.content.includes("/testcord-plugins") || props.message.content.includes("/equicord-debug") || props.message.content.includes("/equicord-plugins")) {
                 buttons.push(
                     <Button
                         key="vc-dbg"
@@ -535,8 +539,7 @@ export default definePlugin({
                 );
             }
         }
-
-        if (testCordSupport || isSupportChannel(props.channel.id) || isKnownIssuesCategory(props.channel.parent_id)) {
+        if (isSupportHelper || isSupportChannel(props?.channel?.id, true) || isKnownIssuesCategory(props?.channel?.parent_id, true)) {
             const match = CodeBlockRe.exec(props.message.content || props.message.embeds[0]?.rawDescription || "");
             if (match) {
                 buttons.push(

@@ -19,7 +19,7 @@
 import { User } from "@vencord/discord-types";
 import { ChannelStore, GuildMemberStore, IconUtils } from "@webpack/common";
 
-import { EQUICORD_GUILD_ID, EQUICORD_HELPERS, EquicordDevsById, KNOWN_ISSUES_CHANNEL_ID, SUPPORT_CHANNEL_ID, TESTCORD_GUILD_ID, TestcordDevsById, VencordDevsById } from "./constants";
+import { EQUICORD_GUILD_ID, EQUICORD_HELPERS, EquicordDevsById, KNOWN_ISSUES_CHANNEL_ID, KNOWN_ISSUES_CHANNEL_IDS, SUPPORT_CHANNEL_ID, SUPPORT_CHANNEL_IDS, TESTCORD_GUILD_ID, TestcordDevsById, VencordDevsById } from "./constants";
 import { TestcordAdminsById, TestcordArtistsById } from "./testcordAdmins";
 
 /**
@@ -131,13 +131,15 @@ export function isTestCordGuild(id: string | null | undefined, isGuildId: boolea
     return channel?.guild_id === TESTCORD_GUILD_ID;
 }
 
-export function isSupportChannel(channelId: string | null | undefined): boolean {
+export function isSupportChannel(channelId: string | null | undefined, includeVencord: boolean = false): boolean {
     if (!channelId) return false;
+    if (includeVencord) return SUPPORT_CHANNEL_IDS.includes(channelId);
     return channelId === SUPPORT_CHANNEL_ID;
 }
 
-export function isKnownIssuesCategory(channelId: string | null | undefined): boolean {
+export function isKnownIssuesCategory(channelId: string | null | undefined, includeVencord: boolean = false): boolean {
     if (!channelId) return false;
+    if (includeVencord) return KNOWN_ISSUES_CHANNEL_IDS.includes(channelId);
     return channelId === KNOWN_ISSUES_CHANNEL_ID;
 }
 

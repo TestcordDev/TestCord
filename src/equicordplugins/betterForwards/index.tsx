@@ -19,7 +19,7 @@ import { proxyLazyWebpack } from "@webpack";
 import { ChannelActionCreators, ChannelStore, Checkbox, React, Tooltip, useMemo, useState } from "@webpack/common";
 import { Dispatch, MouseEvent, ReactNode, SetStateAction } from "react";
 
-import { ChannelName, ForwardPicker, GuildName, Timestamp } from "./components";
+import { ForwardFooter, ForwardPicker } from "./components";
 import managedStyle from "./style.css?managed";
 
 export const cl = classNameFactory("vc-betterforwards-");
@@ -98,7 +98,15 @@ export default definePlugin({
     managedStyle,
     patches: [
         {
-            find: "transitionToDestination",
+            find: "#{intl::MESSAGE_FORWARDING_NSFW_NOT_ALLOWED}",
+            predicate: () => settings.store.resendOnFail,
+            replacement: {
+                match: /(\{if\().{0,50}(\)return.{0,25}#{intl::MESSAGE_FORWARDING_NSFW_NOT_ALLOWED})/,
+                replace: "$1false$2"
+            }
+        },
+        {
+            find: "#{intl::MESSAGE_ACTION_FORWARD_TO}",
             replacement: [
                 {
                     match: /(?<=hasContextMessage:null!=(\i)&&.{100,150}?let (\i)=.{0,25}rejected.{0,25}\);)(?=.{0,25}message:(\i))/,
@@ -113,6 +121,10 @@ export default definePlugin({
                 {
                     match: /\(0,\i\.jsx\)\(\i,\{message:\i,forwardOptions:\i,channel:\i\}\)/,
                     replace: "$self.renderWrapper(__state,$&)"
+                },
+                {
+                    match: /(?<=#{intl::CHECKPOINT_2025}.{50,100}?)\i>0&&\(.{200,250}?\}\)\]\}\)/,
+                    replace: "$self.ForwardPicker()"
                 },
                 {
                     match: /(?<=transitionToDestination:)(1===\i\.length)(?=,|\})/,
@@ -130,19 +142,18 @@ export default definePlugin({
             ]
         },
         {
-            find: 'location:"ForwardFooter"',
-            noWarn: true,
+            find: ".FORWARD_BREADCRUMB_CLICKED,{",
             replacement: {
-                match: /return\s+\(0,\i\.jsx\)\(\i,\{message:(\i),snapshot:(\i),index:(\i)\}\)/,
-                replace: "return $self.renderForwardFooter({message:$1,snapshot:$2,index:$3})"
+                match: /(disableComponentInteractivity:\i\}\),!\i&&\(0,\i\.jsx\)\()\i/,
+                replace: "$1$self.ForwardFooter"
             }
         },
         {
             find: ".getChannelHistory(),",
             predicate: () => settings.store.selfForward,
             replacement: {
-                match: /\i.id\]/,
-                replace: "]"
+                match: /\[\i\.id\]/,
+                replace: "[]"
             }
         }
     ],
@@ -187,21 +198,9 @@ export default definePlugin({
         ignore = !!event?.shiftKey;
     },
 
-    renderForwardFooter({ message }: { message: Message; }) {
-        if (!message.messageReference) return null;
+    ForwardFooter: ErrorBoundary.wrap(ForwardFooter, { noop: true }),
 
-        const { guild_id, channel_id, message_id } = message.messageReference;
-
-        return (
-            <ErrorBoundary noop>
-                <div className={cl("footer")}>
-                    {guild_id && <GuildName guildId={guild_id} />}
-                    <ChannelName messageId={message_id} channelId={channel_id} guildId={guild_id} />
-                    <Timestamp snowflake={message_id} />
-                </div>
-            </ErrorBoundary>
-        );
-    },
+    ForwardPicker: ErrorBoundary.wrap(ForwardPicker, { noop: true }),
 
     useProps(props: { message?: Message; forwardOptions?: ForwardOptions; }) {
         // Message is undefined in certain forward contexts (e.g. forwarding an item from the shop)
@@ -262,21 +261,17 @@ export default definePlugin({
                 <ForwardOptionsContext.Provider value={state}>
                     {children}
                     {message && message.embeds.length + message.attachments.length > 0 && (
-                        <>
-                            <ForwardPicker />
-                            <Flex className={Margins.top16}>
-                                <Checkbox value={!hasOpts} onChange={() => setOpts(!hasOpts ? defaultOpts : {})} size={20}>
-                                    <BaseText size="sm">Forward everything</BaseText>
-                                </Checkbox>
-                                <Tooltip text="Message text will not be forwarded when this option is disabled">
-                                    {props => <InfoIcon {...props} color="var(--text-muted)" width={20} height={20} />}
-                                </Tooltip>
-                            </Flex>
-                        </>
+                        <Flex className={Margins.top16}>
+                            <Checkbox value={!hasOpts} onChange={() => setOpts(!hasOpts ? defaultOpts : {})} size={20}>
+                                <BaseText size="sm">Forward everything</BaseText>
+                            </Checkbox>
+                            <Tooltip text="Message text will not be forwarded when this option is disabled">
+                                {props => <InfoIcon {...props} color="var(--text-muted)" width={20} height={20} />}
+                            </Tooltip>
+                        </Flex>
                     )}
                 </ForwardOptionsContext.Provider>
             </ErrorBoundary>
         );
-    },
-
+    }
 });
