@@ -106,7 +106,13 @@ export default definePlugin({
 
     revealAllAuto() {
         if (!settings.store.autoReveal) return;
-        const fastCheck = document.querySelector('[aria-expanded="false"][aria-label], [class*="spoilerContent"][class*="hidden"]');
+        // Only chat message lists. An unscoped document scan also matched
+        // settings rows (e.g. a spoiler option), clicking them open every
+        // 800ms and yanking scroll to them. role=log is stable ARIA, and the
+        // document fallback keeps the feature working if Discord renames it.
+        const logRoots = document.querySelectorAll('[role="log"]');
+        const roots: (Document | Element)[] = logRoots.length ? [...logRoots] : [document];
+        const fastCheck = roots.some(root => root.querySelector('[aria-expanded="false"][aria-label], [class*="spoilerContent"][class*="hidden"]'));
         if (!fastCheck) return;
         if ((this as any)._isAutoRevealing) return;
         (this as any)._isAutoRevealing = true;
@@ -134,7 +140,12 @@ export default definePlugin({
             };
 
             const root = document;
-            const hidden = root.querySelectorAll<HTMLElement>('[aria-expanded="false"]');
+            const hidden: HTMLElement[] = [];
+            const hiddenSpoilers: HTMLElement[] = [];
+            for (const scope of roots) {
+                hidden.push(...scope.querySelectorAll<HTMLElement>('[aria-expanded="false"]'));
+                hiddenSpoilers.push(...scope.querySelectorAll<HTMLElement>('[class*="spoilerContent"][class*="hidden"]'));
+            }
             for (const el of hidden) {
                 const cls = el.className ?? "";
                 if (cls.includes("hiddenVisually")) continue;
@@ -143,7 +154,6 @@ export default definePlugin({
                     revealNoScroll(el);
                 }
             }
-            const hiddenSpoilers = root.querySelectorAll<HTMLElement>('[class*="spoilerContent"][class*="hidden"]');
             for (const el of hiddenSpoilers) {
                 if ((el as HTMLElement).getAttribute("aria-expanded") === "false") continue;
                 if (el.className.includes("hiddenVisually")) continue;

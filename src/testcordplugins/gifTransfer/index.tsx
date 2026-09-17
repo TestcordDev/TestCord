@@ -231,10 +231,16 @@ async function exportGifs(): Promise<void> {
     };
 
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
+    a.href = url;
     a.download = `gif-favorites-${Date.now()}.json`;
+    // Detached clicks don't trigger downloads in Firefox; revoke afterwards
+    // so repeated exports don't leak blob URLs.
+    document.body.appendChild(a);
     a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
 
     showToast(`Exported ${gifsArray.length} GIFs successfully!`, Toasts.Type.SUCCESS);
 }
@@ -383,13 +389,20 @@ async function importGifs(file: File): Promise<void> {
         return;
     }
 
-    if (!data.gifs || !Array.isArray(data.gifs)) {
+    if (!data || !Array.isArray((data as ExportFile).gifs)) {
         showToast("Invalid file format.", Toasts.Type.FAILURE);
         return;
     }
 
     const seen = new Set<string>();
+    let invalid = 0;
     const deduped = data.gifs.filter(gif => {
+        // Malformed entries previously flowed through and created junk
+        // favorites keyed by "undefined".
+        if (typeof gif?.url !== "string" || !gif.url) {
+            invalid++;
+            return false;
+        }
         if (seen.has(gif.url)) return false;
         seen.add(gif.url);
         return true;
@@ -397,6 +410,7 @@ async function importGifs(file: File): Promise<void> {
 
     const filedupes = data.gifs.length - deduped.length;
     if (filedupes > 0) console.log(`[GifTransfer] Removed ${filedupes} duplicate URLs from import file.`);
+    if (invalid > 0) console.log(`[GifTransfer] Skipped ${invalid} entries without a URL.`);
 
     const currentGifs = getCurrentGifs();
     const currentUrls = new Set(Object.keys(currentGifs));
@@ -421,29 +435,38 @@ async function importGifs(file: File): Promise<void> {
     let rateLimitHits = 0;
 
     for (const gif of toImport) {
-        try {
-            await addGif({
-                url: gif.url,
-                src: gif.src ?? gif.url,
-                width: Number(gif.width) || 498,
-                height: Number(gif.height) || 280,
-                format: Number(gif.format) || 2,
-            });
-            ok++;
-        } catch (e: any) {
-            err++;
-            // Check if it's a rate limit error
-            const isRateLimit = e?.status === 429 || e?.text?.includes("rate limit") || e?.body?.retry_after;
-            if (isRateLimit && settings.store.autoIncreaseDelay) {
-                rateLimitHits++;
-                delay = Math.min(delay * 2, 5000); // Double delay, max 5s
-                console.log(`[GifTransfer] Rate limit hit! Increased delay to ${delay}ms`);
-                showToast(`Rate limited. Increased delay to ${delay}ms. Retrying...`, Toasts.Type.FAILURE);
-                // Wait extra to let Discord cool down
-                await sleep(delay * 2);
-                continue; // Retry this GIF with new delay
+        // Bounded retries: the old code claimed to retry rate-limited GIFs
+        // but `continue` actually skipped them (only the later verification
+        // passes recovered them, if enabled at all).
+        let retries = 0;
+        while (true) {
+            try {
+                await addGif({
+                    url: gif.url,
+                    src: gif.src ?? gif.url,
+                    width: Number(gif.width) || 498,
+                    height: Number(gif.height) || 280,
+                    format: Number(gif.format) || 2,
+                });
+                ok++;
+                break;
+            } catch (e: any) {
+                // Check if it's a rate limit error
+                const isRateLimit = e?.status === 429 || e?.text?.includes("rate limit") || e?.body?.retry_after;
+                if (isRateLimit && settings.store.autoIncreaseDelay && retries < 3) {
+                    retries++;
+                    rateLimitHits++;
+                    delay = Math.min(delay * 2, 5000); // Double delay, max 5s
+                    console.log(`[GifTransfer] Rate limit hit! Increased delay to ${delay}ms`);
+                    showToast(`Rate limited. Increased delay to ${delay}ms. Retrying...`, Toasts.Type.FAILURE);
+                    // Wait extra to let Discord cool down, then retry this GIF
+                    await sleep(delay * 2);
+                    continue;
+                }
+                err++;
+                console.warn("[GifTransfer] Failed to import GIF:", gif.url, e);
+                break;
             }
-            console.warn("[GifTransfer] Failed to import GIF:", gif.url, e);
         }
 
         await sleep(delay);
