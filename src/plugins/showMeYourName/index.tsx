@@ -753,6 +753,32 @@ function renderUsername(
     const textMutedValue = hookless
         ? getComputedStyle(document.documentElement)?.getPropertyValue("--text-muted")?.trim() || "#72767d"
         : useMemo(() => getComputedStyle(document.documentElement)?.getPropertyValue("--text-muted")?.trim() || "#72767d", []);
+
+    // Fast path: this surface is disabled. Bail before store lookups, color
+    // resolution and template parsing — the dominant per-row cost in the
+    // member list. Placed after the hooks above so subscribed renders keep a
+    // stable hook count when a setting is toggled.
+    if (isMessage && !messages) {
+        return [null, null, null];
+    } else if (isReply && !replies) {
+        return [null, null, null];
+    } else if (isMention && !mentions) {
+        return [null, null, null];
+    } else if (isTyping && !typingIndicator) {
+        return [null, null, null];
+    } else if (isMember && !memberList) {
+        return [null, null, null];
+    } else if (isAutocomplete && !searchAutocomplete) {
+        return [null, null, null];
+    } else if (isProfile && !profilePopout) {
+        return [null, null, null];
+    } else if (isReaction && !reactions) {
+        return [null, null, null];
+    } else if (isVoice && !reactions) {
+        return [null, null, null];
+    } else if (!author) {
+        return [null, null, null];
+    }
     const options = splitTemplate(includedNames);
     // Deduplicate resolveColor calls: if multiple colors have the same value, call once
     const _r = (c: string) => author ? resolveColor(authorColorStrings, authorDisplayNameStyles, c.trim(), canUseGradient, inGuild, ircColorsEnabled, shouldShowHoverEffects) : null;
@@ -852,25 +878,7 @@ function renderUsername(
     fourth && (fourth.wrapped = fourthValueWrapped);
     fifth && (fifth.wrapped = fifthValueWrapped);
 
-    if (isMessage && !messages) {
-        return [null, null, null];
-    } else if (isReply && !replies) {
-        return [null, null, null];
-    } else if (isMention && !mentions) {
-        return [null, null, null];
-    } else if (isTyping && !typingIndicator) {
-        return [null, null, null];
-    } else if (isMember && !memberList) {
-        return [null, null, null];
-    } else if (isAutocomplete && !searchAutocomplete) {
-        return [null, null, null];
-    } else if (isProfile && !profilePopout) {
-        return [null, null, null];
-    } else if (isReaction && !reactions) {
-        return [null, null, null];
-    } else if (isVoice && !reactions) {
-        return [null, null, null];
-    } else if (!author || !username) {
+    if (!username) {
         return [null, null, null];
     }
 

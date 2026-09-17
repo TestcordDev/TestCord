@@ -27,12 +27,12 @@ let permCache: { guildId: string; at: number; canManageRoles: boolean; } | null 
 
 function canManageRoles(guild: Guild): boolean {
     // getGuildPermissionProps recomputes from member + roles on every call, and
-    // this runs on every role menu open. Cache briefly: role menus are often
-    // opened in bursts (right-clicking down the member list), and a few
-    // seconds of staleness on the Edit Role item is harmless — Discord itself
-    // enforces the permission when the action runs.
+    // this runs on every role menu open. Cache it: moderators open role menus
+    // minutes apart, so a short cache never hits while a longer one covers a
+    // whole moderation session. Staleness only affects whether the Edit Role
+    // item shows — Discord itself enforces the permission when it runs.
     const now = Date.now();
-    if (permCache && permCache.guildId === guild.id && now - permCache.at < 5000) return permCache.canManageRoles;
+    if (permCache && permCache.guildId === guild.id && now - permCache.at < 60_000) return permCache.canManageRoles;
     const can = PermissionStore.getGuildPermissionProps(guild).canManageRoles;
     permCache = { guildId: guild.id, at: now, canManageRoles: can };
     return can;
@@ -252,10 +252,18 @@ export default definePlugin({
     ],
 
     start() {
-        // DeveloperMode needs to be enabled for the context menu to be shown
-        if (!DeveloperMode.getSetting()) {
-            DeveloperMode.updateSetting(true);
-        }
+        // DeveloperMode needs to be enabled for the context menu to be shown.
+        // Deferred past startup: the settings write fans out to every settings
+        // subscriber, which measured as a start-time spike. Dev menus only open
+        // on user action, long after this has run.
+        const enable = () => {
+            try {
+                if (!DeveloperMode.getSetting()) DeveloperMode.updateSetting(true);
+            } catch { /* settings not ready; role dev items simply stay hidden */ }
+        };
+        const ric = (window as any).requestIdleCallback as ((cb: () => void, opts?: { timeout: number; }) => void) | undefined;
+        if (typeof ric === "function") ric(enable, { timeout: 2000 });
+        else setTimeout(enable, 500);
     },
 
     contextMenus: {
