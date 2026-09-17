@@ -215,11 +215,14 @@ function injectCSS() {
     // NOTE: never anchor these to bare [class*="buttons__"] — that substring also
     // matches the voice/user panel's buttons container, dissolving its layout.
     // Chat wrappers are only dissolved inside the message-box scopes below.
+    // NOTE: never dissolve .vc-chatbar-button containers: Discord's Tooltip
+    // measures that exact div for positioning, and without a box it reads a
+    // zero rect and parks the tooltip at the top-left corner.
     if (chatSelectors.length) {
         const dissolveSelectors: string[] = [];
         for (const scope of scopes) {
             dissolveSelectors.push(
-                `${scope} [class*="buttons"] > div:not([class*="buttonWrapper"])`,
+                `${scope} [class*="buttons"] > div:not([class*="buttonWrapper"]):not(.vc-chatbar-button)`,
                 `${scope} [class*="buttons"] > * > div:not([class])`
             );
         }

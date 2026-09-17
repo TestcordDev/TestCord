@@ -273,15 +273,24 @@ export async function getLogStats(): Promise<LogStats> {
         database.countFromIndex("messages", "by_status", LogStatus.GHOST_PINGED)
     ]);
     const encoder = new TextEncoder();
-    let protectedCount = 0;
-    let estimatedBytes = 0;
+    let protectedInSample = 0;
+    // Estimate size from a sample: a full stringify+encode pass over hundreds
+    // of thousands of records froze the client for seconds on every open.
+    // Counts above stay exact (indexed); these two are display estimates.
+    const SAMPLE_LIMIT = 200;
+    let sampledBytes = 0;
+    let sampledCount = 0;
     let cursor = await database.transaction("messages").store.openCursor();
 
-    while (cursor) {
-        if (cursor.value.protected) protectedCount++;
-        estimatedBytes += encoder.encode(JSON.stringify(cursor.value)).byteLength;
+    while (cursor && sampledCount < SAMPLE_LIMIT) {
+        if (cursor.value.protected) protectedInSample++;
+        sampledBytes += encoder.encode(JSON.stringify(cursor.value)).byteLength;
+        sampledCount++;
         cursor = await cursor.continue();
     }
+
+    const protectedCount = sampledCount ? Math.round(protectedInSample / sampledCount * total) : 0;
+    const estimatedBytes = sampledCount ? Math.round(sampledBytes / sampledCount * total) : 0;
 
     return statsCache = {
         total,
