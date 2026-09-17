@@ -1487,6 +1487,8 @@ function ButtonsDragTab() {
     const [activeDragIndex, setActiveDragIndex] = React.useState<number | null>(null);
     const [dropPosition, setDropPosition] = React.useState<"before" | "after">("before");
 
+    let hasCallButtons = false;
+
     React.useEffect(() => {
         if (!listeningId) return;
         const handler = (e: KeyboardEvent) => {
@@ -1589,7 +1591,12 @@ function ButtonsDragTab() {
                                     const isUserSettings = canonical === "User Settings";
                                     const isPanelLayout = canonical === "Panel Layout" || item.id === "Panel Layout" || item.label === "Panel Layout";
 
-                                    if (isCamera || isScreenShare || isActivity || isSoundboard || isMute || isDeafen || isUserSettings) { return; }
+                                    if (isCamera || isScreenShare || isActivity || isSoundboard) {
+                                        hasCallButtons = true;
+                                        return;
+                                    }
+
+                                    if (isMute || isDeafen || isUserSettings) { return; }
 
                                     return (
                                         <div
@@ -1656,132 +1663,136 @@ function ButtonsDragTab() {
                                 })}
                             </div>
 
-                            <div
-                                style={{
-                                    width: "2px",
-                                    borderRadius: "2px",
-                                    backgroundColor: "var(--border-subtle)",
-                                    marginLeft: "4px",
-                                    marginRight: "4px",
-                                }}
-                            />
+                            {hasCallButtons && (
+                                <>
+                                    <div
+                                        style={{
+                                            width: "2px",
+                                            borderRadius: "2px",
+                                            backgroundColor: "var(--border-subtle)",
+                                            marginLeft: "4px",
+                                            marginRight: "4px",
+                                        }}
+                                    />
 
-                            <div className="deracul-scrollbar" style={{
-                                display: "flex",
-                                flexDirection: "row",
-                                gap: "12px",
-                                overflowX: "auto",
-                                minWidth: 0,
-                                alignItems: "center",
-                                padding: "4px 8px",
-                            }}>
-                                {items.map((item, index) => {
-                                    const cfg = getBtnCfg(item.id);
-                                    const isDragging = activeDragIndex === index;
-                                    const isOver = dragOverIndex === index && activeDragIndex !== index;
-                                    const canonical = getCanonicalLabel(item.label);
-                                    const isActivity = canonical === "Activity";
-                                    const isSoundboard = canonical === "Soundboard";
-                                    const isCamera = canonical === "Camera";
-                                    const isScreenShare = canonical === "Screen Share";
+                                    <div className="deracul-scrollbar" style={{
+                                        display: "flex",
+                                        flexDirection: "row",
+                                        gap: "12px",
+                                        overflowX: "auto",
+                                        minWidth: 0,
+                                        alignItems: "center",
+                                        padding: "4px 8px",
+                                    }}>
+                                        {items.map((item, index) => {
+                                            const cfg = getBtnCfg(item.id);
+                                            const isDragging = activeDragIndex === index;
+                                            const isOver = dragOverIndex === index && activeDragIndex !== index;
+                                            const canonical = getCanonicalLabel(item.label);
+                                            const isActivity = canonical === "Activity";
+                                            const isSoundboard = canonical === "Soundboard";
+                                            const isCamera = canonical === "Camera";
+                                            const isScreenShare = canonical === "Screen Share";
 
-                                    if (!isCamera && !isScreenShare && !isActivity && !isSoundboard) { return; }
+                                            if (!isCamera && !isScreenShare && !isActivity && !isSoundboard) { return; }
 
-                                    return (
-                                        <div
-                                            key={item.id}
-                                            draggable
-                                            onDragStart={e => handleDragStart(e, index)}
-                                            onDragOver={e => handleDragOver(e, index)}
-                                            onDragLeave={e => {
-                                                if (!e.currentTarget.contains(e.relatedTarget as Node) && dragOverIndex === index) {
-                                                    setDragOverIndex(null);
-                                                }
-                                            }}
-                                            onDrop={e => handleDrop(e, index)}
-                                            onDragEnd={handleDragEnd}
-                                            style={{
-                                                position: "relative",
-                                                display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
-                                                cursor: isDragging ? "grabbing" : "grab",
-                                                opacity: isDragging ? 0.35 : 1,
-                                                transform: isDragging ? "scale(0.94)" : "scale(1)",
-                                                transition: "opacity 0.1s ease, transform 0.1s ease",
-                                                userSelect: "none",
-                                            }}
-                                            title={item.label}
-                                        >
-                                            {isOver && (
+                                            return (
                                                 <div
-                                                    style={{
-                                                        position: "absolute",
-                                                        top: "0px",
-                                                        bottom: "0px",
-                                                        left: dropPosition === "before" ? "-7px" : undefined,
-                                                        right: dropPosition === "after" ? "-7px" : undefined,
-                                                        width: "2px",
-                                                        borderRadius: "2px",
-                                                        backgroundColor: "var(--brand-experiment, var(--background-brand))",
-                                                        zIndex: 10,
-                                                        pointerEvents: "none",
+                                                    key={item.id}
+                                                    draggable
+                                                    onDragStart={e => handleDragStart(e, index)}
+                                                    onDragOver={e => handleDragOver(e, index)}
+                                                    onDragLeave={e => {
+                                                        if (!e.currentTarget.contains(e.relatedTarget as Node) && dragOverIndex === index) {
+                                                            setDragOverIndex(null);
+                                                        }
                                                     }}
-                                                />
-                                            )}
-                                            {isActivity && (
-                                                <div
-                                                    className="deracul-btn-preview"
+                                                    onDrop={e => handleDrop(e, index)}
+                                                    onDragEnd={handleDragEnd}
                                                     style={{
-                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
-                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
-                                                }}>
-                                                    <ActivityIcon width={20} height={20} size="smmd" />
+                                                        position: "relative",
+                                                        display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
+                                                        cursor: isDragging ? "grabbing" : "grab",
+                                                        opacity: isDragging ? 0.35 : 1,
+                                                        transform: isDragging ? "scale(0.94)" : "scale(1)",
+                                                        transition: "opacity 0.1s ease, transform 0.1s ease",
+                                                        userSelect: "none",
+                                                    }}
+                                                    title={item.label}
+                                                >
+                                                    {isOver && (
+                                                        <div
+                                                            style={{
+                                                                position: "absolute",
+                                                                top: "0px",
+                                                                bottom: "0px",
+                                                                left: dropPosition === "before" ? "-7px" : undefined,
+                                                                right: dropPosition === "after" ? "-7px" : undefined,
+                                                                width: "2px",
+                                                                borderRadius: "2px",
+                                                                backgroundColor: "var(--brand-experiment, var(--background-brand))",
+                                                                zIndex: 10,
+                                                                pointerEvents: "none",
+                                                            }}
+                                                        />
+                                                    )}
+                                                    {isActivity && (
+                                                        <div
+                                                            className="deracul-btn-preview"
+                                                            style={{
+                                                                width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                                display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                                boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                        }}>
+                                                            <ActivityIcon width={20} height={20} size="smmd" />
+                                                        </div>
+                                                    )}
+                                                    {isSoundboard && (
+                                                        <div
+                                                            className="deracul-btn-preview"
+                                                            style={{
+                                                                width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                                display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                                boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                        }}>
+                                                            <SoundboardIcon width={20} height={20} size="smmd" />
+                                                        </div>
+                                                    )}
+                                                    {isScreenShare && (
+                                                        <div
+                                                            className="deracul-btn-preview"
+                                                            style={{
+                                                                width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                                display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                                boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                        }}>
+                                                            <ScreenOffIcon width={20} height={20} size="smmd" />
+                                                        </div>
+                                                    )}
+                                                    {isCamera && (
+                                                        <div
+                                                            className="deracul-btn-preview"
+                                                            style={{
+                                                                width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                                display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                                boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                        }}>
+                                                            <CameraIcon width={20} height={20} size="smmd" />
+                                                        </div>
+                                                    )}
+                                                    <MiniToggle
+                                                        value={!cfg.hidden}
+                                                        onChange={v => {
+                                                            setBtnCfg(item.id, { hidden: !v });
+                                                            apply(); forceUpdate();
+                                                        }}
+                                                    />
                                                 </div>
-                                            )}
-                                            {isSoundboard && (
-                                                <div
-                                                    className="deracul-btn-preview"
-                                                    style={{
-                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
-                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
-                                                }}>
-                                                    <SoundboardIcon width={20} height={20} size="smmd" />
-                                                </div>
-                                            )}
-                                            {isScreenShare && (
-                                                <div
-                                                    className="deracul-btn-preview"
-                                                    style={{
-                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
-                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
-                                                }}>
-                                                    <ScreenOffIcon width={20} height={20} size="smmd" />
-                                                </div>
-                                            )}
-                                            {isCamera && (
-                                                <div
-                                                    className="deracul-btn-preview"
-                                                    style={{
-                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
-                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
-                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
-                                                }}>
-                                                    <CameraIcon width={20} height={20} size="smmd" />
-                                                </div>
-                                            )}
-                                            <MiniToggle
-                                                value={!cfg.hidden}
-                                                onChange={v => {
-                                                    setBtnCfg(item.id, { hidden: !v });
-                                                    apply(); forceUpdate();
-                                                }}
-                                            />
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                            );
+                                        })}
+                                    </div>
+                                </>
+                            )}
 
                             <div
                                 style={{
