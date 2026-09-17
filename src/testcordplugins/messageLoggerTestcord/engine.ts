@@ -591,7 +591,8 @@ export async function handleMessageUpdate(payload: MessageUpdatePayload) {
     const hasContent = payload.message.content != null;
     const hasEmbeds = (payload.message as any).embeds != null;
     const hasAttachments = (payload.message as any).attachments != null;
-    if (!hasContent && !hasEmbeds && !hasAttachments) return;
+    const hasComponents = (payload.message as any).components != null;
+    if (!hasContent && !hasEmbeds && !hasAttachments && !hasComponents) return;
 
     let previous: LoggedMessage | undefined = recentMessages.get(payload.message.id) ?? channelMessageCache.get(payload.message.id);
     if (!previous) {
@@ -614,20 +615,22 @@ export async function handleMessageUpdate(payload: MessageUpdatePayload) {
 
     const embedsChanged = hasEmbeds && JSON.stringify((payload.message as any).embeds) !== JSON.stringify(previous.embeds);
     const attachmentsChanged = hasAttachments && JSON.stringify((payload.message as any).attachments) !== JSON.stringify(previous.attachments);
+    const componentsChanged = hasComponents && JSON.stringify((payload.message as any).components) !== JSON.stringify((previous as any).components);
     const contentChanged = hasContent && previous.content !== payload.message.content;
     const hasEditedTimestamp = (payload.message as any).edited_timestamp != null;
 
     // Link previews auto-generate embeds without setting edited_timestamp and without changing content.
     // Treat only content changes (or embed/attachment changes that Discord marks as an edit) as real edits.
-    const isRealEmbedEdit = hasEditedTimestamp && (embedsChanged || attachmentsChanged);
+    const isRealEmbedEdit = hasEditedTimestamp && (embedsChanged || attachmentsChanged || componentsChanged);
     if (!contentChanged && !isRealEmbedEdit) {
         // Respect temporary per-session hide: don't resurrect hidden histories
         if (isEditHistoryTempCleared(payload.message.id)) return;
         // No real edit: either nothing changed, or just an auto embed (link unfurl) without edited_timestamp
-        if (embedsChanged || attachmentsChanged) {
+        if (embedsChanged || attachmentsChanged || componentsChanged) {
             const updated = lodash.cloneDeep(previous);
             if (hasEmbeds) (updated as any).embeds = (payload.message as any).embeds;
             if (hasAttachments) (updated as any).attachments = (payload.message as any).attachments;
+            if (hasComponents) (updated as any).components = (payload.message as any).components;
             // If this message's history was temp-hidden, drop the old history on the updated copy
             if (isEditHistoryTempCleared(updated.id)) updated.editHistory = [];
             remember(updated);
@@ -653,14 +656,17 @@ export async function handleMessageUpdate(payload: MessageUpdatePayload) {
         if (k === "content" && !hasContent) continue;
         if (k === "embeds" && !hasEmbeds) continue;
         if (k === "attachments" && !hasAttachments) continue;
+        if (k === "components" && !hasComponents) continue;
         if (v !== undefined) (message as any)[k] = v;
     }
     if (hasEmbeds) (message as any).embeds = payloadAny.embeds;
     if (hasAttachments) (message as any).attachments = payloadAny.attachments;
+    if (hasComponents) (message as any).components = payloadAny.components;
     if (hasContent) (message as any).content = payloadAny.content;
     else (message as any).content = previous.content;
     if (!hasEmbeds) (message as any).embeds = previous.embeds;
     if (!hasAttachments) (message as any).attachments = previous.attachments;
+    if (!hasComponents) (message as any).components = (previous as any).components;
     message.guildId = payload.guildId ?? previous.guildId;
     message.editHistory = [
         ...(previous.editHistory ?? []),

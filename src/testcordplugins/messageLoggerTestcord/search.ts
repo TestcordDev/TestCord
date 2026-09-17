@@ -7,6 +7,7 @@
 import { ChannelStore, GuildStore } from "@webpack/common";
 
 import { LogRecord, LogStatus } from "./types";
+import { collectLoggedMessageText } from "./utils";
 
 interface SearchTerm {
     key: string;
@@ -81,9 +82,9 @@ export function createSearchMatcher(query: string) {
                 }
                 case "has":
                     matches = value === "attachment" && message.attachments.length > 0
-                        || value === "embed" && message.embeds.length > 0
+                        || value === "embed" && (message.embeds.length > 0 || ((message as any).components?.length ?? 0) > 0)
                         || value === "edit" && !!message.editHistory?.length
-                        || value === "link" && /(?:https?:\/\/|www\.)/i.test(message.content);
+                        || value === "link" && /(?:https?:\/\/|www\.)/i.test(collectLoggedMessageText(message));
                     break;
                 case "is":
                     matches = value === "protected" && !!record.protected
@@ -93,7 +94,7 @@ export function createSearchMatcher(query: string) {
                     break;
                 case "text":
                 case "content":
-                    matches = [message.content ?? "", authorName, channelName, guildName, message.id]
+                    matches = [collectLoggedMessageText(message), authorName, channelName, guildName, message.id]
                         .some(candidate => candidate.toLowerCase().includes(value));
                     break;
                 default:

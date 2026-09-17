@@ -19,7 +19,7 @@ import { exportLogRecords, exportLogs, importLogs } from "./io";
 import { restoreAttachmentBlobs } from "./saveImage";
 import { settings } from "./settings";
 import { LogRecord, LogStats, LogStatus, LogViewStatus } from "./types";
-import { cl } from "./utils";
+import { cl, collectLoggedMessageText, mediaSrc } from "./utils";
 
 const STATUS_OPTIONS: LogViewStatus[] = ["ALL", LogStatus.DELETED, LogStatus.EDITED, LogStatus.GHOST_PINGED];
 const STATUS_LABELS: Record<LogViewStatus, string> = {
@@ -51,6 +51,37 @@ interface LogEntryProps {
     onProtect: (id: string, value: boolean) => void;
 }
 
+function LoggedComponent({ component }: { component: any; }) {
+    if (!component || typeof component !== "object") return null;
+    if (typeof component.content === "string" && component.content) {
+        return <div className={cl("component-text")}>{Parser.parse(component.content)}</div>;
+    }
+    if (component.type === 14) return <hr className={cl("component-separator")} />;
+    if (component.type === 2 && component.label) {
+        return <div className={cl("component-text")}>{String(component.label)}{component.url ? ` (${component.url})` : ""}</div>;
+    }
+    const mediaItems = Array.isArray(component.media) ? component.media : component.media ? [component.media] : [];
+    const nested = Array.isArray(component.components) ? component.components : [];
+    if (mediaItems.length > 0 || nested.length > 0 || component.accessory) {
+        return (
+            <div className={cl("component-group")}>
+                {mediaItems.map((item: any, i: number) => {
+                    const src = mediaSrc(item) ?? mediaSrc(item?.media);
+                    if (!src) return typeof item?.description === "string" ? <div key={i} className={cl("component-text")}>{item.description}</div> : null;
+                    return <img key={i} src={src} alt={item?.description ?? item?.alt ?? ""} style={{ maxWidth: "100%", borderRadius: 4, marginTop: 4 }} />;
+                })}
+                {nested.map((child: any, i: number) => <LoggedComponent key={i} component={child} />)}
+                {component.accessory && <LoggedComponent component={component.accessory} />}
+                {component.label && nested.length === 0 && mediaItems.length === 0 && <div className={cl("component-text")}>{String(component.label)}</div>}
+            </div>
+        );
+    }
+    if (component.label) return <div className={cl("component-text")}>{String(component.label)}</div>;
+    if (component.placeholder) return <div className={cl("muted")}>{String(component.placeholder)}</div>;
+    if (component.value) return <div className={cl("component-text")}>{String(component.value)}</div>;
+    return null;
+}
+
 function LogEntry({ record, onDelete, onProtect }: LogEntryProps) {
     const { message, status } = record;
     const channel = ChannelStore.getChannel(message.channel_id);
@@ -74,19 +105,74 @@ function LogEntry({ record, onDelete, onProtect }: LogEntryProps) {
             </div>
             {message.embeds && message.embeds.length > 0 && (
                 <div className={cl("embeds")}>
-                    {message.embeds.map((embed: any, i: number) => (
-                        <div key={i} className={cl("embed")}>
-                            {embed.title && <div className={cl("embed-title")}><strong>{embed.title}</strong></div>}
-                            {embed.description && <div className={cl("embed-description")}>{Parser.parse(embed.description)}</div>}
-                            {embed.fields?.map((f: any, j: number) => (
-                                <div key={j} className={cl("embed-field")}><strong>{f.name}</strong>: {f.value ? Parser.parse(f.value) : null}</div>
-                            ))}
-                            {embed.image?.url && <img src={embed.image.url} alt="" style={{ maxWidth: "100%", borderRadius: 4, marginTop: 4 }} />}
-                            {embed.thumbnail?.url && <img src={embed.thumbnail.url} alt="" style={{ maxWidth: 80, borderRadius: 4, marginTop: 4 }} />}
-                            {embed.url && !embed.title && !embed.description && (
-                                <MaskedLink href={embed.url}>{embed.url}</MaskedLink>
-                            )}
-                        </div>
+                    {message.embeds.map((embed: any, i: number) => {
+                        const imageSrc = mediaSrc(embed.image);
+                        const thumbnailSrc = mediaSrc(embed.thumbnail);
+                        const videoSrc = mediaSrc(embed.video);
+                        const authorIcon = embed.author?.icon_url ?? embed.author?.proxy_icon_url ?? embed.author?.proxyIconUrl;
+                        const footerIcon = embed.footer?.icon_url ?? embed.footer?.proxy_icon_url ?? embed.footer?.proxyIconUrl;
+                        return (
+                            <div
+                                key={i}
+                                className={cl("embed")}
+                                style={typeof embed.color === "number" ? { borderLeftColor: `#${embed.color.toString(16).padStart(6, "0")}` } : undefined}
+                            >
+                                {embed.author?.name && (
+                                    <div className={cl("embed-author")}>
+                                        {authorIcon && <img src={authorIcon} alt="" style={{ width: 16, height: 16, borderRadius: "50%" }} />}
+                                        {embed.author.url ? <MaskedLink href={embed.author.url}>{embed.author.name}</MaskedLink> : <strong>{embed.author.name}</strong>}
+                                    </div>
+                                )}
+                                {embed.title && (
+                                    <div className={cl("embed-title")}>
+                                        {embed.url ? <MaskedLink href={embed.url}><strong>{embed.title}</strong></MaskedLink> : <strong>{embed.title}</strong>}
+                                    </div>
+                                )}
+                                {embed.description && <div className={cl("embed-description")}>{Parser.parse(embed.description)}</div>}
+                                {embed.fields?.map((f: any, j: number) => (
+                                    <div key={j} className={cl("embed-field")}><strong>{f.name}</strong>: {f.value ? Parser.parse(f.value) : null}</div>
+                                ))}
+                                {imageSrc && <img src={imageSrc} alt="" style={{ maxWidth: "100%", borderRadius: 4, marginTop: 4 }} />}
+                                {thumbnailSrc && <img src={thumbnailSrc} alt="" style={{ maxWidth: 80, borderRadius: 4, marginTop: 4 }} />}
+                                {videoSrc && !imageSrc && (
+                                    <MaskedLink href={videoSrc}>{videoSrc}</MaskedLink>
+                                )}
+                                {(embed.footer?.text || embed.timestamp) && (
+                                    <div className={cl("embed-footer")}>
+                                        {footerIcon && <img src={footerIcon} alt="" style={{ width: 14, height: 14, borderRadius: "50%" }} />}
+                                        <span>{[embed.footer?.text, embed.timestamp ? new Date(embed.timestamp).toLocaleString() : ""].filter(Boolean).join(" • ")}</span>
+                                    </div>
+                                )}
+                                {embed.provider?.name && (
+                                    <div className={cl("embed-provider")}>
+                                        {embed.provider.url ? <MaskedLink href={embed.provider.url}>{embed.provider.name}</MaskedLink> : embed.provider.name}
+                                    </div>
+                                )}
+                                {embed.url && !embed.title && !embed.description && !(embed.fields?.length) && !imageSrc && !thumbnailSrc && !videoSrc && (
+                                    <MaskedLink href={embed.url}>{embed.url}</MaskedLink>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+            {(message as any).components && (message as any).components.length > 0 && (
+                <div className={cl("components")}>
+                    {(message as any).components.map((component: any, i: number) => <LoggedComponent key={i} component={component} />)}
+                </div>
+            )}
+            {((message as any).stickerItems?.length > 0 || (message as any).stickers?.length > 0) && (
+                <div className={cl("stickers")}>
+                    {((message as any).stickerItems ?? (message as any).stickers ?? []).map((sticker: any, i: number) => (
+                        <span key={sticker?.id ?? i} className={cl("sticker")}>{sticker?.name ?? "Sticker"}</span>
+                    ))}
+                </div>
+            )}
+            {(message as any).poll?.question?.text && (
+                <div className={cl("poll")}>
+                    <strong>{(message as any).poll.question.text}</strong>
+                    {(message as any).poll.answers?.map?.((answer: any, i: number) => (
+                        <div key={answer?.answer_id ?? i} className={cl("poll-answer")}>{answer?.text ?? answer?.poll_media?.text ?? `Option ${i + 1}`}</div>
                     ))}
                 </div>
             )}
@@ -126,7 +212,7 @@ function LogEntry({ record, onDelete, onProtect }: LogEntryProps) {
                     >
                         {record.protected ? "Protected" : "Protect"}
                     </Button>
-                    <Button size="xs" variant="secondary" title="Copy message text" onClick={() => copyWithToast(message.content)}>Copy</Button>
+                    <Button size="xs" variant="secondary" title="Copy message text" onClick={() => copyWithToast(collectLoggedMessageText(message) || message.content)}>Copy</Button>
                     <Button size="xs" variant="secondary" title="Copy raw message data" onClick={() => copyWithToast(JSON.stringify(message, null, 2))}>Raw</Button>
                     <Button size="xs" variant="secondary" title="Open author profile" onClick={() => openUserProfile(String(message.author.id))}>Profile</Button>
                     <Button

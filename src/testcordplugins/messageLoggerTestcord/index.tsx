@@ -7,7 +7,7 @@
 import "./style.css";
 
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption } from "@api/Commands";
-import { HeaderBarButton } from "@api/HeaderBar";
+import { addHeaderBarButton, HeaderBarButton, removeHeaderBarButton } from "@api/HeaderBar";
 import { isPluginEnabled } from "@api/PluginManager";
 import { Settings } from "@api/Settings";
 import { LogsIcon } from "@components/Icons";
@@ -18,7 +18,7 @@ import { findByPropsLazy } from "@webpack";
 import { Alerts, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts, UserStore } from "@webpack/common";
 
 import { removeLoggerContextMenus, setupLoggerContextMenus } from "./contextMenu";
-import { getAllEditedForChannel, getChannelEditedLogsAfter, getChannelLogsAfter, getDatabase } from "./db";
+import { getAllEditedForChannel, getChannelEditedLogsAfter, getChannelLogsAfter, getChannelLogsLimit, getDatabase } from "./db";
 import {
     cacheChannelMessages,
     clearAllLogs,
@@ -65,6 +65,10 @@ function OpenLogsButton() {
     return <HeaderBarButton tooltip="Open Logs" icon={LogsIcon} onClick={() => openLogs()} />;
 }
 
+function LoadMoreButton() {
+    return <HeaderBarButton tooltip="Load all deleted logs" icon={LogsIcon} onClick={() => { void loadMoreDeletedLogs(); }} />;
+}
+
 async function processMessageFetch(response: FetchMessagesResponse) {
     if (!response.ok || !Array.isArray(response.body)) return;
 
@@ -76,22 +80,21 @@ async function processMessageFetch(response: FetchMessagesResponse) {
         if (response.body.length === 0) {
             const channelId = SelectedChannelStore.getChannelId();
             if (!channelId) return;
-            // Empty channel (all deleted) – load all deleted for this channel
+            // Empty channel (all deleted) – load deleted logs for this channel
             let records = channelAllDeleted.get(channelId);
             if (!records) {
                 records = await getChannelLogsAfter(channelId, new Date(0).toISOString());
-                if (records.length) {
-                    channelAllDeleted.set(channelId, records);
-                    try { cacheChannelMessages(records); } catch { }
-                }
+                if (records.length) channelAllDeleted.set(channelId, records);
             }
-            if (records?.length) {
-                for (const rec of records) {
+            const visible = visibleDeletedRecords(channelId);
+            if (visible.length) {
+                try { cacheChannelMessages(visible); } catch { }
+                for (const rec of visible) {
                     if (rec.message.attachments?.length) {
                         try { await restoreAttachmentBlobs(rec.message.attachments as any); } catch { }
                     }
                 }
-                response.body.extra = records.map(record => record.message);
+                response.body.extra = visible.map(record => record.message);
             }
             // Also cache edited logs for this channel so getMessage merge works even in empty view
             try {
@@ -115,40 +118,31 @@ async function processMessageFetch(response: FetchMessagesResponse) {
         let allDeleted = channelAllDeleted.get(channelId);
         if (!allDeleted) {
             allDeleted = await getChannelLogsAfter(channelId, new Date(0).toISOString());
-            if (allDeleted.length) {
-                channelAllDeleted.set(channelId, allDeleted);
-                try { cacheChannelMessages(allDeleted); } catch { }
+            if (allDeleted.length) channelAllDeleted.set(channelId, allDeleted);
+        }
+        const newestMessage = response.body[0];
+        const newestTs = typeof newestMessage.timestamp === "string" ? newestMessage.timestamp : new Date(String(newestMessage.timestamp)).toISOString();
+        let rangeRecords: LogRecord[] = [];
+        try {
+            rangeRecords = await getChannelLogsLimit(channelId, FETCH_RANGE_WINDOW, newestTs);
+        } catch { }
+        const seenExtra = new Set<string>();
+        const combined: LogRecord[] = [];
+        for (const rec of [...visibleDeletedRecords(channelId), ...rangeRecords]) {
+            if (seenExtra.has(rec.message_id)) continue;
+            seenExtra.add(rec.message_id);
+            combined.push(rec);
+        }
+        if (combined.length) {
+            try { cacheChannelMessages(combined); } catch { }
+            for (const rec of combined) {
+                if (rec.message.attachments?.length) {
+                    try { await restoreAttachmentBlobs(rec.message.attachments as any); } catch { }
+                }
             }
+            response.body.extra = combined.map(record => record.message);
         }
         const ts = typeof oldestMessage.timestamp === "string" ? oldestMessage.timestamp : new Date(String(oldestMessage.timestamp)).toISOString();
-        const windowRecords = await getChannelLogsAfter(channelId, ts);
-        // Merge allDeleted (for initial) + window, dedup
-        const seen = new Set<string>();
-        const extra: typeof windowRecords = [];
-        const source = allDeleted ?? [];
-        for (const r of source) {
-            if (!seen.has(r.message_id)) { seen.add(r.message_id); extra.push(r); }
-        }
-        for (const r of windowRecords) {
-            if (!seen.has(r.message_id)) { seen.add(r.message_id); extra.push(r); }
-        }
-        if (extra.length) {
-            // Cache any new window records that weren't in allDeleted (shouldn't happen, but just in case)
-            try { cacheChannelMessages(extra); } catch { }
-            for (const rec of extra) {
-                if (rec.message.attachments?.length) {
-                    try { await restoreAttachmentBlobs(rec.message.attachments as any); } catch { }
-                }
-            }
-            response.body.extra = extra.map(record => record.message);
-        } else {
-            for (const rec of windowRecords) {
-                if (rec.message.attachments?.length) {
-                    try { await restoreAttachmentBlobs(rec.message.attachments as any); } catch { }
-                }
-            }
-            response.body.extra = windowRecords.map(record => record.message);
-        }
         // Attach editHistory to live messages so they render with history after fetch
         try {
             let editedAll = channelAllEdited.get(channelId);
@@ -256,7 +250,89 @@ const lastChannelFetch = new Map<string, number>();
 const channelAllDeleted = new Map<string, LogRecord[]>();
 const channelAllEdited = new Map<string, LogRecord[]>();
 const channelCacheTimeout = new Map<string, ReturnType<typeof setTimeout>>();
+const channelDeleteLimit = new Map<string, number>();
+const channelWebhookLimit = new Map<string, number>();
+const FETCH_RANGE_WINDOW = 200;
 let lastSelectedChannelId: string | null = null;
+
+function isWebhookMessage(message: any) {
+    return (message?.webhookId ?? message?.webhook_id) != null;
+}
+
+function visibleDeletedRecords(channelId: string): LogRecord[] {
+    const all = channelAllDeleted.get(channelId) ?? [];
+    const messageLimit = channelDeleteLimit.get(channelId) ?? settings.store.initialDeletedMessages;
+    const webhookLimit = channelWebhookLimit.get(channelId) ?? settings.store.initialDeletedWebhooks;
+    const visible: LogRecord[] = [];
+    let messages = 0;
+    let webhooks = 0;
+    for (let i = all.length - 1; i >= 0; i--) {
+        const record = all[i];
+        if (isWebhookMessage(record.message)) {
+            if (webhooks >= webhookLimit) continue;
+            webhooks++;
+        } else {
+            if (messages >= messageLimit) continue;
+            messages++;
+        }
+        visible.push(record);
+        if (messages >= messageLimit && webhooks >= webhookLimit) break;
+    }
+    return visible;
+}
+
+function injectDeletedRecords(channelId: string, records: LogRecord[]) {
+    try {
+        const Internal: any = (MessageStoreInternal as any);
+        const cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
+        if (!cache) return;
+        let newCache = cache;
+        for (const rec of records) {
+            if (newCache.has?.(rec.message_id)) continue;
+            const msgClass = (renderApi as any)?.messageJsonToMessageClass?.({ message: rec.message });
+            if (!msgClass) continue;
+            if (typeof newCache.set === "function") newCache = newCache.set(rec.message_id, msgClass);
+        }
+        if (newCache !== cache) {
+            try { Internal.commit?.(newCache); } catch { }
+        }
+    } catch { }
+}
+
+async function loadMoreDeletedLogs() {
+    const channelId = SelectedChannelStore.getChannelId();
+    if (!channelId) {
+        showToast("Open a channel first.", Toasts.Type.FAILURE);
+        return;
+    }
+    let all = channelAllDeleted.get(channelId);
+    if (!all) {
+        try {
+            all = await getChannelLogsAfter(channelId, new Date(0).toISOString());
+        } catch { all = []; }
+        channelAllDeleted.set(channelId, all);
+    }
+    if (!all.length) {
+        showToast("No deleted logs in this channel.", Toasts.Type.MESSAGE);
+        return;
+    }
+    const loadedIds = new Set(visibleDeletedRecords(channelId).map(record => record.message_id));
+    channelDeleteLimit.set(channelId, Number.MAX_SAFE_INTEGER);
+    channelWebhookLimit.set(channelId, Number.MAX_SAFE_INTEGER);
+    const fresh = visibleDeletedRecords(channelId).filter(record => !loadedIds.has(record.message_id));
+    if (!fresh.length) {
+        showToast("All deleted logs already loaded.", Toasts.Type.MESSAGE);
+        return;
+    }
+    try { cacheChannelMessages(fresh); } catch { }
+    for (const rec of fresh) {
+        if (rec.message.attachments?.length) {
+            try { await restoreAttachmentBlobs(rec.message.attachments as any); } catch { }
+        }
+    }
+    injectDeletedRecords(channelId, fresh);
+    showToast(`Loaded ${fresh.length} more deleted logs.`, Toasts.Type.SUCCESS);
+}
 
 function scheduleChannelUnload(channelId: string) {
     const existing = channelCacheTimeout.get(channelId);
@@ -266,6 +342,8 @@ function scheduleChannelUnload(channelId: string) {
         if (SelectedChannelStore.getChannelId() !== channelId) {
             channelAllDeleted.delete(channelId);
             channelAllEdited.delete(channelId);
+            channelDeleteLimit.delete(channelId);
+            channelWebhookLimit.delete(channelId);
             channelCacheTimeout.delete(channelId);
             clearChannelCache(channelId);
             // Also remove from MessageStore cache to free memory
@@ -308,33 +386,21 @@ function handleChannelSelect(payload: { channelId?: string; }) {
                 const records = await getChannelLogsAfter(channelId, new Date(0).toISOString());
                 if (records.length) {
                     channelAllDeleted.set(channelId, records);
-                    try { cacheChannelMessages(records); } catch { }
+                    const visible = visibleDeletedRecords(channelId);
+                    try { cacheChannelMessages(visible); } catch { }
                     // Ensure saved attachments have blob URLs before injecting
-                    for (const rec of records) {
+                    for (const rec of visible) {
                         if (rec.message.attachments?.length) {
                             try { await restoreAttachmentBlobs(rec.message.attachments as any); } catch { }
                         }
                     }
                     // Inject into MessageStore for immediate display
-                    try {
-                        const Internal: any = (MessageStoreInternal as any);
-                        const cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
-                        if (cache) {
-                            let newCache = cache;
-                            for (const rec of records) {
-                                if (newCache.has?.(rec.message_id)) continue;
-                                const msgClass = (renderApi as any)?.messageJsonToMessageClass?.({ message: rec.message });
-                                if (!msgClass) continue;
-                                if (typeof newCache.set === "function") newCache = newCache.set(rec.message_id, msgClass);
-                            }
-                            if (newCache !== cache) {
-                                try { Internal.commit?.(newCache); } catch { }
-                            }
-                        }
-                    } catch { }
+                    injectDeletedRecords(channelId, visible);
                 }
             } catch { }
         })();
+    } else {
+        injectDeletedRecords(channelId, visibleDeletedRecords(channelId));
     }
     // Load edited history for this channel so MessageStore.getMessage can merge it
     if (!channelAllEdited.has(channelId)) {
@@ -865,6 +931,7 @@ export default definePlugin({
         }
 
         setupLoggerContextMenus();
+        addHeaderBarButton("testcord-ml-load-more", () => <LoadMoreButton />, 6);
 
         oldGetMessage = MessageStore.getMessage;
         MessageStore.getMessage = (channelId: string, messageId: string) => {
@@ -1017,6 +1084,7 @@ export default definePlugin({
 
     stop() {
         removeLoggerContextMenus();
+        removeHeaderBarButton("testcord-ml-load-more");
         stopEngine();
         if (oldGetMessage) {
             MessageStore.getMessage = oldGetMessage;
@@ -1026,6 +1094,8 @@ export default definePlugin({
         mergedEditTimestamps.clear();
         channelAllDeleted.clear();
         channelAllEdited.clear();
+        channelDeleteLimit.clear();
+        channelWebhookLimit.clear();
         for (const t of channelCacheTimeout.values()) clearTimeout(t);
         channelCacheTimeout.clear();
         lastChannelFetch.clear();

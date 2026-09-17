@@ -287,6 +287,18 @@ export const settings = definePluginSettings({
         description: "Sort logs by newest first by default.",
         default: true
     },
+    initialDeletedMessages: {
+        type: OptionType.NUMBER,
+        description: "Number of deleted messages initially shown per channel. Older ones load with the header bar button.",
+        default: 200,
+        isValid: (value: number) => value >= 0 ? true : "The initial deleted message count cannot be negative."
+    },
+    initialDeletedWebhooks: {
+        type: OptionType.NUMBER,
+        description: "Number of deleted webhook messages initially shown per channel. Older ones load with the header bar button.",
+        default: 50,
+        isValid: (value: number) => value >= 0 ? true : "The initial deleted webhook count cannot be negative."
+    },
     clearLogsOnRestart: {
         type: OptionType.BOOLEAN,
         description: "Clear all logs when Discord restarts.",

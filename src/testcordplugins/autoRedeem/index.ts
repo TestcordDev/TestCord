@@ -14,7 +14,7 @@ import { Logger } from "@utils/Logger";
 import { removeFromArray } from "@utils/misc";
 import definePlugin, { OptionType, type PluginNative } from "@utils/types";
 import { Message } from "@vencord/discord-types";
-import { NavigationRouter, RestAPI, showToast, Toasts, UserStore } from "@webpack/common";
+import { MessageStore, NavigationRouter, RestAPI, showToast, Toasts, UserStore } from "@webpack/common";
 
 import { addLog, loadLogs, type RedeemType } from "./store";
 
@@ -126,6 +126,8 @@ let processing = false;
 // Set by captcha responses or hard 429s.
 let captchaPaused = false;
 let pauseToastShown = false;
+let resumeTimer: ReturnType<typeof setTimeout> | undefined;
+const QUEUE_CAP = 100;
 
 interface QueueItem {
     code: string;
@@ -159,13 +161,25 @@ function warmupConnection() {
     }).catch(() => { });
 }
 
-function notifyPaused(reason: string) {
+function notifyPaused(reason: string, resumeInMs?: number) {
     captchaPaused = true;
-    queue.length = 0;
+    if (resumeTimer !== undefined) {
+        clearTimeout(resumeTimer);
+        resumeTimer = undefined;
+    }
+    if (resumeInMs == null) queue.length = 0;
     if (pauseToastShown) return;
     pauseToastShown = true;
     showToast(`AutoRedeem paused: ${reason}`, Toasts.Type.FAILURE);
     logger.warn(`Paused: ${reason}`);
+    if (resumeInMs != null) {
+        resumeTimer = setTimeout(() => {
+            resumeTimer = undefined;
+            captchaPaused = false;
+            pauseToastShown = false;
+            void processQueue();
+        }, resumeInMs);
+    }
 }
 
 async function trySolveCaptcha(captchaService: string, sitekey: string, rqdata: string | undefined, pageUrl: string): Promise<{ success: boolean; token?: string; error?: string }> {
@@ -275,7 +289,10 @@ async function handleRedeem(item: QueueItem) {
         }
     }
 
-    if (captchaPaused) return;
+    if (captchaPaused) {
+        addLog({ code, status: "failed", type: "other", error: "paused", channelId, messageId });
+        return;
+    }
 
     try {
         const { body } = await RestAPI.post({
@@ -347,7 +364,8 @@ async function handleRedeem(item: QueueItem) {
         }
         if (e?.status === 429) {
             const retryAfter = Number(e?.body?.retry_after ?? e?.headers?.["retry-after"] ?? 0);
-            notifyPaused(`rate limited${retryAfter ? ` (retry after ${retryAfter}s)` : ""}`);
+            const waitMs = Math.min(Math.max(retryAfter > 0 ? retryAfter * 1000 : 1000, 1000), 5 * 60_000);
+            notifyPaused(`rate limited${retryAfter ? ` (retry after ${retryAfter}s)` : ""}`, waitMs);
             addLog({ code, status: "failed", type: "other", error: "rate limited", channelId, messageId });
             await sendClaimWebhook(code, "failed", "other", channelId, messageId, guildId, "rate limited");
             return;
@@ -370,6 +388,65 @@ async function handleRedeem(item: QueueItem) {
             });
         }
     }
+}
+
+function collectGiftText(message: any): string {
+    const parts: string[] = [];
+    if (typeof message?.content === "string" && message.content) parts.push(message.content);
+    if (Array.isArray(message?.embeds)) {
+        for (const embed of message.embeds) {
+            if (!embed || typeof embed !== "object") continue;
+            for (const value of [embed.title, embed.description, embed.url, embed.author?.name, embed.footer?.text, embed.provider?.name]) {
+                if (typeof value === "string" && value) parts.push(value);
+            }
+            if (Array.isArray(embed.fields)) {
+                for (const field of embed.fields) {
+                    if (typeof field?.name === "string" && field.name) parts.push(field.name);
+                    if (typeof field?.value === "string" && field.value) parts.push(field.value);
+                }
+            }
+        }
+    }
+    const stack = [...(Array.isArray(message?.components) ? message.components : [])];
+    while (stack.length) {
+        const component = stack.pop();
+        if (!component || typeof component !== "object") continue;
+        for (const value of [component.content, component.label, component.value, component.placeholder, component.url]) {
+            if (typeof value === "string" && value) parts.push(value);
+        }
+        if (Array.isArray(component.components)) stack.push(...component.components);
+        if (component.accessory) stack.push(component.accessory);
+    }
+    return parts.join("\n");
+}
+
+function enqueueGifts(message: any, guildId?: string) {
+    if (!message || message.state === "SENDING") return;
+    if (captchaPaused && resumeTimer === undefined) return;
+    const author = message.author ?? (message.channel_id && message.id
+        ? MessageStore.getMessage(message.channel_id, message.id)?.author
+        : undefined);
+    if (settings.store.ignoreBots && author?.bot) return;
+    if (settings.store.ignoreSelf && author?.id === UserStore.getCurrentUser()?.id) return;
+
+    const text = collectGiftText(message);
+    if (!text || !text.includes("gift")) return;
+
+    const codes = [...text.matchAll(GIFT_REGEX)].map(m => m[1]);
+    if (!codes.length) return;
+
+    for (const code of codes) {
+        if (seen.has(code)) continue;
+        markSeen(code);
+        if (queue.length >= QUEUE_CAP) queue.shift();
+        queue.push({
+            code,
+            channelId: message.channel_id,
+            messageId: message.id,
+            guildId,
+        });
+    }
+    void processQueue();
 }
 
 export default definePlugin({
@@ -398,33 +475,20 @@ export default definePlugin({
         processing = false;
         captchaPaused = false;
         pauseToastShown = false;
+        if (resumeTimer !== undefined) {
+            clearTimeout(resumeTimer);
+            resumeTimer = undefined;
+        }
         void Native?.cancelAll();
     },
 
     flux: {
         MESSAGE_CREATE({ optimistic, type, message, guildId }: IMessageCreate) {
             if (optimistic || type !== "MESSAGE_CREATE") return;
-            if (message.state === "SENDING") return;
-            if (captchaPaused) return;
-            if (settings.store.ignoreBots && message.author?.bot) return;
-            if (settings.store.ignoreSelf && message.author?.id === UserStore.getCurrentUser()?.id) return;
-            if (!message.content) return;
-            if (!message.content.includes("gift")) return;
-
-            const codes = [...message.content.matchAll(GIFT_REGEX)].map(m => m[1]);
-            if (!codes.length) return;
-
-            for (const code of codes) {
-                if (seen.has(code)) continue;
-                markSeen(code);
-                queue.push({
-                    code,
-                    channelId: message.channel_id,
-                    messageId: message.id,
-                    guildId,
-                });
-            }
-            void processQueue();
+            enqueueGifts(message, guildId);
+        },
+        MESSAGE_UPDATE({ message, guildId }: { message: any; guildId?: string; }) {
+            enqueueGifts(message, guildId);
         },
     },
 });
