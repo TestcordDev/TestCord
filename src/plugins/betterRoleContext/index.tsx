@@ -15,7 +15,7 @@ import { classes } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { Guild, Role } from "@vencord/discord-types";
 import { findByCodeLazy, findByPropsLazy, findCssClassesLazy } from "@webpack";
-import { ContextMenuApi, GuildRoleStore, Menu, PermissionStore, Popout, RoleMemberPopout, useRef } from "@webpack/common";
+import { ContextMenuApi, GuildRoleStore, Menu, PermissionStore, Popout, RoleMemberPopout } from "@webpack/common";
 
 const GuildSettingsActions = findByPropsLazy("open", "selectRole", "updateGuild");
 const MenuItemClasses = findCssClassesLazy("item", "labelContainer", "colorDefault", "label", "iconContainer");
@@ -91,6 +91,11 @@ const settings = definePluginSettings({
 export function buildExtraRoleContextMenuItems(role: Role, guild: Guild, popoutRef?: React.RefObject<any>) {
     if (!role) return { before: [], after: [] };
 
+    // Resolved once here instead of non-null asserting inside render: without a
+    // current channel (DMs, load edge cases) the old getCurrentChannel()! threw
+    // inside the menu render on every open.
+    const channelId = getCurrentChannel()?.id;
+
     const before = [
         PermissionStore.getGuildPermissionProps(guild).canManageRoles && (
             <Menu.MenuItem
@@ -134,7 +139,7 @@ export function buildExtraRoleContextMenuItems(role: Role, guild: Guild, popoutR
                 leadingAccessory={{ type: "icon", icon: ImageIcon }}
             />
         ),
-        popoutRef && (
+        popoutRef && channelId && (
             <Menu.MenuItem
                 key="vc-view-role-members"
                 id="vc-view-role-members"
@@ -149,7 +154,7 @@ export function buildExtraRoleContextMenuItems(role: Role, guild: Guild, popoutR
                             <RoleMemberPopout
                                 popoutProps={popoutProps}
                                 guildId={guild.id}
-                                channelId={getCurrentChannel()!.id}
+                                channelId={channelId}
                                 roleId={role.id}
                             />
                         )}
@@ -185,7 +190,9 @@ export function openRoleContextMenu(event: React.MouseEvent<HTMLElement>, { guil
     if (!role) return;
 
     ContextMenuApi.openContextMenu(event, () => {
-        const popoutRef = useRef(null);
+        // Plain ref object, not useRef: this callback is not a component render,
+        // so calling the hook here broke the Rules of Hooks on every menu open.
+        const popoutRef: { current: null; } = { current: null };
         const { before, after } = buildExtraRoleContextMenuItems(role, guild, popoutRef);
 
         return (

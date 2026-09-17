@@ -79,6 +79,41 @@ export function getPluginProvider(pluginName: string): ProviderInfo {
 
 let CachedPluginRow: any = null;
 
+interface PluginFilterEntry {
+    plugin: Plugin;
+    lower: string;
+    acronym: string;
+    searchTerms?: string[];
+    description: string;
+    folder: string;
+}
+
+let filterIndex: PluginFilterEntry[] | null = null;
+let filterIndexSize = 0;
+
+function getFilterIndex(): PluginFilterEntry[] {
+    // Built once per plugin set, not once per keystroke. Previously every
+    // keystroke re-filtered Object.values(plugins) and re-lowercased every
+    // name, description and acronym.
+    const size = Object.keys(plugins).length;
+    if (!filterIndex || filterIndexSize !== size) {
+        filterIndexSize = size;
+        filterIndex = [];
+        for (const plugin of Object.values(plugins)) {
+            if (!plugin || !plugin.name || plugin.name.endsWith("API")) continue;
+            filterIndex.push({
+                plugin,
+                lower: plugin.name.toLowerCase(),
+                acronym: (plugin.name.match(/[A-Z]/g)?.join("") || "").toLowerCase(),
+                searchTerms: plugin.searchTerms,
+                description: (plugin.description || "").toLowerCase(),
+                folder: PluginMeta[plugin.name]?.folderName || ""
+            });
+        }
+    }
+    return filterIndex;
+}
+
 function getPluginRowClass(): any {
     if (CachedPluginRow) return CachedPluginRow;
 
@@ -130,9 +165,7 @@ let hookedModule: any = null;
 let isInitialized = false;
 
 function filterPlugins(query: string, targetCategory?: "Testcord" | "Vencord" | "Equicord" | "All"): Plugin[] {
-    const all = Object.values(plugins).filter(p => {
-        if (!p || !p.name || p.name.endsWith("API")) return false;
-        const folder = PluginMeta[p.name]?.folderName || "";
+    const matchesCategory = (folder: string) => {
         if (targetCategory === "Testcord") return folder.startsWith("src/testcordplugins/");
         if (targetCategory === "Vencord") return folder.startsWith("src/plugins/");
         if (targetCategory === "Equicord") return folder.startsWith("src/equicordplugins/");
@@ -144,34 +177,32 @@ function filterPlugins(query: string, targetCategory?: "Testcord" | "Vencord" | 
             );
         }
         return true;
-    });
+    };
+
+    const all = getFilterIndex().filter(e => matchesCategory(e.folder));
 
     if (!query) {
-        return all.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 50);
+        return all.map(e => e.plugin).sort((a, b) => a.name.localeCompare(b.name)).slice(0, 50);
     }
 
     const q = query.toLowerCase();
     const scored: Array<{ plugin: Plugin; score: number; }> = [];
 
-    for (const p of all) {
-        const nameLower = p.name.toLowerCase();
-        const descLower = (p.description || "").toLowerCase();
-        const acronym = (p.name.match(/[A-Z]/g)?.join("") || "").toLowerCase();
-
-        if (nameLower === q) {
-            scored.push({ plugin: p, score: 100 });
-        } else if (nameLower.startsWith(q)) {
-            scored.push({ plugin: p, score: 80 });
+    for (const { plugin, lower, acronym, searchTerms, description } of all) {
+        if (lower === q) {
+            scored.push({ plugin, score: 100 });
+        } else if (lower.startsWith(q)) {
+            scored.push({ plugin, score: 80 });
         } else if (acronym === q) {
-            scored.push({ plugin: p, score: 70 });
-        } else if (nameLower.includes(q)) {
-            scored.push({ plugin: p, score: 60 });
+            scored.push({ plugin, score: 70 });
+        } else if (lower.includes(q)) {
+            scored.push({ plugin, score: 60 });
         } else if (acronym.includes(q)) {
-            scored.push({ plugin: p, score: 50 });
-        } else if (p.searchTerms?.some(t => t.toLowerCase().includes(q))) {
-            scored.push({ plugin: p, score: 40 });
-        } else if (descLower.includes(q)) {
-            scored.push({ plugin: p, score: 30 });
+            scored.push({ plugin, score: 50 });
+        } else if (searchTerms?.some(t => t.toLowerCase().includes(q))) {
+            scored.push({ plugin, score: 40 });
+        } else if (description.includes(q)) {
+            scored.push({ plugin, score: 30 });
         }
     }
 

@@ -89,12 +89,24 @@ function uninstallCrashGuards() {
     });
 
     // Intercept console methods for the same patterns so the Webpack "AVError" etc don't flood.
+    // Hot path: every console call in the client runs through here, so never
+    // serialize. Only string args and Error message/stack are inspected; objects
+    // are skipped (the harmless patterns only ever appear in message text).
     const origError = console.error.bind(console);
     const origWarn = console.warn.bind(console);
     const origLog = console.log.bind(console);
     const wrapConsole = (orig: (...a: any[]) => void) => (...args: any[]) => {
-        const text = args.map(a => typeof a === "string" ? a : String((a as any)?.message ?? (a as any)?.stack ?? (() => { try { return JSON.stringify(a); } catch { return String(a); } })())).join(" ");
-        if (isHarmless(text)) return;
+        for (const a of args) {
+            let text: string | undefined;
+            if (typeof a === "string") text = a;
+            else if (a && typeof a === "object") {
+                const { message, stack } = a as any;
+                if (typeof message === "string" && message) text = message;
+                else if (typeof stack === "string" && stack) text = stack;
+                else continue;
+            } else continue;
+            if (isHarmless(text)) return;
+        }
         return orig(...args);
     };
     console.error = wrapConsole(origError);
@@ -517,6 +529,7 @@ interface PluginSearchEntry {
 }
 
 let pluginSearchData: PluginSearchEntry[] | undefined;
+let pluginSearchDataSize = 0;
 
 function round2(n: number) {
     return Math.floor(n * 100) / 100;
@@ -738,21 +751,48 @@ function isPerformanceEnabled() {
     return settings.store.performanceMode === true;
 }
 
-function isPluginCardCacheEnabled() {
-    return isPerformanceEnabled() && settings.store.performanceCachePluginCards === true;
-}
-
 function getPluginSearchData() {
-    pluginSearchData ??= Object.keys(plugins).map(name => ({
-        name,
-        lower: name.toLowerCase(),
-        acronym: name.match(/[A-Z]/g)?.join("").toLowerCase() ?? "",
-        searchTerms: plugins[name].searchTerms?.map(t => t.toLowerCase()),
-        description: plugins[name].description?.toLowerCase(),
-        folderName: PluginMeta[name]?.folderName ?? "",
-    }));
+    // Rebuild when the plugin set changes (userplugins can load at runtime).
+    // Same-count swaps leave harmless stale entries: unknown names fall through
+    // to the "not on this version" card, exactly like a failed lookup.
+    const size = Object.keys(plugins).length;
+    if (!pluginSearchData || pluginSearchDataSize !== size) {
+        pluginSearchDataSize = size;
+        pluginSearchData = Object.keys(plugins).map(name => ({
+            name,
+            lower: name.toLowerCase(),
+            acronym: name.match(/[A-Z]/g)?.join("").toLowerCase() ?? "",
+            searchTerms: plugins[name].searchTerms?.map(t => t.toLowerCase()),
+            description: plugins[name].description?.toLowerCase(),
+            folderName: PluginMeta[name]?.folderName ?? "",
+        }));
+    }
 
     return pluginSearchData;
+}
+
+let depMapCache: Record<string, string[]> | null = null;
+let depMapCacheSize = 0;
+
+function getDepMap() {
+    // Built once per plugin set, not once per chat card. Previously every card
+    // mentioning a plugin re-walked all plugins and their dependencies.
+    const size = Object.keys(plugins).length;
+    if (!depMapCache || depMapCacheSize !== size) {
+        const o = {} as Record<string, string[]>;
+        for (const plugin in plugins) {
+            const deps = plugins[plugin].dependencies;
+            if (deps) {
+                for (const dep of deps) {
+                    o[dep] ??= [];
+                    o[dep].push(plugin);
+                }
+            }
+        }
+        depMapCache = o;
+        depMapCacheSize = size;
+    }
+    return depMapCache;
 }
 
 function getClient() {
@@ -882,7 +922,11 @@ async function sendDebugReport() {
 }
 
 function ChatPluginCard({ pluginName, description }: { pluginName: string; description?: string; }) {
-    useSettings([`plugins.${pluginName ?? ""}.enabled`]);
+    // Memoize the key array: a fresh literal resubscribes to the settings store
+    // on every render, churning subscriptions for every card in chat.
+    const settingsKey = `plugins.${pluginName ?? ""}.enabled` as `plugins.${string}.enabled`;
+    const settingsKeys = useMemo(() => [settingsKey], [settingsKey]);
+    useSettings(settingsKeys);
 
     if (!pluginName) return null;
 
@@ -912,19 +956,7 @@ function ChatPluginCard({ pluginName, description }: { pluginName: string; descr
 
     const onRestartNeeded = () => showToast("A restart is required for the change to take effect!");
 
-    const depMap = useMemo(() => {
-        const o = {} as Record<string, string[]>;
-        for (const plugin in plugins) {
-            const deps = plugins[plugin].dependencies;
-            if (deps) {
-                for (const dep of deps) {
-                    o[dep] ??= [];
-                    o[dep].push(plugin);
-                }
-            }
-        }
-        return o;
-    }, []);
+    const depMap = getDepMap();
 
     const required = isPluginRequired(pluginName);
     const dependents = depMap[p.name]?.filter(d => isPluginEnabled(d));
@@ -970,54 +1002,20 @@ function getCategoryFolders(prefix?: string): string[] | undefined {
 }
 
 function resolvePluginName(search: string, prefix?: string) {
-    if (isPluginCardCacheEnabled()) {
-        const cacheKey = `${prefix ? prefix.toLowerCase() + ":" : ""}${search.toLowerCase()}`;
-        if (pluginResolveCache.has(cacheKey)) return pluginResolveCache.get(cacheKey) ?? undefined;
+    // Always the cached path: the uncached scan lowercased every plugin name,
+    // description and searchTerms per message, which dominated accessory cost in
+    // busy channels. Matching semantics are identical to the old scan.
+    const cacheKey = `${prefix ? prefix.toLowerCase() + ":" : ""}${search.toLowerCase()}`;
+    if (pluginResolveCache.has(cacheKey)) return pluginResolveCache.get(cacheKey) ?? undefined;
 
-        const pluginName = resolvePluginNameCached(search, prefix);
-        pluginResolveCache.set(cacheKey, pluginName ?? null);
-        if (pluginResolveCache.size > PLUGIN_RESOLVE_CACHE_LIMIT) {
-            const oldest = pluginResolveCache.keys().next().value;
-            if (oldest !== undefined) pluginResolveCache.delete(oldest);
-        }
-
-        return pluginName;
+    const pluginName = resolvePluginNameCached(search, prefix);
+    pluginResolveCache.set(cacheKey, pluginName ?? null);
+    if (pluginResolveCache.size > PLUGIN_RESOLVE_CACHE_LIMIT) {
+        const oldest = pluginResolveCache.keys().next().value;
+        if (oldest !== undefined) pluginResolveCache.delete(oldest);
     }
 
-    return resolvePluginNameOriginal(search, prefix);
-}
-
-function resolvePluginNameOriginal(search: string, prefix?: string) {
-    const categoryFolders = getCategoryFolders(prefix);
-    const allNames = Object.keys(plugins);
-    const words = search.trim().replace(/[.!?)]*$/, "").split(/\s+/);
-
-    const findInNames = (names: string[]) => {
-        for (let i = words.length; i > 0; i--) {
-            const query = words.slice(0, i).join(" ").toLowerCase();
-            const normalizedQuery = query.replace(/\s+/g, "");
-
-            const pluginName = names.find(name => name.toLowerCase() === normalizedQuery)
-                ?? names.find(name => name.toLowerCase().startsWith(normalizedQuery))
-                ?? names.find(name => name.match(/[A-Z]/g)?.join("").toLowerCase().includes(normalizedQuery))
-                ?? names.find(name => name.toLowerCase().includes(normalizedQuery))
-                ?? names.find(name => plugins[name]?.searchTerms?.some(t => t.toLowerCase().includes(query)))
-                ?? names.find(name => plugins[name]?.description?.toLowerCase().includes(query));
-
-            if (pluginName) return pluginName;
-        }
-    };
-
-    if (categoryFolders) {
-        const categoryNames = allNames.filter(name => {
-            const folder = PluginMeta[name]?.folderName;
-            return folder && categoryFolders.some(f => folder.startsWith(f));
-        });
-        const matched = findInNames(categoryNames);
-        if (matched) return matched;
-    }
-
-    return findInNames(allNames);
+    return pluginName;
 }
 
 function resolvePluginNameCached(search: string, prefix?: string) {
@@ -1069,10 +1067,27 @@ function escapeLinkLabel(label: string) {
     return label.replaceAll("\\", "\\\\").replaceAll("]", "\\]").replaceAll("[", "\\[");
 }
 
+let cachedUserList: User[] | null = null;
+let cachedUserListAt = 0;
+
 function getCachedUsers() {
+    // Object.values over the whole user store per lookup copied thousands of
+    // entries per message in busy servers. Reuse the snapshot briefly instead.
+    const now = Date.now();
+    if (cachedUserList && now - cachedUserListAt < 2000) return cachedUserList;
     const users = (UserStore as typeof UserStore & { getUsers?: () => Record<string, User>; }).getUsers?.();
 
-    return users ? Object.values(users) : [];
+    cachedUserList = users ? Object.values(users) : [];
+    cachedUserListAt = now;
+    return cachedUserList;
+}
+
+function cacheUserResolve(key: string, id: string | null) {
+    userResolveCache.set(key, id);
+    if (userResolveCache.size > USER_RESOLVE_CACHE_LIMIT) {
+        const oldest = userResolveCache.keys().next().value;
+        if (oldest !== undefined) userResolveCache.delete(oldest);
+    }
 }
 
 function resolveUser(search: string) {
@@ -1095,13 +1110,9 @@ function resolveUser(search: string) {
         ?? users.find(user => user.username.toLowerCase().startsWith(cacheKey) || user.globalName?.toLowerCase().startsWith(cacheKey) || user.tag.toLowerCase().startsWith(cacheKey))
         ?? users.find(user => user.username.toLowerCase().includes(cacheKey) || user.globalName?.toLowerCase().includes(cacheKey) || user.tag.toLowerCase().includes(cacheKey));
 
-    if (!user) return;
-
-    userResolveCache.set(cacheKey, user.id);
-    if (userResolveCache.size > USER_RESOLVE_CACHE_LIMIT) {
-        const oldest = userResolveCache.keys().next().value;
-        if (oldest !== undefined) userResolveCache.delete(oldest);
-    }
+    // Cache misses too: an unknown dcp: name previously re-scanned the whole
+    // user store on every message that mentioned it.
+    cacheUserResolve(cacheKey, user?.id ?? null);
 
     return user;
 }
@@ -1129,6 +1140,8 @@ function darkenColor(color: number) {
 
     return colorToHex((red << 16) | (green << 8) | blue);
 }
+
+const fetchingProfiles = new Set<string>();
 
 function getProfileCardTheme(profile: ProfileTheme | undefined) {
     const colors = profile?.themeColors?.filter(color => Number.isFinite(color)) ?? [];
@@ -1161,7 +1174,12 @@ function ChatProfileCard({ user }: { user: User; }) {
     const cardTheme = getProfileCardTheme(profile);
 
     useEffect(() => {
-        if (!profile && !user.bot) void fetchUserProfile(user.id).catch(() => { });
+        // Dedupe in-flight fetches: the same mentioned user can render in many
+        // messages at once, and each card previously fired its own fetch.
+        if (!profile && !user.bot && !fetchingProfiles.has(user.id)) {
+            fetchingProfiles.add(user.id);
+            void fetchUserProfile(user.id).catch(() => { }).finally(() => fetchingProfiles.delete(user.id));
+        }
     }, [profile, user.bot, user.id]);
 
     return (

@@ -149,7 +149,7 @@ function getAddGifFn(): ((gif: any) => Promise<void>) | null {
 let runtimeUnlockApplied = false;
 const LIMIT_RE = /\.toBinary\(t\)\.length>\d+/;
 
-function applyRuntimeUnlock(): boolean {
+async function applyRuntimeUnlock(): Promise<boolean> {
     if (runtimeUnlockApplied) return true;
 
     const factories = wreq?.m;
@@ -158,9 +158,21 @@ function applyRuntimeUnlock(): boolean {
         return false;
     }
 
-    for (const id in factories) {
-        const src = factories[id].toString();
-        if (!LIMIT_RE.test(src)) continue;
+    // Scan in chunks so a cold start with thousands of modules never blocks the
+    // main thread in one long task. Each chunk costs ~1ms, then yields.
+    const ids = Object.keys(factories);
+    for (let i = 0; i < ids.length; i++) {
+        const id = ids[i];
+        let src: string;
+        try {
+            src = factories[id].toString();
+        } catch {
+            continue;
+        }
+        if (!LIMIT_RE.test(src)) {
+            if (i % 500 === 499) await sleep(0);
+            continue;
+        }
 
         const patched = src.replace(LIMIT_RE, ".toBinary(t).length>Number.MAX_SAFE_INTEGER");
         // Already lifted (e.g. by the static patch on this same module) — nothing to do.
@@ -615,21 +627,19 @@ function tryInject(): void {
     }
 }
 
-let injectTimer: ReturnType<typeof setTimeout> | null = null;
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 function startObserver(): void {
+    // One getElementById per second while the picker is closed is negligible, and
+    // skipping hidden tabs avoids pointless wakeups when Discord is backgrounded.
     pollInterval = setInterval(() => {
+        if (document.hidden) return;
         tryInject();
     }, 1000);
     tryInject();
 }
 
 function stopObserver(): void {
-    if (injectTimer) {
-        clearTimeout(injectTimer);
-        injectTimer = null;
-    }
     if (pollInterval) {
         clearInterval(pollInterval);
         pollInterval = null;
@@ -694,7 +704,7 @@ export default definePlugin({
         try {
             UserSettingsActionCreators?.FrecencyUserSettingsActionCreators?.loadIfNecessary?.();
         } catch { }
-        if (settings.store.runtimeUnlock) applyRuntimeUnlock();
+        if (settings.store.runtimeUnlock) void applyRuntimeUnlock();
         startObserver();
     },
 
