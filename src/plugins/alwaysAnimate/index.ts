@@ -18,7 +18,42 @@
 
 import { definePluginSettings } from "@api/Settings";
 import { Devs } from "@utils/constants";
+import { classNameToSelector } from "@utils/css";
 import definePlugin, { OptionType } from "@utils/types";
+import { findCssClassesLazy } from "@webpack";
+
+const MemberListClasses = findCssClassesLazy("members", "membersWrap");
+
+let memberFreezeEl: HTMLStyleElement | null = null;
+
+function updateMemberListFreeze(enabled: boolean) {
+    if (!enabled) {
+        memberFreezeEl?.remove();
+        memberFreezeEl = null;
+        return;
+    }
+    const selectors: string[] = [];
+    for (const key of ["members", "membersWrap"] as const) {
+        const cls = (MemberListClasses as Record<string, unknown>)[key];
+        if (typeof cls === "string" && cls) {
+            try {
+                const sel = classNameToSelector(cls);
+                selectors.push(sel, `${sel} *`);
+            } catch { /* class not resolved yet, skip */ }
+        }
+    }
+    if (!selectors.length) return;
+    // Pausing settles the compositor: gradient and nameplate art stays visible
+    // but stops repainting every frame. Overrides Discord's infinite member
+    // list keyframe animations.
+    const css = `${selectors.join(",")} { animation-play-state: paused !important; }`;
+    if (!memberFreezeEl) {
+        memberFreezeEl = document.createElement("style");
+        memberFreezeEl.id = "vc-always-animate-member-freeze";
+        document.head?.appendChild(memberFreezeEl);
+    }
+    if (memberFreezeEl.textContent !== css) memberFreezeEl.textContent = css;
+}
 
 const settings = definePluginSettings({
     icons: {
@@ -45,6 +80,13 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Always animate role gradients",
         default: true,
+    },
+    excludeMemberList: {
+        type: OptionType.BOOLEAN,
+        description: "Leave the server member list out of this. Member list patches are skipped and its animations are paused, so large servers stay smooth. Chat and everything else keeps animating. Animated avatars there still follow the Icons toggle above. Needs a restart for the patch part, the pause applies instantly.",
+        default: false,
+        restartNeeded: true,
+        onChange: value => updateMemberListFreeze(value)
     }
 });
 
@@ -99,6 +141,7 @@ export default definePlugin({
         {
             // Gradient roles in member list
             find: '="left",className:',
+            predicate: () => !settings.store.excludeMemberList,
             replacement: {
                 match: /,animateGradient:/,
                 replace: ",animateGradient:!0,_oldAnimateGradient:"
@@ -128,5 +171,11 @@ export default definePlugin({
                 }
             }
         },
-    ]
+    ],
+    start() {
+        if (settings.store.excludeMemberList) updateMemberListFreeze(true);
+    },
+    stop() {
+        updateMemberListFreeze(false);
+    }
 });

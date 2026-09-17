@@ -7,7 +7,7 @@
 import "./style.css";
 
 import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption } from "@api/Commands";
-import { addHeaderBarButton, HeaderBarButton, removeHeaderBarButton } from "@api/HeaderBar";
+import { addChannelToolbarButton, ChannelToolbarButton, HeaderBarButton, removeChannelToolbarButton } from "@api/HeaderBar";
 import { isPluginEnabled } from "@api/PluginManager";
 import { Settings } from "@api/Settings";
 import { LogsIcon } from "@components/Icons";
@@ -67,7 +67,7 @@ function OpenLogsButton() {
 }
 
 function LoadMoreButton() {
-    return <HeaderBarButton tooltip="Load all deleted logs" icon={LogsIcon} onClick={() => { void loadMoreDeletedLogs(); }} />;
+    return <ChannelToolbarButton tooltip="Load all deleted logs" icon={LogsIcon} onClick={() => { void loadMoreDeletedLogs(); }} />;
 }
 
 async function processMessageFetch(response: FetchMessagesResponse) {
@@ -955,7 +955,7 @@ export default definePlugin({
         }
 
         setupLoggerContextMenus();
-        addHeaderBarButton("testcord-ml-load-more", () => <LoadMoreButton />, 6);
+        addChannelToolbarButton("testcord-ml-load-more", () => <LoadMoreButton />, 6);
 
         oldGetMessage = MessageStore.getMessage;
         MessageStore.getMessage = (channelId: string, messageId: string) => {
@@ -1108,7 +1108,7 @@ export default definePlugin({
 
     stop() {
         removeLoggerContextMenus();
-        removeHeaderBarButton("testcord-ml-load-more");
+        removeChannelToolbarButton("testcord-ml-load-more");
         stopEngine();
         if (oldGetMessage) {
             MessageStore.getMessage = oldGetMessage;
