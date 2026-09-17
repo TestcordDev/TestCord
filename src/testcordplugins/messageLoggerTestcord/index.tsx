@@ -10,7 +10,7 @@ import { ApplicationCommandInputType, ApplicationCommandOptionType, findOption }
 import { addChannelToolbarButton, ChannelToolbarButton, HeaderBarButton, removeChannelToolbarButton } from "@api/HeaderBar";
 import { isPluginEnabled } from "@api/PluginManager";
 import { Settings } from "@api/Settings";
-import { LogsIcon } from "@components/Icons";
+import { LogsIcon, RestartIcon } from "@components/Icons";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
@@ -68,6 +68,10 @@ function OpenLogsButton() {
 
 function LoadMoreButton() {
     return <ChannelToolbarButton tooltip="Load all deleted logs" icon={LogsIcon} onClick={() => { void loadMoreDeletedLogs(); }} />;
+}
+
+function ReloadLogsButton() {
+    return <ChannelToolbarButton tooltip="Reload logs for this channel" icon={RestartIcon} onClick={() => { void reloadCurrentChannelLogs(); }} />;
 }
 
 async function processMessageFetch(response: FetchMessagesResponse) {
@@ -323,6 +327,66 @@ function injectDeletedRecords(channelId: string, records: LogRecord[]) {
     } catch { }
 }
 
+// Patch already-cached live messages with their logged edit history and commit
+// so chat re-renders immediately instead of showing no history until the next
+// fetch/scroll replaces the collection. Work is bounded by loaded store entries
+// (tens/hundreds), not by every logged edit (potentially thousands).
+function injectEditedHistories(channelId: string, records: LogRecord[]) {
+    try {
+        const Internal: any = (MessageStoreInternal as any);
+        const cache = Internal.get?.(channelId);
+        if (!cache || typeof cache.update !== "function") return;
+        const histById = new Map<string, unknown>();
+        for (const rec of records) {
+            const hist = rec.message?.editHistory;
+            if (!Array.isArray(hist) || hist.length === 0) continue;
+            if (isEditHistoryTempCleared(rec.message_id)) continue;
+            histById.set(rec.message_id, hist);
+        }
+        if (histById.size === 0) return;
+        const needsPatch: { id: string; hist: unknown; }[] = [];
+        const consider = (id: string, msg: any) => {
+            try {
+                const hist = histById.get(id);
+                if (hist == null) return;
+                const cur = (msg as any)?.editHistory;
+                const curLen = Array.isArray(cur) ? cur.length : 0;
+                if (curLen < (hist as unknown[]).length) needsPatch.push({ id, hist });
+            } catch { }
+        };
+        try {
+            if (typeof cache.forEach === "function") {
+                cache.forEach((msg: any, id: unknown) => {
+                    if (typeof id === "string") consider(id, msg);
+                });
+            } else {
+                for (const [id, hist] of histById) {
+                    let existing: any;
+                    try { existing = cache.get?.(id); } catch { continue; }
+                    if (existing) consider(id, existing);
+                }
+            }
+        } catch { return; }
+        if (needsPatch.length === 0) return;
+        let newCache = cache;
+        for (const { id, hist } of needsPatch) {
+            try {
+                newCache = newCache.update(id, (m: any) => {
+                    try {
+                        if (m && typeof m.set === "function") return m.set("editHistory", hist);
+                        if (m) m.editHistory = hist;
+                        return m;
+                    } catch { return m; }
+                });
+            } catch { }
+            try { renderApi?.invalidateMessageClassCache(id); mergedMessageCache.delete(id); mergedEditTimestamps.delete(id); } catch { }
+        }
+        if (newCache !== cache) {
+            try { Internal.commit?.(newCache); } catch { }
+        }
+    } catch { }
+}
+
 async function loadMoreDeletedLogs() {
     const channelId = SelectedChannelStore.getChannelId();
     if (!channelId) {
@@ -356,6 +420,28 @@ async function loadMoreDeletedLogs() {
     }
     injectDeletedRecords(channelId, fresh);
     showToast(`Loaded ${fresh.length} more deleted logs.`, Toasts.Type.SUCCESS);
+}
+
+function reloadCurrentChannelLogs() {
+    const channelId = SelectedChannelStore.getChannelId();
+    if (!channelId) {
+        showToast("Open a channel first.", Toasts.Type.FAILURE);
+        return;
+    }
+    // Drop this channel's cached logs and limit overrides so the default
+    // amount is loaded fresh below.
+    channelAllDeleted.delete(channelId);
+    channelAllEdited.delete(channelId);
+    channelDeleteLimit.delete(channelId);
+    channelWebhookLimit.delete(channelId);
+    const pendingTimeout = channelCacheTimeout.get(channelId);
+    if (pendingTimeout) {
+        clearTimeout(pendingTimeout);
+        channelCacheTimeout.delete(channelId);
+    }
+    try { clearChannelCache(channelId); } catch { }
+    handleChannelSelect({ channelId });
+    showToast("Reloading message logs for this channel.", Toasts.Type.MESSAGE);
 }
 
 function scheduleChannelUnload(channelId: string) {
@@ -440,6 +526,10 @@ function handleChannelSelect(payload: { channelId?: string; }) {
                         try { (renderApi as any)?.invalidateMessageClassCache?.(rec.message_id); } catch { }
                         try { mergedMessageCache.delete(rec.message_id); mergedEditTimestamps.delete(rec.message_id); } catch { }
                     }
+                    // Push history into already-rendered store entries so the
+                    // channel re-renders with history right away instead of
+                    // staying blank until the next fetch/scroll.
+                    try { injectEditedHistories(channelId, toCache); } catch { }
                 }
             } catch { }
         })();
@@ -450,6 +540,7 @@ function handleChannelSelect(payload: { channelId?: string; }) {
             if (existing?.length) {
                 const toCache = existing.filter(r => !isEditHistoryTempCleared(r.message_id));
                 try { cacheChannelMessages(toCache); } catch { }
+                try { injectEditedHistories(channelId, toCache); } catch { }
             }
         } catch { }
     }
@@ -813,6 +904,18 @@ export default definePlugin({
         if (typeof clearedId === "string" && isEditHistoryTempCleared(clearedId)) return [];
         if (!settings.store.showEditHistory) return m2?.editHistory;
         const editHistory = m2?.editHistory ?? (m1?.editHistory?.length ? mapEditHistoryCached(m1.editHistory) : undefined);
+        // On a fresh channel switch the store objects render before the async
+        // edited-log load finishes, so fall back to the logger cache to avoid
+        // a transient blank history.
+        try {
+            const id = (m2 as any)?.id ?? (m1 as any)?.id;
+            if (typeof id === "string") {
+                const cachedHist = getCachedLoggedMessage(id)?.editHistory;
+                if (Array.isArray(cachedHist) && cachedHist.length > 0) {
+                    if (!Array.isArray(editHistory) || cachedHist.length > editHistory.length) return cachedHist;
+                }
+            }
+        } catch { }
         return editHistory;
     },
 
@@ -956,6 +1059,7 @@ export default definePlugin({
 
         setupLoggerContextMenus();
         addChannelToolbarButton("testcord-ml-load-more", () => <LoadMoreButton />, 6);
+        addChannelToolbarButton("testcord-ml-reload", () => <ReloadLogsButton />, 5);
 
         oldGetMessage = MessageStore.getMessage;
         MessageStore.getMessage = (channelId: string, messageId: string) => {
@@ -1109,6 +1213,7 @@ export default definePlugin({
     stop() {
         removeLoggerContextMenus();
         removeChannelToolbarButton("testcord-ml-load-more");
+        removeChannelToolbarButton("testcord-ml-reload");
         stopEngine();
         if (oldGetMessage) {
             MessageStore.getMessage = oldGetMessage;

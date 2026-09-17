@@ -112,6 +112,24 @@ export function rememberLiveMessages(messages: LoggedMessage[]) {
             // remember() refreshes recency and enforces the caps as before.
             const known = recentMessages.get(m.id) ?? channelMessageCache.get(m.id);
             if (known) {
+                // Heal: the incoming copy may carry logged editHistory the cached
+                // one lacks (e.g. fetch bodies after the fetch hook attached it,
+                // or store objects patched by the channel-select inject). Without
+                // this the first history-less snapshot shadows the good copy
+                // forever and history blanks out on later revisits.
+                try {
+                    const incomingHist = (m as any)?.editHistory;
+                    const knownLen = Array.isArray(known.editHistory) ? known.editHistory.length : 0;
+                    if (Array.isArray(incomingHist) && incomingHist.length > knownLen && !isEditHistoryTempCleared(m.id)) {
+                        known.editHistory = incomingHist;
+                        const chan = channelMessageCache.get(m.id);
+                        if (chan && chan !== known) {
+                            const chanLen = Array.isArray((chan as any).editHistory) ? (chan as any).editHistory.length : 0;
+                            if (incomingHist.length > chanLen) (chan as any).editHistory = incomingHist;
+                        }
+                        invalidateLoggedCaches(m.id);
+                    }
+                } catch { }
                 remember(known);
                 continue;
             }
@@ -131,6 +149,24 @@ export function cacheChannelMessages(records: LogRecord[]) {
     for (const rec of records) {
         if (isTempHiddenMessage(rec.message?.id)) continue;
         if (rec.message?.id) channelMessageCache.set(rec.message.id, rec.message);
+        // Backfill the shadowing recentMessages entry: getCachedLoggedMessage
+        // prefers it, so a history-less snapshot taken before the DB load would
+        // otherwise hide this record's history on later revisits. No new ids are
+        // added, so the memory caps are unaffected.
+        try {
+            const hist = rec.message?.editHistory;
+            const id = rec.message?.id;
+            if (id && Array.isArray(hist) && hist.length && !isEditHistoryTempCleared(id)) {
+                const known = recentMessages.get(id);
+                if (known) {
+                    const knownLen = Array.isArray(known.editHistory) ? known.editHistory.length : 0;
+                    if (hist.length > knownLen) {
+                        known.editHistory = hist;
+                        invalidateLoggedCaches(id);
+                    }
+                }
+            }
+        } catch { }
     }
     while (channelMessageCache.size > 5000) {
         const first = channelMessageCache.keys().next().value;
