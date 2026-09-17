@@ -30,6 +30,7 @@ import {
     handleMessageDeleteBulk,
     handleMessageUpdate,
     isEditHistoryTempCleared,
+    isTempHiddenMessage,
     maybeStripAntilogNonce,
     mergedEditTimestamps as mergedEditTimestampsRef,
     mergedMessageCache as mergedMessageCacheRef,
@@ -130,6 +131,7 @@ async function processMessageFetch(response: FetchMessagesResponse) {
         const combined: LogRecord[] = [];
         for (const rec of [...visibleDeletedRecords(channelId), ...rangeRecords]) {
             if (seenExtra.has(rec.message_id)) continue;
+            if (isTempHiddenMessage(rec.message_id)) continue;
             seenExtra.add(rec.message_id);
             combined.push(rec);
         }
@@ -241,7 +243,12 @@ function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage
     });
 
     messages.push(...extra);
-    messages.sort((left, right) => toMs(String(right.timestamp)) - toMs(String(left.timestamp)));
+    // Parse each timestamp once: the old comparator re-parsed both sides on
+    // every comparison (O(n log n) Date.parse calls per channel fetch).
+    const stamped = messages.map(message => ({ message, ms: toMs(String(message.timestamp)) }));
+    stamped.sort((left, right) => right.ms - left.ms);
+    messages.length = 0;
+    for (const { message } of stamped) messages.push(message);
     try { rememberLiveMessages(messages); } catch { }
     return messages;
 }
@@ -254,6 +261,21 @@ const channelDeleteLimit = new Map<string, number>();
 const channelWebhookLimit = new Map<string, number>();
 const FETCH_RANGE_WINDOW = 200;
 let lastSelectedChannelId: string | null = null;
+
+// Mapped edit histories by source array. getEdited runs inside the message
+// render patch, and re-mapping plus re-sanitizing every embed on every render
+// of an edited message was pure repeat work. Histories are always replaced,
+// never mutated, so a stable array means stable output. WeakMap entries die
+// with their arrays — no manual invalidation needed.
+const mappedEditHistoryCache = new WeakMap<object, any[]>();
+
+function mapEditHistoryCached(editHistory: any[]) {
+    const hit = mappedEditHistoryCache.get(editHistory);
+    if (hit) return hit;
+    const mapped = editHistory.map(renderApi.mapTimestamp);
+    mappedEditHistoryCache.set(editHistory, mapped);
+    return mapped;
+}
 
 function isWebhookMessage(message: any) {
     return (message?.webhookId ?? message?.webhook_id) != null;
@@ -268,6 +290,8 @@ function visibleDeletedRecords(channelId: string): LogRecord[] {
     let webhooks = 0;
     for (let i = all.length - 1; i >= 0; i--) {
         const record = all[i];
+        // Session hides (Delete Message Temporary) stay out of chat until restart.
+        if (isTempHiddenMessage(record.message_id)) continue;
         if (isWebhookMessage(record.message)) {
             if (webhooks >= webhookLimit) continue;
             webhooks++;
@@ -788,7 +812,7 @@ export default definePlugin({
         const clearedId = (m2 as any)?.id ?? (m1 as any)?.id;
         if (typeof clearedId === "string" && isEditHistoryTempCleared(clearedId)) return [];
         if (!settings.store.showEditHistory) return m2?.editHistory;
-        const editHistory = m2?.editHistory ?? (m1?.editHistory?.length ? m1.editHistory.map(renderApi.mapTimestamp) : undefined);
+        const editHistory = m2?.editHistory ?? (m1?.editHistory?.length ? mapEditHistoryCached(m1.editHistory) : undefined);
         return editHistory;
     },
 

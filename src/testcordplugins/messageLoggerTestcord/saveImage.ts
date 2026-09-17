@@ -15,10 +15,18 @@ export function getAttachmentExt(filename: string): string {
     return /^[a-z0-9]{1,10}$/i.test(ext) ? ext.toLowerCase() : "";
 }
 
+let allowedExtCache = { raw: "", list: [] as string[] };
+
 function isAllowedExtension(ext: string): boolean {
+    // Parsed once per settings value instead of on every attachment save.
     const raw = (settings.store.attachmentFileExtensions ?? "").trim().toLowerCase();
-    if (!raw || raw === "none") return false;
-    return raw.split(",").map(e => e.trim()).filter(Boolean).includes(ext);
+    if (allowedExtCache.raw !== raw) {
+        allowedExtCache = {
+            raw,
+            list: raw && raw !== "none" ? raw.split(",").map(e => e.trim()).filter(Boolean) : []
+        };
+    }
+    return allowedExtCache.list.length > 0 && allowedExtCache.list.includes(ext);
 }
 
 let defaultDirCache: string | null = null;

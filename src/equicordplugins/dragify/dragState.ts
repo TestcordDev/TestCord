@@ -41,6 +41,8 @@ export function beginDrag(entity: DropEntity) {
     state.activeGuildId = entity.kind === "guild" ? entity.id : null;
     state.active = true;
     touchDrag();
+    // The watchdog parks itself while idle (see below); restart it for this session.
+    if (state.watchdogTimer === null && watchdogOnExpire) startDragWatchdog(watchdogOnExpire);
 }
 
 export function clearDragState() {
@@ -95,13 +97,22 @@ export function getActiveEntity() {
     return state.activeEntity;
 }
 
+let watchdogOnExpire: (() => void) | null = null;
+
 export function startDragWatchdog(onExpire: () => void) {
+    watchdogOnExpire = onExpire;
     if (state.watchdogTimer !== null) return;
     state.watchdogTimer = window.setInterval(() => {
-        if (!state.active) return;
+        if (!state.active) {
+            // Nothing to expire between drags — park instead of waking every 500ms forever.
+            stopDragWatchdog();
+            return;
+        }
         if (Date.now() - state.lastDragEventAt < 1200) return;
         clearDragState();
         onExpire();
+        // Session is over; park until the next drag instead of idling.
+        stopDragWatchdog();
     }, 500);
 }
 

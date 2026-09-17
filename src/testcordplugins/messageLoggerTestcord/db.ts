@@ -111,7 +111,12 @@ export async function getChannelLogsAfter(channelId: string, timestamp: string) 
     let cursor = await index.openCursor(range);
 
     while (cursor) {
-        if (cursor.value.status !== LogStatus.EDITED && !cursor.value.hidden) records.push(cursor.value);
+        // NOTE: the persisted `hidden` flag is intentionally not honored here.
+        // Its only writer was Delete Message (Temporary), which persisted it by
+        // mistake and made temporary hides permanent. Session hides now live in
+        // an in-memory set (see isTempHiddenMessage); ignoring the stale flag
+        // resurrects those rows without a database migration.
+        if (cursor.value.status !== LogStatus.EDITED) records.push(cursor.value);
         cursor = await cursor.continue();
     }
 
@@ -131,7 +136,7 @@ export async function getChannelEditedLogsAfter(channelId: string, timestamp: st
     const records: LogRecord[] = [];
     let cursor = await index.openCursor(range);
     while (cursor) {
-        if (cursor.value.status === LogStatus.EDITED && !cursor.value.hidden) records.push(cursor.value);
+        if (cursor.value.status === LogStatus.EDITED) records.push(cursor.value);
         cursor = await cursor.continue();
     }
     return records;
@@ -160,7 +165,7 @@ export async function getChannelLogsLimit(channelId: string, limit: number, befo
     const records: LogRecord[] = [];
     let cursor = await index.openCursor(range, "prev");
     while (cursor && records.length < limit) {
-        if (cursor.value.status !== LogStatus.EDITED && !cursor.value.hidden) records.push(cursor.value);
+        if (cursor.value.status !== LogStatus.EDITED) records.push(cursor.value);
         cursor = await cursor.continue();
     }
     return records;
@@ -244,18 +249,6 @@ export async function setLogsProtected(messageIds: string[], value: boolean) {
     }
 
     invalidateStats();
-}
-
-/** Flag a record as hidden so it never renders inline again after restarts. */
-export async function setLogHidden(messageId: string, value: boolean) {
-    const database = await getDatabase();
-    const transaction = database.transaction("messages", "readwrite");
-    const record = await transaction.store.get(messageId);
-    if (!record) return;
-
-    record.hidden = value;
-    await transaction.store.put(record);
-    await transaction.done;
 }
 
 export async function getAllLogs() {

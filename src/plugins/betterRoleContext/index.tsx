@@ -23,6 +23,21 @@ const loadRoleMembers = findByCodeLazy(".GUILD_ROLE_MEMBER_IDS(", "requestMember
 
 const DeveloperMode = getUserSettingLazy("appearance", "developerMode")!;
 
+let permCache: { guildId: string; at: number; canManageRoles: boolean; } | null = null;
+
+function canManageRoles(guild: Guild): boolean {
+    // getGuildPermissionProps recomputes from member + roles on every call, and
+    // this runs on every role menu open. Cache briefly: role menus are often
+    // opened in bursts (right-clicking down the member list), and a few
+    // seconds of staleness on the Edit Role item is harmless — Discord itself
+    // enforces the permission when the action runs.
+    const now = Date.now();
+    if (permCache && permCache.guildId === guild.id && now - permCache.at < 5000) return permCache.canManageRoles;
+    const can = PermissionStore.getGuildPermissionProps(guild).canManageRoles;
+    permCache = { guildId: guild.id, at: now, canManageRoles: can };
+    return can;
+}
+
 async function openRoleIconModal(roleId: string, roleIcon: string, roleName: string) {
     const format = settings.store.roleIconFileFormat;
     const original = `${location.protocol}//${window.GLOBAL_ENV.CDN_HOST}/role-icons/${roleId}/${roleIcon}.${format}`;
@@ -97,7 +112,7 @@ export function buildExtraRoleContextMenuItems(role: Role, guild: Guild, popoutR
     const channelId = getCurrentChannel()?.id;
 
     const before = [
-        PermissionStore.getGuildPermissionProps(guild).canManageRoles && (
+        canManageRoles(guild) && (
             <Menu.MenuItem
                 key="vc-edit-role"
                 id="vc-edit-role"
@@ -263,7 +278,7 @@ export default definePlugin({
                 );
             }
 
-            if (PermissionStore.getGuildPermissionProps(guild).canManageRoles) {
+            if (canManageRoles(guild)) {
                 children.unshift(
                     <Menu.MenuItem
                         id="vc-edit-role"

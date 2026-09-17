@@ -9,7 +9,7 @@ import { Logger } from "@utils/Logger";
 import type { Message, MessageJSON } from "@vencord/discord-types";
 import { ChannelStore, FluxDispatcher, lodash, MessageStore, SelectedChannelStore, UserGuildSettingsStore, UserStore } from "@webpack/common";
 
-import { applyBatch, clearLogs, clearUnprotectedLogs, getDatabase, getLogById, runMaintenance, setLogHidden } from "./db";
+import { applyBatch, clearLogs, clearUnprotectedLogs, getDatabase, getLogById, runMaintenance } from "./db";
 import { invalidateMessageClassCache } from "./render";
 import { ensureAttachmentSaved } from "./saveImage";
 import { settings } from "./settings";
@@ -107,6 +107,14 @@ export function rememberLiveMessages(messages: LoggedMessage[]) {
     for (const m of messages) {
         if (!m?.id) continue;
         try {
+            // Already have a snapshot for delete resolution; re-cloning every
+            // fetched message on every channel switch was pure waste.
+            // remember() refreshes recency and enforces the caps as before.
+            const known = recentMessages.get(m.id) ?? channelMessageCache.get(m.id);
+            if (known) {
+                remember(known);
+                continue;
+            }
             if ((((m as any).flags ?? 0) & EPHEMERAL) === EPHEMERAL) continue;
             let snapshot: LoggedMessage;
             try {
@@ -121,7 +129,7 @@ export function rememberLiveMessages(messages: LoggedMessage[]) {
 
 export function cacheChannelMessages(records: LogRecord[]) {
     for (const rec of records) {
-        if (rec.hidden) continue;
+        if (isTempHiddenMessage(rec.message?.id)) continue;
         if (rec.message?.id) channelMessageCache.set(rec.message.id, rec.message);
     }
     while (channelMessageCache.size > 5000) {
@@ -156,6 +164,13 @@ const tempClearedEditIds = new Set<string>();
 export function isEditHistoryTempCleared(id: string) { return tempClearedEditIds.has(id); }
 export function clearTempClearedEdits() { tempClearedEditIds.clear(); }
 
+// Session-only hides from Delete Message (Temporary). Unlike the DB `hidden`
+// flag, these never persist: after a restart the message appears back.
+const tempHiddenMessageIds = new Set<string>();
+export function isTempHiddenMessage(id: string | undefined): boolean {
+    return id != null && tempHiddenMessageIds.has(id);
+}
+
 export function clearEditHistoryCache(id: string) {
     // Keep the message in cache but with empty history so hide is per-session and survives
     // future auto-embed updates that would otherwise re-queue the DB history.
@@ -180,6 +195,7 @@ export function clearEditHistoryCache(id: string) {
 
 // ── Anti-antilog: merged from AntiAntilog ──
 const SUPPRESS_EMBEDS = 1 << 2;
+const mediaPreservedMessages = new WeakSet<object>();
 
 function isLegitimateOptimisticConfirmation(payload: MessageCreatePayload): boolean {
     const action: any = payload as any;
@@ -241,12 +257,20 @@ export function preserveRemovedMedia(payload: MessageUpdatePayload) {
         const newMsg: any = (payload as any).message;
         if (!newMsg?.id || !newMsg?.channel_id) return;
 
+        // The store patch and the flux handler both invoke this for the same
+        // update; without the marker the second run redid every embed
+        // fingerprint for nothing. Only messages that reached the old-message
+        // lookup are marked, so a first run that bailed early (no old copy
+        // yet) is still re-evaluated if the update arrives again.
+        if (mediaPreservedMessages.has(newMsg)) return;
+
         // Only act on real user edits (with edited_timestamp). Auto link previews / proxy
         // refreshes come without edited_timestamp and should not be treated as "removed".
         if (newMsg.edited_timestamp == null) return;
 
         const old: any = MessageStore.getMessage(newMsg.channel_id, newMsg.id);
         if (!old) return;
+        mediaPreservedMessages.add(newMsg);
 
         let updated: any = null;
         const ensureClone = () => {
@@ -367,6 +391,9 @@ export function preserveRemovedMedia(payload: MessageUpdatePayload) {
         }
 
         if (updated) {
+            // Mark the clone as well: the store patch replaces payload.message
+            // with it, so the flux-side call sees this object, not newMsg.
+            mediaPreservedMessages.add(updated);
             (payload as any).message = updated;
             // Ensure anti-antilogg'd attachments are saved to disk immediately so they survive CDN expiry
             if (restoredAttachments.length > 0 && settings.store.saveImages && !IS_WEB) {
@@ -394,8 +421,45 @@ function hasCurrentUserMention(message: LoggedMessage) {
     return message.mention_everyone || message.mentions.some(mention => mention.id === currentUserId);
 }
 
+function jsonChanged(next: unknown, prev: unknown): boolean {
+    // Reference- and length-first: most updates reuse the same array or only
+    // change its length (unfurl added/removed), so the full stringify — up to
+    // six of them per MESSAGE_UPDATE — is skipped in the common cases.
+    if (next === prev) return false;
+    if ((next as any)?.length !== (prev as any)?.length) return true;
+    return JSON.stringify(next) !== JSON.stringify(prev);
+}
+
 function splitIds(raw: string): string[] {
     return (raw ?? "").split(",").map(s => s.trim()).filter(Boolean);
+}
+
+interface IgnoreLists {
+    whitelist: string[];
+    blacklist: string[];
+}
+
+let ignoreListsCacheKey = "";
+let ignoreListsCache: IgnoreLists = { whitelist: [], blacklist: [] };
+
+function getIgnoreLists(): IgnoreLists {
+    // shouldIgnore runs on every message create/update/delete; re-splitting the
+    // id strings and re-reading MessageLogger's settings each time dominated it.
+    const ml = (globalThis as any).Vencord?.Settings?.plugins?.MessageLogger;
+    const key = `${settings.store.whitelistedIds}\n${settings.store.blacklistedIds}\n${ml?.ignoreUsers ?? ""}\n${ml?.ignoreChannels ?? ""}\n${ml?.ignoreGuilds ?? ""}`;
+    if (ignoreListsCacheKey !== key) {
+        ignoreListsCacheKey = key;
+        ignoreListsCache = {
+            whitelist: splitIds(settings.store.whitelistedIds),
+            blacklist: [
+                ...splitIds(settings.store.blacklistedIds),
+                ...splitIds(ml?.ignoreUsers ?? ""),
+                ...splitIds(ml?.ignoreChannels ?? ""),
+                ...splitIds(ml?.ignoreGuilds ?? "")
+            ]
+        };
+    }
+    return ignoreListsCache;
 }
 
 export function shouldIgnore({ channelId, authorId, guildId, flags, bot, ghostPinged, webhookId }: {
@@ -412,13 +476,7 @@ export function shouldIgnore({ channelId, authorId, guildId, flags, bot, ghostPi
     if (channelId && guildId == null)
         guildId = ChannelStore.getChannel(channelId)?.guild_id;
 
-    const whitelist = splitIds(settings.store.whitelistedIds);
-    const blacklist = [
-        ...splitIds(settings.store.blacklistedIds),
-        ...splitIds((globalThis as any).Vencord?.Settings?.plugins?.MessageLogger?.ignoreUsers ?? ""),
-        ...splitIds((globalThis as any).Vencord?.Settings?.plugins?.MessageLogger?.ignoreChannels ?? ""),
-        ...splitIds((globalThis as any).Vencord?.Settings?.plugins?.MessageLogger?.ignoreGuilds ?? "")
-    ];
+    const { whitelist, blacklist } = getIgnoreLists();
 
     const isDm = channelId != null && ChannelStore.getChannel(channelId)?.isDM?.();
     if (settings.store.alwaysLogDirectMessages && isDm && !blacklist.includes(authorId!) && !blacklist.includes(channelId!)) return false;
@@ -433,7 +491,7 @@ export function shouldIgnore({ channelId, authorId, guildId, flags, bot, ghostPi
     if (blacklist.some(id => id != null && ids.includes(id))) return true;
     if (settings.store.alwaysLogCurrentChannel && SelectedChannelStore.getChannelId() === channelId) return false;
     if (!settings.store.cacheMessagesFromServers && guildId != null && !isDm
-        && !splitIds(settings.store.whitelistedIds).some(id => id != null && ids.includes(id))) return true;
+        && !whitelist.some(id => id != null && ids.includes(id))) return true;
     if (guildId != null && settings.store.ignoreMutedGuilds && UserGuildSettingsStore.isMuted(guildId)) return true;
     if (channelId != null && guildId != null && settings.store.ignoreMutedCategories && UserGuildSettingsStore.isCategoryMuted(guildId, channelId)) return true;
     if (channelId != null && guildId != null && settings.store.ignoreMutedChannels && UserGuildSettingsStore.isChannelMuted(guildId, channelId)) return true;
@@ -528,7 +586,7 @@ function isCacheGated(payload: MessageCreatePayload) {
         if (name.includes("pending") || name.includes("application") || name.includes("apply")) return false;
     }
 
-    const set = splitIds(settings.store.whitelistedIds);
+    const set = getIgnoreLists().whitelist;
     if (set.length === 0) return true;
     return !(set.includes(payload.channelId) || set.includes(payload.message.author?.id) || set.includes(payload.guildId!));
 }
@@ -540,6 +598,20 @@ export function handleMessageCreate(payload: MessageCreatePayload) {
     if (!message?.id || !message?.channel_id) return;
     maybeStripAntilogNonce(payload);
     if (isCacheGated(payload)) return;
+
+    // Cheap pre-check on the raw payload: snapshotMessage's cloneDeep below is
+    // the most expensive per-message cost, so skip it for traffic the full
+    // check would drop anyway. Same function, same result — the snapshot only
+    // fills in both snake_case/camelCase variants, which are all read here.
+    // The full check after the snapshot stays authoritative for kept messages.
+    if (shouldIgnore({
+        channelId: message.channel_id ?? message.channelId,
+        authorId: message.author?.id,
+        guildId: payload.guildId ?? message.guild_id ?? message.guildId,
+        flags: message.flags,
+        bot: message.bot || message.author?.bot,
+        webhookId: message.webhookId ?? message.webhook_id
+    })) return;
 
     const snapshot = snapshotMessage(payload.message);
     snapshot.guildId = payload.guildId;
@@ -613,9 +685,9 @@ export async function handleMessageUpdate(payload: MessageUpdatePayload) {
     }
     if (!previous) return;
 
-    const embedsChanged = hasEmbeds && JSON.stringify((payload.message as any).embeds) !== JSON.stringify(previous.embeds);
-    const attachmentsChanged = hasAttachments && JSON.stringify((payload.message as any).attachments) !== JSON.stringify(previous.attachments);
-    const componentsChanged = hasComponents && JSON.stringify((payload.message as any).components) !== JSON.stringify((previous as any).components);
+    const embedsChanged = hasEmbeds && jsonChanged((payload.message as any).embeds, (previous as any).embeds);
+    const attachmentsChanged = hasAttachments && jsonChanged((payload.message as any).attachments, (previous as any).attachments);
+    const componentsChanged = hasComponents && jsonChanged((payload.message as any).components, (previous as any).components);
     const contentChanged = hasContent && previous.content !== payload.message.content;
     const hasEditedTimestamp = (payload.message as any).edited_timestamp != null;
 
@@ -828,8 +900,10 @@ export async function deleteLog(id: string) {
 
 /**
  * Hide a logged message locally (dispatches an mlDeleted delete so chat drops it).
- * Temporary keeps the record in the database but flags it hidden so it never
- * renders again; Forever deletes the record outright.
+ * Temporary hides for this session only: the DB record is left untouched so the
+ * message appears back after a restart, while the in-memory set below keeps it
+ * out of chat until then (channel switches re-read the DB). Forever deletes
+ * the record outright.
  */
 export async function localRemoveLoggedMessage(id: string, permanent: boolean, fallbackChannelId?: string): Promise<string | null> {
     const cached = recentMessages.get(id) ?? channelMessageCache.get(id);
@@ -838,22 +912,15 @@ export async function localRemoveLoggedMessage(id: string, permanent: boolean, f
     recentMessages.delete(id);
     channelMessageCache.delete(id);
     invalidateLoggedCaches(id);
+    tempHiddenMessageIds.delete(id);
 
     if (permanent) {
         await deleteLog(id);
     } else {
-        // Temp: keep in DB but hide. Ensure any pending write is flushed first so setLogHidden can find it.
+        // A still-pending write flushes normally (unhidden) so the restart
+        // resurrection works; a queued log-delete for this id is cancelled.
         pendingDeletes.delete(id);
-        const pending = pendingWrites.get(id);
-        if (pending) {
-            // Mark pending record as hidden so the upcoming flush persists it correctly
-            pending.hidden = true;
-            pendingWrites.set(id, pending);
-        }
-        await flushQueuedLogs();
-        await setLogHidden(id, true);
-        // If the record was still pending (not yet in DB), the flush above persisted it as hidden.
-        // setLogHidden will also mark it hidden if it already existed.
+        tempHiddenMessageIds.add(id);
     }
 
     if (channelId) {
@@ -904,10 +971,7 @@ async function primeLoggedCache() {
                 const { getChannelLogsLimit } = await import("./db");
                 const records = await getChannelLogsLimit(currentId, 30);
                 if (records.length) {
-                    for (const rec of records) {
-                        if (rec.hidden) continue;
-                        channelMessageCache.set(rec.message.id, rec.message);
-                    }
+                    cacheChannelMessages(records);
                     const store = (MessageStore as any).getMessages?.(currentId);
                     if (store?.hasFetched) {
                         const { MessageActions } = await import("@webpack/common");
