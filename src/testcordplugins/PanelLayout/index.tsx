@@ -13,7 +13,7 @@ import { Card } from "@components/Card";
 import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
-import { ScreenshareIcon, VideoIcon } from "@components/Icons";
+import { AppsIcon, ScreenshareIcon, VideoIcon } from "@components/Icons";
 import { Paragraph } from "@components/Paragraph";
 import { getTestcordIconColor, ICON_COLOR_FALLBACK } from "@testcordplugins/TestcordHelper/iconColors";
 import { TestcordDevs } from "@utils/constants";
@@ -53,6 +53,7 @@ import {
     stopModuleManager,
     subscribeModules,
 } from "./modules";
+import { SettingsGearIcon } from "./modules/icons";
 
 migratePluginSettings("deraculpanellayout", "PanelLayout");
 migratePluginSettings("deracul-panel-layout", "PanelLayout");
@@ -117,7 +118,7 @@ export const settings = definePluginSettings({
         ],
         onChange: () => apply()
     },
-    panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#0e1852", onChange: () => apply() },
+    panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#242429", onChange: () => apply() },
     panelBackgroundOpacity: { type: OptionType.SLIDER, description: "Panel background color opacity", default: 100, markers: makeRange(0, 100, 10), stickToMarkers: false, onChange: () => apply() },
     glowColor: { type: OptionType.STRING, description: "Glow hover color", default: "#ffffff", onChange: () => apply() },
     forceNativeButtonColor: { type: OptionType.BOOLEAN, default: false, description: "Force the icon color on Discord's native buttons (Mute, Deafen, Settings) even when no custom icon color is set", onChange: () => apply() },
@@ -131,13 +132,7 @@ export const settings = definePluginSettings({
     hideDisconnect: { type: OptionType.BOOLEAN, default: false, description: "Hide the disconnect button", onChange: () => apply() },
     hideVoiceStatus: { type: OptionType.BOOLEAN, default: false, description: "Hide the 'Voice Connected' status text and channel name", onChange: () => apply() },
     hidePingIcon: { type: OptionType.BOOLEAN, default: false, description: "Hide the ping/connection quality icon", onChange: () => apply() },
-    hideMute: { type: OptionType.BOOLEAN, default: false, description: "Hide Mute button", onChange: () => apply() },
-    hideDeafen: { type: OptionType.BOOLEAN, default: false, description: "Hide Deafen button", onChange: () => apply() },
-    hideSettings: { type: OptionType.BOOLEAN, default: false, description: "Hide User Settings button", onChange: () => apply() },
     hideUserPanelButton: { type: OptionType.BOOLEAN, default: false, description: "Hide the user panel button from the user area", onChange: () => apply() },
-    hideCamera: { type: OptionType.BOOLEAN, default: false, description: "Hide camera button in call controls", onChange: () => apply() },
-    hideScreenShare: { type: OptionType.BOOLEAN, default: false, description: "Hide screen share button in call controls", onChange: () => apply() },
-    hideActivity: { type: OptionType.BOOLEAN, default: false, description: "Hide activity button in call controls", onChange: () => apply() },
     hideLine: { type: OptionType.BOOLEAN, default: true, description: "Hide the line between user and buttons", onChange: () => apply() },
     fixProfileNameplate: { type: OptionType.BOOLEAN, default: false, description: "Fixes the rounding of the profile nameplate", onChange: () => apply() },
 });
@@ -148,11 +143,17 @@ const NATIVE_BUTTON_LABELS = new Set([
     "Mute", "Deafen", "User Settings", "Input Options", "Output Options",
 ]);
 
+const ScreenOffIcon = getDiscordIcon(["ScreenArrowIcon"], ScreenshareIcon);
+const ScreenIcon = getDiscordIcon(["ScreenXIcon"], ScreenshareIcon);
+const SoundboardIcon = getDiscordIcon(["SoundboardIcon"], SoundboardIconFallback);
+const CameraOffIcon = getDiscordIcon(["VideoSlashIcon"], VideoIcon);
+const ActivityIcon = getDiscordIcon(["AppsIcon", "ActivitiesIcon"], AppsIcon);
+const CameraIcon = getDiscordIcon(["VideoIcon"], VideoIcon);
 const DeafenOffIcon = getDiscordIcon(["HeadphonesIcon"]);
 const DeafenIcon = getDiscordIcon(["HeadphonesSlashIcon"]);
 const MuteOffIcon = getDiscordIcon(["MicrophoneIcon"]);
 const MuteIcon = getDiscordIcon(["MicrophoneSlashIcon"]);
-const SettingsIcon = getDiscordIcon(["SettingsIcon"]);
+const SettingsIcon = getDiscordIcon(["SettingsIcon"], SettingsGearIcon);
 
 interface ButtonConfig {
     label: string;
@@ -238,7 +239,11 @@ function cssVal(val: string): string {
 }
 
 function getBtnSelector(canonical: string): string {
-    return `html body div${S.panelContainer} div:is(${S.panelButtons}, ${S.callControls}) > [data-deracul-label=${cssVal(canonical)}]`;
+    const label = cssVal(canonical);
+    return [
+        `html body div${S.panelContainer} [data-deracul-label=${label}]`,
+        `html body ${S.callControls} [data-deracul-label=${label}]`,
+    ].join(", ");
 }
 
 // ─── Global Keybind Logic ─────────────────────────────────────────────────────
@@ -466,8 +471,8 @@ function buildCSS(): string {
     const lines: string[] = [];
 
     const defaultBtn = `, ${S.callControls} ${S.callButton}[data-deracul-label="`;
-    const baseBtnHover =`${S.panelButtons} ${S.panelButton}:hover, ${S.previewButtonContainer} ${S.previewButton}:hover${callButtonStylingCamera === true ? `${defaultBtn}Camera"]:hover` : ""}${callButtonStylingScreenShare === true ? `${defaultBtn}Screen Share"]:hover` : ""}${callButtonStylingActivity === true ? `${defaultBtn}Activity"]:hover` : ""}${callButtonStylingSoundboard === true ? `, ${S.callControls} [data-deracul-label="Soundboard"] ${S.callButton}[type="button"]:hover` : ""}`;
-    const baseBtn = `${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton}${callButtonStylingCamera === true ? `${defaultBtn}Camera"]` : ""}${callButtonStylingScreenShare === true ? `${defaultBtn}Screen Share"]` : ""}${callButtonStylingActivity === true ? `${defaultBtn}Activity"]` : ""}${callButtonStylingSoundboard === true ? `, ${S.callControls} [data-deracul-label="Soundboard"] ${S.callButton}[type="button"]` : ""}`;
+    const baseBtnHover =`${S.panelButtons} ${S.panelButton}:hover, ${S.previewButtonContainer} ${S.previewButton}:not(absolutelyNothing${!callButtonStylingCamera ? ", [data-deracul-label=\"Camera\"]" : ""}${!callButtonStylingScreenShare ? ", [data-deracul-label=\"Screen Share\"]" : ""}${!callButtonStylingActivity ? ", [data-deracul-label=\"Activity\"]" : ""}${!callButtonStylingSoundboard ? ", [data-deracul-label=\"Soundboard\"]" : ""}):hover${callButtonStylingCamera === true ? `${defaultBtn}Camera"]:hover` : ""}${callButtonStylingScreenShare === true ? `${defaultBtn}Screen Share"]:hover` : ""}${callButtonStylingActivity === true ? `${defaultBtn}Activity"]:hover` : ""}${callButtonStylingSoundboard === true ? `, ${S.callControls} [data-deracul-label="Soundboard"] ${S.callButton}[type="button"]:hover` : ""}`;
+    const baseBtn = `${S.panelButtons} ${S.panelButton}, ${S.previewButtonContainer} ${S.previewButton}:not(absolutelyNothing${!callButtonStylingCamera ? ", [data-deracul-label=\"Camera\"]" : ""}${!callButtonStylingScreenShare ? ", [data-deracul-label=\"Screen Share\"]" : ""}${!callButtonStylingActivity ? ", [data-deracul-label=\"Activity\"]" : ""}${!callButtonStylingSoundboard ? ", [data-deracul-label=\"Soundboard\"]" : ""})${callButtonStylingCamera === true ? `${defaultBtn}Camera"]` : ""}${callButtonStylingScreenShare === true ? `${defaultBtn}Screen Share"]` : ""}${callButtonStylingActivity === true ? `${defaultBtn}Activity"]` : ""}${callButtonStylingSoundboard === true ? `, ${S.callControls} [data-deracul-label="Soundboard"] ${S.callButton}[type="button"]` : ""}`;
 
     lines.push(`
         .SubModalButton {
@@ -696,6 +701,16 @@ function buildCSS(): string {
             border-radius: 0;
         }
 
+        .call-button-style:not(.background-color-green) {
+            border: 1px solid var(--border-muted) !important;
+            background: var(--control-secondary-background-default) !important;
+            color: var(--control-secondary-text-default) !important;
+        }
+
+        .call-button-style:not(.background-color-green):hover {
+            background: var(--control-secondary-background-hover) !important;
+        }
+
         .background-color-green {
             background-color: var(--opacity-green-12) !important;
         }
@@ -739,7 +754,7 @@ function buildCSS(): string {
                 }
                 ${S.panelButtons} { display: contents !important; }
                 ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) {
-                    order: 10000 !important; display: flex !important; justify-content: center !important; align-items: center !important; flex: ${flexSize} !important;
+                    order: 10000 !important; !important; justify-content: center !important; align-items: center !important; flex: ${flexSize} !important;
                 }
                 ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) > button {
                     width: 100% !important; display: flex !important; justify-content: center !important; align-items: center !important;
@@ -865,12 +880,6 @@ function buildCSS(): string {
         lines.push(`${S.callControls} ${S.callButton}[type="button"] { min-width: unset !important; padding: 4px 8px !important; flex: unset !important; }`);
         lines.push(`${S.callControls} ${S.callButton}[type="button"] .lottieIcon__5eb9b, ${S.callControls} ${S.callButton} svg { width: 18px !important; height: 18px !important; }`);
     }
-    if (st.hideMute) lines.push(`${getBtnSelector("Mute")} { display: none !important; }`);
-    if (st.hideDeafen) lines.push(`${getBtnSelector("Deafen")} { display: none !important; }`);
-    if (st.hideSettings) lines.push(`${getBtnSelector("User Settings")} { display: none !important; }`);
-    if (st.hideCamera) lines.push(`${getBtnSelector("Camera")} { display: none !important; }`);
-    if (st.hideScreenShare) lines.push(`${getBtnSelector("Screen Share")} { display: none !important; }`);
-    if (st.hideActivity) lines.push(`${getBtnSelector("Activity")} { display: none !important; }`);
     if (st.hideUserPanelButton) lines.push(`${getBtnSelector("Panel Layout")} { display: none !important; }`);
 
     if (st.lockButtonPosition) {
@@ -1029,6 +1038,7 @@ function buildCustomCSS(): string {
                 ${S.callControls} ${S.callButton}[data-deracul-label="${label}"][aria-pressed="false"],
                 ${S.panelButtons} ${S.panelButton}[aria-label="${label}"][aria-checked="false"]:hover,
                 ${S.panelButtons} ${S.panelButton}[aria-label="${label}"][aria-checked="false"],
+                ${S.previewButtonOff}[data-deracul-label="${label}"]:hover,
                 ${S.previewButtonOff}[data-deracul-label="${label}"] {
                     --custom-nameplate-neutral-hovered: ${finalColorHovered} !important;
                     --custom-nameplate-neutral: ${finalColor} !important;
@@ -1554,13 +1564,240 @@ function ButtonsDragTab() {
                     <Card>
                         <div style={{
                             display: "flex",
+                            justifyContent: "space-between",
                         }}>
                             <div className="deracul-scrollbar" style={{
                                 display: "flex",
                                 flexDirection: "row",
                                 gap: "12px",
                                 overflowX: "auto",
-                                flex: 1,
+                                minWidth: 0,
+                                alignItems: "center",
+                                padding: "4px 8px",
+                            }}>
+                                {items.map((item, index) => {
+                                    const cfg = getBtnCfg(item.id);
+                                    const isDragging = activeDragIndex === index;
+                                    const isOver = dragOverIndex === index && activeDragIndex !== index;
+                                    const canonical = getCanonicalLabel(item.label);
+                                    const isActivity = canonical === "Activity";
+                                    const isSoundboard = canonical === "Soundboard";
+                                    const isCamera = canonical === "Camera";
+                                    const isScreenShare = canonical === "Screen Share";
+                                    const isMute = canonical === "Mute";
+                                    const isDeafen = canonical === "Deafen";
+                                    const isUserSettings = canonical === "User Settings";
+                                    const isPanelLayout = canonical === "Panel Layout" || item.id === "Panel Layout" || item.label === "Panel Layout";
+
+                                    if (isCamera || isScreenShare || isActivity || isSoundboard || isMute || isDeafen || isUserSettings) { return; }
+
+                                    return (
+                                        <div
+                                            key={item.id}
+                                            draggable
+                                            onDragStart={e => handleDragStart(e, index)}
+                                            onDragOver={e => handleDragOver(e, index)}
+                                            onDragLeave={e => {
+                                                if (!e.currentTarget.contains(e.relatedTarget as Node) && dragOverIndex === index) {
+                                                    setDragOverIndex(null);
+                                                }
+                                            }}
+                                            onDrop={e => handleDrop(e, index)}
+                                            onDragEnd={handleDragEnd}
+                                            style={{
+                                                position: "relative",
+                                                display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
+                                                cursor: isDragging ? "grabbing" : "grab",
+                                                opacity: isDragging ? 0.35 : 1,
+                                                transform: isDragging ? "scale(0.94)" : "scale(1)",
+                                                transition: "opacity 0.1s ease, transform 0.1s ease",
+                                                userSelect: "none",
+                                            }}
+                                            title={item.label}
+                                        >
+                                            {isOver && (
+                                                <div
+                                                    style={{
+                                                        position: "absolute",
+                                                        top: "0px",
+                                                        bottom: "0px",
+                                                        left: dropPosition === "before" ? "-7px" : undefined,
+                                                        right: dropPosition === "after" ? "-7px" : undefined,
+                                                        width: "2px",
+                                                        borderRadius: "2px",
+                                                        backgroundColor: "var(--brand-experiment, var(--background-brand))",
+                                                        zIndex: 10,
+                                                        pointerEvents: "none",
+                                                    }}
+                                                />
+                                            )}
+                                            <div
+                                                className="deracul-btn-preview"
+                                                dangerouslySetInnerHTML={{ __html: item.iconHTML }}
+                                                style={{
+                                                    width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                    display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                    boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                }}
+                                            />
+                                            {!isPanelLayout ? (
+                                                <MiniToggle
+                                                    value={!cfg.hidden}
+                                                    onChange={v => {
+                                                        setBtnCfg(item.id, { hidden: !v });
+                                                        apply(); forceUpdate();
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div style={{ width: "26px", height: "14px" }} />
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div
+                                style={{
+                                    width: "2px",
+                                    borderRadius: "2px",
+                                    backgroundColor: "var(--border-subtle)",
+                                    marginLeft: "4px",
+                                    marginRight: "4px",
+                                }}
+                            />
+
+                            <div className="deracul-scrollbar" style={{
+                                display: "flex",
+                                flexDirection: "row",
+                                gap: "12px",
+                                overflowX: "auto",
+                                minWidth: 0,
+                                alignItems: "center",
+                                padding: "4px 8px",
+                            }}>
+                                {items.map((item, index) => {
+                                    const cfg = getBtnCfg(item.id);
+                                    const isDragging = activeDragIndex === index;
+                                    const isOver = dragOverIndex === index && activeDragIndex !== index;
+                                    const canonical = getCanonicalLabel(item.label);
+                                    const isActivity = canonical === "Activity";
+                                    const isSoundboard = canonical === "Soundboard";
+                                    const isCamera = canonical === "Camera";
+                                    const isScreenShare = canonical === "Screen Share";
+
+                                    if (!isCamera && !isScreenShare && !isActivity && !isSoundboard) { return; }
+
+                                    return (
+                                        <div
+                                            key={item.id}
+                                            draggable
+                                            onDragStart={e => handleDragStart(e, index)}
+                                            onDragOver={e => handleDragOver(e, index)}
+                                            onDragLeave={e => {
+                                                if (!e.currentTarget.contains(e.relatedTarget as Node) && dragOverIndex === index) {
+                                                    setDragOverIndex(null);
+                                                }
+                                            }}
+                                            onDrop={e => handleDrop(e, index)}
+                                            onDragEnd={handleDragEnd}
+                                            style={{
+                                                position: "relative",
+                                                display: "flex", flexDirection: "column", alignItems: "center", gap: "10px",
+                                                cursor: isDragging ? "grabbing" : "grab",
+                                                opacity: isDragging ? 0.35 : 1,
+                                                transform: isDragging ? "scale(0.94)" : "scale(1)",
+                                                transition: "opacity 0.1s ease, transform 0.1s ease",
+                                                userSelect: "none",
+                                            }}
+                                            title={item.label}
+                                        >
+                                            {isOver && (
+                                                <div
+                                                    style={{
+                                                        position: "absolute",
+                                                        top: "0px",
+                                                        bottom: "0px",
+                                                        left: dropPosition === "before" ? "-7px" : undefined,
+                                                        right: dropPosition === "after" ? "-7px" : undefined,
+                                                        width: "2px",
+                                                        borderRadius: "2px",
+                                                        backgroundColor: "var(--brand-experiment, var(--background-brand))",
+                                                        zIndex: 10,
+                                                        pointerEvents: "none",
+                                                    }}
+                                                />
+                                            )}
+                                            {isActivity && (
+                                                <div
+                                                    className="deracul-btn-preview"
+                                                    style={{
+                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                }}>
+                                                    <ActivityIcon width={20} height={20} size="smmd" />
+                                                </div>
+                                            )}
+                                            {isSoundboard && (
+                                                <div
+                                                    className="deracul-btn-preview"
+                                                    style={{
+                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                }}>
+                                                    <SoundboardIcon width={20} height={20} size="smmd" />
+                                                </div>
+                                            )}
+                                            {isScreenShare && (
+                                                <div
+                                                    className="deracul-btn-preview"
+                                                    style={{
+                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                }}>
+                                                    <ScreenOffIcon width={20} height={20} size="smmd" />
+                                                </div>
+                                            )}
+                                            {isCamera && (
+                                                <div
+                                                    className="deracul-btn-preview"
+                                                    style={{
+                                                        width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
+                                                        display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
+                                                        boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
+                                                }}>
+                                                    <CameraIcon width={20} height={20} size="smmd" />
+                                                </div>
+                                            )}
+                                            <MiniToggle
+                                                value={!cfg.hidden}
+                                                onChange={v => {
+                                                    setBtnCfg(item.id, { hidden: !v });
+                                                    apply(); forceUpdate();
+                                                }}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div
+                                style={{
+                                    width: "2px",
+                                    borderRadius: "2px",
+                                    backgroundColor: "var(--border-subtle)",
+                                    marginLeft: "4px",
+                                    marginRight: "4px",
+                                }}
+                            />
+
+                            <div className="deracul-scrollbar" style={{
+                                display: "flex",
+                                flexDirection: "row",
+                                gap: "12px",
+                                overflowX: "auto",
                                 minWidth: 0,
                                 alignItems: "center",
                                 padding: "4px 8px",
@@ -1572,7 +1809,9 @@ function ButtonsDragTab() {
                                     const canonical = getCanonicalLabel(item.label);
                                     const isMute = canonical === "Mute";
                                     const isDeafen = canonical === "Deafen";
-                                    const isPanelLayout = canonical === "Panel Layout" || item.id === "Panel Layout" || item.label === "Panel Layout";
+                                    const isUserSettings = canonical === "User Settings";
+
+                                    if (!isMute && !isDeafen && !isUserSettings) { return; }
 
                                     return (
                                         <div
@@ -1622,10 +1861,9 @@ function ButtonsDragTab() {
                                                         display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
                                                         boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
                                                 }}>
-                                                    <MuteOffIcon width={20} height={20} size="sm" />
+                                                    <MuteOffIcon width={20} height={20} size="smmd" />
                                                 </div>
                                             )}
-
                                             {isDeafen && (
                                                 <div
                                                     className="deracul-btn-preview"
@@ -1634,32 +1872,27 @@ function ButtonsDragTab() {
                                                         display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
                                                         boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
                                                 }}>
-                                                    <DeafenOffIcon width={20} height={20} size="sm" />
+                                                    <DeafenOffIcon width={20} height={20} size="smmd" />
                                                 </div>
                                             )}
-
-                                            {!isMute && !isDeafen && (
+                                            {isUserSettings && (
                                                 <div
                                                     className="deracul-btn-preview"
-                                                    dangerouslySetInnerHTML={{ __html: item.iconHTML }}
                                                     style={{
                                                         width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "var(--background-tertiary, var(--background-surface-highest))",
                                                         display: "flex", alignItems: "center", justifyContent: "center", color: item.id === "Game Activity" ? "var(--status-danger)" : "var(--text-default)",
                                                         boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
-                                                    }} />
+                                                }}>
+                                                    <SettingsIcon width={20} height={20} size="smmd" />
+                                                </div>
                                             )}
-
-                                            {!isPanelLayout ? (
-                                                <MiniToggle
-                                                    value={!cfg.hidden}
-                                                    onChange={v => {
-                                                        setBtnCfg(item.id, { hidden: !v });
-                                                        apply(); forceUpdate();
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div style={{ width: "26px", height: "14px" }} />
-                                            )}
+                                            <MiniToggle
+                                                value={!cfg.hidden}
+                                                onChange={v => {
+                                                    setBtnCfg(item.id, { hidden: !v });
+                                                    apply(); forceUpdate();
+                                                }}
+                                            />
                                         </div>
                                     );
                                 })}
@@ -1690,7 +1923,7 @@ function ButtonsDragTab() {
                                     onMouseEnter={e => e.currentTarget.style.color = "var(--interactive-active)"}
                                     onMouseLeave={e => e.currentTarget.style.color = "var(--interactive-normal)"}
                                 >
-                                    <SettingsIcon width={20} height={20} size="sm" />
+                                    <SettingsIcon width={20} height={20} size="smmd" />
                                 </button>
                             </div>
                         </div>
@@ -1709,6 +1942,10 @@ function ButtonsDragTab() {
                             const canonical = getCanonicalLabel(item.label);
                             const isMute = canonical === "Mute";
                             const isDeafen = canonical === "Deafen";
+                            const isActivity = canonical === "Activity";
+                            const isSoundboard = canonical === "Soundboard";
+                            const isCamera = canonical === "Camera";
+                            const isScreenShare = canonical === "Screen Share";
                             const listening = listeningId === item.id;
 
                             return (
@@ -1719,15 +1956,25 @@ function ButtonsDragTab() {
                                         gap: "12px",
                                     }}>
                                         <BaseText size="sm" color="text-muted" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                            {isActivity && (
+                                                <ActivityIcon width={20} height={20} size="smmd" />
+                                            )}
+                                            {isSoundboard && (
+                                                <SoundboardIcon width={20} height={20} size="smmd" />
+                                            )}
+                                            {isScreenShare && (
+                                                <ScreenOffIcon width={20} height={20} size="smmd" />
+                                            )}
+                                            {isCamera && (
+                                                <CameraOffIcon width={20} height={20} size="smmd" />
+                                            )}
                                             {isMute && (
-                                                <MuteOffIcon width={20} height={20} size="sm" />
+                                                <MuteOffIcon width={20} height={20} size="smmd" />
                                             )}
-
                                             {isDeafen && (
-                                                <DeafenOffIcon width={20} height={20} size="sm" />
+                                                <DeafenOffIcon width={20} height={20} size="smmd" />
                                             )}
-
-                                            {!isMute && !isDeafen && (
+                                            {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && (
                                                 <SvgPreview icon={item.iconHTML} enabled={true} />
                                             )}
 
@@ -2112,6 +2359,10 @@ function CustomizationRowButton({
     const canonical = getCanonicalLabel(item.label);
     const isMute = canonical === "Mute";
     const isDeafen = canonical === "Deafen";
+    const isActivity = canonical === "Activity";
+    const isSoundboard = canonical === "Soundboard";
+    const isCamera = canonical === "Camera";
+    const isScreenShare = canonical === "Screen Share";
 
     const hasColorfulInactive = Boolean(cfg.colorfulInActiveButton);
     const baseColor = cfg.colorOff || "#000000";
@@ -2141,15 +2392,25 @@ function CustomizationRowButton({
                     borderRadius: previewRadius,
                 }}
             >
+                {isActivity && (
+                    <ActivityIcon width={20} height={20} size="smmd" />
+                )}
+                {isSoundboard && (
+                    <SoundboardIcon width={20} height={20} size="smmd" />
+                )}
+                {isScreenShare && (
+                    <ScreenOffIcon width={20} height={20} size="smmd" />
+                )}
+                {isCamera && (
+                    <CameraIcon width={20} height={20} size="smmd" />
+                )}
                 {isMute && (
-                    <MuteOffIcon width={20} height={20} size="sm" />
+                    <MuteOffIcon width={20} height={20} size="smmd" />
                 )}
-
                 {isDeafen && (
-                    <DeafenOffIcon width={20} height={20} size="sm" />
+                    <DeafenOffIcon width={20} height={20} size="smmd" />
                 )}
-
-                {!isMute && !isDeafen && (
+                {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && (
                     <SvgPreview icon={item.iconHTML} enabled={true} />
                 )}
             </div>
@@ -2160,7 +2421,7 @@ function CustomizationRowButton({
                     borderRadius: previewRadius,
                 }}
             >
-                <SettingsIcon width={20} height={20} size="sm" />
+                <SettingsIcon width={20} height={20} size="smmd" />
             </div>
         </div>
     );
@@ -2335,6 +2596,7 @@ function SettingModalItem({
     resetDefaults: (arg: { id: any; }) => void;
     forceUpdate: () => void;
 }) {
+    const { callButtonStylingCamera, callButtonStylingScreenShare, callButtonStylingActivity, callButtonStylingSoundboard } = settings.store;
     const cfg = getBtnCfg(item.id);
     const canonical = getCanonicalLabel(item.label);
     const isUserSettings = canonical === "User Settings";
@@ -2345,12 +2607,8 @@ function SettingModalItem({
     const isScreenShare = canonical === "Screen Share";
     const isMute = canonical === "Mute";
     const isDeafen = canonical === "Deafen";
-    const ScreenOffIcon = getDiscordIcon(["ScreenArrowIcon", "ScreenshareIcon", "ScreenIcon"], ScreenshareIcon);
-    const ScreenIcon = getDiscordIcon(["ScreenXIcon", "ScreenshareIconx", "ScreenIconx"], ScreenshareIcon);
-    const SoundboardIcon = getDiscordIcon(["SoundboardIcon"], SoundboardIconFallback);
-    const CameraOffIcon = getDiscordIcon(["VideoSlashIcon", "CameraSlashIcon"], VideoIcon);
-    const CameraIcon = getDiscordIcon(["VideoIcon", "CameraIcon"], VideoIcon);
     const defaultPreviewOnClasses = "buttonPreview previewButtonOn button__201d5 lookBlank__201d5";
+    const defaultPreviewOffClasses = "buttonPreview previewButtonOff";
 
     const [targetSize, setTargetSize] = React.useState(() => {
         const size = `${settings.store.buttonContainerSize ?? 36}px`;
@@ -2564,15 +2822,16 @@ function SettingModalItem({
                             <Flex flexDirection="column" alignItems="center" gap={8}>
                                 <BaseText size="xs" color="text-muted">OFF State</BaseText>
                                 <button
-                                    className={!isMute && !isDeafen && !isCamera && !isScreenShare ? "buttonPreview previewButtonOff plateMuted__67645" : "buttonPreview previewButtonOff"}
+                                    className={!isMute && !isDeafen && !isCamera && !isScreenShare ? `${defaultPreviewOffClasses} plateMuted__67645` : ((isCamera && !callButtonStylingCamera) || (isScreenShare && !callButtonStylingScreenShare) || (isSoundboard && !callButtonStylingSoundboard) || (isActivity && !callButtonStylingActivity)) ? `${defaultPreviewOffClasses} call-button-style` : defaultPreviewOffClasses}
                                     data-deracul-label={cfg.label}
                                     style={{
                                         "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
                                         "--custom-nameplate-neutral": customNameplateNeutral,
                                         width: targetSize.width,
                                         height: targetSize.height,
-                                        background: "transparent",
-                                        color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
+                                        borderRadius: "8px",
+                                        background:  "transparent",
+                                        color:  "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
                                         display: "flex",
                                         alignItems: "center",
                                         justifyContent: "center",
@@ -2580,19 +2839,25 @@ function SettingModalItem({
                                         transition: "none"
                                     } as React.CSSProperties}
                                 >
+                                    {isActivity && (
+                                        <ActivityIcon width={20} height={20} size="smmd" />
+                                    )}
+                                    {isSoundboard && (
+                                        <SoundboardIcon width={20} height={20} size="smmd" />
+                                    )}
                                     {isScreenShare && (
-                                        <ScreenOffIcon width={20} height={20} size="sm" />
+                                        <ScreenOffIcon width={20} height={20} size="smmd" />
                                     )}
                                     {isCamera && (
-                                        <CameraOffIcon width={20} height={20} size="sm" />
+                                        <CameraOffIcon width={20} height={20} size="smmd" />
                                     )}
                                     {isMute && (
-                                        <MuteOffIcon width={20} height={20} size="sm" />
+                                        <MuteOffIcon width={20} height={20} size="smmd" />
                                     )}
                                     {isDeafen && (
-                                        <DeafenOffIcon width={20} height={20} size="sm" />
+                                        <DeafenOffIcon width={20} height={20} size="smmd" />
                                     )}
-                                    {!isMute && !isDeafen && !isCamera && !isScreenShare && (
+                                    {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && (
                                         <SvgPreview icon={icon} enabled={false} />
                                     )}
                                 </button>
@@ -2604,14 +2869,15 @@ function SettingModalItem({
                                 <BaseText size="xs" color="text-muted">ON State</BaseText>
                             )}
                             <button
-                                className={(isMute || isDeafen) ? `${defaultPreviewOnClasses} plateMuted__67645` : (isScreenShare || isCamera) ? `${defaultPreviewOnClasses} background-color-green` : defaultPreviewOnClasses}
+                                className={(isMute || isDeafen) ? `${defaultPreviewOnClasses} plateMuted__67645` : (isScreenShare || isCamera) ? `${defaultPreviewOnClasses} background-color-green${((isCamera && !callButtonStylingCamera) || (isScreenShare && !callButtonStylingScreenShare) || (isSoundboard && !callButtonStylingSoundboard) || (isActivity && !callButtonStylingActivity)) ? " call-button-style" : " "}` : defaultPreviewOnClasses}
                                 data-deracul-label={cfg.label}
                                 style={{
                                     "--custom-nameplate-neutral-hovered": customNameplateNeutralHovered,
                                     "--custom-nameplate-neutral": customNameplateNeutral,
                                     width: targetSize.width,
                                     height: targetSize.height,
-                                    background: "transparent",
+                                    borderRadius: "8px",
+                                    background:  "transparent",
                                     color: "var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary)))",
                                     display: "flex",
                                     alignItems: "center",
@@ -2620,19 +2886,25 @@ function SettingModalItem({
                                     transition: "none"
                                 } as React.CSSProperties}
                             >
+                                {isActivity && (
+                                    <ActivityIcon width={20} height={20} size="smmd" />
+                                )}
+                                {isSoundboard && (
+                                    <SoundboardIcon width={20} height={20} size="smmd" />
+                                )}
                                 {isScreenShare && (
-                                    <ScreenIcon width={20} height={20} size="sm" className={cfg.colorfulActiveButton ? "" : "icon-color-green"} />
+                                    <ScreenIcon width={20} height={20} size="smmd" className={cfg.colorfulActiveButton ? "" : "icon-color-green"} />
                                 )}
                                 {isCamera && (
-                                    <CameraIcon width={20} height={20} size="sm" className={cfg.colorfulActiveButton ? "" : "icon-color-green"} />
+                                    <CameraIcon width={20} height={20} size="smmd" className={cfg.colorfulActiveButton ? "" : "icon-color-green"} />
                                 )}
                                 {isMute && (
-                                    <MuteIcon width={20} height={20} size="sm" />
+                                    <MuteIcon width={20} height={20} size="smmd" />
                                 )}
                                 {isDeafen && (
-                                    <DeafenIcon width={20} height={20} size="sm" />
+                                    <DeafenIcon width={20} height={20} size="smmd" />
                                 )}
-                                {!isMute && !isDeafen && !isCamera && !isScreenShare && (
+                                {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && (
                                     <SvgPreview icon={icon} enabled={true} />
                                 )}
                             </button>
@@ -2761,7 +3033,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("panelOpacity", 100);
         set("buttonStyle", "default");
         set("hoverEffect", "default");
-        set("panelBackgroundColor", "#0e1852");
+        set("panelBackgroundColor", "#242429");
         set("panelBackgroundOpacity", 0);
         set("glowColor", "#ffffff");
         set("forceNativeButtonColor", false);
@@ -2771,13 +3043,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("hideDisconnect", false);
         set("hideVoiceStatus", false);
         set("hidePingIcon", false);
-        set("hideMute", false);
-        set("hideDeafen", false);
-        set("hideSettings", false);
         set("hideUserPanelButton", false);
-        set("hideCamera", false);
-        set("hideScreenShare", false);
-        set("hideActivity", false);
         set("hideLine", true);
         set("fixProfileNameplate", false);
         set("callButtonStylingActivity", false);
@@ -2930,7 +3196,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <SectionHeading>Panel Colors</SectionHeading>
                         <Card variant="primary">
                             <div style={{ display: "grid", gap: "8px" }}>
-                                <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} preset="#0e1852" />
+                                <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} preset="#242429" />
                                 <SliderRow label="Background Opacity" value={s.panelBackgroundOpacity ?? 100} min={0} max={100} unit="%" onChange={v => set("panelBackgroundOpacity", Math.round(v))} resetKey={resetKey} />
 
                                 {settings.store.hoverEffect === "glow" && <>
@@ -2948,17 +3214,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                     {tab === "hide" && <>
                         <SectionHeading>Standard Buttons</SectionHeading>
                         <Card variant="primary">
-                            <FormSwitch title="Hide Mute" value={s.hideMute} onChange={v => set("hideMute", v)} />
-                            <FormSwitch title="Hide Deafen" value={s.hideDeafen} onChange={v => set("hideDeafen", v)} />
-                            <FormSwitch title="Hide User Settings" value={s.hideSettings} onChange={v => set("hideSettings", v)} />
                             <FormSwitch title="Hide User Panel Button" value={s.hideUserPanelButton} onChange={v => set("hideUserPanelButton", v)} hideBorder />
-                        </Card>
-
-                        <SectionHeading>Call Buttons</SectionHeading>
-                        <Card variant="primary">
-                            <FormSwitch title="Hide Camera" value={s.hideCamera} onChange={v => set("hideCamera", v)} />
-                            <FormSwitch title="Hide Screen Share" value={s.hideScreenShare} onChange={v => set("hideScreenShare", v)} />
-                            <FormSwitch title="Hide Activity" value={s.hideActivity} onChange={v => set("hideActivity", v)} hideBorder />
                         </Card>
                     </>}
 

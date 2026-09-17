@@ -69,7 +69,7 @@ export function getDiscordIcon(names: string[], FallbackComponent?: React.Compon
         // 3. High-quality SVG fallback
         if (FallbackComponent) {
             const { size, ...rest } = props;
-            const sizePx = size === "xxs" ? 12 : size === "xs" ? 16 : size === "sm" ? 18 : size === "md" ? 24 : size === "lg" ? 32 : undefined;
+            const sizePx = size === "xxs" ? 12 : size === "xs" ? 16 : size === "sm" ? 18 : size === "smmd" ? 20 : size === "md" ? 24 : size === "lg" ? 32 : undefined;
             const width = props.width ?? sizePx ?? 16;
             const height = props.height ?? sizePx ?? 16;
             return <FallbackComponent width={width} height={height} {...rest} />;
@@ -637,7 +637,7 @@ function LivePreviewBlock({
             content = <LiveAccountProfilePreview pluginSettings={pluginSettings} />;
             break;
         case "module":
-            content = <LiveModuleBlock item={item} isPreview />;
+            content = <LiveModuleBlock item={item} />;
             break;
         default:
             return null;
@@ -770,7 +770,7 @@ function IdleMusicControlsPreview() {
     );
 }
 
-function LiveModuleBlock({ item, isPreview }: { item: UserAreaReorderItem; isPreview?: boolean }) {
+function LiveModuleBlock({ item }: { item: UserAreaReorderItem; }) {
     const moduleId = item.moduleId || item.id;
 
     if (moduleId === "activity-banner" || moduleId === "native-activity-banner") {
@@ -782,7 +782,7 @@ function LiveModuleBlock({ item, isPreview }: { item: UserAreaReorderItem; isPre
         if (hasTrack) {
             return (
                 <ErrorBoundary fallback={() => <IdleMusicControlsPreview />}>
-                    <MusicControlsComponent isPreview={isPreview} />
+                    <MusicControlsComponent isPreview />
                 </ErrorBoundary>
             );
         }

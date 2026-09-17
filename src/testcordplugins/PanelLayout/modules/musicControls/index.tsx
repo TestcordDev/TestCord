@@ -171,7 +171,7 @@ export const musicControlsPatches = [
     },
 ];
 
-export function MusicControlsComponent({ isPreview }: { isPreview?: boolean; }) {
+export function MusicControlsComponent({ isPreview }: { isPreview: boolean; }) {
     const { showTidalControls, showTidalLyrics, showSpotifyLyrics, showSpotifyControls, lyricsPosition } = settings.use([
         "showTidalControls",
         "showTidalLyrics",

@@ -367,7 +367,7 @@ function Info({ track }: { track: Track; }) {
     );
 }
 
-export function SpotifyPlayer({ fiveMinuteHide, isPreview }: { fiveMinuteHide: boolean; isPreview?: boolean; }) {
+export function SpotifyPlayer({ fiveMinuteHide, isPreview }: { fiveMinuteHide: boolean; isPreview: boolean; }) {
     const track = useStateFromStores(
         [SpotifyStore],
         () => SpotifyStore.track,
@@ -409,7 +409,7 @@ export function SpotifyPlayer({ fiveMinuteHide, isPreview }: { fiveMinuteHide: b
             style={exportTrackImageStyle}
         >
             <Info track={track} />
-            <SpotifySeekBar isPreview />
+            <SpotifySeekBar isPreview={isPreview} />
             <Controls />
         </div>
     );
