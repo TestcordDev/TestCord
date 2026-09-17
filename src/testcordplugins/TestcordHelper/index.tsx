@@ -1871,9 +1871,18 @@ export default definePlugin({
         this.pronounsBadgeListener = () => this.syncPronounsBadge();
         SettingsStore.addChangeListener("plugins.TestcordHelper.pronounsBadge", this.pronounsBadgeListener);
 
-        if (settings.store.tcpAutocomplete !== false) {
-            initTcpAutocomplete();
-        }
+        // Deferred past startup: initTcpAutocomplete does a synchronous full
+        // webpack scan that measured as a ~12ms start spike. Autocomplete is
+        // only needed once the user starts typing, long after this has run.
+        // The setting is re-read then, so toggles in the meantime are honored.
+        const initAutocomplete = () => {
+            try {
+                if (settings.store.tcpAutocomplete !== false) initTcpAutocomplete();
+            } catch { /* autocomplete simply stays off */ }
+        };
+        const ric = (window as any).requestIdleCallback as ((cb: () => void, opts?: { timeout: number; }) => void) | undefined;
+        if (typeof ric === "function") ric(initAutocomplete, { timeout: 2000 });
+        else setTimeout(initAutocomplete, 500);
     },
 
     stop() {

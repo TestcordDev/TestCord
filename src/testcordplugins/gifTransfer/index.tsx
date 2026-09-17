@@ -158,8 +158,10 @@ async function applyRuntimeUnlock(): Promise<boolean> {
         return false;
     }
 
-    // Scan in chunks so a cold start with thousands of modules never blocks the
-    // main thread in one long task. Each chunk costs ~1ms, then yields.
+    // Yield before touching anything: the first chunk of .toString() calls ran
+    // synchronously inside start() and measured as a ~18ms start spike.
+    // Smaller chunks from here on; each costs ~1ms, then yields.
+    await sleep(0);
     const ids = Object.keys(factories);
     for (let i = 0; i < ids.length; i++) {
         const id = ids[i];
@@ -170,7 +172,7 @@ async function applyRuntimeUnlock(): Promise<boolean> {
             continue;
         }
         if (!LIMIT_RE.test(src)) {
-            if (i % 500 === 499) await sleep(0);
+            if (i % 100 === 99) await sleep(0);
             continue;
         }
 

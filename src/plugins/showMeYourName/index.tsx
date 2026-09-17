@@ -707,8 +707,14 @@ function renderUsername(
     const isReaction = isReactionsTooltip || isReactionsPopout;
     const isVoice = type === "voiceChannel";
 
-    const config = hookless ? settings.store : settings.use(["messages", "replies", "mentions", "typingIndicator", "memberList", "searchAutocomplete", "styleDirectMessagesList", "styleDirectMessagesMessages", "styleFriendsList", "styleActiveNow", "profilePopout", "reactions", "friendNameOnlyInDirectMessages", "customNameOnlyInDirectMessages", "discriminators", "hideDefaultAtSign", "truncateAllNamesWithStreamerMode", "removeDuplicates", "ignoreEffects", "ignoreFonts", "animateEffects", "alwaysAnimateEffects", "gradientGlow", "includedNames", "customNameColor", "friendNameColor", "nicknameColor", "displayNameColor", "usernameColor", "nameSeparator", "triggerNameRerender"]);
-    const { messages, replies, mentions, typingIndicator, memberList, searchAutocomplete, styleDirectMessagesMessages, profilePopout, reactions, friendNameOnlyInDirectMessages, customNameOnlyInDirectMessages, discriminators, truncateAllNamesWithStreamerMode, removeDuplicates, ignoreEffects, ignoreFonts, animateEffects, includedNames, customNameColor, friendNameColor, nicknameColor, displayNameColor, usernameColor, nameSeparator, triggerNameRerender } = config;
+    const config = hookless ? settings.store : settings.use(["messages", "replies", "mentions", "typingIndicator", "memberList", "searchAutocomplete", "styleDirectMessagesList", "styleDirectMessagesMessages", "styleFriendsList", "styleActiveNow", "profilePopout", "reactions", "friendNameOnlyInDirectMessages", "customNameOnlyInDirectMessages", "discriminators", "hideDefaultAtSign", "truncateAllNamesWithStreamerMode", "removeDuplicates", "ignoreEffects", "ignoreFonts", "animateEffects", "alwaysAnimateEffects", "gradientGlow", "includedNames", "customNameColor", "friendNameColor", "nicknameColor", "displayNameColor", "usernameColor", "nameSeparator"]);
+    const { messages, replies, mentions, typingIndicator, memberList, searchAutocomplete, styleDirectMessagesMessages, profilePopout, reactions, friendNameOnlyInDirectMessages, customNameOnlyInDirectMessages, discriminators, truncateAllNamesWithStreamerMode, removeDuplicates, ignoreEffects, ignoreFonts, animateEffects, includedNames, customNameColor, friendNameColor, nicknameColor, displayNameColor, usernameColor, nameSeparator } = config;
+
+    // Subscribed renders refresh on the local signal instead of the old hidden
+    // setting toggle. Skipped when hookless: those paths never display hover
+    // effects, and some run outside React render where hooks are illegal.
+    // hookless is constant per call site, so the hook count stays stable.
+    if (!hookless) useNameRefreshSignal();
 
     const channel = channelId ? ChannelStore.getChannel(channelId) || null : null;
     const message = channelId && messageId ? MessageStore.getMessage(channelId, messageId) : null;
@@ -1047,6 +1053,25 @@ function renderUsername(
 const hoveringMessageMap = new Map<string, number>();
 const hoveringRepliesMap = new Map<string, number>();
 
+// Local refresh broadcast for name updates (hover in/out, nickname edits,
+// relationship/display-style changes). This used to toggle a hidden setting,
+// which woke every settings subscriber in the client — hundreds of components
+// across all plugins — on each single message hover transition.
+const nameRefreshListeners = new Set<() => void>();
+let refreshScheduled = false;
+let refreshBackup: ReturnType<typeof setTimeout> | null = null;
+
+function useNameRefreshSignal() {
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        const listener = () => setTick(tick => tick + 1);
+        nameRefreshListeners.add(listener);
+        return () => {
+            nameRefreshListeners.delete(listener);
+        };
+    }, []);
+}
+
 function handleHoveringMessage(message: any, isHovered: boolean) {
     const messageId = message?.id;
     const repliedId = message?.messageReference?.message_id;
@@ -1120,7 +1145,26 @@ function useNameHoverState() {
 }
 
 function triggerNameRerender() {
-    settings.store.triggerNameRerender = !settings.store.triggerNameRerender;
+    // Coalesced to one refresh per frame: sweeping the mouse across messages
+    // fires dozens of hover transitions per second, and each one re-rendered
+    // every name on screen. A single trailing refresh shows the same final
+    // state. The timeout backup covers background tabs where rAF never fires.
+    if (refreshScheduled) return;
+    refreshScheduled = true;
+    const run = () => {
+        refreshScheduled = false;
+        if (refreshBackup != null) {
+            clearTimeout(refreshBackup);
+            refreshBackup = null;
+        }
+        for (const listener of nameRefreshListeners) {
+            try {
+                listener();
+            } catch { /* a dead listener must not break the rest */ }
+        }
+    };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+    refreshBackup = setTimeout(run, 100);
 }
 
 function CustomNicknameModal({ modalProps, user }: { modalProps: RenderModalProps; user: User; }) {

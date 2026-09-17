@@ -988,6 +988,21 @@ export default definePlugin({
 // Deferred ban/check timers — tracked so stop() can cancel any still pending after teardown
 const pendingBanTimeouts = new Set<ReturnType<typeof setTimeout>>();
 
+// Parsed ban list, rebuilt only when the setting changes. The voice handler
+// below runs on every voice state update (mutes, deafen, video, joins), so
+// re-splitting the string there on every event was pure per-event garbage.
+let bannedUsersCacheKey = "";
+let bannedUsersCache: string[] = [];
+
+function getBannedUsers(): string[] {
+    const raw = settings.store.users;
+    if (bannedUsersCacheKey !== raw) {
+        bannedUsersCacheKey = raw;
+        bannedUsersCache = raw.split("/").filter(item => item !== "");
+    }
+    return bannedUsersCache;
+}
+
 const voiceStateCallback = async (e: any) => {
     const state = e.voiceStates[0];
     if (!state?.channelId) return;
@@ -1009,9 +1024,10 @@ const voiceStateCallback = async (e: any) => {
 
     // Original logic for when someone else joins
     if (state?.channelId === state?.oldChannelId) return;
-    if (!Object.keys(voiceStates).includes(currentUserId)) return;
+    // Key presence check without allocating Object.keys on every voice event.
+    if ((voiceStates as Record<string, unknown>)[currentUserId] == null) return;
 
-    const bannedUsers = settings.store.users.split("/").filter(item => item !== "");
+    const bannedUsers = getBannedUsers();
     if (bannedUsers.includes(state.userId)) {
         const serverConfig = getCurrentServerConfig();
         if (!serverConfig) {
