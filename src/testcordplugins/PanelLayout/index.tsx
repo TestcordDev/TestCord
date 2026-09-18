@@ -2521,7 +2521,7 @@ function CustomizationRowButton({
                     borderRadius: previewRadius,
                 }}
             >
-                <SettingsIcon width={20} height={20} size="smmd" />
+                <SettingsIcon width={20} height={20} size="smmd" className="vc-pl-custom-btn-settings-icon" />
             </div>
         </div>
     );
@@ -2643,6 +2643,7 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
                             }}
                         >
                             {items.map(item => {
+                                const cfg = getBtnCfg(item.id);
                                 const canonical = getCanonicalLabel(item.label);
                                 const isMute = canonical === "Mute";
                                 const isDeafen = canonical === "Deafen";
@@ -2657,7 +2658,7 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                     return;
                                 }
 
-                                if (isMute || isDeafen || isUserSettings) { return; }
+                                if (isMute || isDeafen || isUserSettings || cfg.hidden) { return; }
 
                                 return (
                                     <CustomizationRowButton
