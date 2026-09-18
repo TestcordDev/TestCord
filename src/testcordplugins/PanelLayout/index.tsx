@@ -1952,6 +1952,7 @@ function ButtonsDragTab() {
                             const canonical = getCanonicalLabel(item.label);
                             const isMute = canonical === "Mute";
                             const isDeafen = canonical === "Deafen";
+                            const isUserSettings= canonical === "User Settings";
                             const isActivity = canonical === "Activity";
                             const isSoundboard = canonical === "Soundboard";
                             const isCamera = canonical === "Camera";
@@ -1984,7 +1985,10 @@ function ButtonsDragTab() {
                                             {isDeafen && (
                                                 <DeafenOffIcon width={20} height={20} size="smmd" />
                                             )}
-                                            {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && (
+                                            {isUserSettings && (
+                                                <SettingsIcon width={20} height={20} size="smmd" />
+                                            )}
+                                            {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && !isUserSettings && (
                                                 <SvgPreview icon={item.iconHTML} enabled={true} />
                                             )}
 
@@ -2369,6 +2373,7 @@ function CustomizationRowButton({
     const canonical = getCanonicalLabel(item.label);
     const isMute = canonical === "Mute";
     const isDeafen = canonical === "Deafen";
+    const isUserSettings = canonical === "User Settings";
     const isActivity = canonical === "Activity";
     const isSoundboard = canonical === "Soundboard";
     const isCamera = canonical === "Camera";
@@ -2420,7 +2425,10 @@ function CustomizationRowButton({
                 {isDeafen && (
                     <DeafenOffIcon width={20} height={20} size="smmd" />
                 )}
-                {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && (
+                {isUserSettings && (
+                    <SettingsIcon width={20} height={20} size="smmd" />
+                )}
+                {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && !isUserSettings && (
                     <SvgPreview icon={item.iconHTML} enabled={true} />
                 )}
             </div>
@@ -2962,7 +2970,10 @@ function SettingModalItem({
                                     {isDeafen && (
                                         <DeafenOffIcon width={20} height={20} size="smmd" />
                                     )}
-                                    {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && (
+                                    {isUserSettings && (
+                                        <SettingsIcon width={20} height={20} size="smmd" />
+                                    )}
+                                    {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && !isUserSettings && (
                                         <SvgPreview icon={icon} enabled={false} />
                                     )}
                                 </button>
@@ -3003,13 +3014,16 @@ function SettingModalItem({
                                 {isCamera && (
                                     <CameraIcon width={20} height={20} size="smmd" className={cfg.colorfulActiveButton ? "" : "icon-color-green"} />
                                 )}
+                                {isUserSettings && (
+                                    <SettingsIcon width={20} height={20} size="smmd" />
+                                )}
                                 {isMute && (
                                     <MuteIcon width={20} height={20} size="smmd" />
                                 )}
                                 {isDeafen && (
                                     <DeafenIcon width={20} height={20} size="smmd" />
                                 )}
-                                {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && (
+                                {!isMute && !isDeafen && !isCamera && !isScreenShare && !isSoundboard && !isActivity && !isUserSettings && (
                                     <SvgPreview icon={icon} enabled={true} />
                                 )}
                             </button>
