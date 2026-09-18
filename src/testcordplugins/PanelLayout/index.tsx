@@ -1248,7 +1248,7 @@ const COLOR_PRESETS = [
 
 // ─── Custom color picker ──────────────────────────────────────────────────────
 
-function ColorPickerPanel({ value, onChange, preset }: { value: string; onChange: (hex: string) => void; preset: string; }) {
+function ColorPickerPanel({ value, onChange, preset, preset2 }: { value: string; onChange: (hex: string) => void; preset: string; preset2?: string; }) {
     const hsvRef = React.useRef<[number, number, number]>(isValidHex(value) ? rgbToHsv(...hexToRgb(value)) : [0, 0, 50]);
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const [hexInput, setHexInput] = React.useState(isValidHex(value) ? value.toUpperCase() : value);
@@ -1410,6 +1410,21 @@ function ColorPickerPanel({ value, onChange, preset }: { value: string; onChange
                     }}
                 />
 
+                <div
+                    key={preset2}
+                    onClick={() => {
+                        hsvRef.current = rgbToHsv(...hexToRgb(preset2));
+                        setHexInput(preset2.toUpperCase());
+                        onChange(preset2);
+                        forceUpdate();
+                    }}
+                    title={preset2}
+                    style={{
+                        width: "20px", height: "20px", borderRadius: "5px", cursor: "pointer",
+                        background: preset2,
+                    }}
+                />
+
                 {COLOR_PRESETS.map(preset => (
                     <div
                         key={preset}
@@ -1431,7 +1446,7 @@ function ColorPickerPanel({ value, onChange, preset }: { value: string; onChange
     );
 }
 
-function ColorRow({ label, value, onChange, onBlur, preset }: { label: string; value: string; onChange: (v: string) => void; onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; preset: string; }) {
+function ColorRow({ label, value, onChange, onBlur, preset, preset2 }: { label: string; value: string; onChange: (v: string) => void; onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; preset: string; preset2?: string; }) {
     const [open, setOpen] = React.useState(false);
     const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -1486,7 +1501,7 @@ function ColorRow({ label, value, onChange, onBlur, preset }: { label: string; v
                     {value}
                 </BaseText>
             </Flex>
-            {open && <ColorPickerPanel value={value} onChange={handleRealtimeChange} preset={preset} />}
+            {open && <ColorPickerPanel value={value} onChange={handleRealtimeChange} preset={preset} preset2={preset2} />}
         </div>
     );
 }
@@ -3398,7 +3413,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <SectionHeading>Panel Colors</SectionHeading>
                         <Card variant="primary">
                             <div style={{ display: "grid", gap: "8px" }}>
-                                <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} preset="var(--background-base-lower)" />
+                                <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} preset="var(--background-base-lower)" preset2="#242429" />
                                 <SliderRow label="Background Opacity" value={s.panelBackgroundOpacity ?? 100} min={0} max={100} unit="%" onChange={v => set("panelBackgroundOpacity", Math.round(v))} resetKey={resetKey} />
 
                                 {settings.store.hoverEffect === "glow" && <>
