@@ -1410,20 +1410,22 @@ function ColorPickerPanel({ value, onChange, preset, preset2 }: { value: string;
                     }}
                 />
 
-                <div
-                    key={preset2}
-                    onClick={() => {
-                        hsvRef.current = rgbToHsv(...hexToRgb(preset2));
-                        setHexInput(preset2.toUpperCase());
-                        onChange(preset2);
-                        forceUpdate();
-                    }}
-                    title={preset2}
-                    style={{
-                        width: "20px", height: "20px", borderRadius: "5px", cursor: "pointer",
-                        background: preset2,
-                    }}
-                />
+                {preset2 && (
+                    <div
+                        key={preset2}
+                        onClick={() => {
+                            hsvRef.current = rgbToHsv(...hexToRgb(preset2));
+                            setHexInput(preset2.toUpperCase());
+                            onChange(preset2);
+                            forceUpdate();
+                        }}
+                        title={preset2}
+                        style={{
+                            width: "20px", height: "20px", borderRadius: "5px", cursor: "pointer",
+                            background: preset2,
+                        }}
+                    />
+                )}
 
                 {COLOR_PRESETS.map(preset => (
                     <div
