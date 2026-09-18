@@ -1573,7 +1573,6 @@ function ButtonsDragTab() {
                                 flexDirection: "row",
                                 gap: "12px",
                                 overflowX: "auto",
-                                minWidth: 0,
                                 alignItems: "center",
                                 padding: "4px 8px",
                             }}>
@@ -1670,7 +1669,7 @@ function ButtonsDragTab() {
                                             width: "2px",
                                             borderRadius: "2px",
                                             backgroundColor: "var(--border-subtle)",
-                                            marginLeft: "4px",
+                                            marginLeft: "14px",
                                             marginRight: "4px",
                                         }}
                                     />
@@ -1680,7 +1679,7 @@ function ButtonsDragTab() {
                                         flexDirection: "row",
                                         gap: "12px",
                                         overflowX: "auto",
-                                        minWidth: 0,
+                                        minWidth: "fit-content",
                                         alignItems: "center",
                                         padding: "4px 8px",
                                     }}>
@@ -1799,7 +1798,7 @@ function ButtonsDragTab() {
                                     width: "2px",
                                     borderRadius: "2px",
                                     backgroundColor: "var(--border-subtle)",
-                                    marginLeft: "4px",
+                                    marginLeft: hasCallButtons ? "4px" : "14px",
                                     marginRight: "4px",
                                 }}
                             />
@@ -1809,7 +1808,7 @@ function ButtonsDragTab() {
                                 flexDirection: "row",
                                 gap: "12px",
                                 overflowX: "auto",
-                                minWidth: 0,
+                                minWidth: "fit-content",
                                 alignItems: "center",
                                 padding: "4px 8px",
                             }}>
@@ -2443,6 +2442,8 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
     const [items, setItems] = React.useState<BtnItem[]>(() => getBtnItems());
     const [hoveredLabel, setHoveredLabel] = React.useState<string | null>(null);
 
+    let hasCallButtons = false;
+
     React.useEffect(() => {
         const detected = getBtnItems();
         if (detected.length !== items.length) {
@@ -2468,12 +2469,18 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
     };
 
     const customizableItems = (items ?? []).filter(item =>
-        !getBtnCfg(item.id).hidden
+        !getBtnCfg(item.id).hidden &&
+        getCanonicalLabel(item.id) !== "User Settings" &&
+        getCanonicalLabel(item.id) !== "Mute" &&
+        getCanonicalLabel(item.id) !== "Deafen" &&
+        getCanonicalLabel(item.id) !== "Soundboard" &&
+        getCanonicalLabel(item.id) !== "Activity" &&
+        getCanonicalLabel(item.id) !== "Screen Share" &&
+        getCanonicalLabel(item.id) !== "Camera"
     );
 
     const btnCount = customizableItems.length;
-    const modalWidth = Math.min(Math.max(btnCount * 60 + 160, 480), 1080);
-    const modalSize: "sm" | "md" | "lg" | "xl" =
+    const modalSize =
         btnCount <= 4
             ? "sm"
             : btnCount <= 7
@@ -2487,7 +2494,6 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
             title={<BaseText size="sm" color="text-muted">Button customization</BaseText>}
             {...modalProps}
             size={modalSize}
-            className="vc-pl-btn-custom-modal"
             actionBarInput={
                 <div
                     style={{
@@ -2507,13 +2513,6 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
                 </div>
             }
         >
-            <style>{`
-                .vc-pl-btn-custom-modal {
-                    width: min(94vw, ${modalWidth}px) !important;
-                    max-width: min(94vw, 1100px) !important;
-                    margin: 0 auto !important;
-                }
-            `}</style>
             <div style={{ width: "100%" }}>
                 {customizableItems.length === 0 ? (
                     <div style={{ padding: "24px 16px", textAlign: "center" }}>
@@ -2553,15 +2552,110 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                 overflowY: "hidden",
                             }}
                         >
-                            {customizableItems.map(item => (
-                                <CustomizationRowButton
-                                    key={item.id}
-                                    item={item}
-                                    handleOpenSubModal={handleOpenSubModal}
-                                    onHover={setHoveredLabel}
-                                    onUnhover={() => setHoveredLabel(null)}
-                                />
-                            ))}
+                            {items.map(item => {
+                                const canonical = getCanonicalLabel(item.label);
+                                const isMute = canonical === "Mute";
+                                const isDeafen = canonical === "Deafen";
+                                const isUserSettings = canonical === "User Settings";
+                                const isActivity = canonical === "Activity";
+                                const isSoundboard = canonical === "Soundboard";
+                                const isCamera = canonical === "Camera";
+                                const isScreenShare = canonical === "Screen Share";
+
+                                if (isCamera || isScreenShare || isActivity || isSoundboard) {
+                                    hasCallButtons = true;
+                                    return;
+                                }
+
+                                if (isMute || isDeafen || isUserSettings) { return; }
+
+                                return (
+                                    <CustomizationRowButton
+                                        key={item.id}
+                                        item={item}
+                                        handleOpenSubModal={handleOpenSubModal}
+                                        onHover={setHoveredLabel}
+                                        onUnhover={() => setHoveredLabel(null)}
+                                    />
+                                );
+                            })}
+                        </div>
+
+                        {hasCallButtons && (
+                            <div
+                                className="vc-pl-custom-btn-row"
+                                style={{
+                                    display: "flex",
+                                    flexDirection: "row",
+                                    flexWrap: "nowrap",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "12px",
+                                    maxWidth: "100%",
+                                    width: "100%",
+                                    padding: "8px 0px",
+                                    boxSizing: "border-box",
+                                    overflowX: "auto",
+                                    overflowY: "hidden",
+                                }}
+                            >
+                                {items.map(item => {
+                                    const canonical = getCanonicalLabel(item.label);
+                                    const isActivity = canonical === "Activity";
+                                    const isSoundboard = canonical === "Soundboard";
+                                    const isCamera = canonical === "Camera";
+                                    const isScreenShare = canonical === "Screen Share";
+
+                                    if (!isCamera && !isScreenShare && !isActivity && !isSoundboard) { return; }
+
+                                    return (
+                                        <CustomizationRowButton
+                                            key={item.id}
+                                            item={item}
+                                            handleOpenSubModal={handleOpenSubModal}
+                                            onHover={setHoveredLabel}
+                                            onUnhover={() => setHoveredLabel(null)}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <div
+                            className="vc-pl-custom-btn-row"
+                            style={{
+                                display: "flex",
+                                flexDirection: "row",
+                                flexWrap: "nowrap",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "12px",
+                                maxWidth: "100%",
+                                width: "100%",
+                                padding: "8px 0px",
+                                boxSizing: "border-box",
+                                overflowX: "auto",
+                                overflowY: "hidden",
+                            }}
+                        >
+                            {items.map(item => {
+                                const canonical = getCanonicalLabel(item.label);
+                                const isMute = canonical === "Mute";
+                                const isDeafen = canonical === "Deafen";
+                                const isUserSettings = canonical === "User Settings";
+
+                                if (!isMute && !isDeafen && !isUserSettings) { return; }
+
+                                return (
+                                    <CustomizationRowButton
+                                        key={item.id}
+                                        item={item}
+                                        handleOpenSubModal={handleOpenSubModal}
+                                        onHover={setHoveredLabel}
+                                        onUnhover={() => setHoveredLabel(null)}
+                                    />
+                                );
+                            })}
                         </div>
 
                         <div
