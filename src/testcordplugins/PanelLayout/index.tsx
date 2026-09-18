@@ -118,7 +118,7 @@ export const settings = definePluginSettings({
         ],
         onChange: () => apply()
     },
-    panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "#242429", onChange: () => apply() },
+    panelBackgroundColor: { type: OptionType.STRING, description: "Panel background color", default: "var(--background-base-lower)", onChange: () => apply() },
     panelBackgroundOpacity: { type: OptionType.SLIDER, description: "Panel background color opacity", default: 100, markers: makeRange(0, 100, 10), stickToMarkers: false, onChange: () => apply() },
     glowColor: { type: OptionType.STRING, description: "Glow hover color", default: "#ffffff", onChange: () => apply() },
     forceNativeButtonColor: { type: OptionType.BOOLEAN, default: false, description: "Force the icon color on Discord's native buttons (Mute, Deafen, Settings) even when no custom icon color is set", onChange: () => apply() },
@@ -1305,7 +1305,7 @@ function ColorPickerPanel({ value, onChange, preset }: { value: string; onChange
         <div
             style={{
                 marginTop: "10px", padding: "12px", borderRadius: "10px",
-                background: "var(--background-secondary, var(--background-base-lower))",
+                background: "var(--background-secondary, var(--background-base-low))",
                 border: "1px solid var(--background-modifier-accent, var(--border-muted))",
             }}
             onMouseDown={e => e.stopPropagation()}
@@ -3234,7 +3234,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         set("panelOpacity", 100);
         set("buttonStyle", "default");
         set("hoverEffect", "default");
-        set("panelBackgroundColor", "#242429");
+        set("panelBackgroundColor", "var(--background-base-lower)");
         set("panelBackgroundOpacity", 0);
         set("glowColor", "#ffffff");
         set("forceNativeButtonColor", false);
@@ -3397,7 +3397,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <SectionHeading>Panel Colors</SectionHeading>
                         <Card variant="primary">
                             <div style={{ display: "grid", gap: "8px" }}>
-                                <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} preset="#242429" />
+                                <ColorRow label="Panel Background Color" value={s.panelBackgroundColor} onChange={v => set("panelBackgroundColor", v)} preset="var(--background-base-lower)" />
                                 <SliderRow label="Background Opacity" value={s.panelBackgroundOpacity ?? 100} min={0} max={100} unit="%" onChange={v => set("panelBackgroundOpacity", Math.round(v))} resetKey={resetKey} />
 
                                 {settings.store.hoverEffect === "glow" && <>
