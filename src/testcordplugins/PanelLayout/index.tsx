@@ -1477,12 +1477,20 @@ function getBtnItems(): BtnItem[] {
     return getDetectedBtnItems(id => getBtnCfg(id).order ?? 0, true);
 }
 
+function getDragGroup(item: BtnItem): "call" | "native" | "user" {
+    const canonical = getCanonicalLabel(item.label);
+    if (canonical === "Camera" || canonical === "Screen Share" || canonical === "Activity" || canonical === "Soundboard") return "call";
+    if (canonical === "Mute" || canonical === "Deafen" || canonical === "User Settings") return "native";
+    return "user";
+}
+
 function ButtonsDragTab() {
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const [items, setItems] = React.useState<BtnItem[]>(() => getBtnItems());
     const [listeningId, setListeningId] = React.useState<string | null>(null);
 
     const dragFromIndex = React.useRef<number | null>(null);
+    const dragFromGroup = React.useRef<"call" | "native" | "user" | null>(null);
     const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
     const [activeDragIndex, setActiveDragIndex] = React.useState<number | null>(null);
     const [dropPosition, setDropPosition] = React.useState<"before" | "after">("before");
@@ -1504,6 +1512,7 @@ function ButtonsDragTab() {
 
     const handleDragStart = (e: React.DragEvent, index: number) => {
         dragFromIndex.current = index;
+        dragFromGroup.current = getDragGroup(items[index]);
         setActiveDragIndex(index);
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", String(index));
@@ -1514,6 +1523,11 @@ function ButtonsDragTab() {
 
     const handleDragOver = (e: React.DragEvent, index: number) => {
         e.preventDefault();
+        if (dragFromGroup.current !== null && dragFromGroup.current !== getDragGroup(items[index])) {
+            e.dataTransfer.dropEffect = "none";
+            if (dragOverIndex !== null) setDragOverIndex(null);
+            return;
+        }
         e.dataTransfer.dropEffect = "move";
         const rect = e.currentTarget.getBoundingClientRect();
         const pos = e.clientX < rect.left + rect.width / 2 ? "before" : "after";
@@ -1523,7 +1537,11 @@ function ButtonsDragTab() {
 
     const commitDrop = (targetIndex: number) => {
         const fromIndex = dragFromIndex.current;
-        if (fromIndex !== null && fromIndex >= 0 && fromIndex < items.length && targetIndex >= 0 && targetIndex < items.length) {
+        if (
+            fromIndex !== null && fromIndex >= 0 && fromIndex < items.length &&
+            targetIndex >= 0 && targetIndex < items.length &&
+            getDragGroup(items[fromIndex]) === getDragGroup(items[targetIndex])
+        ) {
             const desiredSlot = dropPosition === "after" ? targetIndex + 1 : targetIndex;
             const insertIndex = fromIndex < desiredSlot ? desiredSlot - 1 : desiredSlot;
             if (insertIndex !== fromIndex && insertIndex >= 0 && insertIndex < items.length) {
@@ -1538,6 +1556,7 @@ function ButtonsDragTab() {
             }
         }
         dragFromIndex.current = null;
+        dragFromGroup.current = null;
         setActiveDragIndex(null);
         setDragOverIndex(null);
     };
@@ -1549,6 +1568,7 @@ function ButtonsDragTab() {
 
     const handleDragEnd = () => {
         dragFromIndex.current = null;
+        dragFromGroup.current = null;
         setActiveDragIndex(null);
         setDragOverIndex(null);
     };
