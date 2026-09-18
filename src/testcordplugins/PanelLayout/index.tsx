@@ -1976,7 +1976,7 @@ function ButtonsDragTab() {
                                                 <ScreenOffIcon width={20} height={20} size="smmd" />
                                             )}
                                             {isCamera && (
-                                                <CameraOffIcon width={20} height={20} size="smmd" />
+                                                <CameraIcon width={20} height={20} size="smmd" />
                                             )}
                                             {isMute && (
                                                 <MuteOffIcon width={20} height={20} size="smmd" />
