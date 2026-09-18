@@ -6,7 +6,7 @@
 
 import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import type { User } from "@vencord/discord-types";
-import { Menu, useState } from "@webpack/common";
+import { Menu } from "@webpack/common";
 import type { ReactElement } from "react";
 
 import { applicationStreamingStore } from "./runtime";
@@ -19,18 +19,17 @@ const renderStreamContextItems = (ownerId: string | null, stream?: StreamDescrip
     const items: ReactElement[] = [];
 
     if (ownerId != null) {
-        const [autoWatchEnabled, setAutoWatchEnabled] = useState(streamState.isAutoWatchEnabledForUser(ownerId));
-        const [autoFocusEnabled, setAutoFocusEnabled] = useState(streamState.isAutoFocusEnabledForUser(ownerId));
+        const autoWatchEnabled = streamState.isAutoWatchEnabledForUser(ownerId);
+        const autoFocusEnabled = streamState.isAutoFocusEnabledForUser(ownerId);
 
         items.push(
             <Menu.MenuCheckboxItem
                 id="stream-enhancer-auto-watch"
+                key="stream-enhancer-auto-watch"
                 label="Auto watch stream"
                 checked={autoWatchEnabled}
                 action={() => {
                     const nextEnabled = !autoWatchEnabled;
-                    setAutoWatchEnabled(nextEnabled);
-                    if (!nextEnabled) setAutoFocusEnabled(false);
                     streamState.setAutoWatchEnabledForUser(ownerId, nextEnabled);
                 }}
             />
@@ -38,12 +37,13 @@ const renderStreamContextItems = (ownerId: string | null, stream?: StreamDescrip
         items.push(
             <Menu.MenuCheckboxItem
                 id="stream-enhancer-auto-focus"
+                key="stream-enhancer-auto-focus"
                 label="Auto focus stream"
                 checked={autoFocusEnabled}
                 action={() => {
                     const nextEnabled = !autoFocusEnabled;
-                    setAutoFocusEnabled(nextEnabled);
                     streamState.setAutoFocusEnabledForUser(ownerId, nextEnabled);
+                    if (nextEnabled) streamState.setAutoWatchEnabledForUser(ownerId, true);
                 }}
             />
         );
@@ -56,7 +56,7 @@ export const streamContextPatch: NavContextMenuPatchCallback = (children, { stre
     const items = renderStreamContextItems(streamState.normalizeUserId(stream?.ownerId), stream);
     if (items?.length == null || items.length === 0) return;
 
-    children.push(<Menu.MenuSeparator />, ...items);
+    children.push(<Menu.MenuSeparator key="stream-enhancer-separator" />, ...items);
 };
 
 export const userContextPatch: NavContextMenuPatchCallback = (children, { user }: { user?: User; }) => {
@@ -69,5 +69,5 @@ export const userContextPatch: NavContextMenuPatchCallback = (children, { user }
 
     if (items?.length == null || items.length === 0) return;
 
-    children.push(<Menu.MenuSeparator />, ...items);
+    children.push(<Menu.MenuSeparator key="stream-enhancer-separator" />, ...items);
 };
