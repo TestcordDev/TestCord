@@ -1225,6 +1225,22 @@ function isValidHex(v: string): boolean {
     return /^#?[0-9a-fA-F]{6}$/.test(v.trim());
 }
 
+function isCssVarExpr(v: string): boolean {
+    return /^var\(\s*--[a-zA-Z0-9-]+\s*(,[\s\S]*)?\)$/.test(v.trim());
+}
+
+function isCssFunctionColor(v: string): boolean {
+    return /^(rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color|color-mix)\(\s*[\s\S]+\)$/i.test(v.trim());
+}
+
+function isRawCssColorExpr(v: string): boolean {
+    return isCssVarExpr(v) || isCssFunctionColor(v);
+}
+
+function isValidColorValue(v: string): boolean {
+    return isValidHex(v) || isRawCssColorExpr(v);
+}
+
 const COLOR_PRESETS = [
     "#EB459E", "#ED4245", "#FEE75C",
     "#57F287", "#00C7D9", "#FFFFFF", "#23272A",
@@ -1233,17 +1249,18 @@ const COLOR_PRESETS = [
 // ─── Custom color picker ──────────────────────────────────────────────────────
 
 function ColorPickerPanel({ value, onChange, preset }: { value: string; onChange: (hex: string) => void; preset: string; }) {
-    const hsvRef = React.useRef<[number, number, number]>(rgbToHsv(...hexToRgb(value)));
+    const hsvRef = React.useRef<[number, number, number]>(isValidHex(value) ? rgbToHsv(...hexToRgb(value)) : [0, 0, 50]);
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
-    const [hexInput, setHexInput] = React.useState(value.toUpperCase());
+    const [hexInput, setHexInput] = React.useState(isValidHex(value) ? value.toUpperCase() : value);
     const svRef = React.useRef<HTMLDivElement>(null);
     const hueRef = React.useRef<HTMLDivElement>(null);
     const draggingRef = React.useRef<"sv" | "hue" | null>(null);
+    const isRawExpr = isRawCssColorExpr(value);
 
     React.useEffect(() => {
         if (draggingRef.current) return;
-        hsvRef.current = rgbToHsv(...hexToRgb(value));
-        setHexInput(value.toUpperCase());
+        if (isValidHex(value)) hsvRef.current = rgbToHsv(...hexToRgb(value));
+        setHexInput(isValidHex(value) ? value.toUpperCase() : value);
         forceUpdate();
     }, [value]);
 
@@ -1295,39 +1312,46 @@ function ColorPickerPanel({ value, onChange, preset }: { value: string; onChange
         >
             <div
                 ref={svRef}
-                onMouseDown={e => { draggingRef.current = "sv"; fromSvPointer(e.clientX, e.clientY); }}
+                onMouseDown={e => { if (isRawExpr) return; draggingRef.current = "sv"; fromSvPointer(e.clientX, e.clientY); }}
                 style={{
                     position: "relative", width: "100%", height: "120px", borderRadius: "8px",
-                    cursor: "crosshair", userSelect: "none",
+                    cursor: isRawExpr ? "not-allowed" : "crosshair", userSelect: "none",
+                    opacity: isRawExpr ? 0.4 : 1,
                     background: `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, rgba(255,255,255,0)), hsl(${h}, 100%, 50%)`,
                 }}
             >
-                <div style={{
+                {!isRawExpr && <div style={{
                     position: "absolute", left: `${s}%`, top: `${100 - v}%`,
                     width: "14px", height: "14px", borderRadius: "50%",
                     transform: "translate(-50%, -50%)",
                     border: "2px solid white", boxShadow: "0 0 0 1px rgba(0,0,0,0.4), 0 1px 4px rgba(0,0,0,0.4)",
                     background: value, pointerEvents: "none",
-                }} />
+                }} />}
             </div>
 
             <div
                 ref={hueRef}
-                onMouseDown={e => { draggingRef.current = "hue"; fromHuePointer(e.clientX); }}
+                onMouseDown={e => { if (isRawExpr) return; draggingRef.current = "hue"; fromHuePointer(e.clientX); }}
                 style={{
                     position: "relative", width: "100%", height: "12px", borderRadius: "6px",
-                    marginTop: "10px", cursor: "pointer", userSelect: "none",
+                    marginTop: "10px", cursor: isRawExpr ? "not-allowed" : "pointer", userSelect: "none",
+                    opacity: isRawExpr ? 0.4 : 1,
                     background: "linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)",
                 }}
             >
-                <div style={{
+                {!isRawExpr && <div style={{
                     position: "absolute", left: `${(h / 360) * 100}%`, top: "50%",
                     width: "8px", height: "16px", borderRadius: "3px",
                     transform: "translate(-50%, -50%)",
                     border: "2px solid white", boxShadow: "0 1px 4px rgba(0,0,0,0.4)",
                     background: `hsl(${h}, 100%, 50%)`, pointerEvents: "none",
-                }} />
+                }} />}
             </div>
+            {isRawExpr && (
+                <BaseText size="sm" color="text-muted" style={{ marginTop: "6px", display: "block" }}>
+                    Using {value} — click on one of the colors to use the canvas.
+                </BaseText>
+            )}
 
             <Flex alignItems="center" gap={8} style={{ marginTop: "10px" }}>
                 <div style={{
@@ -1344,21 +1368,28 @@ function ColorPickerPanel({ value, onChange, preset }: { value: string; onChange
                             hsvRef.current = rgbToHsv(...hexToRgb(hex));
                             onChange(hex.toLowerCase());
                             forceUpdate();
+                        } else if (isRawCssColorExpr(val)) {
+                            onChange(val.trim());
+                            forceUpdate();
                         }
                     }}
                     onBlur={() => {
-                        if (!isValidHex(hexInput)) {
-                            setHexInput(value.toUpperCase());
+                        const trimmed = hexInput.trim();
+                        if (!isValidColorValue(trimmed)) {
+                            setHexInput(isValidHex(value) ? value.toUpperCase() : value);
+                        } else if (isRawCssColorExpr(trimmed) && trimmed !== hexInput) {
+                            setHexInput(trimmed);
                         }
                     }}
                     onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                    placeholder="#RRGGBB or var(--token)"
                     spellCheck={false}
                     style={{
                         flex: 1, height: "28px", padding: "0 8px", borderRadius: "6px",
                         border: "1px solid var(--background-modifier-accent, var(--border-muted))",
                         background: "var(--background-secondary-alt, var(--background-mod-subtle))",
                         color: "var(--text-default)", fontFamily: "var(--font-code, monospace)",
-                        fontSize: "12px", textTransform: "uppercase",
+                        fontSize: "12px", textTransform: isValidHex(hexInput) ? "uppercase" : "none",
                     }}
                 />
             </Flex>
@@ -1447,7 +1478,9 @@ function ColorRow({ label, value, onChange, onBlur, preset }: { label: string; v
                     style={{
                         fontFamily: "var(--font-code, monospace)",
                         background: "var(--background-secondary-alt, var(--background-mod-subtle))",
-                        borderRadius: "6px", padding: "6px 10px", textTransform: "uppercase",
+                        borderRadius: "6px", padding: "6px 10px",
+                        textTransform: isValidHex(value) ? "uppercase" : "none",
+                        maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                     }}
                 >
                     {value}
