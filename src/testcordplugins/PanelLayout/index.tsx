@@ -1967,12 +1967,13 @@ function ButtonsDragTab() {
                         flex: 1,
                         minWidth: 0,
                     }}>
-                        {items.map(item => {
+                    {(() => {
+                        const renderDetailCard = (item: BtnItem) => {
                             const cfg = getBtnCfg(item.id);
                             const canonical = getCanonicalLabel(item.label);
                             const isMute = canonical === "Mute";
                             const isDeafen = canonical === "Deafen";
-                            const isUserSettings= canonical === "User Settings";
+                            const isUserSettings = canonical === "User Settings";
                             const isActivity = canonical === "Activity";
                             const isSoundboard = canonical === "Soundboard";
                             const isCamera = canonical === "Camera";
@@ -2103,7 +2104,35 @@ function ButtonsDragTab() {
                                     </div>
                                 </Card>
                             );
-                        })}
+                        };
+
+                        const userItems = items.filter(it => getDragGroup(it) === "user");
+                        const nativeItems = items.filter(it => getDragGroup(it) === "native");
+                        const callItems = items.filter(it => getDragGroup(it) === "call");
+
+                        return (
+                            <>
+                                {userItems.length > 0 && (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                        <SectionHeading>User Area Buttons</SectionHeading>
+                                        {userItems.map(renderDetailCard)}
+                                    </div>
+                                )}
+                                {nativeItems.length > 0 && (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                        <SectionHeading>Native Buttons</SectionHeading>
+                                        {nativeItems.map(renderDetailCard)}
+                                    </div>
+                                )}
+                                {callItems.length > 0 && (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                        <SectionHeading>Call Buttons</SectionHeading>
+                                        {callItems.map(renderDetailCard)}
+                                    </div>
+                                )}
+                            </>
+                        );
+                    })()}
 
                     </div>
                 </>
