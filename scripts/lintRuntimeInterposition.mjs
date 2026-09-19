@@ -9,7 +9,6 @@ import { resolve } from "node:path";
 
 const files = [
     "src/api/PluginProfiler.ts",
-    "src/testcordplugins/ClientDiagnostics/index.tsx",
     "src/testcordplugins/TestcordHelper/index.tsx",
     "src/testcordplugins/fastDiscord/index.tsx",
     "src/testcordplugins/PerformanceBoost/index.tsx",
