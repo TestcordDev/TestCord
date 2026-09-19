@@ -323,9 +323,9 @@ export default definePlugin({
         },
         // forces an early return on the file size limit nitro upsell modal
         {
-            find: "#{intl::tRuxk9::raw}",
+            find: "#{intl::UPLOAD_AREA_TOO_LARGE_HELP_PREMIUM_TIER_1}",
             replacement: {
-                match: /(?<=MAX_FILE_SIZE_250_MB.{0,250})Array\.from\(\i\)\.some/,
+                match: /(?<=#{intl::UPLOAD_AREA_TOO_LARGE_HELP}.{0,250})Array\.from\(\i\)\.some/,
                 replace: "$self.shouldBypassDiscordUploadSizeCheck()?false:$&"
             }
         },
