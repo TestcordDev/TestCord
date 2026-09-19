@@ -66,7 +66,6 @@ async function ensureBinary() {
 
     mkdirSync(FILE_DIR, { recursive: true });
     const outputFile = join(FILE_DIR, filename);
-
     const etag = existsSync(outputFile) && existsSync(ETAG_FILE)
         ? readFileSync(ETAG_FILE, "utf-8")
         : null;
