@@ -814,8 +814,8 @@ function getMemory() {
 }
 
 function formatMs(value: number) {
-    if (value >= 1000) return `${(value / 1000).toFixed(2)}s`;
-    return `${value.toFixed(value >= 10 ? 0 : 1)}ms`;
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}s`;
+    return `${value.toFixed(1)}ms`;
 }
 
 function formatBytes(value?: number) {
@@ -824,7 +824,7 @@ function formatBytes(value?: number) {
     const sign = value < 0 ? "-" : "";
     const absValue = Math.abs(value);
 
-    if (absValue >= 1024 * 1024 * 1024) return `${sign}${(absValue / 1024 / 1024 / 1024).toFixed(2)} GB`;
+    if (absValue >= 1024 * 1024 * 1024) return `${sign}${(absValue / 1024 / 1024 / 1024).toFixed(1)} GB`;
     if (absValue >= 1024 * 1024) return `${sign}${(absValue / 1024 / 1024).toFixed(1)} MB`;
     if (absValue >= 1024) return `${sign}${(absValue / 1024).toFixed(1)} KB`;
     return `${sign}${absValue} B`;
@@ -841,10 +841,9 @@ function getPercent(part: number, total: number) {
 
 function formatPercent(value?: number) {
     if (value === undefined || !Number.isFinite(value)) return "Unavailable";
-    if (value <= 0) return "0%";
+    if (value <= 0) return "0.0%";
     if (value < 0.1) return "<0.1%";
-    if (value >= 100) return `${value.toFixed(0)}%`;
-    return `${value.toFixed(value >= 10 ? 1 : 2)}%`;
+    return `${value.toFixed(1)}%`;
 }
 
 function normalizeSearch(value: string) {

@@ -13,6 +13,7 @@ import { pluginStartTimings } from "@api/PluginManager";
 import { PluginProfileData, PluginProfiler } from "@api/PluginProfiler";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
+import { CodeBlock } from "@components/CodeBlock";
 import { Divider } from "@components/Divider";
 import { Heading, HeadingSecondary } from "@components/Heading";
 import { Link } from "@components/Link";
@@ -20,10 +21,11 @@ import { Paragraph } from "@components/Paragraph";
 import { openPluginModal, SettingsTab, wrapTab } from "@components/settings";
 import { buildIssueUrl, generateGitHubIssueBody } from "@utils/debugReport";
 import { redactDiagnosticValue } from "@utils/diagnosticRedaction";
+import { copyWithToast } from "@utils/discord";
 import { Margins } from "@utils/margins";
 import { RenderModalProps } from "@vencord/discord-types";
 import { wreq } from "@webpack";
-import { Modal, openModal, React, Select, TextInput, Toasts, useEffect, useMemo, useState } from "@webpack/common";
+import { Modal, openModal, React, Select, TextInput, Toasts, useCallback, useEffect, useMemo, useState } from "@webpack/common";
 import { getBuildNumber, getFactoryPatchedSource, SYM_ORIGINAL_FACTORY } from "@webpack/patcher";
 
 import Plugins from "~plugins";
@@ -1142,6 +1144,54 @@ function PluginChangesPanel() {
     );
 }
 
+interface SortableThProps {
+    column: keyof PluginProfileData;
+    label: string;
+    title?: string;
+    width?: string;
+    sortColumn: keyof PluginProfileData;
+    sortDirection: "asc" | "desc";
+    onSort: (column: keyof PluginProfileData) => void;
+}
+
+function SortableTh({
+    column,
+    label,
+    title,
+    width,
+    sortColumn,
+    sortDirection,
+    onSort
+}: SortableThProps) {
+    const isSorted = column === sortColumn;
+    return (
+        <th
+            style={width ? { width } : undefined}
+            onClick={() => onSort(column)}
+            onKeyDown={e => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSort(column);
+                }
+            }}
+            role="button"
+            tabIndex={0}
+            scope="col"
+            className="vc-health-th-sortable"
+            title={title ?? label}
+        >
+            <div className="vc-health-th-content">
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                {isSorted && (
+                    <span className="vc-health-sort-arrow" aria-hidden="true">
+                        {sortDirection === "desc" ? "▼" : "▲"}
+                    </span>
+                )}
+            </div>
+        </th>
+    );
+}
+
 function HealthTab() {
     const [activeTab, setActiveTab] = useState<DiagnosticTabKey>("overview");
     const [tick, setTick] = useState(0);
@@ -1199,36 +1249,113 @@ function HealthTab() {
 
     // Clicking a header sorts by that column. Clicking the already-active
     // column toggles direction; switching to a new column resets to "desc".
-    const handleSortColumn = (column: keyof PluginProfileData) => {
-        if (column === sortColumn) {
-            setSortDirection(d => (d === "desc" ? "asc" : "desc"));
-        } else {
-            setSortColumn(column);
+    const handleSortColumn = useCallback((column: keyof PluginProfileData) => {
+        setSortColumn(prevCol => {
+            if (column === prevCol) {
+                setSortDirection(d => (d === "desc" ? "asc" : "desc"));
+                return prevCol;
+            }
             setSortDirection("desc");
-        }
-    };
-
-    const sortIndicator = (column: keyof PluginProfileData) =>
-        column === sortColumn ? (sortDirection === "desc" ? " ▼" : " ▲") : "";
-
-    const SortableTh = ({ column, label }: { column: keyof PluginProfileData; label: string; }) => (
-        <th
-            onClick={() => handleSortColumn(column)}
-            onKeyDown={e => {
-                if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    handleSortColumn(column);
-                }
-            }}
-            role="button"
-            tabIndex={0}
-            scope="col"
-        >
-            {label}{sortIndicator(column)}
-        </th>
-    );
+            return column;
+        });
+    }, []);
     const [selectedPluginName, setSelectedPluginName] = useState<string | null>(null);
     const [safeMode, setSafeModeState] = useState(PluginHealth.isSafeModeEnabled());
+    const [expandedImpact, setExpandedImpact] = useState<Set<string>>(new Set());
+
+    const toggleExpandedImpact = (name: string) => {
+        setExpandedImpact(prev => {
+            const next = new Set(prev);
+            if (next.has(name)) next.delete(name);
+            else next.add(name);
+            return next;
+        });
+    };
+
+    const handleResetMetrics = () => {
+        PluginProfiler.resetMetrics();
+        Toasts.show({
+            id: Toasts.genId(),
+            type: Toasts.Type.SUCCESS,
+            message: "Diagnostics & profiler metrics reset",
+            options: { position: Toasts.Position.TOP }
+        });
+    };
+
+    const copyDiagnosticsReport = () => {
+        const memory = (performance as any)?.memory;
+        const heapUsed = memory?.usedJSHeapSize
+            ? `${(memory.usedJSHeapSize / (1024 * 1024)).toFixed(1)} MB`
+            : "Unavailable";
+        const lines = [
+            "Plugin Health & Diagnostics",
+            `Renderer Heap: ${heapUsed}`,
+            "",
+            "Plugin | Impact | CPU (ms) | Calls | Slow Spikes | Resources | Hot Surface | Max Call (ms)",
+            ...diagRows.map(p => [
+                p.pluginName,
+                p.impactScore.toFixed(1),
+                `${p.totalCpuTimeMs.toFixed(1)} ms`,
+                p.callCount,
+                p.slowSpikes,
+                p.activeResources,
+                p.hotSurface,
+                `${p.maxCallMs.toFixed(1)} ms`
+            ].join(" | "))
+        ];
+        void copyWithToast(lines.join("\n"), "Diagnostics report copied to clipboard!");
+    };
+
+    const copyImpactReport = () => {
+        const lines = [
+            "Impact Analysis Report",
+            "",
+            "Plugin | Impact | Signals | Advisory | Hot Surface",
+            ...profiles
+                .sort((a, b) => b.impactScore - a.impactScore)
+                .map(p => [
+                    p.pluginName,
+                    p.impactScore.toFixed(1),
+                    p.signals.join(", ") || "No signals",
+                    p.advisory ?? "Normal",
+                    p.hotSurface
+                ].join(" | "))
+        ];
+        void copyWithToast(lines.join("\n"), "Impact analysis report copied to clipboard!");
+    };
+
+    const copyMonitorReport = (profile: PluginProfileData) => {
+        const surfaces = Object.entries(profile.surfaces)
+            .sort(([, a], [, b]) => b.totalMs - a.totalMs)
+            .slice(0, 8);
+
+        const lines = [
+            `Plugin Monitor: ${profile.pluginName}`,
+            `Impact Score: ${profile.impactScore.toFixed(1)}`,
+            "",
+            "Metric | Value",
+            `CPU Time | ${profile.totalCpuTimeMs.toFixed(1)} ms`,
+            `CPU Share | ${totalCpuTimeMs > 0 ? ((profile.totalCpuTimeMs / totalCpuTimeMs) * 100).toFixed(1) : 0}%`,
+            `Calls | ${profile.callCount}`,
+            `Slow Spikes | ${profile.slowSpikes}`,
+            `Max Call | ${profile.maxCallMs.toFixed(1)} ms`,
+            `Active Resources | ${profile.activeResources}`,
+            `Intervals | ${profile.activeIntervals}`,
+            `Listeners | ${profile.activeListeners}`,
+            `Hooks | ${profile.activeHookLayers}`,
+            `Hot Surface | ${profile.hotSurface}`,
+            "",
+            "Signals & Advisories:",
+            profile.signals.length > 0 ? profile.signals.join(", ") : "No lag signals.",
+            profile.advisory ?? "No advisory.",
+            "",
+            "Most Expensive Surfaces:",
+            ...(surfaces.length > 0
+                ? surfaces.map(([s, stat]) => `${s} | ${stat.totalMs.toFixed(1)}ms | ${stat.calls} calls | ${stat.maxMs.toFixed(1)}ms max`)
+                : ["No measured surfaces yet."])
+        ];
+        void copyWithToast(lines.join("\n"), "Plugin monitor report copied to clipboard!");
+    };
 
     useEffect(() => {
         const unsubHealth = PluginHealth.subscribe(() => setTick(t => t + 1));
@@ -1895,39 +2022,61 @@ function HealthTab() {
                         </div>
                     </div>
 
-                    {!IS_DEV && (
-                        <Paragraph color="text-subtle" className={Margins.bottom8}>
-                            Note: interval and listener attribution only runs in development builds,
-                            so the Resources column reads 0 here. CPU, calls, and slow spikes are
-                            always measured.
-                        </Paragraph>
-                    )}
-
-                    <div style={{ marginBottom: "1rem" }}>
-                        <TextInput
-                            placeholder="Filter plugins by name..."
-                            value={diagSearchQuery}
-                            onChange={(val: string) => setDiagSearchQuery(val)}
-                        />
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
+                        <div style={{ flex: 1 }}>
+                            <TextInput
+                                placeholder="Filter plugins by name..."
+                                value={diagSearchQuery}
+                                onChange={(val: string) => setDiagSearchQuery(val)}
+                            />
+                        </div>
+                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                            <Button
+                                size="small"
+                                variant="secondary"
+                                onClick={copyDiagnosticsReport}
+                                disabled={diagRows.length === 0}
+                            >
+                                Copy report
+                            </Button>
+                            <Button
+                                size="small"
+                                variant="secondary"
+                                onClick={handleResetMetrics}
+                            >
+                                Reset stats
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="vc-health-table-wrapper">
                         <table className="vc-health-table">
+                            <colgroup>
+                                <col style={{ width: "24%" }} />
+                                <col style={{ width: "9%" }} />
+                                <col style={{ width: "10%" }} />
+                                <col style={{ width: "8%" }} />
+                                <col style={{ width: "8%" }} />
+                                <col style={{ width: "11%" }} />
+                                <col style={{ width: "11%" }} />
+                                <col style={{ width: "19%" }} />
+                            </colgroup>
                             <thead>
                                 <tr>
-                                    <SortableTh column="pluginName" label="Plugin" />
-                                    <SortableTh column="impactScore" label="Impact Score" />
-                                    <SortableTh column="totalCpuTimeMs" label="CPU (ms)" />
-                                    <SortableTh column="callCount" label="Calls" />
-                                    <SortableTh column="slowSpikes" label="Slow Spikes" />
-                                    <SortableTh column="maxCallMs" label="Max Call (ms)" />
-                                    <SortableTh column="activeResources" label="Resources" />
+                                    <SortableTh column="pluginName" label="Plugin" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="impactScore" label="Impact" title="Composite Impact Score" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="totalCpuTimeMs" label="CPU" title="Total CPU Time (ms)" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="callCount" label="Calls" title="Execution Call Count" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="slowSpikes" label="Spikes" title="Slow Call Spikes (>= 16ms)" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="maxCallMs" label="Max Call" title="Maximum Single Call Duration (ms)" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="activeResources" label="Resources" title="Active Persistent Resources (Intervals + Listeners + Hooks)" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="hotSurface" label="Hot Surface" title="Most Time-Consuming Execution Surface" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
                                 </tr>
                             </thead>
                             <tbody>
                                 {diagRows.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="vc-health-table-empty">
+                                        <td colSpan={8} className="vc-health-table-empty">
                                             {profiles.length === 0
                                                 ? "No plugins measured yet. Metrics appear once plugins run after startup."
                                                 : `No plugins match "${diagSearchQuery}".`}
@@ -1953,17 +2102,18 @@ function HealthTab() {
                                             }}
                                             title={`View ${p.pluginName} details`}
                                         >
-                                            <td><strong>{p.pluginName}</strong></td>
+                                            <td><strong style={{ overflow: "hidden", textOverflow: "ellipsis", display: "block" }} title={p.pluginName}>{p.pluginName}</strong></td>
                                             <td>
                                                 <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
-                                                    {p.impactScore}
+                                                    {p.impactScore.toFixed(1)}
                                                 </span>
                                             </td>
-                                            <td>{p.totalCpuTimeMs} ms</td>
-                                            <td>{p.callCount}</td>
-                                            <td>{p.slowSpikes}</td>
-                                            <td>{p.maxCallMs} ms</td>
+                                            <td>{p.totalCpuTimeMs.toFixed(1)} ms</td>
+                                            <td>{p.callCount.toLocaleString()}</td>
+                                            <td>{p.slowSpikes.toLocaleString()}</td>
+                                            <td>{p.maxCallMs.toFixed(1)} ms</td>
                                             <td>{p.activeResources}</td>
+                                            <td><code style={{ fontSize: "0.78rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: "100%" }} title={p.hotSurface}>{p.hotSurface}</code></td>
                                         </tr>
                                     ))
                                 )}
@@ -2008,45 +2158,114 @@ function HealthTab() {
             {/* TAB 3: IMPACT ANALYSIS */}
             {activeTab === "impact" && (
                 <div className="vc-health-tab-content">
-                    <HeadingSecondary className={Margins.bottom16}>Ranked Lag Impact Score</HeadingSecondary>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                        <HeadingSecondary style={{ margin: 0 }}>Ranked Lag Impact Score</HeadingSecondary>
+                        <Button
+                            size="small"
+                            variant="secondary"
+                            onClick={copyImpactReport}
+                            disabled={profiles.length === 0}
+                        >
+                            Copy report
+                        </Button>
+                    </div>
+
                     {profiles
                         .sort((a, b) => b.impactScore - a.impactScore)
-                        .map(p => (
-                            <Card key={p.pluginName} className="vc-health-impact-card" style={{ marginBottom: "1rem" }}>
-                                <div className="vc-health-impact-header">
-                                    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                                        <h3 style={{ margin: 0, color: "var(--text-normal)" }}>{p.pluginName}</h3>
-                                        <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
-                                            Impact Score: {p.impactScore}
-                                        </span>
-                                    </div>
-                                    <Button
-                                        size="small"
-                                        variant="secondary"
-                                        onClick={() => {
-                                            setSelectedPluginName(p.pluginName);
-                                            setActiveTab("monitor");
-                                        }}
-                                    >
-                                        Details
-                                    </Button>
-                                </div>
+                        .map(p => {
+                            const isExpanded = expandedImpact.has(p.pluginName);
+                            const surfaces = Object.entries(p.surfaces)
+                                .sort(([, a], [, b]) => b.totalMs - a.totalMs)
+                                .slice(0, 5);
 
-                                <div style={{ margin: "0.5rem 0" }}>
-                                    {p.signals.map(s => (
-                                        <span key={s} className="vc-health-signal-badge">
-                                            {s}
-                                        </span>
-                                    ))}
-                                </div>
-
-                                {p.advisory && (
-                                    <div className="vc-health-advisory-box">
-                                        {p.advisory}
+                            return (
+                                <Card key={p.pluginName} className="vc-health-impact-card" style={{ marginBottom: "1rem" }}>
+                                    <div className="vc-health-impact-header">
+                                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0, flex: 1 }}>
+                                            <h3 style={{ margin: 0, color: "var(--text-normal)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.pluginName}</h3>
+                                            <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
+                                                Impact Score: {p.impactScore.toFixed(1)}
+                                            </span>
+                                            <span style={{ fontSize: "0.8rem", color: "var(--text-muted)", flexShrink: 0 }}>
+                                                Hot: <code>{p.hotSurface}</code>
+                                            </span>
+                                        </div>
+                                        <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+                                            <Button
+                                                size="small"
+                                                variant="secondary"
+                                                onClick={() => toggleExpandedImpact(p.pluginName)}
+                                            >
+                                                {isExpanded ? "Hide" : "Details"}
+                                            </Button>
+                                            <Button
+                                                size="small"
+                                                variant="secondary"
+                                                onClick={() => {
+                                                    setSelectedPluginName(p.pluginName);
+                                                    setActiveTab("monitor");
+                                                }}
+                                            >
+                                                Monitor
+                                            </Button>
+                                        </div>
                                     </div>
-                                )}
-                            </Card>
-                        ))}
+
+                                    <div style={{ margin: "0.5rem 0" }}>
+                                        {p.signals.map(s => (
+                                            <span key={s} className="vc-health-signal-badge">
+                                                {s}
+                                            </span>
+                                        ))}
+                                    </div>
+
+                                    {p.advisory && (
+                                        <div className="vc-health-advisory-box">
+                                            {p.advisory}
+                                        </div>
+                                    )}
+
+                                    {isExpanded && (
+                                        <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))" }}>
+                                            <HeadingSecondary style={{ fontSize: "0.95rem", marginBottom: "0.5rem" }}>
+                                                Most Expensive Surfaces
+                                            </HeadingSecondary>
+                                            {surfaces.length === 0 ? (
+                                                <Paragraph color="text-subtle">No measured surfaces yet.</Paragraph>
+                                            ) : (
+                                                <div style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "0.75rem" }}>
+                                                    {surfaces.map(([s, stat]) => (
+                                                        <div key={s} style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", padding: "4px 8px", background: "var(--background-base-low, #1e1f22)", borderRadius: "4px" }}>
+                                                            <code>{s}</code>
+                                                            <span><strong>{stat.totalMs.toFixed(1)} ms</strong> · {stat.calls} calls · max {stat.maxMs.toFixed(1)} ms</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {p.snippets.length > 0 && (
+                                                <div style={{ marginTop: "0.75rem" }}>
+                                                    <HeadingSecondary style={{ fontSize: "0.95rem", marginBottom: "0.5rem" }}>
+                                                        Related Code Snippets
+                                                    </HeadingSecondary>
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                                                        {p.snippets.slice(0, 4).map((snip, idx) => (
+                                                            <div key={`${snip.surface}-${idx}`} style={{ background: "var(--background-base-low, #1e1f22)", borderRadius: "6px", padding: "8px" }}>
+                                                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                                                                    <strong>{snip.label}</strong>
+                                                                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{snip.surface}</span>
+                                                                </div>
+                                                                <CodeBlock content={snip.fn ? snip.fn() : snip.code} lang="tsx" />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </Card>
+                            );
+                        })}
                 </div>
             )}
 
@@ -2115,7 +2334,7 @@ function HealthTab() {
                                         >
                                             <span className="vc-health-master-item-name">{p.pluginName}</span>
                                             <span className={`vc-health-impact-badge ${impactBadgeClass(p.impactScore)}`}>
-                                                {p.impactScore}
+                                                {p.impactScore.toFixed(1)}
                                             </span>
                                         </div>
                                     ))
@@ -2128,14 +2347,23 @@ function HealthTab() {
                             <div className="vc-health-detail-column">
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                     <h2 style={{ margin: 0, color: "var(--text-normal)" }}>{currentPluginProfile.pluginName}</h2>
-                                    <span className={`vc-health-impact-badge ${impactBadgeClass(currentPluginProfile.impactScore)}`}>
-                                        Impact Score: {currentPluginProfile.impactScore}
-                                    </span>
+                                    <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                                        <span className={`vc-health-impact-badge ${impactBadgeClass(currentPluginProfile.impactScore)}`}>
+                                            Impact Score: {currentPluginProfile.impactScore.toFixed(1)}
+                                        </span>
+                                        <Button
+                                            size="small"
+                                            variant="secondary"
+                                            onClick={() => copyMonitorReport(currentPluginProfile)}
+                                        >
+                                            Copy report
+                                        </Button>
+                                    </div>
                                 </div>
 
                                 <div className="vc-health-metrics-grid-8">
                                     <div className="vc-health-metric-card-sm">
-                                        <div className="vc-health-metric-val">{currentPluginProfile.totalCpuTimeMs} ms</div>
+                                        <div className="vc-health-metric-val">{currentPluginProfile.totalCpuTimeMs.toFixed(1)} ms</div>
                                         <div className="vc-health-metric-label">Extra CPU</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
@@ -2153,7 +2381,7 @@ function HealthTab() {
                                         <div className="vc-health-metric-label">Slow Spikes</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
-                                        <div className="vc-health-metric-val">{currentPluginProfile.maxCallMs} ms</div>
+                                        <div className="vc-health-metric-val">{currentPluginProfile.maxCallMs.toFixed(1)} ms</div>
                                         <div className="vc-health-metric-label">Max Call</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
@@ -2167,6 +2395,10 @@ function HealthTab() {
                                     <div className="vc-health-metric-card-sm">
                                         <div className="vc-health-metric-val">{currentPluginProfile.activeListeners}</div>
                                         <div className="vc-health-metric-label">Listeners</div>
+                                    </div>
+                                    <div className="vc-health-metric-card-sm">
+                                        <div className="vc-health-metric-val">{currentPluginProfile.activeHookLayers}</div>
+                                        <div className="vc-health-metric-label">Hooks</div>
                                     </div>
                                 </div>
 
@@ -2186,6 +2418,44 @@ function HealthTab() {
                                             {currentPluginProfile.advisory}
                                         </div>
                                     )}
+                                </div>
+
+                                <div>
+                                    <HeadingSecondary>Most Expensive Surfaces</HeadingSecondary>
+                                    <div style={{ marginTop: "0.5rem" }}>
+                                        {Object.entries(currentPluginProfile.surfaces).length === 0 ? (
+                                            <span style={{ fontSize: "0.85rem", color: "var(--text-subtle)" }}>No measured surfaces yet.</span>
+                                        ) : (
+                                            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                                {Object.entries(currentPluginProfile.surfaces)
+                                                    .sort(([, a], [, b]) => b.totalMs - a.totalMs)
+                                                    .slice(0, 8)
+                                                    .map(([s, stat]) => (
+                                                        <div
+                                                            key={s}
+                                                            style={{
+                                                                display: "flex",
+                                                                justifyContent: "space-between",
+                                                                alignItems: "center",
+                                                                padding: "6px 10px",
+                                                                background: "var(--card-background-default, #1e1f22)",
+                                                                borderRadius: "6px",
+                                                                border: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.06))",
+                                                                fontSize: "0.85rem"
+                                                            }}
+                                                        >
+                                                            <code>{s}</code>
+                                                            <div style={{ display: "flex", gap: "12px", color: "var(--text-muted)" }}>
+                                                                <span><strong>{stat.totalMs.toFixed(1)} ms</strong></span>
+                                                                <span>{stat.calls} calls</span>
+                                                                <span>max {stat.maxMs.toFixed(1)} ms</span>
+                                                                {stat.slowCalls > 0 && <span style={{ color: "var(--text-warning)" }}>{stat.slowCalls} slow</span>}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                             </div>
@@ -2255,7 +2525,7 @@ function HealthTab() {
                         <Card className="vc-health-guide-card">
                             <HeadingSecondary>Performance Diagnostics Engine</HeadingSecondary>
                             <Paragraph color="text-subtle">
-                                The diagnostic suite instruments plugin lifecycle hooks (`onStart`, `onStop`), Flux event dispatches, and event listeners with high-resolution timers (`performance.now()`). Any single callback taking longer than 16ms is flagged as a slow call spike.
+                                The diagnostic suite instruments plugin lifecycle hooks (`start`, `stop`), Flux event dispatches, UI renders, message handlers, slash commands, context menus, and timers with high-resolution timers (`performance.now()`). Any single callback taking longer than 16ms is flagged as a slow call spike.
                             </Paragraph>
                         </Card>
 
@@ -2268,11 +2538,7 @@ function HealthTab() {
                                 Impact Score = (CPU_ms * 0.5) + (Slow_Spikes * 25) + (Active_Resources * 5)
                             </div>
                             <Paragraph color="text-subtle" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
-                                Per-plugin RAM is intentionally excluded: browsers expose only a
-                                process-wide heap counter (all of Discord plus every plugin), which
-                                cannot be attributed to an individual plugin, so including it would
-                                only add noise. Active resources are live intervals and event
-                                listeners created by the plugin, tracked automatically.
+                                Active resources track persistent unreleased handles (live intervals, event listeners, and runtime interposition hooks) retained by the plugin, attributed automatically in both Development and Production builds.
                             </Paragraph>
                         </Card>
 

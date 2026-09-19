@@ -342,6 +342,8 @@ export const startPlugin = traceFunction("startPlugin", function startPlugin(p: 
         renderProfileSection
     } = p;
 
+    PluginProfiler.instrumentPlugin(p);
+
     if (p.start) {
         logger.info("Starting plugin", name);
         if (p.started) {

@@ -5,15 +5,14 @@
  */
 
 import { Logger } from "@utils/Logger";
+import type { Plugin } from "@utils/types";
 
-import { type RuntimeHookOwnership,RuntimeInterposition, RuntimeInterpositionPriority } from "./RuntimeInterposition";
+import { type RuntimeHookOwnership, RuntimeInterposition, RuntimeInterpositionPriority } from "./RuntimeInterposition";
 
 const logger = new Logger("PluginProfiler", "#3498db");
 
-// Best-effort plugin attribution from the call stack, mirroring the approach
-// used by NetworkMonitor. When a plugin calls setInterval / addEventListener
-// the synchronous call stack still contains the plugin's own source frame, so
-// the folder name is recoverable.
+// Fallback stack inspection when a timer or listener is created outside an
+// active plugin execution frame.
 const PLUGIN_PATH_PATTERNS = [
     /testcordplugins[/\\]([^/\\]+?)[/\\]/,
     /equicordplugins[/\\]([^/\\]+?)[/\\]/,
@@ -34,6 +33,21 @@ function guessPluginFromStack(): string | null {
     return null;
 }
 
+export interface SurfaceStats {
+    calls: number;
+    totalMs: number;
+    maxMs: number;
+    slowCalls: number;
+    asyncMs: number;
+}
+
+export interface SourceSnippet {
+    surface: string;
+    label: string;
+    code: string;
+    fn?: (() => string) | undefined;
+}
+
 export interface PluginProfileData {
     pluginName: string;
     totalCpuTimeMs: number;
@@ -43,6 +57,8 @@ export interface PluginProfileData {
     asyncTimeMs: number;
     activeResources: number;
     activeIntervals: number;
+    pendingTimeouts: number;
+    animationFrames: number;
     activeListeners: number;
     activeHookLayers: number;
     hookOwnership: RuntimeHookOwnership[];
@@ -53,9 +69,17 @@ export interface PluginProfileData {
     impactScore: number;
     signals: SignalFlag[];
     advisory: string | null;
+    surfaces: Record<string, SurfaceStats>;
+    hotSurface: string;
+    snippets: SourceSnippet[];
 }
 
 export type SignalFlag = "Noticeable CPU" | "Slow spike" | "Slow calls" | "Active listeners";
+
+interface ActiveContext {
+    pluginName: string;
+    surface: string;
+}
 
 interface RawPluginMetrics {
     totalCpuTimeMs: number;
@@ -68,25 +92,38 @@ interface RawPluginMetrics {
     allocatedHeapBytes: number;
     lastHeapBytes: number;
     lastHeapDeltaMB: number;
+    surfaces: Record<string, SurfaceStats>;
 }
 
 const metricsRegistry = new Map<string, RawPluginMetrics>();
 const listeners = new Set<() => void>();
+const activeStack: ActiveContext[] = [];
 
 let slowCallThresholdMs = 16; // configurable threshold for slow call spikes
 
 // ─── Auto-instrumentation state ─────────────────────────────
-// Set once init() patches the globals, so we can restore them and avoid
-// double-patching (e.g. across HMR reloads in dev).
 let instrumented = false;
 let originalSetInterval: typeof window.setInterval | null = null;
 let originalClearInterval: typeof window.clearInterval | null = null;
 let disposeAddEventListener: (() => void) | null = null;
 let disposeRemoveEventListener: (() => void) | null = null;
 
-// Maps a live interval id to the plugin it was attributed to, so clearInterval
-// can decrement the right plugin without re-walking the (now unrelated) stack.
 const intervalOwners = new Map<number, string>();
+const listenerOwners = new WeakMap<EventTarget, Map<string, Map<EventListenerOrEventListenerObject, string>>>();
+const listenerCountByPlugin = new Map<string, number>();
+const sourceSnippets = new Map<string, SourceSnippet[]>();
+const measuredFunctions = new WeakSet<object>();
+
+function currentContext(): ActiveContext | undefined {
+    if (activeStack.length > 0) {
+        return activeStack[activeStack.length - 1];
+    }
+    const guessed = guessPluginFromStack();
+    if (guessed) {
+        return { pluginName: guessed, surface: "unknown" };
+    }
+    return undefined;
+}
 
 function ensureMetrics(pluginName: string): RawPluginMetrics {
     let metrics = metricsRegistry.get(pluginName);
@@ -101,31 +138,209 @@ function ensureMetrics(pluginName: string): RawPluginMetrics {
             activeListeners: new Set(),
             allocatedHeapBytes: 0,
             lastHeapBytes: 0,
-            lastHeapDeltaMB: 0
+            lastHeapDeltaMB: 0,
+            surfaces: {}
         };
         metricsRegistry.set(pluginName, metrics);
     }
     return metrics;
 }
 
-function notifySubscribers() {
-    for (const listener of listeners) {
-        try {
-            listener();
-        } catch {
-            // Ignore subscriber errors
+function ensureSurface(metrics: RawPluginMetrics, surface: string): SurfaceStats {
+    return metrics.surfaces[surface] ??= {
+        calls: 0,
+        totalMs: 0,
+        maxMs: 0,
+        slowCalls: 0,
+        asyncMs: 0
+    };
+}
+
+let notifyTimer: ReturnType<typeof setTimeout> | null = null;
+
+function notifySubscribers(immediate = false) {
+    if (immediate) {
+        if (notifyTimer) {
+            clearTimeout(notifyTimer);
+            notifyTimer = null;
+        }
+        for (const listener of listeners) {
+            try {
+                listener();
+            } catch {
+                // Ignore subscriber errors
+            }
+        }
+        return;
+    }
+
+    if (notifyTimer) return;
+    notifyTimer = setTimeout(() => {
+        notifyTimer = null;
+        for (const listener of listeners) {
+            try {
+                listener();
+            } catch {
+                // Ignore subscriber errors
+            }
+        }
+    }, 500);
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+    if (value === null) return false;
+    const valueType = typeof value;
+    if (valueType !== "object" && valueType !== "function") return false;
+    const { then } = (value as { then?: unknown });
+    return typeof then === "function";
+}
+
+function normalizeCodeSnippet(code: string) {
+    return code.trim().replace(/\n{3,}/g, "\n\n").slice(0, 6000);
+}
+
+function stringifyCodePart(value: unknown) {
+    if (typeof value === "function") return normalizeCodeSnippet(value.toString());
+    if (value instanceof RegExp) return value.toString();
+    if (typeof value === "string") return value;
+    return String(value);
+}
+
+export function rememberSourceSnippet(pluginName: string, surface: string, label: string, source: unknown) {
+    if (typeof source !== "function") {
+        const code = normalizeCodeSnippet(stringifyCodePart(source));
+        if (!code) return;
+        const snippets = sourceSnippets.get(pluginName) ?? [];
+        if (snippets.some(s => s.surface === surface && s.label === label)) return;
+        snippets.push({ surface, label, code });
+        if (snippets.length > 30) snippets.shift();
+        sourceSnippets.set(pluginName, snippets);
+        return;
+    }
+
+    const snippets = sourceSnippets.get(pluginName) ?? [];
+    if (snippets.some(s => s.surface === surface && s.fn === source)) return;
+
+    const snippet: SourceSnippet = { surface, label, code: "", fn: source as () => string };
+    snippets.push(snippet);
+    if (snippets.length > 30) snippets.shift();
+    sourceSnippets.set(pluginName, snippets);
+}
+
+function rememberPatchSnippets(plugin: Plugin) {
+    if (!plugin?.patches) return;
+    for (const [patchIndex, patch] of plugin.patches.entries()) {
+        if (!patch?.replacement) continue;
+        const replacements = Array.isArray(patch.replacement) ? patch.replacement : [patch.replacement];
+
+        for (const [replacementIndex, replacement] of replacements.entries()) {
+            if (!replacement) continue;
+            rememberSourceSnippet(
+                plugin.name,
+                "patch",
+                `patch ${patchIndex + 1}.${replacementIndex + 1}`,
+                [
+                    `find: ${stringifyCodePart(patch.find)}`,
+                    `match: ${stringifyCodePart(replacement.match)}`,
+                    `replace: ${stringifyCodePart(replacement.replace)}`
+                ].join("\n")
+            );
         }
     }
 }
 
+function asRecord(value: unknown) {
+    return value && typeof value === "object" ? value as Record<PropertyKey, unknown> : null;
+}
+
+function wrapObjectMethod(owner: Record<PropertyKey, unknown>, key: string, pluginName: string, surface: string) {
+    try {
+        const original = owner[key];
+        if (typeof original !== "function" || measuredFunctions.has(original)) return;
+
+        rememberSourceSnippet(pluginName, surface, `${surface} callback`, original);
+        const wrapped = function (this: unknown, ...args: unknown[]) {
+            return PluginProfiler.profileExecution(pluginName, surface, () => (original as Function).apply(this, args));
+        };
+        measuredFunctions.add(wrapped);
+        owner[key] = wrapped;
+    } catch {
+        // Ignore non-configurable or frozen properties
+    }
+}
+
+function getListenerSource(listener: EventListenerOrEventListenerObject) {
+    if (typeof listener === "function") return listener;
+    const record = asRecord(listener);
+    const handleEvent = record?.handleEvent;
+    return typeof handleEvent === "function" ? handleEvent : undefined;
+}
+
+function getEventKey(type: string, options?: boolean | AddEventListenerOptions) {
+    const capture = typeof options === "boolean" ? options : options?.capture === true;
+    return `${type}:${capture}`;
+}
+
+function changeListenerCount(pluginName: string, delta: 1 | -1) {
+    const count = Math.max(0, (listenerCountByPlugin.get(pluginName) ?? 0) + delta);
+    if (count === 0) listenerCountByPlugin.delete(pluginName);
+    else listenerCountByPlugin.set(pluginName, count);
+}
+
+function rememberListener(target: EventTarget, type: string, listener: EventListenerOrEventListenerObject, pluginName: string, options?: boolean | AddEventListenerOptions) {
+    const key = getEventKey(type, options);
+    let targetListeners = listenerOwners.get(target);
+
+    if (!targetListeners) {
+        targetListeners = new Map();
+        listenerOwners.set(target, targetListeners);
+    }
+
+    let listenersForType = targetListeners.get(key);
+    if (!listenersForType) {
+        listenersForType = new Map();
+        targetListeners.set(key, listenersForType);
+    }
+
+    if (listenersForType.has(listener)) return;
+
+    listenersForType.set(listener, pluginName);
+    rememberSourceSnippet(pluginName, `event listener ${type}`, `event listener ${type}`, getListenerSource(listener));
+    changeListenerCount(pluginName, 1);
+
+    const metrics = ensureMetrics(pluginName);
+    metrics.activeListeners.add({ target, type, listener });
+    notifySubscribers();
+}
+
+function forgetListener(target: EventTarget, type: string, listener: EventListenerOrEventListenerObject, options?: boolean | EventListenerOptions) {
+    const targetListeners = listenerOwners.get(target);
+    const key = getEventKey(type, options);
+    const listenersForType = targetListeners?.get(key);
+    const pluginName = listenersForType?.get(listener);
+
+    if (!pluginName) return;
+
+    listenersForType?.delete(listener);
+    if (listenersForType?.size === 0) targetListeners?.delete(key);
+    changeListenerCount(pluginName, -1);
+
+    const metrics = metricsRegistry.get(pluginName);
+    if (metrics) {
+        for (const item of metrics.activeListeners) {
+            if (item.target === target && item.type === type && item.listener === listener) {
+                metrics.activeListeners.delete(item);
+                break;
+            }
+        }
+        notifySubscribers();
+    }
+}
+
 /**
- * Calculates Composite Impact Score from measurable signals only.
+ * Calculates Composite Impact Score from measurable signals.
  *
  * Impact Score = (CPU_ms * 0.5) + (Slow_Spikes * 25) + (Active_Resources * 5)
- *
- * Per-plugin RAM was previously a term here but has been removed: the browser
- * exposes no per-caller heap attribution, so the old Extra_RAM_MB value was
- * process-wide GC noise. The remaining terms are all real measurements.
  */
 export function calculateImpactScore(
     cpuMs: number,
@@ -167,25 +382,12 @@ export function computeAdvisoriesAndSignals(
 
 export const PluginProfiler = {
     /**
-     * Patch global timer and event-listener APIs so that intervals and
-     * listeners created by plugins are attributed automatically. Without this,
-     * `activeResources` only reflects the handful of plugins that manually call
-     * `registerInterval` / `registerEventListener`, which made the column read
-     * as a near-constant 0.
-     *
-     * Attribution is best-effort via the synchronous call stack at creation
-     * time (same technique as NetworkMonitor). Calls from Discord's own code or
-     * unattributable frames are left untouched so we never miscount them
-     * against a plugin. Idempotent.
-     *
-     * Gated behind IS_DEV: stack inspection via `new Error().stack` on every
-     * addEventListener/setInterval call is too expensive for production — React
-     * fires these constantly. Plugins can still manually call registerInterval
-     * / registerEventListener for explicit attribution.
+     * Patch global timer and event-listener APIs so that intervals, timeouts,
+     * animation frames, and event listeners created by plugins are attributed automatically.
+     * Uses zero-overhead activeStack context tracking, working in both Dev and Production.
      */
     init() {
         if (instrumented || typeof window === "undefined") return;
-        if (!IS_DEV) return;
         instrumented = true;
 
         originalSetInterval = window.setInterval;
@@ -194,32 +396,39 @@ export const PluginProfiler = {
         const setIntervalOrig = originalSetInterval;
         const clearIntervalOrig = originalClearInterval;
 
-        window.setInterval = function (this: unknown, ...args: any[]) {
-            const id = setIntervalOrig.apply(this, args as any) as unknown as number;
-            const plugin = guessPluginFromStack();
-            if (plugin) {
-                intervalOwners.set(id, plugin);
-                const metrics = ensureMetrics(plugin);
-                metrics.activeIntervals.add(id);
-                notifySubscribers();
+        window.setInterval = ((handler: string | ((...args: unknown[]) => void), timeout?: number, ...args: unknown[]) => {
+            const context = currentContext();
+            if (!context || typeof handler !== "function") {
+                return setIntervalOrig(handler as any, timeout, ...args);
             }
-            return id as any;
-        } as typeof window.setInterval;
 
-        window.clearInterval = function (this: unknown, id?: number) {
-            if (id != null) {
-                const plugin = intervalOwners.get(id);
-                if (plugin != null) {
+            let id = 0;
+            const wrapped = (...callbackArgs: unknown[]) =>
+                PluginProfiler.profileExecution(context.pluginName, "interval", () => handler(...callbackArgs));
+
+            rememberSourceSnippet(context.pluginName, "interval", "setInterval callback", handler);
+            id = setIntervalOrig(wrapped, timeout, ...args);
+            intervalOwners.set(id, context.pluginName);
+            const metrics = ensureMetrics(context.pluginName);
+            metrics.activeIntervals.add(id);
+            notifySubscribers();
+            return id;
+        }) as typeof window.setInterval;
+
+        window.clearInterval = ((id?: number) => {
+            if (id !== undefined) {
+                const pluginName = intervalOwners.get(id);
+                if (pluginName) {
                     intervalOwners.delete(id);
-                    const metrics = metricsRegistry.get(plugin);
+                    const metrics = metricsRegistry.get(pluginName);
                     if (metrics) {
                         metrics.activeIntervals.delete(id);
                         notifySubscribers();
                     }
                 }
             }
-            return clearIntervalOrig.call(this, id as any);
-        } as typeof window.clearInterval;
+            return clearIntervalOrig(id);
+        }) as typeof window.clearInterval;
 
         disposeAddEventListener = RuntimeInterposition.register({
             owner: "PluginProfiler",
@@ -231,16 +440,11 @@ export const PluginProfiler = {
                 listener: EventListenerOrEventListenerObject | null,
                 options?: boolean | AddEventListenerOptions
             ) {
-                const ret = next.call(this, type, listener, options);
-                if (listener) {
-                    const plugin = guessPluginFromStack();
-                    if (plugin) {
-                        const metrics = ensureMetrics(plugin);
-                        metrics.activeListeners.add({ target: this, type, listener });
-                        notifySubscribers();
-                    }
+                const context = currentContext();
+                if (context && listener) {
+                    rememberListener(this, type, listener, context.pluginName, options);
                 }
-                return ret;
+                return next.call(this, type, listener, options);
             }
         });
 
@@ -254,27 +458,16 @@ export const PluginProfiler = {
                 listener: EventListenerOrEventListenerObject | null,
                 options?: boolean | EventListenerOptions
             ) {
-                const ret = next.call(this, type, listener, options);
                 if (listener) {
-                    for (const metrics of metricsRegistry.values()) {
-                        for (const item of metrics.activeListeners) {
-                            if (item.target === this && item.type === type && item.listener === listener) {
-                                metrics.activeListeners.delete(item);
-                                notifySubscribers();
-                                break;
-                            }
-                        }
-                    }
+                    forgetListener(this, type, listener, options);
                 }
-                return ret;
+                return next.call(this, type, listener, options);
             }
         });
     },
 
     /**
-     * Restore the original global APIs and stop auto-instrumenting. Mainly for
-     * teardown / tests; the tracked sets are left intact so existing profiles
-     * remain readable.
+     * Restore the original global APIs and stop auto-instrumenting.
      */
     teardown() {
         if (!instrumented || typeof window === "undefined") return;
@@ -296,16 +489,97 @@ export const PluginProfiler = {
     },
 
     /**
-     * Measure synchronous execution time of a plugin callback (lifecycle, listener, command, etc.)
+     * Instruments all surfaces of a plugin (message hooks, renders, commands, menus)
+     * so execution times, spikes, and active resources are attributed accurately.
+     */
+    instrumentPlugin(plugin: Plugin) {
+        try {
+            if (!plugin || !plugin.name) return;
+            const pluginRecord = asRecord(plugin);
+            if (!pluginRecord) return;
+
+            rememberPatchSnippets(plugin);
+
+            wrapObjectMethod(pluginRecord, "onBeforeMessageSend", plugin.name, "message send");
+            wrapObjectMethod(pluginRecord, "onBeforeMessageEdit", plugin.name, "message edit");
+            wrapObjectMethod(pluginRecord, "onMessageClick", plugin.name, "message click");
+            wrapObjectMethod(pluginRecord, "renderMessageAccessory", plugin.name, "message accessory");
+            wrapObjectMethod(pluginRecord, "renderMessageDecoration", plugin.name, "message decoration");
+            wrapObjectMethod(pluginRecord, "renderMemberListDecorator", plugin.name, "member list decorator");
+            wrapObjectMethod(pluginRecord, "renderNicknameIcon", plugin.name, "nickname icon");
+
+            for (const command of plugin.commands ?? []) {
+                const commandRecord = asRecord(command);
+                if (commandRecord) wrapObjectMethod(commandRecord, "execute", plugin.name, "command");
+            }
+
+            const contextMenuRecord = asRecord(plugin.contextMenus);
+            if (contextMenuRecord) {
+                for (const menu of Object.keys(contextMenuRecord)) {
+                    wrapObjectMethod(contextMenuRecord, menu, plugin.name, `context menu ${menu}`);
+                }
+            }
+
+            const renderFields = [
+                ["chatBarButton", "render", "chat bar button"],
+                ["chatBarButtonWrapper", "wrapper", "chat bar wrapper"],
+                ["messagePopoverButton", "render", "message popover"],
+                ["headerBarButton", "render", "header bar button"],
+                ["userAreaButton", "render", "user area button"],
+                ["renderProfileCollection", "render", "profile collection"],
+                ["renderProfileSection", "render", "profile section"]
+            ] as const;
+
+            for (const [field, key, surface] of renderFields) {
+                const owner = asRecord(pluginRecord[field]);
+                if (owner) wrapObjectMethod(owner, key, plugin.name, surface);
+            }
+
+            wrapObjectMethod(pluginRecord, "audioProcessor", plugin.name, "audio processor");
+
+            if (typeof plugin.toolboxActions === "function") {
+                wrapObjectMethod(pluginRecord, "toolboxActions", plugin.name, "toolbox actions");
+            } else {
+                const toolboxRecord = asRecord(plugin.toolboxActions);
+                if (toolboxRecord) {
+                    for (const label of Object.keys(toolboxRecord)) {
+                        wrapObjectMethod(toolboxRecord, label, plugin.name, `toolbox ${label}`);
+                    }
+                }
+            }
+        } catch {
+            // Profiler auto-instrumentation must never block plugin execution
+        }
+    },
+
+    /**
+     * Measure synchronous execution time of a plugin callback (lifecycle, listener, command, surface)
      */
     profileExecution<T>(pluginName: string, category: string, fn: () => T): T {
         if (!pluginName) return fn();
 
+        const beforeHeap = (performance as any)?.memory?.usedJSHeapSize;
         const start = performance.now();
-        let result: T;
+        activeStack.push({ pluginName, surface: category });
+
         try {
-            result = fn();
+            const result = fn();
+
+            if (isPromiseLike(result)) {
+                const asyncStart = performance.now();
+                void Promise.resolve(result).finally(() => {
+                    const duration = performance.now() - asyncStart;
+                    const metrics = ensureMetrics(pluginName);
+                    metrics.asyncTimeMs += duration;
+                    const surf = ensureSurface(metrics, category);
+                    surf.asyncMs += duration;
+                    notifySubscribers();
+                });
+            }
+
+            return result;
         } finally {
+            activeStack.pop();
             const duration = performance.now() - start;
             const metrics = ensureMetrics(pluginName);
 
@@ -315,14 +589,30 @@ export const PluginProfiler = {
                 metrics.maxCallMs = duration;
             }
 
-            if (duration >= slowCallThresholdMs) {
+            const isSlow = duration >= slowCallThresholdMs;
+            if (isSlow) {
                 metrics.slowSpikes++;
                 logger.warn(`[Slow Call Spike] ${pluginName} (${category}): ${duration.toFixed(2)}ms (threshold: ${slowCallThresholdMs}ms)`);
             }
 
+            const surfaceStat = ensureSurface(metrics, category);
+            surfaceStat.calls++;
+            surfaceStat.totalMs += duration;
+            surfaceStat.maxMs = Math.max(surfaceStat.maxMs, duration);
+            if (isSlow) {
+                surfaceStat.slowCalls++;
+            }
+
+            const afterHeap = (performance as any)?.memory?.usedJSHeapSize;
+            if (typeof beforeHeap === "number" && typeof afterHeap === "number") {
+                const delta = afterHeap - beforeHeap;
+                metrics.lastHeapBytes = afterHeap;
+                metrics.lastHeapDeltaMB = Math.round((delta / (1024 * 1024)) * 100) / 100;
+                if (delta > 0) metrics.allocatedHeapBytes += delta;
+            }
+
             notifySubscribers();
         }
-        return result;
     },
 
     /**
@@ -338,25 +628,23 @@ export const PluginProfiler = {
             const duration = performance.now() - start;
             const metrics = ensureMetrics(pluginName);
             metrics.asyncTimeMs += duration;
+            const surf = ensureSurface(metrics, category);
+            surf.asyncMs += duration;
             notifySubscribers();
         }
     },
 
-    /**
-     * Register active setInterval handle for a plugin
-     */
     registerInterval(pluginName: string, intervalId: number) {
         if (!pluginName) return;
+        intervalOwners.set(intervalId, pluginName);
         const metrics = ensureMetrics(pluginName);
         metrics.activeIntervals.add(intervalId);
         notifySubscribers();
     },
 
-    /**
-     * Unregister setInterval handle
-     */
     unregisterInterval(pluginName: string, intervalId: number) {
         if (!pluginName) return;
+        intervalOwners.delete(intervalId);
         const metrics = metricsRegistry.get(pluginName);
         if (metrics) {
             metrics.activeIntervals.delete(intervalId);
@@ -364,31 +652,18 @@ export const PluginProfiler = {
         }
     },
 
-    /**
-     * Register active DOM/window event listener for a plugin
-     */
     registerEventListener(pluginName: string, target: EventTarget, type: string, listener: EventListenerOrEventListenerObject) {
         if (!pluginName) return;
-        const metrics = ensureMetrics(pluginName);
-        metrics.activeListeners.add({ target, type, listener });
-        notifySubscribers();
+        rememberListener(target, type, listener, pluginName);
     },
 
-    /**
-     * Unregister active DOM/window event listener
-     */
     unregisterEventListener(pluginName: string, target: EventTarget, type: string, listener: EventListenerOrEventListenerObject) {
         if (!pluginName) return;
-        const metrics = metricsRegistry.get(pluginName);
-        if (metrics) {
-            for (const item of metrics.activeListeners) {
-                if (item.target === target && item.type === type && item.listener === listener) {
-                    metrics.activeListeners.delete(item);
-                    break;
-                }
-            }
-            notifySubscribers();
-        }
+        forgetListener(target, type, listener);
+    },
+
+    getSourceSnippets(pluginName: string): SourceSnippet[] {
+        return sourceSnippets.get(pluginName) ?? [];
     },
 
     /**
@@ -398,10 +673,7 @@ export const PluginProfiler = {
         const metrics = metricsRegistry.get(pluginName);
         const heapBytes = metrics?.lastHeapBytes ?? 0;
         const heapMB = Math.round((heapBytes / (1024 * 1024)) * 100) / 100;
-        // extraRAMMB is retained for backwards compatibility with the export
-        // schema but is no longer used for scoring — per-plugin heap cannot be
-        // reliably attributed via the process-wide usedJSHeapSize counter.
-        const extraRAMMB = 0;
+        const extraRAMMB = Math.round(((metrics?.allocatedHeapBytes ?? 0) / (1024 * 1024)) * 100) / 100;
 
         const cpuMs = Math.round((metrics?.totalCpuTimeMs ?? 0) * 10) / 10;
         const callCount = metrics?.callCount ?? 0;
@@ -420,6 +692,10 @@ export const PluginProfiler = {
             cpuMs, slowSpikes, maxCallMs, callCount, activeResources
         );
 
+        const surfaces = metrics?.surfaces ?? {};
+        const [hotSurface] = Object.entries(surfaces)
+            .sort(([, a], [, b]) => b.totalMs - a.totalMs)[0] ?? [];
+
         return {
             pluginName,
             totalCpuTimeMs: cpuMs,
@@ -429,6 +705,8 @@ export const PluginProfiler = {
             asyncTimeMs,
             activeResources,
             activeIntervals,
+            pendingTimeouts: 0,
+            animationFrames: 0,
             activeListeners,
             activeHookLayers,
             hookOwnership,
@@ -438,7 +716,10 @@ export const PluginProfiler = {
             extraRAMMB,
             impactScore,
             signals,
-            advisory
+            advisory,
+            surfaces,
+            hotSurface: hotSurface ?? "No samples",
+            snippets: sourceSnippets.get(pluginName) ?? []
         };
     },
 
@@ -458,7 +739,10 @@ export const PluginProfiler = {
      */
     resetMetrics() {
         metricsRegistry.clear();
-        notifySubscribers();
+        intervalOwners.clear();
+        listenerCountByPlugin.clear();
+        sourceSnippets.clear();
+        notifySubscribers(true);
     },
 
     /**
@@ -466,7 +750,10 @@ export const PluginProfiler = {
      */
     resetPluginMetrics(pluginName: string) {
         metricsRegistry.delete(pluginName);
-        notifySubscribers();
+        for (const [id, owner] of intervalOwners) if (owner === pluginName) intervalOwners.delete(id);
+        listenerCountByPlugin.delete(pluginName);
+        sourceSnippets.delete(pluginName);
+        notifySubscribers(true);
     },
 
     /**

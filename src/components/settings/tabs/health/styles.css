@@ -43,7 +43,9 @@
 }
 
 @keyframes vc-health-pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 0 0 0 var(--status-danger-text, #f04747);
     }
 
@@ -71,7 +73,9 @@
 }
 
 @keyframes vc-health-glow {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 0 6px 0 rgb(0 168 252 / 0%);
     }
 
@@ -121,6 +125,7 @@
 /* ─── Reduced motion ─────────────────────────────────────────── */
 
 @media (prefers-reduced-motion: reduce) {
+
     .vc-plugin-health-card,
     .vc-plugin-health-card-body,
     .vc-plugin-health-summary-fill,
@@ -225,7 +230,7 @@
 /* ─── Diagnostic Table ────────────────────────────────────────── */
 
 .vc-health-table-wrapper {
-    background: var(--background-secondary, #2b2d31);
+    background: var(--card-background-default, #2b2d31);
     border: 1px solid var(--border-subtle, rgb(255 255 255 / 8%));
     border-radius: 8px;
     overflow: hidden;
@@ -234,31 +239,79 @@
 
 .vc-health-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     text-align: left;
+}
+
+.vc-health-table th,
+.vc-health-table td {
+    padding: 8px 6px;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    box-sizing: border-box;
+    font-variant-numeric: tabular-nums;
 }
 
 .vc-health-table th {
     background: var(--background-base-low, #1e1f22);
     color: var(--header-secondary, #b5bac1);
     font-weight: 600;
-    padding: 0.75rem 1rem;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
     border-bottom: 1px solid var(--border-subtle, rgb(255 255 255 / 8%));
+    user-select: none;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.vc-health-th-sortable {
     cursor: pointer;
     user-select: none;
     transition: color 0.15s ease, background 0.15s ease;
 }
 
-.vc-health-table th:hover {
+.vc-health-th-sortable:hover {
     color: var(--header-primary, #fff);
-    background: var(--background-accent, rgb(255 255 255 / 4%));
+    background: var(--background-modifier-hover, rgb(255 255 255 / 6%));
+}
+
+.vc-health-th-content {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.vc-health-sort-arrow {
+    display: inline-block;
+    font-size: 0.65rem;
+    line-height: 1;
+    flex-shrink: 0;
 }
 
 .vc-health-table td {
-    padding: 0.65rem 1rem;
     border-bottom: 1px solid var(--border-subtle, rgb(255 255 255 / 4%));
     color: var(--text-normal, #dbdee1);
+}
+
+.vc-health-table-row-clickable {
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.vc-health-table-row-clickable:hover {
+    background: var(--background-modifier-hover, rgb(255 255 255 / 6%));
+}
+
+.vc-health-table-empty {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--text-muted, #949ba4);
 }
 
 .vc-patch-viewer-meta code {
@@ -325,6 +378,9 @@
     font-size: 0.75rem;
     font-weight: 700;
     line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .vc-health-impact-badge.high {
@@ -507,6 +563,10 @@
     font-size: 1rem;
     font-weight: 700;
     color: var(--header-primary, #f2f3f5);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .vc-health-metric-label {
@@ -581,12 +641,10 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(
-        90deg,
-        transparent 0%,
-        rgb(255 255 255 / 15%) 50%,
-        transparent 100%
-    );
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgb(255 255 255 / 15%) 50%,
+            transparent 100%);
     background-size: 200% 100%;
     animation: vc-health-shimmer 3s ease-in-out infinite;
 }
@@ -656,8 +714,8 @@
     padding: 0;
     overflow: hidden;
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-                border-color 0.2s ease;
+        box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+        border-color 0.2s ease;
     animation: vc-health-card-enter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -1460,7 +1518,6 @@
     max-height: 3.4em;
 }
 
-/* ─── New cards: match the network card's padding ──────────────────────── */
 
 .vc-plugin-health-since-healthy,
 .vc-plugin-health-crash-recovery,
@@ -1468,3 +1525,4 @@
     padding: 1em 1.25em;
     margin-bottom: 0.5em;
 }
+
