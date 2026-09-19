@@ -241,7 +241,11 @@ function cssVal(val: string): string {
 function getBtnSelector(canonical: string): string {
     const label = cssVal(canonical);
     return [
+        `html body ${S.panelContainer} ${S.panelButtons} > [data-deracul-label=${label}]`,
+        `html body div${S.panelContainer} ${S.panelButtons} > [data-deracul-label=${label}]`,
+        `html body ${S.panelContainer} [data-deracul-label=${label}]`,
         `html body div${S.panelContainer} [data-deracul-label=${label}]`,
+        `html body ${S.callControls} > [data-deracul-label=${label}]`,
         `html body ${S.callControls} [data-deracul-label=${label}]`,
     ].join(", ");
 }
@@ -753,15 +757,17 @@ function buildCSS(): string {
                     order: 30000 !important; flex: 1 1 auto !important; min-width: 0 !important; margin-right: auto !important;
                 }
                 ${S.panelButtons} { display: contents !important; }
-                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) {
-                    order: 10000 !important; !important; justify-content: center !important; align-items: center !important; flex: ${flexSize} !important;
+                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]):not([data-deracul-label="Mute"]):not([data-deracul-label="Deafen"]) {
+                    order: 10000; justify-content: center !important; align-items: center !important; flex: ${flexSize} !important;
                 }
-                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]) > button {
+                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]):not([data-deracul-label="Mute"]):not([data-deracul-label="Deafen"]) > button {
                     width: 100% !important; display: flex !important; justify-content: center !important; align-items: center !important;
                 }
                 ${S.panelButtons} > ${S.audioParent},
-                ${S.panelButtons} > [data-deracul-label="User Settings"] {
-                    order: 40000 !important; margin: 0 !important;
+                ${S.panelButtons} > [data-deracul-label="User Settings"],
+                ${S.panelButtons} > [data-deracul-label="Mute"],
+                ${S.panelButtons} > [data-deracul-label="Deafen"] {
+                    order: 40000; margin: 0 !important;
                 }
             `);
 
@@ -3468,6 +3474,7 @@ function PanelLayoutButton({ iconForeground, hideTooltips, nameplate }: UserArea
     return (
         <UserAreaButton
             tooltipText={hideTooltips ? void 0 : "Panel Layout"}
+            aria-label="Panel Layout"
             icon={<PanelLayoutIcon style={{ color: iconForeground }} />}
             role="button"
             plated={nameplate != null}
