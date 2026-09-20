@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import "./styles.css";
-
 import { Message } from "@vencord/discord-types";
 import { findByPropsLazy } from "@webpack";
 import { MessageStore, React, useEffect, UserStore, useState,useStateFromStores } from "@webpack/common";

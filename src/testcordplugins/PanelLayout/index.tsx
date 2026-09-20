@@ -688,18 +688,25 @@ function buildCSS(): string {
     `);
 
     lines.push(`
-        .icon-color-fix svg, .icon-color-fix svg * {
-            color: var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary))) !important;
-        }
+        ${(iconColor || st.forceNativeButtonColor) ? (() => {
+            const iconColorVal = getTestcordIconColor("userAreaButtonIconColor");
+            const color = iconColorVal ?? ICON_COLOR_FALLBACK;
 
-        /* Added .whiteMaskRect to the :not() exclusions below */
-        .icon-color-fix svg [fill]:not([fill=none], [fill=currentColor], .whiteMaskRect, .audioIcon) {
-            fill: var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary))) !important;
-        }
+            return `
+                .icon-color-fix svg, .icon-color-fix svg * {
+                    color: ${color} !important;
+                }
 
-        .icon-color-fix svg [stroke]:not([stroke=none],[stroke=currentColor],.blackLine) {
-            stroke: var(--vc-plugin-icon-color, var(--interactive-normal, var(--header-secondary))) !important;
-        }
+                /* Added .whiteMaskRect to the :not() exclusions below */
+                .icon-color-fix svg [fill]:not([fill=none], [fill=currentColor], .whiteMaskRect, .audioIcon) {
+                    fill: ${color} !important;
+                }
+
+                .icon-color-fix svg [stroke]:not([stroke=none],[stroke=currentColor],.blackLine) {
+                    stroke: ${color} !important;
+                }
+            `;
+        })() : ""}
 
         .panel__5dec7 {
             border-radius: 0;
@@ -1695,6 +1702,7 @@ function ButtonsDragTab() {
                                                 transition: "opacity 0.1s ease, transform 0.1s ease",
                                                 userSelect: "none",
                                             }}
+                                            className="icon-color-fix"
                                             title={item.label}
                                         >
                                             {isOver && (
@@ -1793,6 +1801,7 @@ function ButtonsDragTab() {
                                                         transition: "opacity 0.1s ease, transform 0.1s ease",
                                                         userSelect: "none",
                                                     }}
+                                                    className="icon-color-fix"
                                                     title={item.label}
                                                 >
                                                     {isOver && (
@@ -1921,6 +1930,7 @@ function ButtonsDragTab() {
                                                 transition: "opacity 0.1s ease, transform 0.1s ease",
                                                 userSelect: "none",
                                             }}
+                                            className="icon-color-fix"
                                             title={item.label}
                                         >
                                             {isOver && (
@@ -2008,6 +2018,7 @@ function ButtonsDragTab() {
                                     }}
                                     onMouseEnter={e => e.currentTarget.style.color = "var(--interactive-active)"}
                                     onMouseLeave={e => e.currentTarget.style.color = "var(--interactive-normal)"}
+                                    className="icon-color-fix"
                                 >
                                     <SettingsIcon width={20} height={20} size="smmd" />
                                 </button>
@@ -2038,7 +2049,7 @@ function ButtonsDragTab() {
 
                             return (
                                 <Card key={item.id}>
-                                    <div style={{
+                                    <div className="icon-color-fix" style={{
                                         display: "flex",
                                         flexDirection: "column",
                                         gap: "12px",
@@ -2149,7 +2160,6 @@ function ButtonsDragTab() {
                                                                     cursor: "pointer",
                                                                 }}
                                                             >
-                                                                {linked && <span aria-hidden>✓</span>}
                                                                 {other.id}
                                                             </button>
                                                         );
@@ -2506,7 +2516,7 @@ function CustomizationRowButton({
             }}
         >
             <div
-                className="vc-pl-custom-btn-preview"
+                className="icon-color-fix vc-pl-custom-btn-preview"
                 style={{
                     backgroundColor: previewBg,
                     borderRadius: previewRadius,
@@ -2539,7 +2549,7 @@ function CustomizationRowButton({
             </div>
 
             <div
-                className="vc-pl-custom-btn-settings"
+                className="icon-color-fix vc-pl-custom-btn-settings"
                 style={{
                     borderRadius: previewRadius,
                 }}
@@ -2826,8 +2836,8 @@ function SettingModalItem({
     const isScreenShare = canonical === "Screen Share";
     const isMute = canonical === "Mute";
     const isDeafen = canonical === "Deafen";
-    const defaultPreviewOnClasses = "buttonPreview previewButtonOn button__201d5 lookBlank__201d5";
-    const defaultPreviewOffClasses = "buttonPreview previewButtonOff";
+    const defaultPreviewOnClasses = "buttonPreview previewButtonOn icon-color-fix button__201d5 lookBlank__201d5";
+    const defaultPreviewOffClasses = "buttonPreview previewButtonOff icon-color-fix";
 
     const [targetSize, setTargetSize] = React.useState(() => {
         const size = `${settings.store.buttonContainerSize ?? 36}px`;
@@ -3115,10 +3125,10 @@ function SettingModalItem({
                                     <SoundboardIcon width={20} height={20} size="smmd" />
                                 )}
                                 {isScreenShare && (
-                                    <ScreenIcon width={20} height={20} size="smmd" className={cfg.colorfulActiveButton ? "" : "icon-color-green"} />
+                                    <ScreenIcon width={20} height={20} size="smmd" className={cfg.colorfulActiveButton ? "icon-color-fix" : "icon-color-fix icon-color-green"} />
                                 )}
                                 {isCamera && (
-                                    <CameraIcon width={20} height={20} size="smmd" className={cfg.colorfulActiveButton ? "" : "icon-color-green"} />
+                                    <CameraIcon width={20} height={20} size="smmd" className={cfg.colorfulActiveButton ? "icon-color-fix" : "icon-color-fix icon-color-green"} />
                                 )}
                                 {isUserSettings && (
                                     <SettingsIcon width={20} height={20} size="smmd" />
@@ -3477,6 +3487,7 @@ function PanelLayoutButton({ iconForeground, hideTooltips, nameplate }: UserArea
             aria-label="Panel Layout"
             icon={<PanelLayoutIcon style={{ color: iconForeground }} />}
             role="button"
+            className="icon-color-fix"
             plated={nameplate != null}
             onClick={handleOpen}
         />
