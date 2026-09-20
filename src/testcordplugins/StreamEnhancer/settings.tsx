@@ -257,7 +257,7 @@ const mediaEngineStore = findStoreLazy("MediaEngineStore") as MediaEngineStoreLi
 const goLiveSourceStore = findByPropsLazy("getGoLiveSource") as GoLiveSourceStoreLike;
 const goLiveActionCreators = findByPropsLazy("setGoLiveSource") as GoLiveActionCreatorsLike;
 const liveMicActionCreators = findByPropsLazy("setAutomaticGainControl", "setEchoCancellation", "setInputVolume") as LiveMicActionCreatorsLike;
-const conflictingPlugins = ["BetterMicrophone", "BetterScreenshare"] as const;
+const conflictingPlugins = ["BetterMicrophone", "BetterScreenshare", "LimitlessScreenshare", "CustomStreamQuality"] as const;
 const cl = classNameFactory("vc-stream-enhancer-settings-");
 
 const minStreamFps = 0;
@@ -1134,6 +1134,7 @@ export const scheduleLiveMicrophoneRefresh = () => {
 };
 
 export const syncCurrentGoLiveSource = (config: StreamEnhancerConfig) => {
+    if (!shouldOverrideStreamResolution()) return;
     void refreshAvailableVideoCodecs();
     const currentSource = goLiveSourceStore.getGoLiveSource?.();
     const qualityOptions = {
@@ -1515,6 +1516,16 @@ export const streamEnhancerSettings = definePluginSettings({
 });
 
 const getConfig = () => normalizeConfig(streamEnhancerSettings.store.config);
+
+export const shouldOverrideStreamResolution = () => {
+    return (
+        getConfig().streamTweaksEnabled &&
+        !isPluginEnabled("LimitlessScreenshare") &&
+        !isPluginEnabled("CustomStreamQuality") &&
+        !isPluginEnabled("BetterScreenshare")
+    );
+};
+
 const getScaledStreamDimensions = (config: StreamEnhancerConfig) => {
     const scale = config.streamScalePercent / 100;
     const roundEven = (value: number, min: number, max: number) => clamp(Math.round(value / 2) * 2, min, max);
@@ -1577,13 +1588,31 @@ const makeScaledCanvas = (source: HTMLCanvasElement, width: number, height: numb
 
 export const shouldShowViewerResizeSlider = () => getConfig().viewerResizeSliderEnabled;
 
-export const getConfiguredStreamFps = () => getStreamConfig().fps;
+export const getConfiguredStreamFps = (fallback?: number) => {
+    if (!shouldOverrideStreamResolution()) {
+        return fallback != null && fallback > 0 ? fallback : defaultStreamEnhancerConfig.streamMaxFps;
+    }
+    return getStreamConfig().fps;
+};
 
-export const getConfiguredStreamWidth = () => getStreamConfig().width;
+export const getConfiguredStreamWidth = (fallback?: number) => {
+    if (!shouldOverrideStreamResolution()) {
+        return fallback != null && fallback > 0 ? fallback : defaultStreamEnhancerConfig.streamWidth;
+    }
+    return getStreamConfig().width;
+};
 
-export const getConfiguredStreamHeight = () => getStreamConfig().height;
+export const getConfiguredStreamHeight = (fallback?: number) => {
+    if (!shouldOverrideStreamResolution()) {
+        return fallback != null && fallback > 0 ? fallback : defaultStreamEnhancerConfig.streamHeight;
+    }
+    return getStreamConfig().height;
+};
 
-export const getConfiguredStreamPixelCount = () => {
+export const getConfiguredStreamPixelCount = (fallback?: number) => {
+    if (!shouldOverrideStreamResolution()) {
+        return fallback != null && fallback > 0 ? fallback : defaultStreamEnhancerConfig.streamWidth * defaultStreamEnhancerConfig.streamHeight;
+    }
     const { width, height } = getStreamConfig();
     return width * height;
 };
@@ -1762,40 +1791,63 @@ export const getMicTransportAutomaticGainControlConfig = (currentConfig: Record<
     enabled: getMicAutoGainControlEnabled()
 });
 
-export const normalizeGoLiveQualityOverride = (quality: GoLiveQualityShape) => ({
-    ...quality,
-    bitrateTarget: getConfiguredStreamBitrateTarget(),
-    capture: {
-        ...quality?.capture,
-        width: getConfiguredStreamWidth(),
-        height: getConfiguredStreamHeight(),
-        framerate: getConfiguredStreamFps()
-    },
-    encode: {
-        ...quality?.encode,
-        width: getConfiguredStreamWidth(),
-        height: getConfiguredStreamHeight(),
-        framerate: getConfiguredStreamFps(),
-        pixelCount: getConfiguredStreamPixelCount()
-    }
-});
+export const normalizeGoLiveQualityOverride = (quality: GoLiveQualityShape) => {
+    if (!shouldOverrideStreamResolution()) return quality;
+    return {
+        ...quality,
+        bitrateTarget: getConfiguredStreamBitrateTarget(),
+        capture: {
+            ...quality?.capture,
+            width: getConfiguredStreamWidth(quality?.capture?.width),
+            height: getConfiguredStreamHeight(quality?.capture?.height),
+            framerate: getConfiguredStreamFps(quality?.capture?.framerate)
+        },
+        encode: {
+            ...quality?.encode,
+            width: getConfiguredStreamWidth(quality?.encode?.width),
+            height: getConfiguredStreamHeight(quality?.encode?.height),
+            framerate: getConfiguredStreamFps(quality?.encode?.framerate),
+            pixelCount: getConfiguredStreamPixelCount(quality?.encode?.pixelCount)
+        }
+    };
+};
 
-export const getDefaultGoLiveQualityOptions = (desktopBitrate: DesktopBitrateShape) => ({
-    capture: {
-        width: getConfiguredStreamWidth(),
-        height: getConfiguredStreamHeight(),
-        framerate: getConfiguredStreamFps()
-    },
-    encode: {
-        width: getConfiguredStreamWidth(),
-        height: getConfiguredStreamHeight(),
-        framerate: getConfiguredStreamFps(),
-        pixelCount: getConfiguredStreamPixelCount()
-    },
-    bitrateMin: desktopBitrate.min,
-    bitrateMax: desktopBitrate.max,
-    bitrateTarget: getConfiguredStreamBitrateTarget()
-});
+export const getDefaultGoLiveQualityOptions = (desktopBitrate: DesktopBitrateShape) => {
+    if (!shouldOverrideStreamResolution()) {
+        return {
+            capture: {
+                width: 1280,
+                height: 720,
+                framerate: 30
+            },
+            encode: {
+                width: 1280,
+                height: 720,
+                framerate: 30,
+                pixelCount: 921600
+            },
+            bitrateMin: desktopBitrate.min,
+            bitrateMax: desktopBitrate.max,
+            bitrateTarget: getConfiguredStreamBitrateTarget()
+        };
+    }
+    return {
+        capture: {
+            width: getConfiguredStreamWidth(),
+            height: getConfiguredStreamHeight(),
+            framerate: getConfiguredStreamFps()
+        },
+        encode: {
+            width: getConfiguredStreamWidth(),
+            height: getConfiguredStreamHeight(),
+            framerate: getConfiguredStreamFps(),
+            pixelCount: getConfiguredStreamPixelCount()
+        },
+        bitrateMin: desktopBitrate.min,
+        bitrateMax: desktopBitrate.max,
+        bitrateTarget: getConfiguredStreamBitrateTarget()
+    };
+};
 
 export const getPreviewUploadWidth = () => clamp(Math.round(getConfig().previewUploadWidth), 320, 3840);
 
@@ -1853,11 +1905,11 @@ export const getPreviewUploadDataUrl = (canvas: HTMLCanvasElement) => {
 };
 
 export const coerceParticipantResolution = (value: unknown) => {
-    const { config, width, height } = getStreamConfig();
-    if (!config.streamTweaksEnabled || !isObjectRecord(value)) {
+    if (!shouldOverrideStreamResolution() || !isObjectRecord(value)) {
         return value;
     }
 
+    const { width, height } = getStreamConfig();
     const next = { ...value };
     if (getParticipantSize(next, "width") <= 0 && "width" in next) next.width = width;
     if (getParticipantSize(next, "height") <= 0 && "height" in next) next.height = height;
@@ -1877,32 +1929,29 @@ export const getDisplayResolutionForLabel = (value: unknown) => {
 };
 
 export const coerceParticipantFrameRate = (value: unknown) => {
-    const { config, fps } = getStreamConfig();
-    if (!config.streamTweaksEnabled) return value;
-
+    if (!shouldOverrideStreamResolution()) return value;
+    const { fps } = getStreamConfig();
     return Math.max(getPositiveNumericValue(value) ?? 0, fps);
 };
 
 export const makeSelfResolutionFromSetting = (value: unknown) => {
-    const { config, width, height: streamHeight } = getStreamConfig();
-    const height = config.streamTweaksEnabled
-        ? clamp(Math.round(streamHeight), 0, maxStreamHeight)
-        : getNumericValue(value) ?? 720;
+    const numeric = getNumericValue(value) ?? 720;
+    if (numeric === 0) return { height: 0, width: 0, type: 1 };
 
-    if (height === 0) return { height: 0, width: 0, type: 1 };
-
-    if (!config.streamTweaksEnabled) {
-        return { height, width: 0, type: 0 };
+    if (!shouldOverrideStreamResolution()) {
+        return { height: numeric, width: 0, type: 0 };
     }
 
+    const { width, height: streamHeight } = getStreamConfig();
     return {
-        height,
+        height: clamp(Math.round(streamHeight), 0, maxStreamHeight),
         width: clamp(Math.round(width), 0, maxStreamWidth),
         type: 0
     };
 };
 
 export const streamEnhancerRuntime = {
+    shouldOverrideStreamResolution,
     getConfiguredMicBitrate,
     getMaxMicInputVolume,
     getConfiguredStreamFps,

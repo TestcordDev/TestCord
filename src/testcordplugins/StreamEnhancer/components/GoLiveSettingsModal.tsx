@@ -30,6 +30,7 @@ import {
     refreshAvailableVideoCodecs,
     scheduleLiveMicrophoneRefresh,
     shittyMicEffectPresetButtons,
+    shouldOverrideStreamResolution,
     type StreamCodec,
     type StreamEnhancerConfig,
     streamEnhancerSettings,
@@ -200,6 +201,7 @@ const toGoLiveFps = (fps: number): GoLiveFps => {
 };
 
 const syncGoLiveQuality = (config: StreamEnhancerConfig) => {
+    if (!shouldOverrideStreamResolution()) return;
     const qualityOptions = {
         frameRate: toGoLiveFps(config.streamMaxFps),
         preset: goLiveCustomPreset,

@@ -22,11 +22,11 @@ export function SettingsPresetList(isResolution: boolean) {
         if (value === undefined) return;
         if (isResolution) {
             if (value < MIN_RESOLUTION)
-                return `Must be >${MIN_RESOLUTION}`;
+                return `Must be >= ${MIN_RESOLUTION}`;
             return;
         }
         if (value < MIN_FPS)
-            return `Must be >${MIN_FPS}`;
+            return `Must be >= ${MIN_FPS}`;
     }, [value]);
 
     function handleAddPreset() {

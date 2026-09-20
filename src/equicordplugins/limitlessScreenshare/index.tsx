@@ -50,20 +50,20 @@ export default definePlugin({
         {
             find: '"canStreamWithSettings"',
             replacement: {
-                match: /(?=if\(\i===\i\.\i.PRESET_AUTO\))/,
-                replace: "return !0;"
+                match: /canStreamWithSettings\([^)]*\)\{|(?=if\(\i===\i\.\i.PRESET_AUTO\))/,
+                replace: "$&return !0;"
             }
         },
         {
             find: '"stream-settings-audio-enable"',
             replacement: [
                 {
-                    match: /(?<=(\i)\((\i),\i,\i,(\i\.\i\.RESOLUTION)\)\}.{0,200}#{intl::SCREENSHARE_FRAME_RATE}\),children:)\i/,
-                    replace: "[...$self.SettingsRange($1,[$2,$3],false)]"
+                    match: /((\i)\((\i),\i,\i,(\i\.\i\.RESOLUTION)\)\}.{0,200}#{intl::SCREENSHARE_FRAME_RATE}\),children:)\i/,
+                    replace: "$1[...$self.SettingsRange($2,[$3,$4],false)]"
                 },
                 {
-                    match: /(?<=(\i)\((\i),\i,\i,(\i\.\i\.RESOLUTION)\)\}.{0,300}#{intl::STREAM_RESOLUTION}\),children:)\i/,
-                    replace: "[...$self.SettingsRange($1,[$2,$3],true)]"
+                    match: /((\i)\((\i),\i,\i,(\i\.\i\.RESOLUTION)\)\}.{0,300}#{intl::STREAM_RESOLUTION}\),children:)\i/,
+                    replace: "$1[...$self.SettingsRange($2,[$3,$4],true)]"
                 },
             ]
         }
@@ -101,8 +101,12 @@ export default definePlugin({
         const { maxFPS, maxResolution, roundResolution, resolutions, fpss } = settings.store;
         const rounder = roundResolution ? 10 : 1;
         const [p1, p2] = params;
-        const getResolution = () => MediaEngineStore.getState().goLiveSource?.quality.resolution || 720;
-        const getFPS = () => MediaEngineStore.getState().goLiveSource?.quality.frameRate || 30;
+        const getGoLiveSource = () =>
+            MediaEngineStore.getGoLiveSource?.()
+            ?? (MediaEngineStore as any).getState?.()?.goLiveSource
+            ?? (MediaEngineStore as any).goLiveSource;
+        const getResolution = () => getGoLiveSource()?.quality?.resolution || 720;
+        const getFPS = () => getGoLiveSource()?.quality?.frameRate || 30;
 
         return [
             CustomRange(isResolution ? {

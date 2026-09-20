@@ -16,7 +16,7 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
             },
             {
                 match: /updateRemoteWantsFramerate\(\)\{/,
-                replace: "$&this.connection.remoteSinkWantsMaxFramerate=$self.getConfiguredStreamFps(),"
+                replace: "$&if($self.shouldOverrideStreamResolution()){this.connection.remoteSinkWantsMaxFramerate=$self.getConfiguredStreamFps();}"
             }
         ]
     },
@@ -25,11 +25,11 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
         replacement: [
             {
                 match: /e\.encodingVideoWidth=n\.capture\.width,e\.encodingVideoHeight=n\.capture\.height,e\.encodingVideoFrameRate=n\.capture\.framerate,e\.captureVideoFrameRate=n\.capture\.framerate/,
-                replace: "e.encodingVideoWidth=$self.getConfiguredStreamWidth(),e.encodingVideoHeight=$self.getConfiguredStreamHeight(),e.encodingVideoFrameRate=$self.getConfiguredStreamFps(),e.captureVideoFrameRate=$self.getConfiguredStreamFps()"
+                replace: "e.encodingVideoWidth=$self.getConfiguredStreamWidth(n?.capture?.width),e.encodingVideoHeight=$self.getConfiguredStreamHeight(n?.capture?.height),e.encodingVideoFrameRate=$self.getConfiguredStreamFps(n?.capture?.framerate),e.captureVideoFrameRate=$self.getConfiguredStreamFps(n?.capture?.framerate)"
             },
             {
                 match: /e\.remoteSinkWantsMaxFramerate=n\.encode\.framerate,e\.remoteSinkWantsPixelCount=n\.encode\.pixelCount/,
-                replace: "e.remoteSinkWantsMaxFramerate=$self.getConfiguredStreamFps(),e.remoteSinkWantsPixelCount=$self.getConfiguredStreamPixelCount()"
+                replace: "e.remoteSinkWantsMaxFramerate=$self.getConfiguredStreamFps(n?.encode?.framerate),e.remoteSinkWantsPixelCount=$self.getConfiguredStreamPixelCount(n?.encode?.pixelCount)"
             }
         ]
     },
@@ -81,7 +81,7 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
         find: "updateRemoteWantsFramerate(){",
         replacement: {
             match: /updateRemoteWantsFramerate\(\)\{/,
-            replace: "$&this.connection.remoteSinkWantsMaxFramerate=$self.getConfiguredStreamFps(),"
+            replace: "$&if($self.shouldOverrideStreamResolution()){this.connection.remoteSinkWantsMaxFramerate=$self.getConfiguredStreamFps();}"
         }
     },
     {
@@ -96,7 +96,7 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
         find: "setSDP(e){}setRemoteVideoSinkWants(",
         replacement: {
             match: /setRemoteVideoSinkWants\((\i)\)\{.{0,80}updateVideoQuality\((\i)\.(\i)\)\}/,
-            replace: "setRemoteVideoSinkWants($1){this.remoteVideoSinkWants=$1,this.remoteSinkWantsMaxFramerate=$self.getConfiguredStreamFps(),this.updateVideoQuality($2.$3)}"
+            replace: "setRemoteVideoSinkWants($1){this.remoteVideoSinkWants=$1;if($self.shouldOverrideStreamResolution()){this.remoteSinkWantsMaxFramerate=$self.getConfiguredStreamFps();}this.updateVideoQuality($2.$3)}"
         }
     },
     {
@@ -159,7 +159,7 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
         find: "updateVideoQuality(e){let t=this.videoStreamParameters.findIndex",
         replacement: {
             match: /-1===(\i)&&\(\1=0\);/,
-            replace: "-1===$1&&($1=this.videoStreamParameters.findIndex(e=>null!=e.maxPixelCount&&e.maxPixelCount===$self.getConfiguredStreamPixelCount()),-1===$1&&($1=0));"
+            replace: "-1===$1&&($self.shouldOverrideStreamResolution()&&($1=this.videoStreamParameters.findIndex(e=>null!=e.maxPixelCount&&e.maxPixelCount===$self.getConfiguredStreamPixelCount())),-1===$1&&($1=0));"
         }
     },
     {
@@ -201,7 +201,7 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
         find: "setDesktopEncodingOptions(",
         replacement: {
             match: /setDesktopEncodingOptions\((\i),(\i),(\i)\)\{/,
-            replace: "setDesktopEncodingOptions($1,$2,$3){if(this.destroyed)return;$1=$self.getConfiguredStreamWidth();$2=$self.getConfiguredStreamHeight();$3=$self.getConfiguredStreamFps();"
+            replace: "setDesktopEncodingOptions($1,$2,$3){if(this.destroyed)return;$1=$self.getConfiguredStreamWidth($1);$2=$self.getConfiguredStreamHeight($2);$3=$self.getConfiguredStreamFps($3);"
         }
     },
     {
@@ -369,8 +369,8 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
     {
         find: "mediaEngineConnectionId=`WebRTC-",
         replacement: {
-            match: /maxFrameRate:\i\.capture\?\.framerate,maxResolution:\{type:(\i)\.(\i)\.FIXED,width:\i\.capture\?\.width,height:\i\.capture\?\.height\}/,
-            replace: "maxFrameRate:$self.getConfiguredStreamFps(),maxResolution:{type:$1.$2.FIXED,width:$self.getConfiguredStreamWidth(),height:$self.getConfiguredStreamHeight()}"
+            match: /maxFrameRate:(\i)\.capture\?\.framerate,maxResolution:\{type:(\i)\.(\i)\.FIXED,width:\1\.capture\?\.width,height:\1\.capture\?\.height\}/,
+            replace: "maxFrameRate:$self.getConfiguredStreamFps($1?.capture?.framerate),maxResolution:{type:$2.$3.FIXED,width:$self.getConfiguredStreamWidth($1?.capture?.width),height:$self.getConfiguredStreamHeight($1?.capture?.height)}"
         }
     },
     {
@@ -419,7 +419,7 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
         find: "maxResolution:{height:t.resolution,width:0,type:0===t.resolution",
         replacement: {
             match: /maxFrameRate:(\i)\.fps,maxResolution:\{height:\1\.resolution,width:0,type:0===\1\.resolution\?\i\.ei\.SOURCE:\i\.ei\.FIXED\}/,
-            replace: "maxFrameRate:$self.getConfiguredStreamFps(),maxResolution:$self.makeSelfResolutionFromSetting($1.resolution)"
+            replace: "maxFrameRate:$self.getConfiguredStreamFps($1.fps),maxResolution:$self.makeSelfResolutionFromSetting($1.resolution)"
         }
     },
     {
