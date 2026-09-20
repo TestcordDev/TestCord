@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import * as DataStore from "@api/DataStore";
 import { Settings, SettingsStore, type ThemeActivationMode } from "@api/Settings";
 import { createAndAppendStyle } from "@utils/css";
 import { isNonNullish } from "@utils/guards";
@@ -59,6 +60,7 @@ async function toggle(isEnabled: boolean) {
 
 // for cleanup
 let previousThemeBlobObjectURLs = [] as string[];
+let previousOverrideBlobObjectURLs = [] as string[];
 
 const warnedMissingThemes = new Set<string>();
 
@@ -192,6 +194,24 @@ async function initThemes() {
         }
     }
 
+    // Custom versions: per-marketplace-item CSS overrides from DataStore.
+    // They are appended after the base @imports so they win the cascade.
+    // Only enabled base links get their override applied.
+    previousOverrideBlobObjectURLs.forEach(url => URL.revokeObjectURL(url));
+    previousOverrideBlobObjectURLs = [];
+    const overrideUrls = await Promise.all(
+        Array.from(links).map(async link => {
+            // Matches https://themes.equicord.org/api/<id> and .../api/themes/<id>
+            const match = /(?:\/api\/themes\/|\/api\/)(\d+)(?:[/?#]|$)/.exec(link);
+            if (!match) return null;
+            const css = await DataStore.get<string>(`MarketplaceOverride_${Number(match[1])}`).catch(() => undefined);
+            if (!css || !css.trim()) return null;
+            return URL.createObjectURL(new Blob([css], { type: "text/css" }));
+        })
+    );
+    previousOverrideBlobObjectURLs = overrideUrls.filter(isNonNullish);
+    previousOverrideBlobObjectURLs.forEach(url => links.add(url));
+
     themesStyle.textContent = Array.from(links).map(link => `@import url("${link.trim()}");`).join("\n");
     updatePopoutWindows();
     themeChangeListeners.forEach(listener => listener());
@@ -270,4 +290,9 @@ export function addThemeChangeListener(listener: () => void) {
 
 export function removeThemeChangeListener(listener: () => void) {
     themeChangeListeners.delete(listener);
+}
+
+/** Re-runs theme application. Call after a marketplace override is saved or deleted (DataStore isn't reactive). */
+export function reapplyThemes() {
+    void initThemes();
 }

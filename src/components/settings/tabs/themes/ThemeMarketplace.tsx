@@ -5,6 +5,7 @@
  */
 
 import { Settings, useSettings } from "@api/Settings";
+import { reapplyThemes } from "@api/Themes";
 import { Button } from "@components/Button";
 import { Divider } from "@components/Divider";
 import { Heading } from "@components/Heading";
@@ -17,7 +18,9 @@ import { classes } from "@utils/misc";
 import { Modal, openModal, React, showToast, TextInput, Toasts, useEffect, useMemo, useState } from "@webpack/common";
 
 import { CodeViewerModal } from "./CodeViewerModal";
+import { openCustomUploadModal, openOverrideEditorModal } from "./MarketplaceCustom";
 import { fetchMarketplaceCatalog, getItemLink, MarketplaceItem } from "./MarketplaceData";
+import { deleteOverride, listOverriddenIds } from "./MarketplaceOverrides";
 
 const cl = classNameFactory("vc-settings-theme-market-");
 
@@ -126,13 +129,19 @@ export function openThemeCodeModal(name: string, content: string) {
 function ThemeDetailsModalContent({
     theme,
     installed,
+    hasOverride,
     onToggleInstall,
+    onEditOverride,
+    onResetOverride,
     onTagClick,
     modalProps
 }: {
     theme: MarketplaceTheme;
     installed: boolean;
+    hasOverride: boolean;
     onToggleInstall: () => void;
+    onEditOverride: () => void;
+    onResetOverride: () => void;
     onTagClick: (tag: string) => void;
     modalProps: any;
 }) {
@@ -192,6 +201,25 @@ function ThemeDetailsModalContent({
                                 onClick={() => openThemeCodeModal(theme.name, theme.content)}
                             >
                                 View Code
+                            </Button>
+                        )}
+                        <Button
+                            variant="secondary"
+                            className={cl("modal-top-action-btn")}
+                            onClick={onEditOverride}
+                        >
+                            {hasOverride ? "Edit Custom Version" : "Make Custom Version"}
+                        </Button>
+                        {hasOverride && (
+                            <Button
+                                variant="secondary"
+                                className={cl("modal-top-action-btn")}
+                                onClick={() => {
+                                    onResetOverride();
+                                    modalProps.onClose();
+                                }}
+                            >
+                                Reset Custom
                             </Button>
                         )}
                         {theme.source && (
@@ -347,23 +375,30 @@ function ThemeDetailsModalContent({
 function openThemeDetailsModal(
     theme: MarketplaceTheme,
     installed: boolean,
+    hasOverride: boolean,
     onToggleInstall: () => void,
+    onEditOverride: () => void,
+    onResetOverride: () => void,
     onTagClick: (tag: string) => void
 ) {
     openModal(modalProps => (
         <ThemeDetailsModalContent
             theme={theme}
             installed={installed}
+            hasOverride={hasOverride}
             onToggleInstall={onToggleInstall}
+            onEditOverride={onEditOverride}
+            onResetOverride={onResetOverride}
             modalProps={modalProps}
             onTagClick={onTagClick}
         />
     ));
 }
 
-function MarketplaceCard({ theme, installed, onToggleInstall, onOpenDetails, onTagClick }: {
+function MarketplaceCard({ theme, installed, hasOverride, onToggleInstall, onOpenDetails, onTagClick }: {
     theme: MarketplaceTheme;
     installed: boolean;
+    hasOverride: boolean;
     onToggleInstall(): void;
     onOpenDetails(): void;
     onTagClick(tag: string): void;
@@ -389,7 +424,11 @@ function MarketplaceCard({ theme, installed, onToggleInstall, onOpenDetails, onT
                 ) : (
                     <div className={cl("card-img-placeholder")}>No Preview</div>
                 )}
-                {installed && <span className={cl("card-badge")}>Installed</span>}
+                {(installed || hasOverride) && (
+                    <span className={cl("card-badge")}>
+                        {installed && hasOverride ? "Installed · Custom" : installed ? "Installed" : "Custom"}
+                    </span>
+                )}
             </div>
             <div className={cl("card-body")}>
                 <div className={cl("card-header")}>
@@ -460,10 +499,44 @@ export function ThemeMarketplaceSection() {
     const settings = useSettings(["themeLinks", "enabledThemeLinks", "hideThemeMarketplace"]);
     const isHidden = settings.hideThemeMarketplace ?? false;
     const [themes, setThemes] = useState<MarketplaceTheme[]>([]);
+    const [overrideIds, setOverrideIds] = useState<Set<number>>(new Set());
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [sort, setSort] = useState<SortKey>("downloads");
+
+    async function refreshOverrides() {
+        setOverrideIds(new Set(await listOverriddenIds()));
+    }
+
+    async function resolveBaseCss(theme: MarketplaceTheme): Promise<string | null> {
+        try {
+            if (theme.content) return decodeThemeContent(theme.content);
+            const res = await fetch(getThemeLink(theme.id));
+            if (!res.ok) return null;
+            return await res.text();
+        } catch {
+            return null;
+        }
+    }
+
+    function handleEditOverride(theme: MarketplaceTheme) {
+        void resolveBaseCss(theme).then(baseCss => {
+            if (baseCss === null) {
+                Toasts.show({ id: Toasts.genId(), message: "Could not load the original code to base your version on.", type: Toasts.Type.FAILURE });
+                return;
+            }
+            openOverrideEditorModal({ id: theme.id, name: theme.name, baseCss, onDone: () => void refreshOverrides() });
+        });
+    }
+
+    function handleResetOverride(theme: MarketplaceTheme) {
+        void deleteOverride(theme.id).then(() => {
+            reapplyThemes();
+            void refreshOverrides();
+            Toasts.show({ id: Toasts.genId(), message: `Custom version of "${theme.name}" removed. Back to the original.`, type: Toasts.Type.SUCCESS });
+        });
+    }
 
     async function load() {
         setLoading(true);
@@ -480,6 +553,10 @@ export function ThemeMarketplaceSection() {
 
     useEffect(() => {
         void load();
+    }, []);
+
+    useEffect(() => {
+        void refreshOverrides();
     }, []);
 
     const installedIds = useMemo(() => {
@@ -586,7 +663,14 @@ export function ThemeMarketplaceSection() {
             <div className={`vc-marketplace-collapsible ${isHidden ? "collapsed" : "expanded"}`}>
                 <Paragraph className={Margins.bottom16}>
                     Browse and install themes from the Equicord Theme Library. Click Install to add a theme directly as an online theme link.
+                    Make a custom version of any theme to tweak it without losing the original, or add your own theme to use it locally.
                 </Paragraph>
+
+                <div className={Margins.bottom16}>
+                    <Button size="small" variant="secondary" onClick={() => openCustomUploadModal({ kind: "theme" })}>
+                        Add Your Own Theme
+                    </Button>
+                </div>
 
                 <div className={classes(cl("toolbar"), Margins.bottom16)}>
                     <div className={cl("search")}>
@@ -628,11 +712,15 @@ export function ThemeMarketplaceSection() {
                                 key={theme.id}
                                 theme={theme}
                                 installed={installedIds.has(theme.id)}
+                                hasOverride={overrideIds.has(theme.id)}
                                 onToggleInstall={() => handleToggleInstall(theme)}
                                 onOpenDetails={() => openThemeDetailsModal(
                                     theme,
                                     installedIds.has(theme.id),
+                                    overrideIds.has(theme.id),
                                     () => handleToggleInstall(theme),
+                                    () => handleEditOverride(theme),
+                                    () => handleResetOverride(theme),
                                     (tag: string) => setSearch(tag)
                                 )}
                                 onTagClick={(tag: string) => setSearch(tag)}

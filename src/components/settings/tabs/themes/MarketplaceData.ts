@@ -58,3 +58,7 @@ export function invalidateMarketplaceCatalog() {
 export function getItemLink(id: number): string {
     return `${THEME_RAW_API_URL}/${id}`;
 }
+
+export function slugifyMarketplaceName(name: string): string {
+    return (name || "custom").replace(/[^a-z0-9]/gi, "-").toLowerCase();
+}

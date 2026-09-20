@@ -7,6 +7,7 @@
 import "./SnippetMarketplace.css";
 
 import { Settings, useSettings } from "@api/Settings";
+import { reapplyThemes } from "@api/Themes";
 import { Button } from "@components/Button";
 import { Divider } from "@components/Divider";
 import { Heading } from "@components/Heading";
@@ -17,8 +18,10 @@ import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
 import { Modal, openModal, React, showToast, TextInput, Toasts, useEffect, useMemo, useState } from "@webpack/common";
 
+import { openCustomUploadModal, openOverrideEditorModal } from "./MarketplaceCustom";
 import { fetchMarketplaceCatalog, getItemLink, MarketplaceItem } from "./MarketplaceData";
-import { openThemeCodeModal } from "./ThemeMarketplace";
+import { deleteOverride, listOverriddenIds } from "./MarketplaceOverrides";
+import { decodeThemeContent, openThemeCodeModal } from "./ThemeMarketplace";
 
 const cl = classNameFactory("vc-settings-theme-market-");
 
@@ -64,13 +67,19 @@ function uninstallSnippet(snippet: MarketplaceSnippet) {
 function SnippetDetailsModalContent({
     snippet,
     installed,
+    hasOverride,
     onToggleInstall,
+    onEditOverride,
+    onResetOverride,
     onTagClick,
     modalProps
 }: {
     snippet: MarketplaceSnippet;
     installed: boolean;
+    hasOverride: boolean;
     onToggleInstall: () => void;
+    onEditOverride: () => void;
+    onResetOverride: () => void;
     onTagClick: (tag: string) => void;
     modalProps: any;
 }) {
@@ -134,6 +143,25 @@ function SnippetDetailsModalContent({
                                 onClick={() => openThemeCodeModal(snippet.name, snippet.content)}
                             >
                                 View Code
+                            </Button>
+                        )}
+                        <Button
+                            variant="secondary"
+                            className={cl("modal-top-action-btn")}
+                            onClick={onEditOverride}
+                        >
+                            {hasOverride ? "Edit Custom Version" : "Make Custom Version"}
+                        </Button>
+                        {hasOverride && (
+                            <Button
+                                variant="secondary"
+                                className={cl("modal-top-action-btn")}
+                                onClick={() => {
+                                    onResetOverride();
+                                    modalProps.onClose();
+                                }}
+                            >
+                                Reset Custom
                             </Button>
                         )}
                         {snippet.source && (
@@ -288,23 +316,30 @@ function SnippetDetailsModalContent({
 function openSnippetDetailsModal(
     snippet: MarketplaceSnippet,
     installed: boolean,
+    hasOverride: boolean,
     onToggleInstall: () => void,
+    onEditOverride: () => void,
+    onResetOverride: () => void,
     onTagClick: (tag: string) => void
 ) {
     openModal(modalProps => (
         <SnippetDetailsModalContent
             snippet={snippet}
             installed={installed}
+            hasOverride={hasOverride}
             onToggleInstall={onToggleInstall}
+            onEditOverride={onEditOverride}
+            onResetOverride={onResetOverride}
             modalProps={modalProps}
             onTagClick={onTagClick}
         />
     ));
 }
 
-function SnippetCard({ snippet, installed, onToggleInstall, onOpenDetails, onTagClick }: {
+function SnippetCard({ snippet, installed, hasOverride, onToggleInstall, onOpenDetails, onTagClick }: {
     snippet: MarketplaceSnippet;
     installed: boolean;
+    hasOverride: boolean;
     onToggleInstall(): void;
     onOpenDetails(): void;
     onTagClick(tag: string): void;
@@ -332,7 +367,11 @@ function SnippetCard({ snippet, installed, onToggleInstall, onOpenDetails, onTag
                         <span className="vc-snippet-placeholder-tag">✂️ CSS SNIPPET</span>
                     </div>
                 )}
-                {installed && <span className={classes(cl("card-badge"), "vc-snippet-badge")}>Added</span>}
+                {(installed || hasOverride) && (
+                    <span className={classes(cl("card-badge"), "vc-snippet-badge")}>
+                        {installed && hasOverride ? "Added · Custom" : installed ? "Added" : "Custom"}
+                    </span>
+                )}
             </div>
             <div className={cl("card-body")}>
                 <div className={cl("card-header")}>
@@ -403,10 +442,44 @@ export function SnippetMarketplaceSection() {
     const settings = useSettings(["themeLinks", "enabledThemeLinks", "hideSnippetMarketplace"]);
     const isHidden = settings.hideSnippetMarketplace ?? false;
     const [snippets, setSnippets] = useState<MarketplaceSnippet[]>([]);
+    const [overrideIds, setOverrideIds] = useState<Set<number>>(new Set());
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState("");
     const [sort, setSort] = useState<SortKey>("downloads");
+
+    async function refreshOverrides() {
+        setOverrideIds(new Set(await listOverriddenIds()));
+    }
+
+    async function resolveBaseCss(snippet: MarketplaceSnippet): Promise<string | null> {
+        try {
+            if (snippet.content) return decodeThemeContent(snippet.content);
+            const res = await fetch(getSnippetLink(snippet.id));
+            if (!res.ok) return null;
+            return await res.text();
+        } catch {
+            return null;
+        }
+    }
+
+    function handleEditOverride(snippet: MarketplaceSnippet) {
+        void resolveBaseCss(snippet).then(baseCss => {
+            if (baseCss === null) {
+                Toasts.show({ id: Toasts.genId(), message: "Could not load the original code to base your version on.", type: Toasts.Type.FAILURE });
+                return;
+            }
+            openOverrideEditorModal({ id: snippet.id, name: snippet.name, baseCss, onDone: () => void refreshOverrides() });
+        });
+    }
+
+    function handleResetOverride(snippet: MarketplaceSnippet) {
+        void deleteOverride(snippet.id).then(() => {
+            reapplyThemes();
+            void refreshOverrides();
+            Toasts.show({ id: Toasts.genId(), message: `Custom version of "${snippet.name}" removed. Back to the original.`, type: Toasts.Type.SUCCESS });
+        });
+    }
 
     async function load() {
         setLoading(true);
@@ -423,6 +496,10 @@ export function SnippetMarketplaceSection() {
 
     useEffect(() => {
         void load();
+    }, []);
+
+    useEffect(() => {
+        void refreshOverrides();
     }, []);
 
     const installedIds = useMemo(() => {
@@ -518,7 +595,14 @@ export function SnippetMarketplaceSection() {
             <div className={`vc-marketplace-collapsible ${isHidden ? "collapsed" : "expanded"}`}>
                 <Paragraph className={Margins.bottom16}>
                     Snippets are small CSS tweaks from the Equicord Theme Library that stack alongside a full theme — think of them as mini themes you can mix and match, rather than replace your whole look.
+                    Make a custom version of any snippet to tweak it without losing the original, or add your own snippet to use it locally.
                 </Paragraph>
+
+                <div className={Margins.bottom16}>
+                    <Button size="small" variant="secondary" onClick={() => openCustomUploadModal({ kind: "snippet" })}>
+                        Add Your Own Snippet
+                    </Button>
+                </div>
 
                 <div className={classes(cl("toolbar"), Margins.bottom16)}>
                     <div className={cl("search")}>
@@ -560,11 +644,15 @@ export function SnippetMarketplaceSection() {
                                 key={snippet.id}
                                 snippet={snippet}
                                 installed={installedIds.has(snippet.id)}
+                                hasOverride={overrideIds.has(snippet.id)}
                                 onToggleInstall={() => handleToggleInstall(snippet)}
                                 onOpenDetails={() => openSnippetDetailsModal(
                                     snippet,
                                     installedIds.has(snippet.id),
+                                    overrideIds.has(snippet.id),
                                     () => handleToggleInstall(snippet),
+                                    () => handleEditOverride(snippet),
+                                    () => handleResetOverride(snippet),
                                     (tag: string) => setSearch(tag)
                                 )}
                                 onTagClick={(tag: string) => setSearch(tag)}
