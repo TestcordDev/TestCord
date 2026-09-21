@@ -6,6 +6,7 @@
 
 import { TestCordIcon } from "@components/TestCordLogo";
 import { Logger } from "@utils/Logger";
+import { getTestcordModifiedDetails, isTestcordModified, TestcordPluginIconUrl } from "@utils/testcordIcons";
 import { Plugin } from "@utils/types";
 import { filters, findByProps, findByPropsLazy, findCssClassesLazy, waitFor } from "@webpack";
 import { React } from "@webpack/common";
@@ -39,12 +40,21 @@ export interface ProviderInfo {
 export function getPluginProvider(pluginName: string): ProviderInfo {
     const meta = PluginMeta[pluginName] || { folderName: "", userPlugin: false };
     const folder = meta.folderName || "";
-    const isBD = folder.startsWith("src/Betterdiscordplugins/") || plugins[pluginName]?.tags?.includes("betterdiscord");
+    const plugin = plugins[pluginName];
+    const isBD = folder.startsWith("src/Betterdiscordplugins/") || plugin?.tags?.includes("betterdiscord");
+
+    if (isTestcordModified(plugin, folder)) {
+        const details = getTestcordModifiedDetails(plugin, folder);
+        return {
+            provider: "Testcord",
+            iconUrl: details.src
+        };
+    }
 
     if (folder.startsWith("src/testcordplugins/")) {
         return {
             provider: "Testcord",
-            iconUrl: "https://raw.githubusercontent.com/TestcordDev/TestCord/refs/heads/main/browser/icon.png"
+            iconUrl: TestcordPluginIconUrl
         };
     }
     if (folder.startsWith("src/equicordplugins/")) {
@@ -73,7 +83,7 @@ export function getPluginProvider(pluginName: string): ProviderInfo {
     }
     return {
         provider: "Testcord",
-        iconUrl: "https://raw.githubusercontent.com/TestcordDev/TestCord/refs/heads/main/browser/icon.png"
+        iconUrl: TestcordPluginIconUrl
     };
 }
 

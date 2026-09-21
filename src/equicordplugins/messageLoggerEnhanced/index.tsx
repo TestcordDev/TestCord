@@ -278,7 +278,8 @@ export default definePlugin({
     name: "MessageLoggerEnhanced",
     authors: [Devs.Aria, EquicordDevs.keircn, TestcordDevs.SirPhantom89],
     description: "Improves Message Logger with edited message history, ghost ping detection and more",
-    tags: ["Chat", "Servers"],
+    tags: ["Chat", "Servers", "Testcord Modified"],
+    testcordModified: true,
     dependencies: ["MessageLogger", "HeaderBarAPI", "ContextMenuAPI"],
 
     patches: [

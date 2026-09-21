@@ -39,6 +39,7 @@ import { classes } from "@utils/misc";
 import { PluginTarget } from "@utils/pluginTargets";
 import { isExperimentalPlugin, isLegacyPlugin } from "@utils/pluginWarnings";
 import { useAwaiter, useCleanupEffect, useIntersection } from "@utils/react";
+import { isTestcordModified } from "@utils/testcordIcons";
 import { PluginTag, PluginTags } from "@utils/types";
 import { Alerts, ConfirmModal, openModal, Parser, React, SearchableSelect, Select, TextInput, Toasts, Tooltip, useCallback, useEffect, useMemo, useRef, useState } from "@webpack/common";
 import { JSX } from "react";
@@ -55,9 +56,10 @@ import { UIElementsButton } from "./UIElements";
 export const cl = classNameFactory("vc-plugins-");
 export const logger = new Logger("PluginSettings", "#a6d189");
 
-const PluginSearchPrefixes: Array<{ prefix: string; folders: string[]; }> = [
+const PluginSearchPrefixes: Array<{ prefix: string; folders: string[]; modifiedOnly?: boolean; }> = [
     { prefix: "tcp:", folders: ["src/testcordplugins/"] },
     { prefix: "testcordplugin:", folders: ["src/testcordplugins/"] },
+    { prefix: "tcm:", folders: ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"], modifiedOnly: true },
     { prefix: "vcp:", folders: ["src/plugins/"] },
     { prefix: "vencordplugin:", folders: ["src/plugins/"] },
     { prefix: "eqp:", folders: ["src/equicordplugins/"] },
@@ -132,6 +134,7 @@ const SearchStatus = {
     BETTERDISCORD: 10,
     EXPERIMENTAL: 11,
     LEGACY: 12,
+    TESTCORD_MODIFIED: 13,
 } as const;
 
 type SearchStatus = typeof SearchStatus[keyof typeof SearchStatus];
@@ -267,6 +270,7 @@ function PluginSettings() {
             if (trimmedSearch.startsWith(entry.prefix)) {
                 return {
                     folders: entry.folders,
+                    modifiedOnly: entry.modifiedOnly,
                     query: trimmedSearch.slice(entry.prefix.length).trim()
                 };
             }
@@ -347,13 +351,20 @@ function PluginSettings() {
             case SearchStatus.LEGACY:
                 if (!isLegacyPlugin(plugin.name) && !plugin.legacy && !plugin.tags?.includes("legacy")) return false;
                 break;
+            case SearchStatus.TESTCORD_MODIFIED:
+                if (!isTestcordModified(plugin, PluginMeta[plugin.name]?.folderName)) return false;
+                break;
         }
 
-        if (tags.length && tags.some(t => !plugin.tags?.includes(t))) return false;
+        if (tags.length && tags.some(t => {
+            if (t === "Testcord Modified") return !isTestcordModified(plugin, PluginMeta[plugin.name]?.folderName);
+            return !plugin.tags?.includes(t);
+        })) return false;
 
         if (searchValue.author && !plugin.authors?.some(a => a?.name === searchValue.author)) return false;
 
         if (searchPrefixMatch) {
+            if (searchPrefixMatch.modifiedOnly && !isTestcordModified(plugin, PluginMeta[plugin.name]?.folderName)) return false;
             const folder = PluginMeta[plugin.name]?.folderName || "";
             if (!searchPrefixMatch.folders.some(f => folder.startsWith(f))) return false;
         }
@@ -565,6 +576,7 @@ function PluginSettings() {
                             { label: "Show Disabled", value: SearchStatus.DISABLED },
                             { label: "Show Equicord", value: SearchStatus.EQUICORD },
                             { label: "Show Testcord", value: SearchStatus.TESTCORD },
+                            { label: "Show Testcord Modified", value: SearchStatus.TESTCORD_MODIFIED },
                             { label: "Show Vencord", value: SearchStatus.VENCORD },
                             { label: "Show New", value: SearchStatus.NEW },
                             hasUserPlugins && { label: "Show UserPlugins", value: SearchStatus.USER_PLUGINS },

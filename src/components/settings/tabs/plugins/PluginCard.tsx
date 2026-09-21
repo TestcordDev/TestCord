@@ -17,6 +17,7 @@ import { Logger } from "@utils/Logger";
 import { Margins } from "@utils/margins";
 import { classes } from "@utils/misc";
 import { getPluginWarning, PluginWarningInfo } from "@utils/pluginWarnings";
+import { getTestcordModifiedDetails, isTestcordModified, TestcordPluginIconUrl } from "@utils/testcordIcons";
 import { Plugin } from "@utils/types";
 import { ConfirmModal, openModal, React, showToast, Toasts, Tooltip } from "@webpack/common";
 
@@ -193,7 +194,16 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         doToggle(wasEnabled);
     }
 
+    const isTestcordMod = isTestcordModified(plugin, pluginMeta.folderName);
+    const testcordModDetails = isTestcordMod ? getTestcordModifiedDetails(plugin, pluginMeta.folderName) : null;
+
     const pluginInfo = [
+        {
+            condition: Boolean(testcordModDetails),
+            src: testcordModDetails?.src ?? "",
+            alt: testcordModDetails?.alt ?? "Modified",
+            title: testcordModDetails?.title ?? "Modified Plugin"
+        },
         {
             condition: isModifiedPlugin,
             src: "https://equicord.org/assets/icons/equicord/modified.png",
@@ -214,9 +224,9 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         },
         {
             condition: isTestcordPlugin,
-            src: "https://raw.githubusercontent.com/TestcordDev/TestCord/refs/heads/main/browser/icon.png",
-            alt: "TestCord",
-            title: "TestCord Plugin"
+            src: TestcordPluginIconUrl,
+            alt: "Testcord",
+            title: "Testcord Plugin"
         },
         {
             condition: isBDPlugin,
@@ -247,7 +257,13 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
         : undefined;
 
     const maxVisibleTags = warning ? 1 : 2;
-    const { tags } = plugin;
+    const tags = React.useMemo(() => {
+        const list = [...(plugin.tags ?? [])];
+        if (isTestcordMod && !list.includes("Testcord Modified")) {
+            list.unshift("Testcord Modified");
+        }
+        return list;
+    }, [plugin.tags, isTestcordMod]);
 
     const handleWarningClick = (e: React.MouseEvent) => {
         if (!warning?.replacementPlugin) return;

@@ -33,6 +33,7 @@ import { proxyLazy } from "@utils/lazy";
 import { Margins } from "@utils/margins";
 import { classes, isObjectEmpty } from "@utils/misc";
 import { getPluginWarning } from "@utils/pluginWarnings";
+import { isTestcordModified } from "@utils/testcordIcons";
 import { OptionType, Plugin, PluginTag } from "@utils/types";
 import { RenderModalProps, User } from "@vencord/discord-types";
 import { findComponentByCodeLazy, findCssClassesLazy } from "@webpack";
@@ -192,7 +193,15 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
     }
 
     const pluginMeta = PluginMeta[plugin.name];
-    const isEquicordPlugin = pluginMeta.folderName.startsWith("src/equicordplugins/") ?? false;
+    const isEquicordPlugin = pluginMeta?.folderName.startsWith("src/equicordplugins/") ?? false;
+    const isTestcordMod = isTestcordModified(plugin, pluginMeta?.folderName);
+    const modalTags = useMemo(() => {
+        const list = [...(plugin.tags ?? [])];
+        if (isTestcordMod && !list.includes("Testcord Modified")) {
+            list.unshift("Testcord Modified");
+        }
+        return list;
+    }, [plugin.tags, isTestcordMod]);
     const warning = getPluginWarning(plugin);
 
     const warningTooltipText = warning
@@ -246,7 +255,7 @@ export default function PluginModal({ plugin, onRestartNeeded, onClose, transiti
                 <div className={cl("info")}>
                     <div>
                         <Paragraph size="md">{plugin.description}</Paragraph>
-                        {!!plugin.tags?.length && <PluginTags tags={plugin.tags} />}
+                        {!!modalTags.length && <PluginTags tags={modalTags} />}
                     </div>
                 </div>
             }

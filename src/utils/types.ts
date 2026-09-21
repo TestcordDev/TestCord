@@ -80,7 +80,8 @@ export const PluginTags = [
     "bd",
     "loader",
     "experimental",
-    "legacy"
+    "legacy",
+    "Testcord Modified"
 ] as const;
 
 export type PluginTag = typeof PluginTags[number];
@@ -265,6 +266,7 @@ export interface PluginDef {
      * A Vencord plugin that is modified for extra features in Equicord
      */
     isModified?: boolean;
+    testcordModified?: boolean;
 
     /**
      * Previous names/ids this plugin was known by. Used by the stable-ID
