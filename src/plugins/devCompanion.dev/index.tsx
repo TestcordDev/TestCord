@@ -71,5 +71,8 @@ export default definePlugin({
         };
     },
 
-    stop: stopWs,
+    stop() {
+        stopWs();
+        delete window.reconnectDevtools;
+    },
 });

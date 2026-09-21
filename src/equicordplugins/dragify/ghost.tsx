@@ -118,6 +118,8 @@ export function unmountGhost() {
     ghostMountNode?.remove();
     ghostMountNode = null;
 
+    ghostListeners.clear();
+
     if (ghostRaf !== null) {
         cancelAnimationFrame(ghostRaf);
         ghostRaf = null;

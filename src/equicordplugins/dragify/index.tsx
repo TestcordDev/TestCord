@@ -37,6 +37,7 @@ type DragifyRuntime = {
 
 let pluginInstance: DragifyRuntime | null = null;
 let transparentDragImage: HTMLCanvasElement | null = null;
+let dragEndTimer: number | undefined;
 
 function getTransparentDragImage(): HTMLCanvasElement | null {
     if (typeof document === "undefined") return null;
@@ -435,6 +436,10 @@ export default definePlugin({
         window.removeEventListener("drag", this.globalDragMove, true);
         window.removeEventListener("dragover", this.globalDragMove, true);
         window.removeEventListener("dragend", this.globalDragEnd, true);
+        if (dragEndTimer !== undefined) {
+            clearTimeout(dragEndTimer);
+            dragEndTimer = undefined;
+        }
         stopDragState();
         clearInviteCache();
         this.unmountGhost();
@@ -537,7 +542,9 @@ export default definePlugin({
     },
 
     globalDragEnd: (_event: DragEvent) => {
-        setTimeout(() => {
+        if (dragEndTimer !== undefined) clearTimeout(dragEndTimer);
+        dragEndTimer = window.setTimeout(() => {
+            dragEndTimer = undefined;
             if (Date.now() - getLastDropAt() < 100) return;
             clearDragState();
             hideDragGhost();

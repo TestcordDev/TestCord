@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { definePluginSettings } from "@api/Settings";
+import { definePluginSettings, SettingsStore } from "@api/Settings";
 import { Devs, IS_MAC, TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 
@@ -167,6 +167,7 @@ export default definePlugin({
 
     start() {
         this._clickHandler = (e: MouseEvent) => {
+            if (!settings.store.autoReveal && !(IS_MAC ? e.metaKey : e.ctrlKey)) return;
             const target = e.target as HTMLElement;
             const closest = target.closest('[class*="spoilerContent"], [class*="obscured"], [class*="hiddenSpoiler"], [class*="spoilerContainer"]') as HTMLElement | null;
             if (!closest) return;
@@ -177,18 +178,34 @@ export default definePlugin({
         };
         document.addEventListener("click", this._clickHandler, true);
 
-        // Auto-reveal interval: when enabled, nuke every spoiler in view
-        this._autoInterval = setInterval(() => {
-            this.revealAllAuto();
-        }, 800);
+        this._autoSettingListener = () => this.syncAutoInterval();
+        SettingsStore.addChangeListener("plugins.RevealAllSpoilers.autoReveal", this._autoSettingListener);
+        this.syncAutoInterval();
         // One immediate pass if already enabled
         if (settings.store.autoReveal) this.revealAllAuto();
+    },
+
+    syncAutoInterval() {
+        if (settings.store.autoReveal) {
+            if (!this._autoInterval) {
+                this._autoInterval = setInterval(() => {
+                    this.revealAllAuto();
+                }, 800);
+            }
+        } else if (this._autoInterval) {
+            clearInterval(this._autoInterval);
+            this._autoInterval = undefined;
+        }
     },
 
     stop() {
         if (this._clickHandler) {
             document.removeEventListener("click", this._clickHandler, true);
             this._clickHandler = null;
+        }
+        if (this._autoSettingListener) {
+            SettingsStore.removeChangeListener("plugins.RevealAllSpoilers.autoReveal", this._autoSettingListener);
+            this._autoSettingListener = null;
         }
         if (this._autoInterval) {
             clearInterval(this._autoInterval);

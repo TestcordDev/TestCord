@@ -732,7 +732,10 @@ export const settings = definePluginSettings({
         default: false,
         onChange(value) {
             if (value) startLiveFixServer();
-            else stopLiveFixServer();
+            else {
+                stopLiveFixServer();
+                uninstallLoafRecorder();
+            }
         }
     },
     liveFixRequireToken: {
@@ -1387,6 +1390,7 @@ interface LoafFrame {
 
 const LOAF_BUF_MAX = 40;
 const loafBuf: LoafFrame[] = [];
+let loafObserver: PerformanceObserver | null = null;
 let loafObserverInstalled = false;
 
 function installLoafRecorder() {
@@ -1422,10 +1426,18 @@ function installLoafRecorder() {
             }
         });
         observer.observe({ type: "long-animation-frame", durationThreshold: 50 } as PerformanceObserverInit);
+        loafObserver = observer;
         loafObserverInstalled = true;
     } catch {
         // Long Animation Frames API unavailable on this Chromium
     }
+}
+
+function uninstallLoafRecorder() {
+    loafObserver?.disconnect();
+    loafObserver = null;
+    loafObserverInstalled = false;
+    loafBuf.length = 0;
 }
 
 function installConsoleCapture() {
@@ -1436,7 +1448,7 @@ function installConsoleCapture() {
     for (const level of levels) {
         origConsole[level] = (console as any)[level].bind(console);
         (console as any)[level] = function (...args: any[]) {
-            const msg = args.map(a => typeof a === "object" ? safeStringify(a) : String(a)).join(" ");
+            const msg = args.map(a => typeof a === "object" ? safeStringify(a).slice(0, 500) : String(a).slice(0, 500)).join(" ").slice(0, 2000);
             consoleBuf.push({ level, msg, time: Date.now() });
             if (consoleBuf.length > CONSOLE_BUF_MAX) consoleBuf.shift();
             return origConsole[level](...args);
@@ -1889,8 +1901,14 @@ export default definePlugin({
         uninstallCrashGuards();
         uninstallDebugInstrumentation();
         uninstallConsoleCapture();
+        uninstallLoafRecorder();
         stopLiveFixServer();
         cleanupTcpAutocomplete();
+        pluginResolveCache.clear();
+        userResolveCache.clear();
+        cachedUserList = null;
+        pluginSearchData = undefined;
+        depMapCache = null;
         if (hotkeyHandler) {
             document.removeEventListener("keydown", hotkeyHandler, true);
             hotkeyHandler = null;

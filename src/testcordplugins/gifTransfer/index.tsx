@@ -554,43 +554,42 @@ function openFilePicker(onFile: (file: File) => void): void {
 // ─── DOM Injection ───────────────────────────────────────────────────────────
 
 const BUTTONS_ID = "gif-transfer-buttons";
+const BUTTONS_STYLE_ID = "gif-transfer-buttons-style";
 
-function createButton(label: string, title: string, onClick: () => void): HTMLButtonElement {
+function ensureButtonStyles(): void {
+    if (document.getElementById(BUTTONS_STYLE_ID)) return;
+    const style = document.createElement("style");
+    style.id = BUTTONS_STYLE_ID;
+    style.textContent = `#${BUTTONS_ID}{display:flex;align-items:center;margin-left:auto;padding-right:8px;gap:4px;pointer-events:all;}`
+        + `#${BUTTONS_ID} [data-gif-transfer="true"]{background:none;border:1px solid var(--interactive-normal,#b9bbbe);border-radius:4px;`
+        + "color:var(--interactive-normal,#b9bbbe);cursor:pointer;font-size:12px;font-weight:600;font-family:var(--font-primary,Whitney);"
+        + "padding:2px 8px;margin:0 2px;height:24px;line-height:1;transition:background 0.15s,color 0.15s,border-color 0.15s;white-space:nowrap;flex-shrink:0;}"
+        + `#${BUTTONS_ID} [data-gif-transfer="true"]:hover{background:var(--brand-500,#5865f2);color:#fff;border-color:var(--brand-500,#5865f2);}`;
+    document.head.appendChild(style);
+}
+
+function onDocumentClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement | null;
+    if (!target || typeof target.closest !== "function") return;
+    const btn = target.closest<HTMLButtonElement>("[data-gif-transfer-action]");
+    if (!btn) return;
+    const container = document.getElementById(BUTTONS_ID);
+    if (!container || !container.contains(btn)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const action = btn.getAttribute("data-gif-transfer-action");
+    if (action === "export") void exportGifs();
+    else if (action === "import") openFilePicker(f => importGifs(f));
+    else if (action === "verify") openFilePicker(f => verifyGifs(f));
+}
+
+function createButton(label: string, title: string, action: "export" | "import" | "verify"): HTMLButtonElement {
     const btn = document.createElement("button");
     btn.textContent = label;
     btn.title = title;
     btn.setAttribute("data-gif-transfer", "true");
-    Object.assign(btn.style, {
-        background: "none",
-        border: "1px solid var(--interactive-normal, #b9bbbe)",
-        borderRadius: "4px",
-        color: "var(--interactive-normal, #b9bbbe)",
-        cursor: "pointer",
-        fontSize: "12px",
-        fontWeight: "600",
-        fontFamily: "var(--font-primary, Whitney)",
-        padding: "2px 8px",
-        margin: "0 2px",
-        height: "24px",
-        lineHeight: "1",
-        transition: "background 0.15s, color 0.15s, border-color 0.15s",
-        whiteSpace: "nowrap",
-        flexShrink: "0",
-    });
-    btn.addEventListener("mouseenter", () => {
-        btn.style.background = "var(--brand-500, #5865f2)";
-        btn.style.color = "#fff";
-        btn.style.borderColor = "var(--brand-500, #5865f2)";
-    });
-    btn.addEventListener("mouseleave", () => {
-        btn.style.background = "none";
-        btn.style.color = "var(--interactive-normal, #b9bbbe)";
-        btn.style.borderColor = "var(--interactive-normal, #b9bbbe)";
-    });
-    btn.addEventListener("click", e => {
-        e.stopPropagation();
-        onClick();
-    });
+    btn.setAttribute("data-gif-transfer-action", action);
+    btn.type = "button";
     return btn;
 }
 
@@ -599,18 +598,10 @@ function injectButtons(navList: Element): void {
 
     const wrapper = document.createElement("div");
     wrapper.id = BUTTONS_ID;
-    Object.assign(wrapper.style, {
-        display: "flex",
-        alignItems: "center",
-        marginLeft: "auto",
-        paddingRight: "8px",
-        gap: "4px",
-        pointerEvents: "all",
-    });
 
-    wrapper.appendChild(createButton("Export", "Export favorite GIFs to JSON file", () => exportGifs()));
-    wrapper.appendChild(createButton("Import", "Import favorite GIFs from JSON file (skips duplicates)", () => openFilePicker(f => importGifs(f))));
-    wrapper.appendChild(createButton("Verify", "Check which GIFs from a file are missing from your favorites", () => openFilePicker(f => verifyGifs(f))));
+    wrapper.appendChild(createButton("Export", "Export favorite GIFs to JSON file", "export"));
+    wrapper.appendChild(createButton("Import", "Import favorite GIFs from JSON file (skips duplicates)", "import"));
+    wrapper.appendChild(createButton("Verify", "Check which GIFs from a file are missing from your favorites", "verify"));
 
     (navList as HTMLElement).style.display = "flex";
     (navList as HTMLElement).style.alignItems = "center";
@@ -653,22 +644,40 @@ function tryInject(): void {
 }
 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
+let pickerObserver: MutationObserver | null = null;
+let injectQueued = false;
+
+function scheduleTryInject(): void {
+    if (injectQueued) return;
+    injectQueued = true;
+    requestAnimationFrame(() => {
+        injectQueued = false;
+        tryInject();
+    });
+}
 
 function startObserver(): void {
-    // One getElementById per second while the picker is closed is negligible, and
-    // skipping hidden tabs avoids pointless wakeups when Discord is backgrounded.
+    ensureButtonStyles();
+    document.addEventListener("click", onDocumentClick, true);
+    pickerObserver = new MutationObserver(scheduleTryInject);
+    pickerObserver.observe(document.body, { childList: true, subtree: true });
     pollInterval = setInterval(() => {
         if (document.hidden) return;
         tryInject();
-    }, 1000);
+    }, 10_000);
     tryInject();
 }
 
 function stopObserver(): void {
+    document.removeEventListener("click", onDocumentClick, true);
+    pickerObserver?.disconnect();
+    pickerObserver = null;
+    injectQueued = false;
     if (pollInterval) {
         clearInterval(pollInterval);
         pollInterval = null;
     }
+    document.getElementById(BUTTONS_STYLE_ID)?.remove();
     document.querySelectorAll(`#${BUTTONS_ID}`).forEach(el => el.remove());
 }
 

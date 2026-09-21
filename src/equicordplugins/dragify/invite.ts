@@ -26,9 +26,28 @@ export type InviteCacheEntry = {
 };
 
 const inviteCache = new Map<string, InviteCacheEntry>();
+const INVITE_CACHE_LIMIT = 30;
 
 export function clearInviteCache() {
     inviteCache.clear();
+}
+
+function pruneInviteCache() {
+    for (const [guildId, entry] of inviteCache) {
+        if (isInviteExpired(entry)) inviteCache.delete(guildId);
+    }
+    while (inviteCache.size > INVITE_CACHE_LIMIT) {
+        const oldest = inviteCache.keys().next().value;
+        if (oldest === undefined) break;
+        inviteCache.delete(oldest);
+    }
+}
+
+function cacheInvite(guildId: string, entry: InviteCacheEntry) {
+    pruneInviteCache();
+    inviteCache.delete(guildId);
+    inviteCache.set(guildId, entry);
+    pruneInviteCache();
 }
 
 function normalizeInviteCacheEntry(invite: {
@@ -120,7 +139,7 @@ async function fetchReusableInvite(guildId: string, inviteChannelId: string) {
 
         if (!invite?.code) return { ok: false as const, reason: "missing" as const };
 
-        inviteCache.set(guildId, normalizeInviteCacheEntry(invite));
+        cacheInvite(guildId, normalizeInviteCacheEntry(invite));
         return { ok: true as const, code: invite.code };
     } catch (error) {
         logger.error("Failed to reuse invite", error);
@@ -168,7 +187,7 @@ export async function createInvite(guildId: string, currentChannel: Channel, set
         const code = typeof body === "object" && body ? (body as { code?: string; }).code : null;
         if (!code) throw new Error("Invite response missing code");
 
-        inviteCache.set(guildId, {
+        cacheInvite(guildId, {
             code,
             expiresAt: maxAge > 0 ? Date.now() + maxAge * 1000 : null,
             maxUses: maxUses === 0 ? null : maxUses,

@@ -449,6 +449,10 @@ function scheduleApplyCaretPosition() {
 // body-subtree churn (typing indicators, message list, popouts) never wakes it, which is
 // what caused the typing lag spikes.
 function observeEditor() {
+    if (observedEditor && !observedEditor.isConnected) {
+        observer?.disconnect();
+        observedEditor = null;
+    }
     const editor = document.activeElement?.closest("[data-slate-editor]") ?? null;
     if (editor === observedEditor) return;
     observer?.disconnect();
@@ -490,7 +494,17 @@ function stopObserver() {
 // cascade battle regardless of order or specificity.
 const inlineHiddenEditors = new Set<HTMLElement>();
 
+function pruneInlineHiddenEditors() {
+    for (const editor of inlineHiddenEditors) {
+        if (!editor.isConnected) {
+            editor.style.removeProperty("caret-color");
+            inlineHiddenEditors.delete(editor);
+        }
+    }
+}
+
 function hideNativeCaretInline(editor: HTMLElement) {
+    pruneInlineHiddenEditors();
     if (!inlineHiddenEditors.has(editor)) {
         editor.style.setProperty("caret-color", "transparent", "important");
         inlineHiddenEditors.add(editor);
@@ -522,9 +536,10 @@ const smoothHandlers = {
         // Re-check after focus settles so tabbing between editors does not
         // flash the native caret; unpins editors that lost focus entirely.
         setTimeout(() => {
+            pruneInlineHiddenEditors();
             const active = document.activeElement;
             for (const editor of [...inlineHiddenEditors]) {
-                if (!editor.isConnected || (active !== editor && !editor.contains(active))) {
+                if (active !== editor && !editor.contains(active)) {
                     editor.style.removeProperty("caret-color");
                     inlineHiddenEditors.delete(editor);
                 }
@@ -628,6 +643,8 @@ function cleanup() {
     removeCaret();
     stopTracking();
     stopSmoothTyping();
+    document.documentElement.style.removeProperty("--caret-speed");
+    document.documentElement.style.removeProperty("--caret-easing");
 }
 
 export default definePlugin({

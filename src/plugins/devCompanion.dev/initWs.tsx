@@ -12,7 +12,7 @@ import { reporterData } from "@debug/reporterData";
 import { getIntlMessageFromHash } from "@utils/discord";
 import { canonicalizeMatch, canonicalizeReplace } from "@utils/patches";
 import { filters, findAll, search, wreq } from "@webpack";
-import { React, Toasts, useState } from "@webpack/common";
+import { React, Toasts, useEffect, useState } from "@webpack/common";
 
 import { CLIENT_VERSION, logger, PORT, settings } from ".";
 import { Recieve } from "./types";
@@ -27,6 +27,9 @@ export function stopWs() {
 export let socket: WebSocket | undefined;
 
 export function initWs(isManual = false) {
+    if (socket && socket.readyState !== WebSocket.CLOSED && socket.readyState !== WebSocket.CLOSING) {
+        socket.close(1000, "Reconnecting");
+    }
     let wasConnected = isManual;
     let hasErrored = false;
     const ws = socket = new WebSocket(`ws://127.0.0.1:${PORT}`);
@@ -481,8 +484,16 @@ interface AllModulesNotiProps {
 
 const AllModulesNoti = ErrorBoundary.wrap(function ({ done, close }: AllModulesNotiProps) {
     const [state, setState] = useState<0 | 1 | -1>(0);
-    done.then(setState.bind(null, 1)).catch(setState.bind(null, -1));
-    if (state === 1) setTimeout(close, 5000);
+    useEffect(() => {
+        let cancelled = false;
+        done.then(() => { if (!cancelled) setState(1); }).catch(() => { if (!cancelled) setState(-1); });
+        return () => { cancelled = true; };
+    }, [done]);
+    useEffect(() => {
+        if (state !== 1) return;
+        const timer = setTimeout(close, 5000);
+        return () => clearTimeout(timer);
+    }, [state, close]);
     return (<>
         {state === 0 && "Loading lazy modules, restarting could lead to errors"}
         {state === 1 && "Loaded all lazy modules"}

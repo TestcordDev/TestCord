@@ -223,7 +223,7 @@ function filterPlugins(query: string, targetCategory?: "Testcord" | "Vencord" | 
 }
 
 function hookModule(mod: any) {
-    if (!mod || mod._tcpAutocompleteHooked) return;
+    if (!isInitialized || !mod || mod._tcpAutocompleteHooked) return;
     hookedModule = mod;
 
     const original = mod.findMatchingAutocompleteType;

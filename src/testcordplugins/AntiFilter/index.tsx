@@ -401,14 +401,8 @@ function transformTextWithProtection(text: string, mode: string): string {
     return parts.join("");
 }
 
-function toggleEnabled() {
-    const next = !(settings.store.isEnabled || settings.store.enabled);
-    settings.store.isEnabled = next;
-    settings.store.enabled = next;
-}
-
 function handleMessageSend(channelId: string, messageObj: any, options: any): void | { cancel: boolean; } {
-    if (!settings.store.enabled && !settings.store.isEnabled) return;
+    if (!settings.store.enabled || !settings.store.isEnabled) return;
 
     if (messageObj.content) {
         messageObj.content = transformTextWithProtection(messageObj.content, settings.store.mode);
@@ -416,8 +410,7 @@ function handleMessageSend(channelId: string, messageObj: any, options: any): vo
 }
 
 function renderAntiFilterMenuItems(includeEnabledToggle = false) {
-    const { isEnabled, enabled, mode } = settings.store;
-    const active = isEnabled || enabled;
+    const { isEnabled, mode } = settings.store;
 
     return [
         includeEnabledToggle && (
@@ -425,8 +418,10 @@ function renderAntiFilterMenuItems(includeEnabledToggle = false) {
                 id="antifilter-toggle-enabled"
                 key="antifilter-toggle-enabled"
                 label="AntiFilter Enabled"
-                checked={active}
-                action={toggleEnabled}
+                checked={isEnabled}
+                action={() => {
+                    settings.store.isEnabled = !settings.store.isEnabled;
+                }}
             />
         ),
         includeEnabledToggle && <Menu.MenuSeparator key="antifilter-toggle-separator" />,
@@ -448,7 +443,7 @@ function renderAntiFilterMenuItems(includeEnabledToggle = false) {
 }
 
 function AntiFilterContextMenu() {
-    settings.use(["isEnabled", "enabled", "mode"]);
+    settings.use(["isEnabled", "mode"]);
 
     return (
         <Menu.Menu
@@ -468,7 +463,7 @@ function openAntiFilterContextMenu(e: React.MouseEvent) {
 }
 
 function AntiFilterSubmenu() {
-    settings.use(["isEnabled", "enabled", "mode"]);
+    settings.use(["isEnabled", "mode"]);
     return (
         <>
             {renderAntiFilterMenuItems(true)}
@@ -508,27 +503,25 @@ const AntiFilterIcon = ({ width = 20, height = 20 }: { width?: number; height?: 
 );
 
 const AntiFilterButton: ChatBarButtonFactory = ({ isMainChat }) => {
-    const { isEnabled, enabled, mode } = settings.use(["isEnabled", "enabled", "mode"]);
-    const active = isEnabled || enabled;
+    const { isEnabled } = settings.use(["isEnabled"]);
 
     if (!isMainChat || settings.store.location !== "chatbar") return null;
 
-    const methodLabel = METHODS.find(m => m.value === mode)?.label ?? "Zero-Width";
-    const tooltip = active ? `AntiFilter: ON (${methodLabel})` : "AntiFilter: OFF";
-
     return (
         <ChatBarButton
-            tooltip={tooltip}
-            onClick={toggleEnabled}
+            tooltip={isEnabled ? "AntiFilter: ON" : "AntiFilter: OFF"}
+            onClick={() => {
+                settings.store.isEnabled = !settings.store.isEnabled;
+            }}
             onContextMenu={openAntiFilterContextMenu}
         >
             <svg
                 width="20"
                 height="20"
                 viewBox="0 0 24 24"
-                fill={active ? "var(--status-danger, #da373c)" : "currentColor"}
+                fill={isEnabled ? "var(--status-danger, #da373c)" : "currentColor"}
             >
-                {active ? (
+                {isEnabled ? (
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                 ) : (
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z" />
@@ -559,7 +552,7 @@ export default definePlugin({
             options: [RequiredMessageOption],
             execute: opts => {
                 const originalMessage = findOption(opts, "message", "");
-                const modifiedMessage = transformTextWithProtection(originalMessage, settings.store.mode);
+                const modifiedMessage = mapCharactersZeroWidth(originalMessage);
                 return { content: modifiedMessage };
             }
         }
@@ -574,33 +567,23 @@ export default definePlugin({
         addMessagePreSendListener(handleMessageSend);
         const { location } = settings.store;
         if (location === "headerbar") {
-            addHeaderBarButton("AntiFilter", () => {
-                const { isEnabled, enabled, mode } = settings.use(["isEnabled", "enabled", "mode"]);
-                const active = isEnabled || enabled;
-                const methodLabel = METHODS.find(m => m.value === mode)?.label ?? "Zero-Width";
-                return (
-                    <HeaderBarButton
-                        icon={() => <AntiFilterIcon />}
-                        tooltip={active ? `AntiFilter: ON (${methodLabel})` : "AntiFilter: OFF"}
-                        onClick={toggleEnabled}
-                        onContextMenu={openAntiFilterContextMenu}
-                    />
-                );
-            }, 5);
+            addHeaderBarButton("AntiFilter", () => (
+                <HeaderBarButton
+                    icon={() => <AntiFilterIcon />}
+                    tooltip={settings.store.isEnabled ? "AntiFilter: ON" : "AntiFilter: OFF"}
+                    onClick={() => { settings.store.isEnabled = !settings.store.isEnabled; }}
+                    onContextMenu={openAntiFilterContextMenu}
+                />
+            ), 5);
         } else if (location === "channeltoolbar") {
-            addChannelToolbarButton("AntiFilter", () => {
-                const { isEnabled, enabled, mode } = settings.use(["isEnabled", "enabled", "mode"]);
-                const active = isEnabled || enabled;
-                const methodLabel = METHODS.find(m => m.value === mode)?.label ?? "Zero-Width";
-                return (
-                    <ChannelToolbarButton
-                        icon={() => <AntiFilterIcon />}
-                        tooltip={active ? `AntiFilter: ON (${methodLabel})` : "AntiFilter: OFF"}
-                        onClick={toggleEnabled}
-                        onContextMenu={openAntiFilterContextMenu}
-                    />
-                );
-            }, 5);
+            addChannelToolbarButton("AntiFilter", () => (
+                <ChannelToolbarButton
+                    icon={() => <AntiFilterIcon />}
+                    tooltip={settings.store.isEnabled ? "AntiFilter: ON" : "AntiFilter: OFF"}
+                    onClick={() => { settings.store.isEnabled = !settings.store.isEnabled; }}
+                    onContextMenu={openAntiFilterContextMenu}
+                />
+            ), 5);
         }
     },
 
