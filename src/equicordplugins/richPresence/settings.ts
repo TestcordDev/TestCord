@@ -14,7 +14,7 @@ export let onServiceChange: (() => void) | null = null;
 export function setOnServiceChange(fn: (() => void) | null) { onServiceChange = fn; }
 
 export const settings = definePluginSettings({
-    enabled: {
+    servicesEnabled: {
         description: "Enable rich presence services.",
         type: OptionType.BOOLEAN,
         default: true,

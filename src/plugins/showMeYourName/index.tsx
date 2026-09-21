@@ -569,6 +569,34 @@ function getDisplayNameStyles(styles: DisplayNameStyles, ignoreFont: boolean): D
         : styles;
 }
 
+let cachedTextMuted: string | null = null;
+let cachedTextMutedAt = 0;
+
+function getCachedTextMuted(): string {
+    const now = Date.now();
+    if (cachedTextMuted === null || now - cachedTextMutedAt > 5000) {
+        cachedTextMuted = getComputedStyle(document.documentElement)?.getPropertyValue("--text-muted")?.trim() || "#72767d";
+        cachedTextMutedAt = now;
+    }
+    return cachedTextMuted;
+}
+
+const guildGradientCache = new Map<string, { value: boolean; at: number; }>();
+
+function canUseGuildGradient(guildId: string | null | undefined, inGuild: boolean): boolean {
+    if (!guildId) return !inGuild;
+    const now = Date.now();
+    const hit = guildGradientCache.get(guildId);
+    if (hit && now - hit.at < 60_000) return hit.value;
+    const value = (GuildStore.getGuild(guildId) ?? {}).premiumFeatures?.features.includes("ENHANCED_ROLE_COLORS") ?? false;
+    guildGradientCache.set(guildId, { value, at: now });
+    if (guildGradientCache.size > 200) {
+        const oldest = guildGradientCache.keys().next().value;
+        if (oldest !== undefined) guildGradientCache.delete(oldest);
+    }
+    return value;
+}
+
 function getDisplayNameEffectDisplayType(isHovered: boolean, showStaticEffect = true): number {
     if (shouldAnimateNameEffects(isHovered, showStaticEffect)) return DisplayNameEffectDisplayTypes.ANIMATED;
 
@@ -751,13 +779,13 @@ function renderUsername(
     const shouldShowDisplayNameEffect = !!authorDisplayNameStyles;
     const usesGradientAnimationOverride = needsGradientAnimationOverride(authorDisplayNameStyles);
 
-    const canUseGradient = ((author as GuildMember)?.guildId ? (GuildStore.getGuild((author as GuildMember).guildId) ?? {}).premiumFeatures?.features.includes("ENHANCED_ROLE_COLORS") : !inGuild);
+    const canUseGradient = canUseGuildGradient((author as GuildMember)?.guildId, inGuild);
     const useTopRoleStyle = isMention || isReactionsPopout || channel?.isDM() || channel?.isGroupDM();
     const topRoleStyle = author ? resolveColor(authorColorStrings, authorDisplayNameStyles, "Role", canUseGradient, inGuild, ircColorsEnabled, shouldShowHoverEffects) : null;
     const hasGradient = !!topRoleStyle?.gradient && Object.keys(topRoleStyle.gradient).length > 0;
 
     const textMutedValue = hookless
-        ? getComputedStyle(document.documentElement)?.getPropertyValue("--text-muted")?.trim() || "#72767d"
+        ? getCachedTextMuted()
         : useMemo(() => getComputedStyle(document.documentElement)?.getPropertyValue("--text-muted")?.trim() || "#72767d", []);
 
     // Fast path: this surface is disabled. Bail before store lookups, color

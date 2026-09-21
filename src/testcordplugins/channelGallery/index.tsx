@@ -186,6 +186,15 @@ export default definePlugin({
 
     start() {
         enableStyle(styles);
+        const ric = (window as any).requestIdleCallback as ((cb: () => void, opts?: { timeout: number; }) => void) | undefined;
+        const warm = () => {
+            try {
+                void ChannelTypes?.DM;
+                void ChannelTypesSets?.THREADS;
+            } catch { }
+        };
+        if (typeof ric === "function") ric(warm, { timeout: 2000 });
+        else setTimeout(warm, 500);
     },
     stop() {
         disableStyle(styles);
