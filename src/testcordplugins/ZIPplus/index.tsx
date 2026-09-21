@@ -7,6 +7,7 @@
 import "./styles.css";
 
 import { definePluginSettings } from "@api/Settings";
+import ErrorBoundary from "@components/ErrorBoundary";
 import { EquicordDevs } from "@utils/constants";
 import { openModal } from "@utils/modal";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
@@ -455,7 +456,7 @@ function cacheBlob(key: string, blob: Blob) {
 }
 
 // Component to render inside each zip attachment
-function ZipAttachmentPreview({ attachment }: { attachment: ZipAttachmentLike; }) {
+function ZipAttachmentPreviewInner({ attachment }: { attachment: ZipAttachmentLike; }) {
     const cacheKey = getAttachmentKey(attachment);
     const [blob, setBlob] = useState<Blob | null>(() => blobCache.get(cacheKey) || null);
     const [error, setError] = useState<string | null>(null);
@@ -523,6 +524,16 @@ function ZipAttachmentPreview({ attachment }: { attachment: ZipAttachmentLike; }
             />
         </div>
     );
+}
+
+const ZipAttachmentPreviewSafe = ErrorBoundary.wrap(ZipAttachmentPreviewInner, { noop: true });
+
+// Hook-free wrapper: the patch calls `$self.ZipAttachmentPreview({...})` as a plain
+// function inside Discord's render. This must only create an element so hooks run
+// in their own component context. On error renders nothing instead of crashing.
+function ZipAttachmentPreview(props: { attachment: ZipAttachmentLike; }) {
+    if (!props?.attachment) return null;
+    return <ZipAttachmentPreviewSafe {...props} />;
 }
 
 export default definePlugin({
