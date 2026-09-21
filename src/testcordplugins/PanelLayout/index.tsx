@@ -1756,7 +1756,7 @@ function ButtonsDragTab() {
                                             borderRadius: "2px",
                                             backgroundColor: "var(--border-subtle)",
                                             marginLeft: "14px",
-                                            marginRight: "4px",
+                                            marginRight: "14px",
                                         }}
                                     />
 
@@ -1886,7 +1886,7 @@ function ButtonsDragTab() {
                                     borderRadius: "2px",
                                     backgroundColor: "var(--border-subtle)",
                                     marginLeft: hasCallButtons ? "4px" : "14px",
-                                    marginRight: "4px",
+                                    marginRight: "14px",
                                 }}
                             />
 
@@ -2594,14 +2594,7 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
     };
 
     const customizableItems = (items ?? []).filter(item =>
-        !getBtnCfg(item.id).hidden &&
-        getCanonicalLabel(item.id) !== "User Settings" &&
-        getCanonicalLabel(item.id) !== "Mute" &&
-        getCanonicalLabel(item.id) !== "Deafen" &&
-        getCanonicalLabel(item.id) !== "Soundboard" &&
-        getCanonicalLabel(item.id) !== "Activity" &&
-        getCanonicalLabel(item.id) !== "Screen Share" &&
-        getCanonicalLabel(item.id) !== "Camera"
+        !getBtnCfg(item.id).hidden
     );
 
     const btnCount = customizableItems.length;
@@ -2646,142 +2639,144 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         </BaseText>
                     </div>
                 ) : (
-                    <div
-                        style={{
-                            background: "var(--background-base-lower-alt, rgba(0, 0, 0, 0.2))",
-                            border: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))",
-                            borderRadius: "10px",
-                            padding: "20px 24px 16px",
+                    <Card>
+                        <div style={{
                             display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: "100%",
-                            boxSizing: "border-box",
-                        }}
-                    >
-                        <div
-                            className="vc-pl-custom-btn-row"
-                            style={{
+                            justifyContent: "space-between",
+                        }}>
+                            <div className="deracul-scrollbar" style={{
+                                width: "100%",
                                 display: "flex",
                                 flexDirection: "row",
-                                flexWrap: "nowrap",
-                                alignItems: "center",
-                                justifyContent: "center",
                                 gap: "12px",
-                                maxWidth: "100%",
-                                width: "100%",
-                                padding: "8px 0px",
-                                boxSizing: "border-box",
                                 overflowX: "auto",
-                                overflowY: "hidden",
-                            }}
-                        >
-                            {items.map(item => {
-                                const cfg = getBtnCfg(item.id);
-                                const canonical = getCanonicalLabel(item.label);
-                                const isMute = canonical === "Mute";
-                                const isDeafen = canonical === "Deafen";
-                                const isUserSettings = canonical === "User Settings";
-                                const isActivity = canonical === "Activity";
-                                const isSoundboard = canonical === "Soundboard";
-                                const isCamera = canonical === "Camera";
-                                const isScreenShare = canonical === "Screen Share";
-
-                                if (isCamera || isScreenShare || isActivity || isSoundboard) {
-                                    hasCallButtons = true;
-                                    return;
-                                }
-
-                                if (isMute || isDeafen || isUserSettings || cfg.hidden) { return; }
-
-                                return (
-                                    <CustomizationRowButton
-                                        key={item.id}
-                                        item={item}
-                                        handleOpenSubModal={handleOpenSubModal}
-                                        onHover={setHoveredLabel}
-                                        onUnhover={() => setHoveredLabel(null)}
-                                    />
-                                );
-                            })}
-                        </div>
-
-                        {hasCallButtons && (
-                            <div
-                                className="vc-pl-custom-btn-row"
-                                style={{
+                                alignItems: "center",
+                                padding: "4px 8px",
+                            }}>
+                                <div className="deracul-scrollbar" style={{
                                     display: "flex",
                                     flexDirection: "row",
-                                    flexWrap: "nowrap",
-                                    alignItems: "center",
-                                    justifyContent: "center",
                                     gap: "12px",
-                                    maxWidth: "100%",
-                                    width: "100%",
-                                    padding: "8px 0px",
-                                    boxSizing: "border-box",
                                     overflowX: "auto",
-                                    overflowY: "hidden",
-                                }}
-                            >
-                                {items.map(item => {
-                                    const canonical = getCanonicalLabel(item.label);
-                                    const isActivity = canonical === "Activity";
-                                    const isSoundboard = canonical === "Soundboard";
-                                    const isCamera = canonical === "Camera";
-                                    const isScreenShare = canonical === "Screen Share";
+                                    minWidth: "fit-content",
+                                    alignItems: "center",
+                                    padding: "4px 8px",
+                                }}>
+                                    {items.map(item => {
+                                        const cfg = getBtnCfg(item.id);
+                                        const canonical = getCanonicalLabel(item.label);
+                                        const isMute = canonical === "Mute";
+                                        const isDeafen = canonical === "Deafen";
+                                        const isUserSettings = canonical === "User Settings";
+                                        const isActivity = canonical === "Activity";
+                                        const isSoundboard = canonical === "Soundboard";
+                                        const isCamera = canonical === "Camera";
+                                        const isScreenShare = canonical === "Screen Share";
 
-                                    if (!isCamera && !isScreenShare && !isActivity && !isSoundboard) { return; }
+                                        if (isCamera || isScreenShare || isActivity || isSoundboard) {
+                                            hasCallButtons = true;
+                                            return;
+                                        }
 
-                                    return (
-                                        <CustomizationRowButton
-                                            key={item.id}
-                                            item={item}
-                                            handleOpenSubModal={handleOpenSubModal}
-                                            onHover={setHoveredLabel}
-                                            onUnhover={() => setHoveredLabel(null)}
+                                        if (isMute || isDeafen || isUserSettings || cfg.hidden) { return; }
+
+                                        return (
+                                            <CustomizationRowButton
+                                                key={item.id}
+                                                item={item}
+                                                handleOpenSubModal={handleOpenSubModal}
+                                                onHover={setHoveredLabel}
+                                                onUnhover={() => setHoveredLabel(null)}
+                                            />
+                                        );
+                                    })}
+                                </div>
+
+                                {hasCallButtons && (
+                                    <>
+                                        <div
+                                            style={{
+                                                height: "100%",
+                                                width: "2px",
+                                                borderRadius: "2px",
+                                                backgroundColor: "var(--border-subtle)",
+                                                marginLeft: "14px",
+                                                marginRight: "14px",
+                                            }}
                                         />
-                                    );
-                                })}
+
+                                        <div className="deracul-scrollbar" style={{
+                                            display: "flex",
+                                            flexDirection: "row",
+                                            gap: "12px",
+                                            overflowX: "auto",
+                                            minWidth: "fit-content",
+                                            alignItems: "center",
+                                            padding: "4px 8px",
+                                        }}>
+                                            {items.map(item => {
+                                                const canonical = getCanonicalLabel(item.label);
+                                                const isActivity = canonical === "Activity";
+                                                const isSoundboard = canonical === "Soundboard";
+                                                const isCamera = canonical === "Camera";
+                                                const isScreenShare = canonical === "Screen Share";
+
+                                                if (!isCamera && !isScreenShare && !isActivity && !isSoundboard) { return; }
+
+                                                return (
+                                                    <CustomizationRowButton
+                                                        key={item.id}
+                                                        item={item}
+                                                        handleOpenSubModal={handleOpenSubModal}
+                                                        onHover={setHoveredLabel}
+                                                        onUnhover={() => setHoveredLabel(null)}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                    </>
+                                )}
+
+                                <div
+                                    style={{
+                                        height: "100%",
+                                        width: "2px",
+                                        borderRadius: "2px",
+                                        backgroundColor: "var(--border-subtle)",
+                                        marginLeft: "14px",
+                                        marginRight: "14px",
+                                    }}
+                                />
+
+                                <div className="deracul-scrollbar" style={{
+                                    display: "flex",
+                                    flexDirection: "row",
+                                    gap: "12px",
+                                    overflowX: "auto",
+                                    minWidth: "fit-content",
+                                    alignItems: "center",
+                                    padding: "4px 8px",
+                                }}>
+                                    {items.map(item => {
+                                        const canonical = getCanonicalLabel(item.label);
+                                        const isMute = canonical === "Mute";
+                                        const isDeafen = canonical === "Deafen";
+                                        const isUserSettings = canonical === "User Settings";
+
+                                        if (!isMute && !isDeafen && !isUserSettings) { return; }
+
+                                        return (
+                                            <CustomizationRowButton
+                                                key={item.id}
+                                                item={item}
+                                                handleOpenSubModal={handleOpenSubModal}
+                                                onHover={setHoveredLabel}
+                                                onUnhover={() => setHoveredLabel(null)}
+                                            />
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        )}
-
-                        <div
-                            className="vc-pl-custom-btn-row"
-                            style={{
-                                display: "flex",
-                                flexDirection: "row",
-                                flexWrap: "nowrap",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                gap: "12px",
-                                maxWidth: "100%",
-                                width: "100%",
-                                padding: "8px 0px",
-                                boxSizing: "border-box",
-                                overflowX: "auto",
-                                overflowY: "hidden",
-                            }}
-                        >
-                            {items.map(item => {
-                                const canonical = getCanonicalLabel(item.label);
-                                const isMute = canonical === "Mute";
-                                const isDeafen = canonical === "Deafen";
-                                const isUserSettings = canonical === "User Settings";
-
-                                if (!isMute && !isDeafen && !isUserSettings) { return; }
-
-                                return (
-                                    <CustomizationRowButton
-                                        key={item.id}
-                                        item={item}
-                                        handleOpenSubModal={handleOpenSubModal}
-                                        onHover={setHoveredLabel}
-                                        onUnhover={() => setHoveredLabel(null)}
-                                    />
-                                );
-                            })}
                         </div>
 
                         <div
@@ -2805,7 +2800,7 @@ function SettingsModal({ modalProps }: { modalProps: RenderModalProps; }) {
                                 {hoveredLabel ? `Customize: ${hoveredLabel}` : "Hover over a button to customize"}
                             </BaseText>
                         </div>
-                    </div>
+                    </Card>
                 )}
             </div>
         </Modal>
