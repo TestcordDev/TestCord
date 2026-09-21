@@ -142,23 +142,102 @@ function makeProfileId(name: string, profiles: InstanceProfile[]) {
 
 export function MultiInstanceIcon({ width = 20, height = 20, className }: SVGProps<SVGSVGElement> & { size?: string; }) {
     return (
-        <svg className={className} width={width} height={height} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M4 5a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v1h-2V5a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h1v2H7a3 3 0 0 1-3-3V5Z" />
-            <path d="M10 11a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3h-4a3 3 0 0 1-3-3v-6Zm3-1a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1h-4Z" />
-            <path d="M7 18h2v2H7a5 5 0 0 1-5-5v-2h2v2a3 3 0 0 0 3 3ZM20 6h2v2h-2V6Zm0-2V2h-2v2h2Zm-4 0V2h-2v2h2Z" />
+        <svg
+            className={className}
+            aria-hidden="true"
+            role="img"
+            xmlns="http://www.w3.org/2000/svg"
+            width={width}
+            height={height}
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <rect
+                x="2"
+                y="6"
+                width="14"
+                height="14"
+                rx="2.5"
+                stroke="currentColor"
+                strokeWidth="2"
+            />
+            <path
+                d="M2 11h14"
+                stroke="currentColor"
+                strokeWidth="2"
+            />
+            <path
+                d="M7 3h11a2.5 2.5 0 0 1 2.5 2.5v11.5"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+            />
         </svg>
     );
 }
 
-function InstanceAvatar({ status }: { status?: InstanceStatus; }) {
-    if (status?.user) {
-        return <Avatar src={status.user.avatarUrl} size="SIZE_48" aria-label={`${status.user.username} avatar`} />;
-    }
-
+function KeyIcon({ width = 12, height = 12, className }: SVGProps<SVGSVGElement>) {
     return (
-        <div className="vc-multi-instance-avatar-placeholder">
-            <MultiInstanceIcon width={24} height={24} />
-        </div>
+        <svg
+            className={className}
+            aria-hidden="true"
+            role="img"
+            xmlns="http://www.w3.org/2000/svg"
+            width={width}
+            height={height}
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                fill="currentColor"
+                fillRule="evenodd"
+                d="M21.41 5.41A2 2 0 1 0 18.6 2.6l-7.75 7.74a.53.53 0 0 1-.58.11 6 6 0 1 0 3.3 3.28.51.51 0 0 1 .1-.55c.19-.19.5-.19.68 0l1.25 1.24a2 2 0 1 0 2.82-2.82l-1.23-1.24a.5.5 0 0 1 0-.7l.47-.47c.2-.2.5-.2.7 0l1.24 1.23A2 2 0 1 0 22.4 7.6l-1.23-1.24a.5.5 0 0 1 0-.7l.23-.24ZM10 16a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"
+                clipRule="evenodd"
+            />
+        </svg>
+    );
+}
+
+function MoreDotsIcon() {
+    return (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="5" cy="12" r="2" />
+            <circle cx="12" cy="12" r="2" />
+            <circle cx="19" cy="12" r="2" />
+        </svg>
+    );
+}
+
+function RefreshIcon() {
+    return (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21.5 2v6h-6M2.5 22v-6h6" />
+            <path d="M2.5 11.5a10 10 0 0 1 17.4-4.5l1.6 1M21.5 12.5a10 10 0 0 1-17.4 4.5l-1.6-1" />
+        </svg>
+    );
+}
+
+function OpenWindowIcon({ width = 14, height = 14, className }: SVGProps<SVGSVGElement>) {
+    return (
+        <svg
+            className={className}
+            aria-hidden="true"
+            role="img"
+            xmlns="http://www.w3.org/2000/svg"
+            width={width}
+            height={height}
+            fill="none"
+            viewBox="0 0 24 24"
+        >
+            <path
+                fill="currentColor"
+                d="M15 2a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 1 1-2 0V4.41l-4.3 4.3a1 1 0 1 1-1.4-1.42L19.58 3H16a1 1 0 0 1-1-1Z"
+            />
+            <path
+                fill="currentColor"
+                d="M5 2a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h14a3 3 0 0 0 3-3v-6a1 1 0 1 0-2 0v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h6a1 1 0 1 0 0-2H5Z"
+            />
+        </svg>
     );
 }
 
@@ -214,6 +293,56 @@ const settings = definePluginSettings({
     }
 }).withPrivateSettings<PrivateSettings>();
 
+function RenameModal({
+    profile,
+    onSave,
+    rootProps
+}: {
+    profile: InstanceProfile;
+    onSave: (name: string) => void;
+    rootProps: RenderModalProps;
+}) {
+    const [nameVal, setNameVal] = React.useState(profile.name);
+
+    return (
+        <Modal {...rootProps} title={`Rename - ${profile.name}`} size="sm" className="vc-multi-instance-dialog">
+            <div className="vc-multi-instance-dialog-content">
+                <TextInput
+                    value={nameVal}
+                    placeholder="Instance name"
+                    onChange={setNameVal}
+                    autoFocus
+                />
+                <div className="vc-multi-instance-dialog-actions">
+                    <Button
+                        size="small"
+                        variant="secondary"
+                        onClick={rootProps.onClose}
+                    >
+                        Cancel
+                    </Button>
+                    <Button
+                        size="small"
+                        variant="positive"
+                        onClick={() => {
+                            const trimmed = nameVal.trim();
+                            if (!trimmed) {
+                                showToast("Enter an instance name.", Toasts.Type.FAILURE);
+                                return;
+                            }
+                            onSave(trimmed);
+                            rootProps.onClose();
+                            showToast("Renamed instance profile.", Toasts.Type.SUCCESS);
+                        }}
+                    >
+                        Save
+                    </Button>
+                </div>
+            </div>
+        </Modal>
+    );
+}
+
 function TokenModal({
     profile,
     onSave,
@@ -226,17 +355,18 @@ function TokenModal({
     const [tokenVal, setTokenVal] = React.useState(profile.token ?? "");
 
     return (
-        <Modal {...rootProps} title={`Account Token — ${profile.name}`} size="small">
-            <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
-                <div style={{ color: "var(--text-normal)", fontSize: "13px", lineHeight: "18px" }}>
+        <Modal {...rootProps} title={`Account Token - ${profile.name}`} size="sm" className="vc-multi-instance-dialog">
+            <div className="vc-multi-instance-dialog-content">
+                <div className="vc-multi-instance-dialog-hint">
                     Enter a Discord account token to log into <strong>{profile.name}</strong> automatically when launching.
                 </div>
                 <TextInput
                     value={tokenVal}
-                    placeholder="Discord User Token (e.g. OT...)"
+                    placeholder="Discord user token"
                     onChange={setTokenVal}
+                    autoFocus
                 />
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "8px" }}>
+                <div className="vc-multi-instance-dialog-actions">
                     {profile.token && (
                         <Button
                             size="small"
@@ -248,7 +378,7 @@ function TokenModal({
                                 showToast(`Token removed from ${profile.name}.`, Toasts.Type.SUCCESS);
                             }}
                         >
-                            Remove Token
+                            Remove
                         </Button>
                     )}
                     <Button
@@ -268,7 +398,7 @@ function TokenModal({
                             showToast(`Token saved for ${profile.name}.`, Toasts.Type.SUCCESS);
                         }}
                     >
-                        Save Token
+                        Save
                     </Button>
                 </div>
             </div>
@@ -284,8 +414,6 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
     const [instances, setInstances] = React.useState<InstanceStatus[]>([]);
     const [busyId, setBusyId] = React.useState<string | null>(null);
     const [newName, setNewName] = React.useState("");
-    const [editingId, setEditingId] = React.useState<string | null>(null);
-    const [editingName, setEditingName] = React.useState("");
     const refreshTick = useTimer({ interval: 1000 });
 
     const refreshInstances = React.useCallback(async () => {
@@ -448,25 +576,6 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
         updateProfile(profile.id, { domain });
     }
 
-    function startRename(profile: InstanceProfile) {
-        setEditingId(profile.id);
-        setEditingName(profile.name);
-    }
-
-    function saveRename(profile: InstanceProfile) {
-        const name = editingName.trim();
-
-        if (!name) {
-            showToast("Enter an instance name.", Toasts.Type.FAILURE);
-            return;
-        }
-
-        updateProfile(profile.id, { name });
-        setEditingId(null);
-        setEditingName("");
-        showToast("Renamed instance profile.", Toasts.Type.SUCCESS);
-    }
-
     async function removeInstance(profile: InstanceProfile) {
         if (instances.some(instance => instance.id === profile.id)) await closeInstance(profile);
 
@@ -479,6 +588,7 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
 
     function openInstanceMenu(event: ReactMouseEvent, profile: InstanceProfile, status?: InstanceStatus) {
         event.preventDefault();
+        event.stopPropagation();
         const isBusy = busyId === profile.id || busyId === ALL_INSTANCES_BUSY_ID;
 
         ContextMenuApi.openContextMenu(event, () => (
@@ -488,16 +598,16 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
                 aria-label={`${profile.name} options`}
             >
                 <Menu.MenuItem
+                    id="multi-instance-open-separate"
+                    label="Open separate window"
+                    disabled={!!status || isBusy}
+                    action={() => void openInstance(profile, "detached")}
+                />
+                <Menu.MenuItem
                     id="multi-instance-open-grouped"
                     label="Open grouped with Discord"
                     disabled={!!status || isBusy}
                     action={() => void openInstance(profile, "grouped")}
-                />
-                <Menu.MenuItem
-                    id="multi-instance-open-detached"
-                    label="Open separate Testcord window"
-                    disabled={!!status || isBusy}
-                    action={() => void openInstance(profile, "detached")}
                 />
                 {status && (
                     <>
@@ -520,17 +630,29 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
                     id="multi-instance-rename"
                     label="Rename profile"
                     disabled={isBusy}
-                    action={() => startRename(profile)}
+                    action={() => openModal(props => (
+                        <RenameModal
+                            profile={profile}
+                            onSave={name => updateProfile(profile.id, { name })}
+                            rootProps={props}
+                        />
+                    ))}
                 />
                 <Menu.MenuItem
                     id="multi-instance-token"
-                    label={profile.token ? "Edit saved token" : "Set account token"}
+                    label={profile.token ? "Edit account token" : "Set account token"}
                     disabled={isBusy}
-                    action={() => openModal(props => <TokenModal profile={profile} onSave={t => updateProfile(profile.id, { token: t })} rootProps={props} />)}
+                    action={() => openModal(props => (
+                        <TokenModal
+                            profile={profile}
+                            onSave={t => updateProfile(profile.id, { token: t })}
+                            rootProps={props}
+                        />
+                    ))}
                 />
                 <Menu.MenuItem
                     id="multi-instance-session"
-                    label={shouldSaveSession(profile) ? "Use a temporary session" : "Save this session"}
+                    label={shouldSaveSession(profile) ? "Use temporary session" : "Save this session"}
                     disabled={isBusy || !!status || blockExternalTokenAccess}
                     action={() => toggleSessionSaving(profile)}
                 />
@@ -560,171 +682,208 @@ function MultiInstanceModal({ rootProps }: { rootProps: RenderModalProps; }) {
     return (
         <Modal
             {...rootProps}
-            size="xl"
-            title="Multi Instance Studio"
-            subtitle="Left click Open to launch or focus. Right click a profile for grouped, separate and advanced options."
+            size="sm"
+            className="vc-multi-instance-modal"
+            title={
+                <div className="vc-multi-instance-header-title">
+                    <MultiInstanceIcon width={20} height={20} />
+                    <span>Multi-instance</span>
+                </div>
+            }
         >
-            <div className="vc-multi-instance-body">
+            <div className="vc-multi-instance-modal-content">
+                <p className="vc-multi-instance-subtitle">
+                    <strong>Left click</strong> to open · <strong>Right click</strong> for options menu
+                </p>
+
                 {!Native && (
                     <div className="vc-multi-instance-warning">
                         Multi Instance can be configured here, but opening windows requires the native helper.
                     </div>
                 )}
 
-                <div className="vc-multi-instance-hero">
-                    <div className="vc-multi-instance-current">
-                        {currentUser
-                            ? <Avatar src={currentUser.getAvatarURL(null, 128, false)} size="SIZE_48" aria-label={`${currentUser.username} avatar`} />
-                            : <InstanceAvatar />}
-                        <div>
-                            <span className="vc-multi-instance-kicker">Active account</span>
-                            <strong>{currentUser?.globalName ?? currentUser?.username ?? "Connecting..."}</strong>
-                            <span className="vc-multi-instance-current-handle">{currentUser ? `@${currentUser.username}` : "Waiting for Discord account"}</span>
-                        </div>
-                        <span className="vc-multi-instance-active-badge">Active</span>
-                    </div>
-                    <div className="vc-multi-instance-stats">
-                        <div><strong>{profiles.length}</strong><span>Profiles</span></div>
-                        <div><strong>{instances.length}</strong><span>Running</span></div>
-                    </div>
-                </div>
-
-                <div className="vc-multi-instance-modes">
-                    <div className="vc-multi-instance-mode-card">
-                        <div className="vc-multi-instance-mode-icon"><MultiInstanceIcon /></div>
-                        <div className="vc-multi-instance-mode-copy">
-                            <strong>Grouped instance</strong>
-                            <span>Uses the Discord client taskbar group while keeping a separate login session.</span>
-                        </div>
-                    </div>
-                    <div className="vc-multi-instance-mode-card">
-                        <div className="vc-multi-instance-mode-icon"><MultiInstanceIcon /></div>
-                        <div className="vc-multi-instance-mode-copy">
-                            <strong>Separate Testcord instance</strong>
-                            <span>Gets its own taskbar identity and the Testcord app icon.</span>
-                        </div>
-                    </div>
-                </div>
-
                 {blockExternalTokenAccess && (
                     <div className="vc-multi-instance-warning">
-                        Token protection is enabled. Every alt will use a protected temporary session.
+                        Token protection is enabled. Every instance will use a protected temporary session.
                     </div>
                 )}
 
-                <div className="vc-multi-instance-toolbar">
-                    <div className="vc-multi-instance-toolbar-copy">
-                        <strong>Other accounts</strong>
-                        <span>Left click Open for quick switch. Right click any profile for the options menu.</span>
-                    </div>
-                    <div className="vc-multi-instance-toolbar-actions">
-                        <Button size="small" variant="secondary" onClick={() => void refreshInstances()}>
-                            Refresh
-                        </Button>
-                        <Button
-                            size="small"
-                            variant="secondary"
-                            disabled={!instances.length || busyId === ALL_INSTANCES_BUSY_ID}
-                            onClick={() => void closeAllInstances()}
-                        >
-                            Close all
-                        </Button>
-                    </div>
-                </div>
-
-                <div className="vc-multi-instance-list">
-                    {profiles.map(profile => {
-                        const status = instances.find(instance => instance.id === profile.id);
-                        const isOpen = !!status;
-                        const isBusy = busyId === profile.id || busyId === ALL_INSTANCES_BUSY_ID;
-                        const saveSession = shouldSaveSession(profile);
-                        const domain = getDomain(profile);
-                        const isEditing = editingId === profile.id;
-                        const sessionLabel = blockExternalTokenAccess ? "Protected temporary session" : saveSession ? "Saved session" : "Temporary session";
-                        const mode = status?.mode ?? profile.mode ?? "detached";
-                        const user = status?.user ?? profile.user;
-
-                        return (
-                            <div
-                                className={classes("vc-multi-instance-row", isOpen && "vc-multi-instance-row-open")}
-                                key={profile.id}
-                                onContextMenu={event => openInstanceMenu(event, profile, status)}
-                            >
-                                <div className="vc-multi-instance-row-info">
-                                    <div className="vc-multi-instance-avatar">
-                                        <InstanceAvatar status={status} />
-                                        <span className={classes("vc-multi-instance-dot", isOpen && "vc-multi-instance-dot-open")} />
-                                    </div>
-                                    <div className="vc-multi-instance-profile">
-                                        {isEditing ? (
-                                            <div className="vc-multi-instance-rename">
-                                                <div className="vc-multi-instance-rename-input">
-                                                    <TextInput
-                                                        value={editingName}
-                                                        placeholder="Instance name"
-                                                        onChange={setEditingName}
-                                                    />
-                                                </div>
-                                                <Button size="small" variant="positive" disabled={isBusy} onClick={() => saveRename(profile)}>
-                                                    Save
-                                                </Button>
-                                                <Button size="small" variant="secondary" disabled={isBusy} onClick={() => setEditingId(null)}>
-                                                    Cancel
-                                                </Button>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <span className="vc-multi-instance-kicker">{profile.name}</span>
-                                                <div className="vc-multi-instance-name">{user?.globalName ?? user?.username ?? "Ready for login"}</div>
-                                            </>
-                                        )}
-                                        <div className="vc-multi-instance-id">
-                                            {user ? `@${user.username}` : `Profile ${profile.id}`}
-                                        </div>
-                                        <div className="vc-multi-instance-tags">
-                                            <span>{DOMAIN_LABELS[domain]}</span>
-                                            <span>{sessionLabel}</span>
-                                            <span>{mode === "grouped" ? "Grouped" : "Separate"}</span>
-                                            {profile.token && <span>🔑 Token Set</span>}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="vc-multi-instance-actions" style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                                    <Button size="small" variant="positive" disabled={isBusy || isEditing} onClick={() => void openInstance(profile, mode)}>
-                                        {isOpen ? "Focus" : "Open"}
-                                    </Button>
-                                    <Button size="small" variant="secondary" disabled={isBusy || isEditing} onClick={() => startRename(profile)}>
-                                        Rename
-                                    </Button>
-                                    <Button size="small" variant="secondary" color="danger" disabled={isBusy} onClick={() => void removeInstance(profile)}>
-                                        Remove
-                                    </Button>
-                                    <Button size="small" variant="secondary" disabled={isBusy} onClick={event => openInstanceMenu(event, profile, status)}>
-                                        Options
-                                    </Button>
-                                </div>
+                {currentUser && (
+                    <div className="vc-multi-instance-section">
+                        <div className="vc-multi-instance-section-label">Active Account</div>
+                        <div className="vc-multi-instance-row vc-multi-instance-row-current">
+                            <div className="vc-multi-instance-avatar-wrap">
+                                <Avatar
+                                    src={currentUser.getAvatarURL(null, 128, false)}
+                                    size="SIZE_32"
+                                    aria-label={`${currentUser.username} avatar`}
+                                />
                             </div>
-                        );
-                    })}
+                            <div className="vc-multi-instance-info">
+                                <span className="vc-multi-instance-name">
+                                    {currentUser.globalName || currentUser.username}
+                                </span>
+                                <span className="vc-multi-instance-tag">@{currentUser.username}</span>
+                            </div>
+                            <span className="vc-multi-instance-badge-current">Active</span>
+                        </div>
+                    </div>
+                )}
+
+                <div className="vc-multi-instance-section">
+                    <div className="vc-multi-instance-section-header">
+                        <span className="vc-multi-instance-section-label">
+                            {profiles.length} {profiles.length === 1 ? "Other Account" : "Other Accounts"}
+                        </span>
+                        <div className="vc-multi-instance-section-actions">
+                            <button
+                                type="button"
+                                className="vc-multi-instance-icon-btn"
+                                title="Refresh instances"
+                                onClick={() => void refreshInstances()}
+                            >
+                                <RefreshIcon />
+                            </button>
+                            {instances.length > 0 && (
+                                <button
+                                    type="button"
+                                    className="vc-multi-instance-text-btn vc-multi-instance-text-btn-danger"
+                                    disabled={busyId === ALL_INSTANCES_BUSY_ID}
+                                    onClick={() => void closeAllInstances()}
+                                >
+                                    Close all ({instances.length})
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="vc-multi-instance-list">
+                        {profiles.length === 0 ? (
+                            <div className="vc-multi-instance-empty">
+                                No instance profiles yet. Add one below to get started.
+                            </div>
+                        ) : profiles.map(profile => {
+                            const status = instances.find(instance => instance.id === profile.id);
+                            const isOpen = !!status;
+                            const isBusy = busyId === profile.id || busyId === ALL_INSTANCES_BUSY_ID;
+                            const domain = getDomain(profile);
+                            const saveSession = shouldSaveSession(profile);
+                            const mode = status?.mode ?? profile.mode ?? "detached";
+                            const user = status?.user ?? profile.user;
+
+                            return (
+                                <div
+                                    key={profile.id}
+                                    className={classes(
+                                        "vc-multi-instance-row",
+                                        isOpen && "vc-multi-instance-row-open"
+                                    )}
+                                    onClick={() => void openInstance(profile, mode)}
+                                    onContextMenu={event => openInstanceMenu(event, profile, status)}
+                                >
+                                    <div className="vc-multi-instance-avatar-wrap">
+                                        {user ? (
+                                            <Avatar
+                                                src={user.avatarUrl}
+                                                size="SIZE_32"
+                                                aria-label={`${user.username} avatar`}
+                                            />
+                                        ) : (
+                                            <div className="vc-multi-instance-avatar-ph">
+                                                {profile.name[0]?.toUpperCase() ?? "D"}
+                                            </div>
+                                        )}
+                                        {isOpen && <span className="vc-multi-instance-dot-active" />}
+                                    </div>
+
+                                    <div className="vc-multi-instance-info">
+                                        <div className="vc-multi-instance-title-row">
+                                            <span className="vc-multi-instance-name">
+                                                {profile.name}
+                                            </span>
+                                            {user && user.globalName && user.globalName !== profile.name && (
+                                                <span className="vc-multi-instance-user-name">
+                                                    ({user.globalName})
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="vc-multi-instance-tag">
+                                            {user ? `@${user.username}` : `ID: ${profile.id}`}
+                                        </div>
+                                        <div className="vc-multi-instance-meta-tags">
+                                            {profile.token && (
+                                                <span className="vc-multi-instance-meta-pill" title="Saved token">
+                                                    <KeyIcon /> Token
+                                                </span>
+                                            )}
+                                            <span className="vc-multi-instance-meta-pill">
+                                                {mode === "grouped" ? "Grouped" : "Separate"}
+                                            </span>
+                                            {domain !== "discord.com" && (
+                                                <span className="vc-multi-instance-meta-pill">
+                                                    {DOMAIN_LABELS[domain]}
+                                                </span>
+                                            )}
+                                            {!saveSession && (
+                                                <span className="vc-multi-instance-meta-pill">
+                                                    Temp
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="vc-multi-instance-row-right">
+                                        {isOpen ? (
+                                            <span className="vc-multi-instance-badge-open">Open</span>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                className="vc-multi-instance-open-btn"
+                                                title="Open window"
+                                                disabled={isBusy}
+                                                onClick={e => {
+                                                    e.stopPropagation();
+                                                    void openInstance(profile, mode);
+                                                }}
+                                            >
+                                                <OpenWindowIcon />
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            className="vc-multi-instance-more-btn"
+                                            title="Options"
+                                            disabled={isBusy}
+                                            onClick={e => {
+                                                e.stopPropagation();
+                                                openInstanceMenu(e, profile, status);
+                                            }}
+                                        >
+                                            <MoreDotsIcon />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
 
-                <div className="vc-multi-instance-add">
-                    <div>
-                        <strong>Create an alt profile</strong>
-                        <span>Its login data remains isolated from every other profile.</span>
-                    </div>
-                    <div className="vc-multi-instance-add-controls">
-                        <div className="vc-multi-instance-add-input">
-                            <TextInput
-                                value={newName}
-                                placeholder="Profile name"
-                                onChange={setNewName}
-                            />
-                        </div>
-                        <Button size="small" variant="positive" onClick={addInstance}>
-                            Add profile
-                        </Button>
-                    </div>
+                <div className="vc-multi-instance-add-bar">
+                    <TextInput
+                        value={newName}
+                        placeholder="New profile name..."
+                        onChange={setNewName}
+                        onKeyDown={e => {
+                            if (e.key === "Enter") addInstance();
+                        }}
+                    />
+                    <Button
+                        size="small"
+                        variant="positive"
+                        onClick={addInstance}
+                    >
+                        Add
+                    </Button>
                 </div>
             </div>
         </Modal>
@@ -742,7 +901,7 @@ function MultiInstanceButton() {
     return (
         <HeaderBarButton
             icon={MultiInstanceIcon}
-            tooltip="Multi Instance"
+            tooltip="Multi-instance"
             onClick={openMultiInstanceModal}
         />
     );

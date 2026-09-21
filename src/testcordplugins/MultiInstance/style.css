@@ -4,548 +4,404 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-.vc-multi-instance-body {
-    --mi-accent: var(--interactive-normal, #b5bac1);
-    --mi-base: var(--background-base-lowest, var(--background-primary, #111214));
-    --mi-panel: var(--background-base-low, var(--background-secondary, #1e1f22));
-    --mi-line: var(--border-normal, var(--border-subtle, var(--interactive-muted, #4e5058)));
-    --mi-heading: var(--text-strong, var(--header-primary, #f2f3f5));
-    --mi-text: var(--text-default, var(--text-normal, #dbdee1));
-    --mi-muted: color-mix(in srgb, var(--mi-text) 74%, var(--mi-panel));
-    --mi-border: color-mix(in srgb, var(--mi-text) 12%, var(--mi-panel));
-    --mi-border-strong: color-mix(in srgb, var(--mi-text) 22%, var(--mi-panel));
-    --mi-surface: var(--mi-base);
-    --mi-surface-raised: var(--background-base-lower, var(--background-secondary-alt, var(--mi-panel)));
-    --mi-shadow: 0 12px 32px color-mix(in srgb, var(--black-500, #000) 22%, transparent);
+.vc-multi-instance-modal,
+:is([class*="container_"], [class*="root_"]):has(.vc-multi-instance-modal-content) {
+    width: 460px !important;
+    max-width: min(460px, calc(100vw - 32px)) !important;
+    min-height: 460px !important;
+    box-sizing: border-box !important;
+}
 
-    position: relative;
+.vc-multi-instance-dialog,
+:is([class*="container_"], [class*="root_"]):has(.vc-multi-instance-dialog-content) {
+    width: 420px !important;
+    max-width: min(420px, calc(100vw - 32px)) !important;
+    box-sizing: border-box !important;
+}
+
+.vc-multi-instance-header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--header-primary, #fff);
+}
+
+.vc-multi-instance-modal-content {
+    padding: 10px 16px 16px;
     display: flex;
     flex-direction: column;
+    flex: 1;
     gap: 12px;
     box-sizing: border-box;
     width: 100%;
-    min-width: 0;
-    max-width: 920px;
-    margin: 0 auto;
-    padding: 2px 2px 8px;
-    overflow-x: clip;
-    isolation: isolate;
 }
 
-.vc-multi-instance-body *,
-.vc-multi-instance-body *::before,
-.vc-multi-instance-body *::after {
-    box-sizing: border-box;
-}
-
-.vc-multi-instance-hero {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    min-width: 0;
-    min-height: 80px;
-    padding: 16px 18px;
-    overflow: hidden;
-    border: 1px solid var(--mi-border-strong);
-    border-radius: 16px;
-    background:
-        radial-gradient(circle at 88% 0%, color-mix(in srgb, var(--mi-accent) 24%, transparent), transparent 45%),
-        linear-gradient(135deg, var(--mi-surface-raised), var(--mi-panel));
-    box-shadow:
-        var(--mi-shadow),
-        inset 0 1px 0 color-mix(in srgb, var(--mi-text) 13%, transparent);
-}
-
-.vc-multi-instance-hero::after {
-    position: absolute;
-    right: -48px;
-    bottom: -76px;
-    width: 210px;
-    height: 160px;
-    border: 30px solid color-mix(in srgb, var(--mi-accent) 8%, transparent);
-    border-radius: 50%;
-    content: "";
-    pointer-events: none;
-}
-
-.vc-multi-instance-current {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    gap: 13px;
-    min-width: 0;
-}
-
-.vc-multi-instance-current > :first-child {
-    flex: 0 0 auto;
-    border-radius: 50%;
-    box-shadow:
-        0 0 0 3px var(--mi-base),
-        0 0 0 5px color-mix(in srgb, var(--mi-accent) 65%, transparent);
-}
-
-.vc-multi-instance-current > div {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-
-.vc-multi-instance-current strong {
-    overflow: hidden;
-    color: var(--mi-heading);
-    font-size: 18px;
-    line-height: 22px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.vc-multi-instance-current-handle {
-    color: var(--mi-muted);
-    font-size: 13px;
-}
-
-.vc-multi-instance-kicker {
-    color: var(--mi-accent);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .07em;
-    line-height: 15px;
-    text-transform: uppercase;
-}
-
-.vc-multi-instance-active-badge {
-    flex: 0 0 auto;
-    margin-left: 5px;
-    padding: 5px 9px;
-    border: 1px solid color-mix(in srgb, var(--status-positive) 72%, var(--mi-line));
-    border-radius: 999px;
-    color: var(--status-positive-text);
-    background: color-mix(in srgb, var(--status-positive) 23%, var(--mi-panel));
-    font-size: 11px;
-    font-weight: 700;
-}
-
-.vc-multi-instance-stats {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex: 0 0 auto;
-    gap: 8px;
-}
-
-.vc-multi-instance-stats > div {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    min-width: 76px;
-    padding: 9px 12px;
-    border: 1px solid var(--mi-border-strong);
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--mi-panel) 84%, var(--mi-accent) 16%);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mi-text) 12%, transparent);
-}
-
-.vc-multi-instance-stats strong {
-    color: var(--mi-heading);
-    font-size: 20px;
-    line-height: 22px;
-}
-
-.vc-multi-instance-stats span {
-    color: var(--mi-muted);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.vc-multi-instance-modes {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    min-width: 0;
-}
-
-.vc-multi-instance-mode-card {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-    min-height: 64px;
-    padding: 12px 14px;
-    overflow: hidden;
-    border: 1px solid var(--mi-border-strong);
-    border-radius: 14px;
-    background:
-        linear-gradient(115deg, color-mix(in srgb, var(--mi-accent) 8%, transparent), transparent 52%),
-        var(--mi-surface);
-    box-shadow:
-        0 4px 14px color-mix(in srgb, var(--black-500, #000) 15%, transparent),
-        inset 0 1px 0 color-mix(in srgb, var(--mi-text) 9%, transparent);
-    transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
-}
-
-.vc-multi-instance-mode-card::after {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 3px;
-    background: var(--mi-accent);
-    content: "";
-    opacity: .8;
-}
-
-.vc-multi-instance-mode-card:hover {
-    border-color: color-mix(in srgb, var(--mi-accent) 78%, var(--mi-line));
-    background:
-        linear-gradient(115deg, color-mix(in srgb, var(--mi-accent) 13%, transparent), transparent 58%),
-        var(--mi-surface-raised);
-    box-shadow: 0 7px 20px color-mix(in srgb, var(--black-500, #000) 16%, transparent);
-}
-
-.vc-multi-instance-mode-icon {
-    display: grid;
-    flex: 0 0 auto;
-    width: 38px;
-    height: 38px;
-    place-items: center;
-    border: 1px solid var(--mi-border-strong);
-    border-radius: 11px;
-    color: var(--mi-accent);
-    background: color-mix(in srgb, var(--mi-accent) 17%, var(--mi-base));
-    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mi-text) 13%, transparent);
-}
-
-.vc-multi-instance-mode-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
-.vc-multi-instance-mode-card strong {
-    color: var(--mi-heading);
-    font-size: 14px;
-}
-
-.vc-multi-instance-mode-card span {
-    color: var(--mi-muted);
+.vc-multi-instance-subtitle {
     font-size: 12px;
-    line-height: 16px;
+    color: rgba(255, 255, 255, 0.45);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.vc-multi-instance-subtitle strong {
+    color: rgba(255, 255, 255, 0.85);
 }
 
 .vc-multi-instance-warning {
-    padding: 11px 14px;
-    border: 1px solid color-mix(in srgb, var(--status-warning) 72%, var(--mi-line));
-    border-radius: 11px;
-    color: var(--mi-text);
-    background: color-mix(in srgb, var(--status-warning) 13%, var(--mi-panel));
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 16px;
+    color: var(--text-normal, #dbdee1);
+    background: rgba(240, 178, 50, 0.1);
+    border: 1px solid rgba(240, 178, 50, 0.3);
 }
 
-.vc-multi-instance-toolbar {
+.vc-multi-instance-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.vc-multi-instance-section-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    min-width: 0;
-    padding: 2px 4px;
-}
-
-.vc-multi-instance-toolbar-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
-.vc-multi-instance-toolbar strong {
-    color: var(--mi-heading);
-    font-size: 15px;
-}
-
-.vc-multi-instance-toolbar span {
-    color: var(--mi-muted);
-    font-size: 12px;
-}
-
-.vc-multi-instance-toolbar-actions {
-    display: flex;
-    flex: 0 0 auto;
     gap: 8px;
+}
+
+.vc-multi-instance-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.35);
+    padding: 2px 2px 0;
+    user-select: none;
+}
+
+.vc-multi-instance-section-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.vc-multi-instance-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    transition: color .12s, background .12s;
+}
+
+.vc-multi-instance-icon-btn:hover {
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.vc-multi-instance-text-btn {
+    padding: 2px 6px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color .12s, background .12s;
+}
+
+.vc-multi-instance-text-btn-danger {
+    color: #f23f43;
+}
+
+.vc-multi-instance-text-btn-danger:hover {
+    background: rgba(242, 63, 67, 0.15);
+}
+
+.vc-multi-instance-text-btn:disabled,
+.vc-multi-instance-icon-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 .vc-multi-instance-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    min-width: 0;
-    padding: 8px;
-    border: 1px solid var(--mi-border);
-    border-radius: 16px;
-    background: color-mix(in srgb, var(--mi-base) 92%, var(--mi-accent) 8%);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mi-text) 8%, transparent);
+    gap: 5px;
+    min-height: 140px;
+    max-height: 380px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+}
+
+.vc-multi-instance-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.vc-multi-instance-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
 }
 
 .vc-multi-instance-row {
-    position: relative;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    min-width: 0;
-    min-height: 78px;
-    padding: 12px 14px;
-    overflow: hidden;
-    border: 1px solid var(--mi-border-strong);
-    border-radius: 13px;
-    background:
-        linear-gradient(110deg, color-mix(in srgb, var(--mi-accent) 4%, transparent), transparent 46%),
-        var(--mi-surface);
-    box-shadow:
-        0 4px 14px color-mix(in srgb, var(--black-500, #000) 14%, transparent),
-        inset 0 1px 0 color-mix(in srgb, var(--mi-text) 8%, transparent);
-    cursor: context-menu;
-    transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+    gap: 11px;
+    padding: 9px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1.5px solid transparent;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+    user-select: none;
+    position: relative;
+    box-sizing: border-box;
 }
 
 .vc-multi-instance-row:hover {
-    border-color: var(--mi-border-strong);
-    background:
-        linear-gradient(110deg, color-mix(in srgb, var(--mi-accent) 9%, transparent), transparent 54%),
-        var(--mi-surface-raised);
-    box-shadow: 0 7px 18px color-mix(in srgb, var(--black-500, #000) 14%, transparent);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(88, 101, 242, 0.35);
 }
 
 .vc-multi-instance-row-open {
-    border-color: color-mix(in srgb, var(--mi-accent) 82%, var(--mi-line));
-    background:
-        linear-gradient(110deg, color-mix(in srgb, var(--mi-accent) 13%, transparent), transparent 58%),
-        var(--mi-surface-raised);
-    box-shadow:
-        inset 4px 0 0 var(--mi-accent),
-        0 8px 24px color-mix(in srgb, var(--mi-accent) 13%, transparent);
+    border-color: rgba(59, 165, 92, 0.5);
+    background: rgba(59, 165, 92, 0.07);
 }
 
-.vc-multi-instance-row-info,
-.vc-multi-instance-actions,
-.vc-multi-instance-rename,
-.vc-multi-instance-add-controls {
+.vc-multi-instance-row-open:hover {
+    border-color: rgba(59, 165, 92, 0.65);
+    background: rgba(59, 165, 92, 0.11);
+}
+
+.vc-multi-instance-row-current {
+    border-color: rgba(88, 101, 242, 0.4);
+    background: rgba(88, 101, 242, 0.07);
+    cursor: default;
+}
+
+.vc-multi-instance-row-current:hover {
+    border-color: rgba(88, 101, 242, 0.4);
+    background: rgba(88, 101, 242, 0.07);
+}
+
+.vc-multi-instance-avatar-wrap {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+}
+
+.vc-multi-instance-avatar-wrap img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.vc-multi-instance-avatar-ph {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(88, 101, 242, 0.35);
     display: flex;
     align-items: center;
-    gap: 9px;
+    justify-content: center;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
 }
 
-.vc-multi-instance-row-info {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.vc-multi-instance-avatar {
-    position: relative;
-    display: grid;
-    flex: 0 0 44px;
-    width: 44px;
-    height: 44px;
-    place-items: center;
-}
-
-.vc-multi-instance-avatar-placeholder {
-    display: grid;
-    width: 44px;
-    height: 44px;
-    place-items: center;
-    border: 1px solid var(--mi-border-strong);
-    border-radius: 50%;
-    color: var(--mi-text);
-    background:
-        radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--mi-accent) 32%, transparent), transparent 55%),
-        var(--mi-surface-raised);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mi-text) 13%, transparent);
-}
-
-.vc-multi-instance-dot {
+.vc-multi-instance-dot-active {
     position: absolute;
     right: -1px;
     bottom: -1px;
-    width: 12px;
-    height: 12px;
-    border: 3px solid var(--mi-panel);
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
-    background: var(--interactive-muted);
+    background: #3ba55c;
+    border: 2px solid var(--background-secondary, #1e1f22);
 }
 
-.vc-multi-instance-dot-open {
-    background: var(--status-positive);
-}
-
-.vc-multi-instance-profile {
+.vc-multi-instance-info {
+    flex: 1;
+    min-width: 0;
     display: flex;
-    flex: 1 1 auto;
     flex-direction: column;
+    gap: 2px;
+}
+
+.vc-multi-instance-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
     min-width: 0;
 }
 
-.vc-multi-instance-name,
-.vc-multi-instance-id {
+.vc-multi-instance-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.vc-multi-instance-name {
-    color: var(--mi-heading);
-    font-size: 16px;
-    font-weight: 650;
-    line-height: 20px;
-}
-
-.vc-multi-instance-id {
-    color: var(--mi-muted);
+.vc-multi-instance-user-name {
     font-size: 12px;
-    line-height: 16px;
+    color: rgba(255, 255, 255, 0.5);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.vc-multi-instance-tags {
+.vc-multi-instance-tag {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-multi-instance-meta-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
-    margin-top: 6px;
+    gap: 4px;
+    margin-top: 3px;
 }
 
-.vc-multi-instance-tags span {
-    padding: 3px 7px;
-    border: 1px solid var(--mi-border);
-    border-radius: 999px;
-    color: var(--mi-muted);
-    background: color-mix(in srgb, var(--mi-base) 80%, var(--mi-accent) 20%);
+.vc-multi-instance-meta-pill {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.55);
     font-size: 10px;
-    font-weight: 650;
-    line-height: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 14px;
 }
 
-.vc-multi-instance-actions {
-    flex: 0 0 auto;
+.vc-multi-instance-meta-pill svg {
+    flex-shrink: 0;
 }
 
-.vc-multi-instance-actions button,
-.vc-multi-instance-add-controls button,
-.vc-multi-instance-rename button {
-    min-height: 34px;
-}
-
-.vc-multi-instance-rename {
-    min-width: 0;
-    margin-bottom: 4px;
-}
-
-.vc-multi-instance-rename-input {
-    flex: 1 1 auto;
-    min-width: 140px;
-}
-
-.vc-multi-instance-add {
+.vc-multi-instance-row-right {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    min-width: 0;
-    padding: 14px 16px;
-    border: 1px dashed color-mix(in srgb, var(--mi-accent) 76%, var(--mi-line));
-    border-radius: 14px;
-    background:
-        linear-gradient(115deg, color-mix(in srgb, var(--mi-accent) 10%, transparent), transparent 60%),
-        var(--mi-surface);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--mi-text) 10%, transparent);
+    gap: 6px;
+    flex-shrink: 0;
 }
 
-.vc-multi-instance-add > div:first-child {
+.vc-multi-instance-badge-open {
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(59, 165, 92, 0.2);
+    color: #3ba55c;
+    border-radius: 4px;
+    padding: 2px 7px;
+    white-space: nowrap;
+}
+
+.vc-multi-instance-badge-current {
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(88, 101, 242, 0.2);
+    color: #8891f7;
+    border-radius: 4px;
+    padding: 2px 7px;
+    white-space: nowrap;
+}
+
+.vc-multi-instance-open-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.4);
+    cursor: pointer;
+    transition: color .12s, background .12s;
+}
+
+.vc-multi-instance-open-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.vc-multi-instance-more-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+    transition: color .12s, background .12s;
+}
+
+.vc-multi-instance-more-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.vc-multi-instance-empty {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 12px;
+    padding: 16px 8px;
+    line-height: 1.5;
+}
+
+.vc-multi-instance-add-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.vc-multi-instance-add-bar > div {
+    flex: 1;
+}
+
+.vc-multi-instance-dialog-content {
+    padding: 16px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    min-width: 0;
+    gap: 12px;
 }
 
-.vc-multi-instance-add strong {
-    color: var(--mi-heading);
-    font-size: 14px;
+.vc-multi-instance-dialog-hint {
+    color: var(--text-normal, #dbdee1);
+    font-size: 13px;
+    line-height: 18px;
 }
 
-.vc-multi-instance-add span {
-    color: var(--mi-muted);
-    font-size: 12px;
-}
-
-.vc-multi-instance-add-controls {
-    flex: 0 1 390px;
-    min-width: 0;
-}
-
-.vc-multi-instance-add-input {
+.vc-multi-instance-dialog-actions {
     display: flex;
-    flex: 1 1 auto;
-    min-width: 140px;
-}
-
-.vc-multi-instance-add-input > * {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-@media (width <= 760px) {
-    .vc-multi-instance-hero,
-    .vc-multi-instance-toolbar,
-    .vc-multi-instance-row,
-    .vc-multi-instance-add {
-        align-items: stretch;
-        flex-direction: column;
-    }
-
-    .vc-multi-instance-stats {
-        width: 100%;
-    }
-
-    .vc-multi-instance-stats > div {
-        flex: 1 1 0;
-    }
-
-    .vc-multi-instance-modes {
-        grid-template-columns: 1fr;
-    }
-
-    .vc-multi-instance-actions {
-        justify-content: flex-end;
-    }
-
-    .vc-multi-instance-add-controls {
-        width: 100%;
-        flex-basis: auto;
-    }
-}
-
-@media (width <= 520px) {
-    .vc-multi-instance-current {
-        flex-wrap: wrap;
-    }
-
-    .vc-multi-instance-active-badge {
-        margin-left: 61px;
-    }
-
-    .vc-multi-instance-actions,
-    .vc-multi-instance-rename,
-    .vc-multi-instance-add-controls {
-        flex-wrap: wrap;
-    }
-
-    .vc-multi-instance-actions button,
-    .vc-multi-instance-add-controls button {
-        flex: 1 1 0;
-    }
-
-    .vc-multi-instance-rename-input,
-    .vc-multi-instance-add-input {
-        flex-basis: 100%;
-    }
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
 }
