@@ -2179,19 +2179,16 @@ const plugin = definePlugin({
             group: true,
             replacement: [
                 {
-                    match: /(m=\(0,\i\.\i\)\(\(0,\i\.lw\)\(\{userValue:([A-Za-z_$][\w$]*))/,
-                    replace: "vcFusAvatarDecoration=$self.useUserAvatarDecoration($2),$1",
-                    noWarn: true
+                    match: /(?<=\.avatarDecoration,guildId:\i\}\)\),)(?<=user:(\i).+?)/,
+                    replace: "vcFusAvatarDecoration=$self.useUserAvatarDecoration($1),"
                 },
                 {
-                    match: /(avatarDecoration:)(void 0!==\i\?\i:m)/,
-                    replace: "$1vcFusAvatarDecoration??($2)",
-                    noWarn: true
+                    match: /(?<={avatarDecoration:).{1,20}?(?=,)(?<=avatarDecorationOverride:(\i).+?)/,
+                    replace: "$1??vcFusAvatarDecoration??($&)"
                 },
                 {
-                    match: /(,\[g,\i,m)/,
-                    replace: "$1,vcFusAvatarDecoration",
-                    noWarn: true
+                    match: /(?<=size:\i}\),\[)/,
+                    replace: "vcFusAvatarDecoration,"
                 }
             ]
         },
