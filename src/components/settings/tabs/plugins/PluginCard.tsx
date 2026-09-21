@@ -211,6 +211,12 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
             title: "Modified Vencord Plugin"
         },
         {
+            condition: isUserPlugin && !isBDPlugin,
+            src: "https://equicord.org/assets/icons/misc/userplugin.png",
+            alt: "User",
+            title: "User Plugin"
+        },
+        {
             condition: isEquicordPlugin,
             src: "https://equicord.org/assets/favicon.png",
             alt: "Equicord",
@@ -233,12 +239,6 @@ export function PluginCard({ plugin, disabled, onRestartNeeded, onMouseEnter, on
             src: "https://camo.githubusercontent.com/fba98dccf4323b86a2e7599a71e6826f62db4e0bb7d5b637fac9d959111ebfcd/68747470733a2f2f626574746572646973636f72642e6170702f7265736f75726365732f6272616e64696e672f6c6f676f5f736f6c69642e706e67",
             alt: "BetterDiscord",
             title: "BetterDiscord Plugin"
-        },
-        {
-            condition: isUserPlugin && !isBDPlugin,
-            src: "https://equicord.org/assets/icons/misc/userplugin.png",
-            alt: "User",
-            title: "User Plugin"
         }
     ];
 

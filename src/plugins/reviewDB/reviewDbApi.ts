@@ -38,9 +38,21 @@ const WarningFlag = 0b00000010;
 
 const reviewsCache = new Map<string, { at: number; data: UserReviewsData; }>();
 const REVIEWS_CACHE_TTL = 45_000;
+const REVIEWS_CACHE_LIMIT = 100;
 
 function invalidateReviewsCache() {
     reviewsCache.clear();
+}
+
+function pruneReviewsCache(now: number) {
+    for (const [key, entry] of reviewsCache) {
+        if (now - entry.at >= REVIEWS_CACHE_TTL) reviewsCache.delete(key);
+    }
+    while (reviewsCache.size > REVIEWS_CACHE_LIMIT) {
+        const oldest = reviewsCache.keys().next().value;
+        if (oldest === undefined) break;
+        reviewsCache.delete(oldest);
+    }
 }
 
 async function rdbRequest<T = unknown>(path: string, options: RequestInit = {}): Promise<T | null> {
@@ -85,8 +97,9 @@ export async function getReviews(id: string, { limit, offset = 0, fetchVotes = f
     if (limit) params.append("limit", String(limit));
 
     const cacheKey = `${id}:${params.toString()}:${fetchVotes ? 1 : 0}`;
+    const now = Date.now();
     const cached = reviewsCache.get(cacheKey);
-    if (cached && Date.now() - cached.at < REVIEWS_CACHE_TTL) return cached.data;
+    if (cached && now - cached.at < REVIEWS_CACHE_TTL) return cached.data;
 
     const votesPromise = fetchVotes ? getReviewVotes(id).catch(() => []) : Promise.resolve([]);
     const req = await fetch(`${API_URL}/users/${id}/reviews?${params}`);
@@ -126,6 +139,7 @@ export async function getReviews(id: string, { limit, offset = 0, fetchVotes = f
     }
 
     if (!fetchVotes || res.reviews.length === 0) {
+        pruneReviewsCache(Date.now());
         reviewsCache.set(cacheKey, { at: Date.now(), data: res });
         return res;
     }
@@ -143,6 +157,7 @@ export async function getReviews(id: string, { limit, offset = 0, fetchVotes = f
         userVote: voteByReviewId.get(review.id) ?? null,
     }));
 
+    pruneReviewsCache(Date.now());
     reviewsCache.set(cacheKey, { at: Date.now(), data: res });
     return res;
 }
