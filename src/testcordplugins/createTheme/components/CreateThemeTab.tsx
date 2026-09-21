@@ -182,14 +182,21 @@ function applyBackground(image: string | null, blur: number, size: string) {
 html {
   ${bgCss}
 }
-/* Make all Discord root layers transparent so image shows through */
+/* Make root layers transparent so image shows through.
+   NOTE: intentionally no [class*="layer_"] here — that also matches
+   settings/modal overlay layers and makes them see-through (text on text).
+   The base layer carries baseLayer_ too, so it is covered below. */
 [class*="baseLayer_"],
 [class*="app_"],
 [class*="bg_"],
-[class*="layers_"],
-[class*="layer_"] {
+[class*="layers_"] {
   background: transparent !important;
   background-color: transparent !important;
+}
+/* Keep settings and modal overlays opaque on top of the background image */
+[class*="standardSidebarView_"],
+[class*="contentRegion_"] {
+  background: var(--background-primary) !important;
 }
 `.trim();
 }
