@@ -687,6 +687,12 @@ export const settings = definePluginSettings({
             }
         }
     },
+    deferredStartup: {
+        type: OptionType.BOOLEAN,
+        description: "Start UI-only plugins after the client is idle instead of at boot. Only plugins without patches, live event handlers, startup code, or dependents qualify. Loggers and core features always start immediately. Needs a reload to apply.",
+        default: false,
+        restartNeeded: true,
+    },
     bigChatMode: {
         type: OptionType.BOOLEAN,
         description: "Enable a bundle of aggressive optimizations for large busy servers: freeze member list, force passive scroll listeners, disable unread badge DOM updates, optimize chat input, apply paint containment to message attachments, and skip react-spring animations. Reload recommended.",

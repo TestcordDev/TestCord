@@ -183,6 +183,14 @@ export function pluginRequiresRestart(p: Plugin) {
     );
 }
 
+function isDeferrablePlugin(p: Plugin): boolean {
+    if (!p || p.required || p.name.endsWith("API")) return false;
+    if (p.flux) return false;
+    if (p.patches?.length) return false;
+    if (p.start) return false;
+    return true;
+}
+
 export const startAllPlugins = traceFunction("startAllPlugins", async function startAllPlugins(target: StartAt) {
     logger.info(`Starting plugins (stage ${target})`);
 
@@ -199,6 +207,16 @@ export const startAllPlugins = traceFunction("startAllPlugins", async function s
     PluginProfiler.init();
 
     const pending: Array<() => void> = [];
+    const deferred: Array<() => void> = [];
+    const deferIdleStarts = target === StartAt.WebpackReady
+        && (Settings.plugins as Record<string, any>).TestcordHelper?.deferredStartup === true;
+    const dependedUpon = new Set<string>();
+    if (deferIdleStarts) {
+        for (const name in Plugins) {
+            if (!isPluginEnabled(name)) continue;
+            for (const dep of Plugins[name].dependencies ?? []) dependedUpon.add(dep);
+        }
+    }
     for (const name in Plugins) {
         if (isPluginEnabled(name) && (!IS_REPORTER || isReporterTestable(Plugins[name], ReporterTestable.Start))) {
             const p = Plugins[name];
@@ -206,7 +224,12 @@ export const startAllPlugins = traceFunction("startAllPlugins", async function s
             const startAt = p.startAt ?? StartAt.WebpackReady;
             if (startAt !== target) continue;
 
-            pending.push(() => startPlugin(Plugins[name]));
+            const run = () => startPlugin(Plugins[name]);
+            if (deferIdleStarts && isDeferrablePlugin(p) && !dependedUpon.has(p.name)) {
+                deferred.push(() => { if (isPluginEnabled(name)) run(); });
+            } else {
+                pending.push(run);
+            }
         }
     }
     // Time-sliced: with hundreds of plugins a tight start loop blocks the main
@@ -219,6 +242,17 @@ export const startAllPlugins = traceFunction("startAllPlugins", async function s
             await sleep(0);
             lastSlice = performance.now();
         }
+    }
+    if (deferred.length > 0) {
+        const flush = () => {
+            for (const start of deferred) {
+                try { start(); } catch (e) { logger.error("Failed to start deferred plugin", e); }
+            }
+            deferred.length = 0;
+        };
+        const ric = (globalThis as any).requestIdleCallback as ((cb: () => void, opts?: { timeout: number; }) => void) | undefined;
+        if (typeof ric === "function") ric(flush, { timeout: 3000 });
+        else setTimeout(flush, 1000);
     }
 
     // After the final "WebpackReady" start pass, publish the set of enabled

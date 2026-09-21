@@ -8,7 +8,7 @@ import { isEquicordPluginDev, isTestcordPluginDev } from "@utils/misc";
 import type { Plugin } from "@utils/types";
 import equicordTestcordModifiedIconBase64 from "file://../../browser/Equicord_Testcord_Modified_PluginIcon.png?base64";
 import equicordVencordTestcordModifiedIconBase64 from "file://../../browser/Equicord_Vencord_Testcord_Modified_PluginIcon.png?base64";
-import testcordPluginIconBase64 from "file://../../browser/Testcord_PluginIcon.png?base64";
+import testcordPluginIconBase64 from "file://../../browser/icon.png?base64";
 import vencordTestcordModifiedIconBase64 from "file://../../browser/Vencord_Testcord_Modified_PluginIcon.png?base64";
 
 export const TestcordPluginIconUrl = `data:image/png;base64,${testcordPluginIconBase64}`;

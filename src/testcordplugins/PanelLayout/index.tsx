@@ -561,13 +561,15 @@ function buildCSS(): string {
             -webkit-backdrop-filter: blur(6px);
             border: 1px solid rgba(255, 255, 255, 0.14);
             opacity: 0;
+            visibility: hidden;
             pointer-events: none;
-            transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.2s;
             color: #ffffff;
         }
 
         .vc-pl-custom-btn-wrapper:hover .vc-pl-custom-btn-settings {
             opacity: 1;
+            visibility: visible;
             pointer-events: auto;
         }
 
