@@ -642,6 +642,12 @@ export const PluginProfiler = {
         notifySubscribers();
     },
 
+    registerPlugin(pluginName: string) {
+        if (!pluginName) return;
+        ensureMetrics(pluginName);
+        notifySubscribers();
+    },
+
     unregisterInterval(pluginName: string, intervalId: number) {
         if (!pluginName) return;
         intervalOwners.delete(intervalId);
@@ -738,10 +744,17 @@ export const PluginProfiler = {
      * Reset recorded performance metrics
      */
     resetMetrics() {
-        metricsRegistry.clear();
-        intervalOwners.clear();
-        listenerCountByPlugin.clear();
-        sourceSnippets.clear();
+        for (const metrics of metricsRegistry.values()) {
+            metrics.totalCpuTimeMs = 0;
+            metrics.callCount = 0;
+            metrics.maxCallMs = 0;
+            metrics.slowSpikes = 0;
+            metrics.asyncTimeMs = 0;
+            metrics.allocatedHeapBytes = 0;
+            metrics.lastHeapBytes = 0;
+            metrics.lastHeapDeltaMB = 0;
+            metrics.surfaces = {};
+        }
         notifySubscribers(true);
     },
 
@@ -749,10 +762,17 @@ export const PluginProfiler = {
      * Reset metrics for a single plugin
      */
     resetPluginMetrics(pluginName: string) {
-        metricsRegistry.delete(pluginName);
-        for (const [id, owner] of intervalOwners) if (owner === pluginName) intervalOwners.delete(id);
-        listenerCountByPlugin.delete(pluginName);
-        sourceSnippets.delete(pluginName);
+        const metrics = metricsRegistry.get(pluginName);
+        if (!metrics) return;
+        metrics.totalCpuTimeMs = 0;
+        metrics.callCount = 0;
+        metrics.maxCallMs = 0;
+        metrics.slowSpikes = 0;
+        metrics.asyncTimeMs = 0;
+        metrics.allocatedHeapBytes = 0;
+        metrics.lastHeapBytes = 0;
+        metrics.lastHeapDeltaMB = 0;
+        metrics.surfaces = {};
         notifySubscribers(true);
     },
 

@@ -489,6 +489,13 @@ function handleChannelSelect(payload: { channelId?: string; }) {
         channelCacheTimeout.delete(channelId);
     }
 
+    // The store injection below constructs message classes and commits cache
+    // updates, which can take tens of ms on log-heavy channels. Run it after
+    // the dispatch returns so channel switches stay responsive.
+    setTimeout(() => runChannelSelectWork(channelId), 0);
+}
+
+function runChannelSelectWork(channelId: string) {
     // Load all deleted for this channel (if not already cached)
     if (!channelAllDeleted.has(channelId)) {
         void (async () => {

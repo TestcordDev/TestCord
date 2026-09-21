@@ -741,12 +741,15 @@ export default definePlugin({
 
     start() {
         pluginRunning = true;
-        try {
-            UserSettingsActionCreators?.FrecencyUserSettingsActionCreators?.loadIfNecessary?.();
-        } catch { }
         if (settings.store.runtimeUnlock) void applyRuntimeUnlock();
         const ric = (window as any).requestIdleCallback as ((cb: () => void, opts?: { timeout: number; }) => void) | undefined;
-        const deferred = () => { if (pluginRunning) startObserver(); };
+        const deferred = () => {
+            if (!pluginRunning) return;
+            try {
+                UserSettingsActionCreators?.FrecencyUserSettingsActionCreators?.loadIfNecessary?.();
+            } catch { }
+            startObserver();
+        };
         if (typeof ric === "function") ric(deferred, { timeout: 2000 });
         else setTimeout(deferred, 500);
     },

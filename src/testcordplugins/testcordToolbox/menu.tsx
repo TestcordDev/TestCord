@@ -6,7 +6,7 @@
 
 import { openNotificationLogModal } from "@api/Notifications/notificationLog";
 import { isPluginEnabled, isSettingDisabled, isSettingHidden, plugins } from "@api/PluginManager";
-import { Settings } from "@api/Settings";
+import { Settings, useSettings } from "@api/Settings";
 import { openPluginModal, openSettingsTabModal, PluginsTab, ThemesTab } from "@components/settings";
 import { wordsFromCamel, wordsToTitle } from "@utils/text";
 import { OptionType, Plugin } from "@utils/types";
@@ -37,6 +37,20 @@ if (typeof VencordNative !== "undefined" && VencordNative.themes?.getThemesList)
     }).catch(() => {});
 }
 
+let sortedPluginsCache: Plugin[] | null = null;
+let sortedPluginsCacheSize = 0;
+
+function getSortedPlugins(): Plugin[] {
+    const size = Object.keys(plugins).length;
+    if (!sortedPluginsCache || sortedPluginsCacheSize !== size) {
+        sortedPluginsCacheSize = size;
+        sortedPluginsCache = Object.values(plugins)
+            .filter((p): p is Plugin => !!p && !!p.name)
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return sortedPluginsCache;
+}
+
 function buildPluginMenu() {
     const { showPluginMenu } = settings.use(["showPluginMenu"]);
     if (!showPluginMenu) return null;
@@ -55,11 +69,7 @@ function buildPluginMenu() {
 export function buildPluginMenuEntries(includeEmpty = false) {
     const pluginSettings = Settings.plugins;
 
-    const sortedPlugins = Object.values(plugins)
-        .filter(p => p && p.name)
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-    const candidates = sortedPlugins
+    const candidates = getSortedPlugins()
         .filter(p => isPluginEnabled(p.name) && !p.name.endsWith("API"));
 
     return (
@@ -174,6 +184,7 @@ export function buildPluginMenuEntries(includeEmpty = false) {
 }
 
 function buildLiveFixToggle() {
+    useSettings(["plugins.TestcordHelper.liveFix"]);
     const helper = Settings.plugins.TestcordHelper;
     if (!helper?.enabled) return null;
 

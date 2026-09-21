@@ -8,8 +8,19 @@ import { settings } from "./settings";
 
 export type ListType = "whitelistedIds" | "blacklistedIds";
 
+const itemsCache = new Map<string, string[]>();
+
 function getItems(list: ListType): string[] {
-    return (settings.store[list] ?? "").split(",").map(s => s.trim()).filter(Boolean);
+    const raw = settings.store[list] ?? "";
+    const hit = itemsCache.get(raw);
+    if (hit) return hit;
+    const parsed = raw.split(",").map(s => s.trim()).filter(Boolean);
+    itemsCache.set(raw, parsed);
+    if (itemsCache.size > 10) {
+        const oldest = itemsCache.keys().next().value;
+        if (oldest !== undefined) itemsCache.delete(oldest);
+    }
+    return parsed;
 }
 
 function setItems(list: ListType, items: string[]) {
