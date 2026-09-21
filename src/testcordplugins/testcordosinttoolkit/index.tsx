@@ -1526,6 +1526,23 @@ function OSINTButton() {
 interface MessageContextProps { itemSrc?: string; message?: { author?: User; }; }
 interface ImageContextProps { src?: string; }
 
+let cachedLookupItems: React.ReactElement[] | null = null;
+let cachedResourceItems: React.ReactElement[] | null = null;
+let cachedOpsecItems: React.ReactElement[] | null = null;
+let cachedBrowserItems: React.ReactElement[] | null = null;
+const staticLookupItems = () => cachedLookupItems ??= OSINT_TOOLS.map(tool => (
+    <Menu.MenuItem key={`vc-osint-tool-${tool.id}`} id={`vc-osint-tool-${tool.id}`} label={tool.name} hint={tool.description} action={() => openExternal(tool.url)} />
+));
+const staticResourceItems = () => cachedResourceItems ??= OSINT_RESOURCES.map(resource => (
+    <Menu.MenuItem key={`vc-osint-resource-${resource.id}`} id={`vc-osint-resource-${resource.id}`} label={resource.name} hint={resource.description} action={() => openExternal(resource.url)} />
+));
+const staticOpsecItems = () => cachedOpsecItems ??= OPSEC_RESOURCES.map(resource => (
+    <Menu.MenuItem key={`vc-osint-opsec-${resource.id}`} id={`vc-osint-opsec-${resource.id}`} label={resource.name} hint={resource.description} action={() => openExternal(resource.url)} />
+));
+const staticBrowserItems = () => cachedBrowserItems ??= PRIVACY_BROWSERS.map(browser => (
+    <Menu.MenuItem key={`vc-osint-browser-${browser.id}`} id={`vc-osint-browser-${browser.id}`} label={browser.name} hint={browser.description} action={() => openExternal(browser.url)} />
+));
+
 const messageContextMenuPatch: NavContextMenuPatchCallback = (children, { itemSrc, message }: MessageContextProps) => {
     const author = message?.author;
     if (!author || children.find(child => child?.props?.id === "vc-osint-toolkit-group")) return;
@@ -1549,24 +1566,16 @@ const messageContextMenuPatch: NavContextMenuPatchCallback = (children, { itemSr
                     ) : null}
                 </Menu.MenuItem>
                 <Menu.MenuItem id="vc-osint-lookup-tools" label="Lookup Tools">
-                    {OSINT_TOOLS.map(tool => (
-                        <Menu.MenuItem key={`vc-osint-tool-${tool.id}`} id={`vc-osint-tool-${tool.id}`} label={tool.name} hint={tool.description} action={() => openExternal(tool.url)} />
-                    ))}
+                    {staticLookupItems()}
                 </Menu.MenuItem>
                 <Menu.MenuItem id="vc-osint-resource-lists" label="Resource Lists">
-                    {OSINT_RESOURCES.map(resource => (
-                        <Menu.MenuItem key={`vc-osint-resource-${resource.id}`} id={`vc-osint-resource-${resource.id}`} label={resource.name} hint={resource.description} action={() => openExternal(resource.url)} />
-                    ))}
+                    {staticResourceItems()}
                 </Menu.MenuItem>
                 <Menu.MenuItem id="vc-osint-opsec" label="Opsec">
-                    {OPSEC_RESOURCES.map(resource => (
-                        <Menu.MenuItem key={`vc-osint-opsec-${resource.id}`} id={`vc-osint-opsec-${resource.id}`} label={resource.name} hint={resource.description} action={() => openExternal(resource.url)} />
-                    ))}
+                    {staticOpsecItems()}
                 </Menu.MenuItem>
                 <Menu.MenuItem id="vc-osint-privacy-browsers" label="Privacy Browsers">
-                    {PRIVACY_BROWSERS.map(browser => (
-                        <Menu.MenuItem key={`vc-osint-browser-${browser.id}`} id={`vc-osint-browser-${browser.id}`} label={browser.name} hint={browser.description} action={() => openExternal(browser.url)} />
-                    ))}
+                    {staticBrowserItems()}
                 </Menu.MenuItem>
             </Menu.MenuItem>
         </Menu.MenuGroup>

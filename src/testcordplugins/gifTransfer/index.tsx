@@ -646,6 +646,8 @@ function tryInject(): void {
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let pickerObserver: MutationObserver | null = null;
 let injectQueued = false;
+let observerActive = false;
+let pluginRunning = false;
 
 function scheduleTryInject(): void {
     if (injectQueued) return;
@@ -657,6 +659,8 @@ function scheduleTryInject(): void {
 }
 
 function startObserver(): void {
+    if (observerActive) return;
+    observerActive = true;
     ensureButtonStyles();
     document.addEventListener("click", onDocumentClick, true);
     pickerObserver = new MutationObserver(scheduleTryInject);
@@ -669,6 +673,7 @@ function startObserver(): void {
 }
 
 function stopObserver(): void {
+    observerActive = false;
     document.removeEventListener("click", onDocumentClick, true);
     pickerObserver?.disconnect();
     pickerObserver = null;
@@ -735,14 +740,19 @@ export default definePlugin({
     },
 
     start() {
+        pluginRunning = true;
         try {
             UserSettingsActionCreators?.FrecencyUserSettingsActionCreators?.loadIfNecessary?.();
         } catch { }
         if (settings.store.runtimeUnlock) void applyRuntimeUnlock();
-        startObserver();
+        const ric = (window as any).requestIdleCallback as ((cb: () => void, opts?: { timeout: number; }) => void) | undefined;
+        const deferred = () => { if (pluginRunning) startObserver(); };
+        if (typeof ric === "function") ric(deferred, { timeout: 2000 });
+        else setTimeout(deferred, 500);
     },
 
     stop() {
+        pluginRunning = false;
         stopObserver();
     },
 

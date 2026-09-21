@@ -12,7 +12,7 @@ import { addMessagePreSendListener, removeMessagePreSendListener } from "@api/Me
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { ContextMenuApi, Menu, React } from "@webpack/common";
+import { ContextMenuApi, Menu, React, showToast, Toasts } from "@webpack/common";
 
 // Light mode - using Mathematical Alphanumeric Symbols (nearly identical)
 const lightCharMap: Record<string, string> = {
@@ -432,8 +432,8 @@ function renderAntiFilterMenuItems(includeEnabledToggle = false) {
                     group="antifilter-bypass-method"
                     label={m.label}
                     checked={mode === m.value}
-                    action={(e: React.MouseEvent) => {
-                        e.stopPropagation();
+                    action={(e?: React.MouseEvent) => {
+                        e?.stopPropagation();
                         settings.store.mode = m.value;
                     }}
                 />
@@ -462,12 +462,39 @@ function openAntiFilterContextMenu(e: React.MouseEvent) {
     ContextMenuApi.openContextMenu(e, () => <AntiFilterContextMenu />);
 }
 
-function AntiFilterSubmenu() {
-    settings.use(["isEnabled", "mode"]);
+function cycleMode() {
+    const idx = METHODS.findIndex(m => m.value === settings.store.mode);
+    const next = METHODS[(idx + 1) % METHODS.length];
+    if (next) settings.store.mode = next.value;
+}
+
+function textareaToggleItem() {
     return (
-        <>
-            {renderAntiFilterMenuItems(true)}
-        </>
+        <Menu.MenuCheckboxItem
+            id="antifilter-textarea-toggle"
+            label="AntiFilter Enabled"
+            checked={settings.store.isEnabled}
+            action={(e?: React.MouseEvent) => {
+                e?.stopPropagation();
+                settings.store.isEnabled = !settings.store.isEnabled;
+                showToast(settings.store.isEnabled ? "AntiFilter ON" : "AntiFilter OFF", Toasts.Type.MESSAGE);
+            }}
+        />
+    );
+}
+
+function textareaMethodItem() {
+    const methodLabel = METHODS.find(m => m.value === settings.store.mode)?.label ?? "Zero-Width";
+    return (
+        <Menu.MenuItem
+            id="antifilter-textarea-method"
+            label={`Bypass Method: ${methodLabel}`}
+            action={(e?: React.MouseEvent) => {
+                e?.stopPropagation();
+                cycleMode();
+                showToast(`AntiFilter method: ${METHODS.find(m => m.value === settings.store.mode)?.label}`, Toasts.Type.MESSAGE);
+            }}
+        />
     );
 }
 
@@ -480,7 +507,8 @@ const TextareaContext: NavContextMenuPatchCallback = children => {
                 id="antifilter-textarea-menu"
                 label="AntiFilter"
             >
-                <AntiFilterSubmenu />
+                {textareaToggleItem()}
+                {textareaMethodItem()}
             </Menu.MenuItem>
         );
     } else {
@@ -490,7 +518,8 @@ const TextareaContext: NavContextMenuPatchCallback = children => {
                 id="antifilter-textarea-menu"
                 label="AntiFilter"
             >
-                <AntiFilterSubmenu />
+                {textareaToggleItem()}
+                {textareaMethodItem()}
             </Menu.MenuItem>
         );
     }
