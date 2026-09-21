@@ -20,9 +20,10 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import { Logger } from "@utils/Logger";
 import { IconComponent } from "@utils/types";
 import { Channel, Message } from "@vencord/discord-types";
+import { useEffect, useMemo, useState } from "@webpack/common";
 import type { ComponentType, MouseEventHandler } from "react";
 
-import { useSettings } from "./Settings";
+import { SettingsStore, useSettings } from "./Settings";
 
 const logger = new Logger("MessagePopover");
 
@@ -80,27 +81,50 @@ function VencordPopoverButtons(props: { message: Message }) {
 
     const { messagePopoverButtons } = useSettings(["uiElements.messagePopoverButtons.*"]).uiElements;
 
-    const elements: React.ReactNode[] = [];
-    for (const [key, { render }] of MessagePopoverButtonMap) {
-        if (messagePopoverButtons[key]?.enabled === false) continue;
-        try {
-            const item = render(message);
-            if (!item) continue;
+    // Same rationale as the chat bar row: the popover re-renders on every
+    // hover, re-running all factories each time. Skip when nothing a factory
+    // consumes changed. Factories only get the message; live data flows
+    // through their own hooks/subscriptions.
+    const [settingsTick, setSettingsTick] = useState(0);
+    useEffect(() => {
+        const listener = () => setSettingsTick(t => t + 1);
+        SettingsStore.addGlobalChangeListener(listener);
+        return () => SettingsStore.removeGlobalChangeListener(listener);
+    }, []);
 
-            const ButtonComponent = _capturedToolbarButton as React.ComponentType<MessagePopoverButtonItem> | null;
-
-            elements.push(
-                <ErrorBoundary noop key={key}>
-                    {ButtonComponent
-                        ? <ButtonComponent {...item} />
-                        : <item.icon width={16} height={16} />
-                    }
-                </ErrorBoundary>
-            );
-        } catch (err) {
-            logger.error(`[${key}]`, err);
+    const enabledKey = (() => {
+        let key = "";
+        for (const [mapKey] of MessagePopoverButtonMap) {
+            if (messagePopoverButtons[mapKey]?.enabled !== false) key += mapKey + ",";
         }
-    }
+        return key;
+    })();
+
+    const elements = useMemo(() => {
+        const nodes: React.ReactNode[] = [];
+        for (const [key, { render }] of MessagePopoverButtonMap) {
+            if (messagePopoverButtons[key]?.enabled !== false) {
+                try {
+                    const item = render(message);
+                    if (!item) continue;
+
+                    const ButtonComponent = _capturedToolbarButton as React.ComponentType<MessagePopoverButtonItem> | null;
+
+                    nodes.push(
+                        <ErrorBoundary noop key={key}>
+                            {ButtonComponent
+                                ? <ButtonComponent {...item} />
+                                : <item.icon width={16} height={16} />
+                            }
+                        </ErrorBoundary>
+                    );
+                } catch (err) {
+                    logger.error(`[${key}]`, err);
+                }
+            }
+        }
+        return nodes;
+    }, [message.id, message.editedTimestamp, message.channel_id, enabledKey, settingsTick, _capturedToolbarButton ? 1 : 0]);
 
     return <>{elements}</>;
 }

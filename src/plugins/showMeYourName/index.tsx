@@ -1081,6 +1081,95 @@ function renderUsername(
 const hoveringMessageMap = new Map<string, number>();
 const hoveringRepliesMap = new Map<string, number>();
 
+// Offscreen gradient pause. Every visible animated name runs an infinite
+// background-position loop (+ a blurred glow copy), so paint cost grows with
+// each scrolled-in batch and hover/click latency degrades the longer you
+// scroll. One shared IntersectionObserver freezes the loop for names outside
+// the viewport (+200px margin so re-entry is seamless). The loop is seamless,
+// so freezing mid-cycle and resuming shows no jump — on-screen visuals are
+// identical, offscreen names simply stop repainting.
+//
+// Deliberately hook-free (a MutationObserver picks up mounted names instead
+// of per-component refs): name rendering must stay hook-count stable across
+// every call site, including ones running outside React render.
+let gradientObserver: IntersectionObserver | null = null;
+let gradientMountObserver: MutationObserver | null = null;
+
+function getGradientObserver(): Pick<IntersectionObserver, "observe" | "unobserve"> {
+    if (!gradientObserver) {
+        if (typeof IntersectionObserver === "undefined") {
+            return { observe() { }, unobserve() { } };
+        }
+        gradientObserver = new IntersectionObserver(entries => {
+            for (const entry of entries) {
+                (entry.target as HTMLElement).classList.toggle("smyn-offscreen", !entry.isIntersecting);
+            }
+        }, { rootMargin: "200px" });
+    }
+    return gradientObserver;
+}
+
+function untrackGradientNode(el: Element) {
+    const io = gradientObserver;
+    if (!io) return;
+    if (el.classList.contains("smyn-container")) io.unobserve(el);
+    if (el.childElementCount > 0) {
+        const nested = el.querySelectorAll(":scope .smyn-container");
+        for (const n of nested) io.unobserve(n);
+    }
+}
+
+function startGradientVisibilityTracking() {
+    if (gradientMountObserver || typeof MutationObserver === "undefined") return;
+    const io = getGradientObserver();
+    let pending: Element[] = [];
+    let queued = false;
+    const flush = () => {
+        queued = false;
+        for (const el of pending) {
+            if (el.isConnected) io.observe(el);
+        }
+        pending = [];
+    };
+    // Initial sweep for names already mounted before start ran.
+    for (const el of document.querySelectorAll(".smyn-container")) io.observe(el);
+    gradientMountObserver = new MutationObserver(records => {
+        for (const record of records) {
+            const added = record.addedNodes;
+            for (let i = 0; i < added.length; i++) {
+                const node = added[i];
+                if (!(node instanceof Element)) continue;
+                if (node.classList.contains("smyn-container")) {
+                    pending.push(node);
+                } else if (node.childElementCount > 0) {
+                    const found = node.querySelectorAll(":scope .smyn-container");
+                    for (const f of found) pending.push(f);
+                }
+            }
+            const removed = record.removedNodes;
+            for (let i = 0; i < removed.length; i++) {
+                const node = removed[i];
+                if (node instanceof Element) untrackGradientNode(node);
+            }
+        }
+        if (pending.length > 0 && !queued) {
+            queued = true;
+            requestAnimationFrame(flush);
+        }
+    });
+    gradientMountObserver.observe(document.body, { childList: true, subtree: true });
+}
+
+function stopGradientVisibilityTracking() {
+    gradientMountObserver?.disconnect();
+    gradientMountObserver = null;
+    gradientObserver?.disconnect();
+    gradientObserver = null;
+    for (const el of document.querySelectorAll(".smyn-offscreen")) {
+        el.classList.remove("smyn-offscreen");
+    }
+}
+
 // Local refresh broadcast for name updates (hover in/out, nickname edits,
 // relationship/display-style changes). This used to toggle a hidden setting,
 // which woke every settings subscriber in the client — hundreds of components
@@ -1769,12 +1858,14 @@ export default definePlugin({
         convertToRGBCanvas.width = convertToRGBCanvas.height = 1;
         convertToRGBCtx = convertToRGBCanvas.getContext("2d", { willReadFrequently: true });
         convertToRGBCache = new Map();
+        startGradientVisibilityTracking();
 
         const data = await DataStore.get<CustomNicknameData>("SMYNCustomNicknames");
         customNicknames = data ?? {};
     },
 
     stop() {
+        stopGradientVisibilityTracking();
         toCSSCache?.clear();
         toCSSCache = null;
         toCSSProbe = null;

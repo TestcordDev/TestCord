@@ -17,6 +17,8 @@ import { delPresenceBatch, getAllPresence, putPresenceBatch } from "./db";
 const log = new Logger("LastOnline");
 const LEGACY_DATASTORE_KEY = "LastOnline_onlineList";
 const MAX_DISPLAY_AGE = 604800000; // 7 days, matches the display window
+const PRUNE_INTERVAL = 60000; // re-check expirations at most once a minute
+let lastPrune = 0;
 
 const settings = definePluginSettings({
     showInServers: {
@@ -53,7 +55,12 @@ const pendingDeletes = new Set<string>();
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 function pruneOnlineList() {
+    // Time-based pruning doesn't need per-flush precision. The map can hold
+    // tens of thousands of persisted entries, so a full iteration on every
+    // debounced flush showed up as a multi-ms main-thread spike.
     const now = Date.now();
+    if (now - lastPrune < PRUNE_INTERVAL) return;
+    lastPrune = now;
     for (const [userId, status] of recentlyOnlineList) {
         if (status.lastOffline !== null && now - status.lastOffline > MAX_DISPLAY_AGE) {
             recentlyOnlineList.delete(userId);
@@ -178,11 +185,27 @@ export default definePlugin({
     flux: {
         PRESENCE_UPDATES({ updates }: { updates?: Array<{ user?: { id?: string; }; status?: string; }>; }) {
             if (!Array.isArray(updates)) return;
-            updates.forEach(update => {
+            // Login/guild-switch bursts can carry thousands of entries. The
+            // bookkeeping below is cheap per entry but blocks the dispatch
+            // (and every other subscriber) in aggregate, so huge batches are
+            // processed just off the dispatch path. Results are identical,
+            // only delayed by a tick.
+            if (updates.length > 200) {
+                const batch = updates;
+                setTimeout(() => {
+                    for (const update of batch) {
+                        if (update?.user?.id) {
+                            handlePresenceUpdate(update.status ?? "offline", update.user.id);
+                        }
+                    }
+                }, 0);
+                return;
+            }
+            for (const update of updates) {
                 if (update?.user?.id) {
                     handlePresenceUpdate(update.status ?? "offline", update.user.id);
                 }
-            });
+            }
         }
     },
 
@@ -236,6 +259,7 @@ export default definePlugin({
             clearTimeout(saveTimer);
             saveTimer = null;
         }
+        lastPrune = 0; // force the final prune below despite throttling
         pruneOnlineList();
         flushWrites();
     },

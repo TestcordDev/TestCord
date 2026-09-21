@@ -403,9 +403,12 @@ function handleMessage(message: any) {
     const isBot = message.author.bot === true;
     const guildId: string | undefined = message.guild_id ?? ChannelStore.getChannel?.(message.channel_id)?.guild_id;
 
+    // Resolved once per message: the checks below used to rebuild this set
+    // (getCurrentUser + settings split) up to four times per message.
+    const protectedIds = getProtectedIds();
+
     // Existing defenses watch attacker prefix commands only.
     if (!isBot && content) {
-        const protectedIds = getProtectedIds();
         const targeted = getTargetedIds(message, protectedIds, guildId);
 
         if (targeted.length > 0) {
@@ -449,7 +452,6 @@ function handleMessage(message: any) {
     // e.g. ":approve: @attacker: Added <name> to uwulock." Strip it and re-protect.
     // Victim extraction avoids matching your own name as the attacker (":approve: @you: Added HIM...")
     if (settings.store.enableUwulockRemove && isLockEvent(message)) {
-        const protectedIds = getProtectedIds();
         const targeted = getLockVictimIds(message, protectedIds, guildId);
         if (targeted.length > 0) {
             for (const tid of targeted) {
@@ -480,7 +482,6 @@ function handleMessage(message: any) {
                     // 6. Auto spread: punish the admin who unlocked a watched user.
                     if (settings.store.enableAutoSpread) {
                         const attackerId = getUnlockAttackerId(message, content, isBot);
-                        const protectedIds = getProtectedIds();
                         if (attackerId && !targeted.includes(attackerId) && !protectedIds.has(attackerId)) {
                             if (!watched.has(attackerId)) {
                                 watched.add(attackerId);
@@ -503,7 +504,6 @@ function handleMessage(message: any) {
                     // 6. Auto spread: punish the admin who protected a watched user.
                     if (settings.store.enableAutoSpread) {
                         const attackerId = getProtectAddAttackerId(message, content, isBot);
-                        const protectedIds = getProtectedIds();
                         if (attackerId && !targeted.includes(attackerId) && !protectedIds.has(attackerId)) {
                             if (!watched.has(attackerId)) {
                                 watched.add(attackerId);

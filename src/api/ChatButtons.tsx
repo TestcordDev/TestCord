@@ -14,7 +14,7 @@ import { classes } from "@utils/misc";
 import { IconComponent } from "@utils/types";
 import { Channel } from "@vencord/discord-types";
 import { findCssClassesLazy } from "@webpack";
-import { Clickable, Menu, Tooltip, useEffect, useState } from "@webpack/common";
+import { Clickable, Menu, Tooltip, useEffect, useMemo, useState } from "@webpack/common";
 import { CSSProperties, HTMLProps, JSX, MouseEventHandler, ReactNode } from "react";
 
 import { addContextMenuPatch, findGroupChildrenByChildId } from "./ContextMenu";
@@ -128,18 +128,42 @@ function VencordChatBarButtons(props: ChatBarProps) {
         return () => { chatBarButtonListeners.delete(listener); };
     }, []);
 
-    const { analyticsName } = props.type;
-    return (
-        <>
-            {getSortedChatBarButtons()
-                .filter(({ key }) => chatBarButtons[key]?.enabled !== false)
-                .map(({ key, render: Button }) => (
-                    <ErrorBoundary noop key={key} onError={e => logger.error(`Failed to render ${key}`, e.error)}>
-                        <Button {...props} isMainChat={analyticsName === "normal"} isAnyChat={analyticsName === "normal" || analyticsName === "sidebar"} />
-                    </ErrorBoundary>
-                ))}
-        </>
+    // Factories often read settings.store directly without subscribing, so
+    // they stay fresh today only because the parent re-renders on every
+    // keystroke. Bump the memo below on any settings change to keep that.
+    const [settingsTick, setSettingsTick] = useState(0);
+    useEffect(() => {
+        const listener = () => setSettingsTick(t => t + 1);
+        SettingsStore.addGlobalChangeListener(listener);
+        return () => SettingsStore.removeGlobalChangeListener(listener);
+    }, []);
+
+    const analyticsName = props.type?.analyticsName;
+    const isMainChat = analyticsName === "normal";
+    const isAnyChat = isMainChat || analyticsName === "sidebar";
+    const enabledKey = getSortedChatBarButtons()
+        .filter(({ key }) => chatBarButtons[key]?.enabled !== false)
+        .map(({ key }) => key)
+        .join(",");
+
+    // The parent re-renders on every keystroke (Discord-driven). Re-running
+    // all ~40 factories per keystroke is the typing lag. Skip it when nothing
+    // a factory consumes changed: same channel, same empty state, same chat
+    // type, same enabled set, no settings change. Verified: factories only
+    // read channel.id/guild_id/type (immutable per channel), analyticsName,
+    // attachments and isEmpty from props; everything live (draft, settings,
+    // local state) flows through their own hooks, which still fire.
+    const buttons = useMemo(() => getSortedChatBarButtons()
+        .filter(({ key }) => chatBarButtons[key]?.enabled !== false)
+        .map(({ key, render: Button }) => (
+            <ErrorBoundary noop key={key} onError={e => logger.error(`Failed to render ${key}`, e.error)}>
+                <Button {...props} isMainChat={isMainChat} isAnyChat={isAnyChat} />
+            </ErrorBoundary>
+        )),
+        [props.channel?.id, props.isEmpty, props.disabled, analyticsName, props.type?.attachments, enabledKey, settingsTick]
     );
+
+    return <>{buttons}</>;
 }
 
 export function _injectButtons(buttons: ReactNode[], props: ChatBarProps) {

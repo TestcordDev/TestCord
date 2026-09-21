@@ -441,7 +441,7 @@ function startAnchorMonitoring() {
         clearInterval(anchorMonitoringInterval);
     }
 
-    console.log("🔍🔍🔍 STARTING ANCHOR MONITORING 🔍🔍🔍");
+    verboseLog("🔍🔍🔍 STARTING ANCHOR MONITORING 🔍🔍🔍");
 
     anchorMonitoringInterval = setInterval(() => {
         if (!anchoredUserInfo) {
@@ -479,11 +479,6 @@ function startAnchorMonitoring() {
 
         // If we're not in the same channel as the anchored person
         if (myVoiceState.channelId !== anchoredUserVoiceState.channelId) {
-            console.log("🚨🚨🚨 ANCHOR MONITORING - MOVEMENT DETECTED 🚨🚨🚨");
-            console.log(
-                `You: ${myVoiceState.channelId}, Anchored person: ${anchoredUserVoiceState.channelId}`
-            );
-
             log(
                 `⚠️ Monitoring: You have been moved, automatic return to ${anchoredUserInfo.username}'s channel`
             );
@@ -656,9 +651,6 @@ export default definePlugin({
 
             // Anchoring logic (automatically return to the anchored person's channel)
             if (anchoredUserInfo) {
-                console.log(
-                    "🔍🔍🔍 ANCHORING ACTIVE - Checking channel changes 🔍🔍🔍"
-                );
                 verboseLog(
                     `⚓ Anchoring active for ${anchoredUserInfo.username} (${anchoredUserInfo.userId})`
                 );
@@ -671,12 +663,6 @@ export default definePlugin({
                         userId === currentUserId &&
                         channelId !== currentVoiceState.channelId
                     ) {
-                        console.log(
-                            "🚨🚨🚨 MOVEMENT DETECTED - ANCHORING IN PROGRESS 🚨🚨🚨"
-                        );
-                        console.log(
-                            `You: ${currentUserId}, Old channel: ${currentVoiceState.channelId}, New channel: ${channelId}`
-                        );
                         verboseLog(
                             `🔄 You have been moved: ${currentVoiceState.channelId} -> ${channelId}`
                         );
@@ -890,7 +876,6 @@ export default definePlugin({
     },
 
     start() {
-        console.log("🚀🚀🚀 HOOK PLUGIN STARTED 🚀🚀🚀");
         log("🚀 Hook plugin started");
         log(`⚙️ Current configuration:
 - Notifications: ${settings.store.showNotifications ? "ON" : "OFF"}
@@ -900,13 +885,6 @@ export default definePlugin({
 - Anchoring enabled: ${settings.store.enableAnchor ? "ON" : "OFF"}
 - Anchor delay: ${settings.store.anchorDelay}ms
 - Anchor notifications: ${settings.store.anchorNotifications ? "ON" : "OFF"}`);
-
-        // Check that stores are available
-        console.log("🔍 Checking stores:");
-        console.log("- VoiceStateStore:", !!VoiceStateStore);
-        console.log("- ChannelActions:", !!ChannelActions);
-        console.log("- UserStore:", !!UserStore);
-        console.log("- PermissionStore: not imported (normal)");
 
         // Periodic monitoring starts only while a user is anchored (see anchorUser).
         // The VOICE_STATE_UPDATES flux handler already covers movement detection.

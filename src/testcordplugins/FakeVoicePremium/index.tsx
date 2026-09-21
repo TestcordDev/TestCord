@@ -12,7 +12,7 @@ import { EquicordDevs, TestcordDevs } from "@utils/constants";
 import definePlugin from "@utils/types";
 import type { Channel, VoiceState } from "@vencord/discord-types";
 import { findByCodeLazy, findByProps, findByPropsLazy, findStore } from "@webpack";
-import { ChannelStore, ContextMenuApi, MediaEngineStore, Menu, PermissionsBits, PermissionStore, React, SelectedChannelStore, UserStore, VoiceActions } from "@webpack/common";
+import { ChannelStore, ContextMenuApi, MediaEngineStore, Menu, PermissionsBits, PermissionStore, React, SelectedChannelStore, useMemo, UserStore, VoiceActions } from "@webpack/common";
 
 import { settings } from "./settings";
 
@@ -53,6 +53,31 @@ let micCutoffApplied = false;
 let selfMuteBeforeMicCutoff = false;
 let micCutoffTimeout: ReturnType<typeof setTimeout> | null = null;
 let fakeStreamActive = false;
+
+// Cached sync lookups: findByProps/findStore scan webpack modules on every
+// call. These module identities are stable for the session, so resolve once
+// and reuse. Each getter still tolerates a miss (returns undefined) exactly
+// like the direct call did.
+let cachedActivityApi: any;
+let cachedFrameApi: any;
+let cachedEmbeddedActivitiesStore: any;
+let cachedStreamConnectionStore: any;
+
+function getActivityApi() {
+    return (cachedActivityApi ??= findByProps("su", "_H"));
+}
+
+function getFrameApi() {
+    return (cachedFrameApi ??= findByProps("launchFrame", "refreshProxyTicket", "stopFrame"));
+}
+
+function getEmbeddedActivitiesStore() {
+    return (cachedEmbeddedActivitiesStore ??= findStore("EmbeddedActivitiesStore"));
+}
+
+function getStreamConnectionStore() {
+    return (cachedStreamConnectionStore ??= findStore("StreamRTCConnectionStore"));
+}
 
 function getSelectedVoiceChannel() {
     const selected = SelectedChannelStore.getVoiceChannelId();
@@ -109,7 +134,7 @@ function getEmbeddedActivityLocation(channelId: string) {
 }
 
 async function startActivity(channelId: string) {
-    const activityApi = findByProps("su", "_H");
+    const activityApi = getActivityApi();
     if (!activityApi?.su) return;
 
     await activityApi.su({
@@ -121,19 +146,19 @@ async function startActivity(channelId: string) {
 }
 
 function hasFakeActivity(channelId: string) {
-    const embeddedActivitiesStore = findStore("EmbeddedActivitiesStore");
+    const embeddedActivitiesStore = getEmbeddedActivitiesStore();
     return embeddedActivitiesStore?.getSelfEmbeddedActivityForChannel?.(channelId)?.applicationId === WATCH_TOGETHER_APPLICATION_ID;
 }
 
 function hasFakeStream() {
-    const connectionStore = findStore("StreamRTCConnectionStore");
+    const connectionStore = getStreamConnectionStore();
     return connectionStore?.getAllActiveStreamKeys?.().length > 0;
 }
 
 function leaveActivity(channelId?: string) {
-    const activityApi = findByProps("su", "_H");
-    const frameApi = findByProps("launchFrame", "refreshProxyTicket", "stopFrame");
-    const embeddedActivitiesStore = findStore("EmbeddedActivitiesStore");
+    const activityApi = getActivityApi();
+    const frameApi = getFrameApi();
+    const embeddedActivitiesStore = getEmbeddedActivitiesStore();
     const activity = embeddedActivitiesStore?.getCurrentEmbeddedActivity?.()
         ?? (channelId ? embeddedActivitiesStore?.getSelfEmbeddedActivityForChannel?.(channelId) : null);
     const location = embeddedActivitiesStore?.getConnectedActivityLocation?.()
@@ -191,7 +216,7 @@ function scheduleMicCutoffSync(enabled: boolean, delay = 0) {
 }
 
 async function startStream() {
-    const ConnectionStore = findStore("StreamRTCConnectionStore");
+    const ConnectionStore = getStreamConnectionStore();
 
     const selected = SelectedChannelStore.getVoiceChannelId();
     if (!selected) return;
@@ -218,11 +243,13 @@ async function startStream() {
 function Icon({ className, enabled }: { className?: string; enabled?: boolean; }) {
     const lineLength = 640;
 
-    const lineStyle: React.CSSProperties = {
+    // Stable identity across renders so the user-area button doesn't
+    // re-diff SVG styles on every panel render.
+    const lineStyle = useMemo<React.CSSProperties>(() => ({
         strokeDasharray: lineLength,
         strokeDashoffset: enabled ? lineLength : 0,
         transition: "stroke-dashoffset 0.1s ease-in-out",
-    };
+    }), [enabled]);
 
     return (
         <svg className={className} xmlns="http://www.w3.org/2000/svg" width="19" height="19" viewBox="0 0 512 512">
@@ -289,7 +316,7 @@ function setFakeVoiceEnabled(enabled: boolean) {
     }
 
     if (!enabled && settings.store.fakeStream) {
-        const ConnectionStore = findStore("StreamRTCConnectionStore");
+        const ConnectionStore = getStreamConnectionStore();
         for (const streamKey of ConnectionStore.getAllActiveStreamKeys()) {
             stopStreamAction(streamKey, { streamKey, appContext: "app" });
             break;

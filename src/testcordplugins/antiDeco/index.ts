@@ -201,7 +201,6 @@ export default definePlugin({
 
     start() {
         isActive = true;
-        console.log("[AntiDéco] AntiDisconnection plugin initialized");
 
         // Check that stores are available
         if (!ChannelActions || !VoiceStateStore || !UserStore) {

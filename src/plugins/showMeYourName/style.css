@@ -14,6 +14,11 @@
 .smyn-gradient {
     position: relative;
     z-index: 0;
+
+    /* Layout + style containment only (never paint: the glow ::after must
+       stay visible outside the bounds). Narrows style recalc when names
+       update without changing rendering. */
+    contain: layout style;
 }
 
 .smyn-gradient::after {
@@ -59,6 +64,30 @@
     animation: smyn-animation var(--smyn-gradient-duration, 1.5s) linear infinite;
     background-image: linear-gradient(to right, var(--custom-display-name-styles-gradient-stops), var(--custom-display-name-styles-main-color) 100%) !important;
     background-size: 100px auto !important;
+}
+
+/* Offscreen pause (toggled by a shared IntersectionObserver): freezing the
+   seamless gradient loop for scrolled-away names removes their per-frame
+   paint. Resume shows no jump, so on-screen visuals are unchanged. */
+.smyn-offscreen.smyn-gradient,
+.smyn-offscreen .smyn-gradient,
+.smyn-offscreen [data-username-with-effects],
+.smyn-offscreen .smyn-name {
+    animation-play-state: paused !important;
+}
+
+/* Users who asked the OS for reduced motion keep the static gradient but
+   skip the per-frame background-position animation on every visible name. */
+@media (prefers-reduced-motion: reduce) {
+    .smyn-native-gradient-animated > [data-username-with-effects],
+    :where(.smyn-native-gradient-glow-overflow) .smyn-native-gradient-glow > [data-username-with-effects] {
+        animation: none;
+    }
+
+    .smyn-gradient::after,
+    .smyn-native-gradient-glow > [data-username-with-effects]::after {
+        transition: none;
+    }
 }
 
 .smyn-native-gradient-glow > [data-username-with-effects]::after {

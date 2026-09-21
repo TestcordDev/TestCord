@@ -42,6 +42,7 @@ let madeComponent = false;
 const replyCache = new Map<string, { at: number; replies: Message[]; }>();
 const REPLY_CACHE_TTL = 5000;
 const REPLY_CACHE_MAX = 200;
+const hasRepliesCache = new Map<string, { at: number; value: boolean; }>();
 
 function findReplies(message: Message) {
     const cached = replyCache.get(message.id);
@@ -87,16 +88,29 @@ function findReplies(message: Message) {
 }
 
 function hasReplies(message: Message): boolean {
+    // Same TTL as findReplies: hover runs this on every message hover, and
+    // the common case (no replies) otherwise scans the whole channel each
+    // time. A reply landing mid-TTL shows the button on the next hover.
+    const cachedHas = hasRepliesCache.get(message.id);
+    const nowHas = Date.now();
+    if (cachedHas && nowHas - cachedHas.at < REPLY_CACHE_TTL) return cachedHas.value;
+
     const store = MessageStore.getMessages(message.channel_id) as any;
     const arr: any[] = store?._array ?? store?.toArray?.() ?? [];
+    let value = false;
     for (let i = 0; i < arr.length; i++) {
         const other = arr[i];
         if (other.deleted || other.id <= message.id) continue;
-        if (other.messageReference?.message_id === message.id) return true;
-        if (settings.store.includePings && other.content?.includes(`<@${message.author.id}>`)) return true;
+        if (other.messageReference?.message_id === message.id) { value = true; break; }
+        if (settings.store.includePings && other.content?.includes(`<@${message.author.id}>`)) { value = true; break; }
         // includeAuthor is rarer and needs extra lookup, skip for hasReplies fast path
     }
-    return false;
+    if (hasRepliesCache.size >= REPLY_CACHE_MAX) {
+        const first = hasRepliesCache.keys().next().value;
+        if (first) hasRepliesCache.delete(first);
+    }
+    hasRepliesCache.set(message.id, { at: nowHas, value });
+    return value;
 }
 
 const settings = definePluginSettings({

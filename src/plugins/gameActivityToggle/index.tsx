@@ -23,7 +23,7 @@ import { getUserSettingLazy } from "@api/UserSettings";
 import testcordToolbox from "@testcordplugins/testcordToolbox";
 import { Devs, TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { Menu } from "@webpack/common";
+import { Menu, useMemo } from "@webpack/common";
 
 const ShowCurrentGame = getUserSettingLazy<boolean>("status", "showCurrentGame")!;
 
@@ -51,15 +51,16 @@ const settings = definePluginSettings({
     }
 });
 
-function Icon({ className }: { className?: string; }) {
-    const { oldIcon } = settings.use(["oldIcon"]);
-    const showCurrentGame = ShowCurrentGame.useSetting();
+function IconSvg({ className, showCurrentGame, oldIcon }: { className?: string; showCurrentGame: boolean; oldIcon: boolean; }) {
     const lineLength = 30;
-    const lineStyle: React.CSSProperties = {
+    // Stable identity across renders: a fresh object every render forces
+    // React to diff (and the browser to recalc) the SVG style on each
+    // user-area render, even when nothing changed.
+    const lineStyle = useMemo<React.CSSProperties>(() => ({
         strokeDasharray: lineLength,
         strokeDashoffset: showCurrentGame ? lineLength : 0,
         transition: "stroke-dashoffset 0.1s ease-in-out",
-    };
+    }), [showCurrentGame]);
 
     return (
         <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -98,8 +99,14 @@ function Icon({ className }: { className?: string; }) {
     );
 }
 
+function Icon({ className }: { className?: string; }) {
+    const { oldIcon } = settings.use(["oldIcon"]);
+    const showCurrentGame = ShowCurrentGame.useSetting();
+    return <IconSvg className={className} showCurrentGame={showCurrentGame} oldIcon={oldIcon} />;
+}
+
 function GameActivityToggleButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
-    const { location } = settings.use(["location"]);
+    const { location, oldIcon } = settings.use(["location", "oldIcon"]);
     const showCurrentGame = ShowCurrentGame.useSetting();
 
     if (location !== "PANEL" && isPluginEnabled(testcordToolbox.name)) return null;
@@ -113,7 +120,7 @@ function GameActivityToggleButton({ iconForeground, hideTooltips, nameplate }: U
             redGlow={!showCurrentGame}
             plated={nameplate != null}
             onClick={() => ShowCurrentGame.updateSetting(old => !old)}
-            icon={<Icon className={iconForeground} />}
+            icon={<IconSvg className={iconForeground} showCurrentGame={showCurrentGame} oldIcon={oldIcon} />}
         />
     );
 }
