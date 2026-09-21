@@ -6,12 +6,13 @@
 
 import { ChatBarButton, ChatBarButtonFactory } from "@api/ChatButtons";
 import { findOption, RequiredMessageOption } from "@api/Commands";
+import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
 import { addChannelToolbarButton, addHeaderBarButton, ChannelToolbarButton, HeaderBarButton, removeChannelToolbarButton, removeHeaderBarButton } from "@api/HeaderBar";
 import { addMessagePreSendListener, removeMessagePreSendListener } from "@api/MessageEvents";
 import { definePluginSettings } from "@api/Settings";
 import { TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
-import { React } from "@webpack/common";
+import { ContextMenuApi, Menu, React } from "@webpack/common";
 
 // Light mode - using Mathematical Alphanumeric Symbols (nearly identical)
 const lightCharMap: Record<string, string> = {
@@ -277,6 +278,26 @@ const mapCharactersFinalBoss = (text: string): string => {
     }).join("");
 };
 
+const METHODS = [
+    { label: "Zero-Width (Dadscord)", value: "zerowidth" },
+    { label: "Light (Math symbols)", value: "light" },
+    { label: "Middle (Cyrillic)", value: "middle" },
+    { label: "Extended (Cyrillic + Zalgo)", value: "extended" },
+    { label: "Tryhard (Random bypasses)", value: "tryhard" },
+    { label: "Final Boss (Invisible + Zalgo)", value: "finalboss" },
+    { label: "Fraktur (Gothic)", value: "fraktur" },
+    { label: "Squared", value: "squared" },
+    { label: "Circled", value: "circled" },
+    { label: "Bold Italic", value: "boldItalic" },
+    { label: "Custom Style 1", value: "custom1" },
+    { label: "Custom Style 2", value: "custom2" },
+    { label: "Custom Style 3", value: "custom3" },
+    { label: "Full Width", value: "fullWidth" },
+    { label: "Strikethrough", value: "strikethrough" },
+    { label: "Invisible Separator", value: "invisibleSeparator" },
+    { label: "Undetected", value: "undetected" }
+] as const;
+
 const settings = definePluginSettings({
     location: {
         type: OptionType.SELECT,
@@ -302,25 +323,7 @@ const settings = definePluginSettings({
     mode: {
         type: OptionType.SELECT,
         description: "Bypass mode",
-        options: [
-            { label: "Zero-Width (Dadscord)", value: "zerowidth", default: true },
-            { label: "Light (Math symbols)", value: "light" },
-            { label: "Middle (Cyrillic)", value: "middle" },
-            { label: "Extended (Cyrillic + Zalgo)", value: "extended" },
-            { label: "Tryhard (Random bypasses)", value: "tryhard" },
-            { label: "Final Boss (Invisible + Zalgo)", value: "finalboss" },
-            { label: "Fraktur (Gothic)", value: "fraktur" },
-            { label: "Squared", value: "squared" },
-            { label: "Circled", value: "circled" },
-            { label: "Bold Italic", value: "boldItalic" },
-            { label: "Custom Style 1", value: "custom1" },
-            { label: "Custom Style 2", value: "custom2" },
-            { label: "Custom Style 3", value: "custom3" },
-            { label: "Full Width", value: "fullWidth" },
-            { label: "Strikethrough", value: "strikethrough" },
-            { label: "Invisible Separator", value: "invisibleSeparator" },
-            { label: "Undetected", value: "undetected" }
-        ]
+        options: METHODS.map(m => ({ ...m, default: m.value === "zerowidth" }))
     }
 });
 
@@ -398,13 +401,105 @@ function transformTextWithProtection(text: string, mode: string): string {
     return parts.join("");
 }
 
+function toggleEnabled() {
+    const next = !(settings.store.isEnabled || settings.store.enabled);
+    settings.store.isEnabled = next;
+    settings.store.enabled = next;
+}
+
 function handleMessageSend(channelId: string, messageObj: any, options: any): void | { cancel: boolean; } {
-    if (!settings.store.enabled || !settings.store.isEnabled) return;
+    if (!settings.store.enabled && !settings.store.isEnabled) return;
 
     if (messageObj.content) {
         messageObj.content = transformTextWithProtection(messageObj.content, settings.store.mode);
     }
 }
+
+function renderAntiFilterMenuItems(includeEnabledToggle = false) {
+    const { isEnabled, enabled, mode } = settings.store;
+    const active = isEnabled || enabled;
+
+    return [
+        includeEnabledToggle && (
+            <Menu.MenuCheckboxItem
+                id="antifilter-toggle-enabled"
+                key="antifilter-toggle-enabled"
+                label="AntiFilter Enabled"
+                checked={active}
+                action={toggleEnabled}
+            />
+        ),
+        includeEnabledToggle && <Menu.MenuSeparator key="antifilter-toggle-separator" />,
+        <Menu.MenuGroup key="antifilter-methods-group" label="BYPASS METHOD">
+            {METHODS.map(m => (
+                <Menu.MenuRadioItem
+                    id={`antifilter-method-${m.value}`}
+                    key={`antifilter-method-${m.value}`}
+                    group="antifilter-bypass-method"
+                    label={m.label}
+                    checked={mode === m.value}
+                    action={() => {
+                        settings.store.mode = m.value;
+                    }}
+                />
+            ))}
+        </Menu.MenuGroup>
+    ];
+}
+
+function AntiFilterContextMenu() {
+    settings.use(["isEnabled", "enabled", "mode"]);
+
+    return (
+        <Menu.Menu
+            navId="antifilter-context"
+            onClose={() => { }}
+            aria-label="AntiFilter Options"
+        >
+            <Menu.MenuGroup label="ANTIFILTER">
+                {renderAntiFilterMenuItems(true)}
+            </Menu.MenuGroup>
+        </Menu.Menu>
+    );
+}
+
+function openAntiFilterContextMenu(e: React.MouseEvent) {
+    ContextMenuApi.openContextMenu(e, () => <AntiFilterContextMenu />);
+}
+
+function AntiFilterSubmenu() {
+    settings.use(["isEnabled", "enabled", "mode"]);
+    return (
+        <>
+            {renderAntiFilterMenuItems(true)}
+        </>
+    );
+}
+
+const TextareaContext: NavContextMenuPatchCallback = children => {
+    const container = findGroupChildrenByChildId("submit-button", children);
+    if (container) {
+        const idx = container.findIndex(c => c?.props?.id === "submit-button");
+        container.splice(idx >= 0 ? idx + 1 : 0, 0,
+            <Menu.MenuItem
+                id="antifilter-textarea-menu"
+                label="AntiFilter"
+            >
+                <AntiFilterSubmenu />
+            </Menu.MenuItem>
+        );
+    } else {
+        children.push(
+            <Menu.MenuSeparator key="antifilter-textarea-separator" />,
+            <Menu.MenuItem
+                id="antifilter-textarea-menu"
+                label="AntiFilter"
+            >
+                <AntiFilterSubmenu />
+            </Menu.MenuItem>
+        );
+    }
+};
 
 const AntiFilterIcon = ({ width = 20, height = 20 }: { width?: number; height?: number; }) => (
     <svg width={width} height={height} viewBox="0 0 24 24">
@@ -413,24 +508,27 @@ const AntiFilterIcon = ({ width = 20, height = 20 }: { width?: number; height?: 
 );
 
 const AntiFilterButton: ChatBarButtonFactory = ({ isMainChat }) => {
-    const { isEnabled } = settings.use(["isEnabled"]);
+    const { isEnabled, enabled, mode } = settings.use(["isEnabled", "enabled", "mode"]);
+    const active = isEnabled || enabled;
 
     if (!isMainChat || settings.store.location !== "chatbar") return null;
 
+    const methodLabel = METHODS.find(m => m.value === mode)?.label ?? "Zero-Width";
+    const tooltip = active ? `AntiFilter: ON (${methodLabel})` : "AntiFilter: OFF";
+
     return (
         <ChatBarButton
-            tooltip={isEnabled ? "AntiFilter: ON" : "AntiFilter: OFF"}
-            onClick={() => {
-                settings.store.isEnabled = !settings.store.isEnabled;
-            }}
+            tooltip={tooltip}
+            onClick={toggleEnabled}
+            onContextMenu={openAntiFilterContextMenu}
         >
             <svg
                 width="20"
                 height="20"
                 viewBox="0 0 24 24"
-                fill={isEnabled ? "var(--status-danger, #da373c)" : "currentColor"}
+                fill={active ? "var(--status-danger, #da373c)" : "currentColor"}
             >
-                {isEnabled ? (
+                {active ? (
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                 ) : (
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z" />
@@ -448,7 +546,11 @@ export default definePlugin({
     { name: "dot", id: 1400610916285812776n }
     ],
     settings: settings,
-    dependencies: ["ChatInputButtonAPI", "CommandsAPI", "MessageEventsAPI", "HeaderBarAPI"],
+    dependencies: ["ChatInputButtonAPI", "CommandsAPI", "MessageEventsAPI", "HeaderBarAPI", "ContextMenuAPI"],
+
+    contextMenus: {
+        "textarea-context": TextareaContext
+    },
 
     commands: [
         {
@@ -457,7 +559,7 @@ export default definePlugin({
             options: [RequiredMessageOption],
             execute: opts => {
                 const originalMessage = findOption(opts, "message", "");
-                const modifiedMessage = mapCharactersZeroWidth(originalMessage);
+                const modifiedMessage = transformTextWithProtection(originalMessage, settings.store.mode);
                 return { content: modifiedMessage };
             }
         }
@@ -472,21 +574,33 @@ export default definePlugin({
         addMessagePreSendListener(handleMessageSend);
         const { location } = settings.store;
         if (location === "headerbar") {
-            addHeaderBarButton("AntiFilter", () => (
-                <HeaderBarButton
-                    icon={() => <AntiFilterIcon />}
-                    tooltip={settings.store.isEnabled ? "AntiFilter: ON" : "AntiFilter: OFF"}
-                    onClick={() => { settings.store.isEnabled = !settings.store.isEnabled; }}
-                />
-            ), 5);
+            addHeaderBarButton("AntiFilter", () => {
+                const { isEnabled, enabled, mode } = settings.use(["isEnabled", "enabled", "mode"]);
+                const active = isEnabled || enabled;
+                const methodLabel = METHODS.find(m => m.value === mode)?.label ?? "Zero-Width";
+                return (
+                    <HeaderBarButton
+                        icon={() => <AntiFilterIcon />}
+                        tooltip={active ? `AntiFilter: ON (${methodLabel})` : "AntiFilter: OFF"}
+                        onClick={toggleEnabled}
+                        onContextMenu={openAntiFilterContextMenu}
+                    />
+                );
+            }, 5);
         } else if (location === "channeltoolbar") {
-            addChannelToolbarButton("AntiFilter", () => (
-                <ChannelToolbarButton
-                    icon={() => <AntiFilterIcon />}
-                    tooltip={settings.store.isEnabled ? "AntiFilter: ON" : "AntiFilter: OFF"}
-                    onClick={() => { settings.store.isEnabled = !settings.store.isEnabled; }}
-                />
-            ), 5);
+            addChannelToolbarButton("AntiFilter", () => {
+                const { isEnabled, enabled, mode } = settings.use(["isEnabled", "enabled", "mode"]);
+                const active = isEnabled || enabled;
+                const methodLabel = METHODS.find(m => m.value === mode)?.label ?? "Zero-Width";
+                return (
+                    <ChannelToolbarButton
+                        icon={() => <AntiFilterIcon />}
+                        tooltip={active ? `AntiFilter: ON (${methodLabel})` : "AntiFilter: OFF"}
+                        onClick={toggleEnabled}
+                        onContextMenu={openAntiFilterContextMenu}
+                    />
+                );
+            }, 5);
         }
     },
 
