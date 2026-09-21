@@ -39,7 +39,7 @@ const UserStore = findStoreLazy("UserStore");
 const SelectedChannelStore = findStoreLazy("SelectedChannelStore");
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         default: true,
         description: "Enable Leash plugin",
@@ -136,7 +136,7 @@ export default definePlugin({
     },
     flux: {
         async VOICE_STATE_UPDATES({ voiceStates }: { voiceStates: VoiceState[]; }) {
-            if (!leashedUserInfo || !settings.store.enabled) return;
+            if (!leashedUserInfo || !settings.store.isEnabled) return;
 
             const myId = UserStore.getCurrentUser().id;
             const myCurrentChannelId = SelectedChannelStore.getVoiceChannelId();

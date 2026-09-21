@@ -38,7 +38,7 @@ export function initWs(isManual = false) {
         ws.send(JSON.stringify(data));
     }
 
-    ws.addEventListener("open", () => {
+    ws.onopen = () => {
         wasConnected = true;
 
         logger.info("Connected to WebSocket");
@@ -81,9 +81,9 @@ export function initWs(isManual = false) {
         catch (e) {
             console.error(e);
         }
-    });
+    };
 
-    ws.addEventListener("error", e => {
+    ws.onerror = e => {
         if (!wasConnected) return;
 
         hasErrored = true;
@@ -98,9 +98,9 @@ export function initWs(isManual = false) {
                 position: Toasts.Position.TOP
             }
         });
-    });
+    };
 
-    ws.addEventListener("close", e => {
+    ws.onclose = e => {
         if (!wasConnected || hasErrored) return;
 
         logger.info("Dev Companion Disconnected:", e.code, e.reason);
@@ -113,9 +113,9 @@ export function initWs(isManual = false) {
                 position: Toasts.Position.TOP
             }
         });
-    });
+    };
 
-    ws.addEventListener("message", e => {
+    ws.onmessage = e => {
         try {
             var d = JSON.parse(e.data) as Recieve.FullIncomingMessage;
         } catch (err) {
@@ -474,7 +474,7 @@ export function initWs(isManual = false) {
                 reply("Unknown Type " + d?.type);
                 break;
         }
-    });
+    };
 }
 
 interface AllModulesNotiProps {

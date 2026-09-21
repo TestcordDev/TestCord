@@ -106,7 +106,7 @@ export default definePlugin({
     },
 
     revealAllAuto() {
-        if (!settings.store.autoReveal) return;
+        if (!settings.store.autoReveal) return false;
         // Only chat message lists. An unscoped document scan also matched
         // settings rows (e.g. a spoiler option), clicking them open every
         // 800ms and yanking scroll to them. role=log is stable ARIA, and the
@@ -114,9 +114,10 @@ export default definePlugin({
         const logRoots = document.querySelectorAll('[role="log"]');
         const roots: (Document | Element)[] = logRoots.length ? [...logRoots] : [document];
         const fastCheck = roots.some(root => root.querySelector('[aria-expanded="false"][aria-label], [class*="spoilerContent"][class*="hidden"]'));
-        if (!fastCheck) return;
-        if ((this as any)._isAutoRevealing) return;
+        if (!fastCheck) return false;
+        if ((this as any)._isAutoRevealing) return false;
         (this as any)._isAutoRevealing = true;
+        let revealedTotal = 0;
         try {
             const revealNoScroll = (el: HTMLElement) => {
                 // Try fiber setState first - no focus/scroll/highlight
@@ -153,16 +154,21 @@ export default definePlugin({
                 const aria = el.getAttribute("aria-label") ?? "";
                 if (cls.includes("spoiler") || aria.toLowerCase().includes("spoiler")) {
                     revealNoScroll(el);
+                    revealedTotal++;
                 }
             }
             for (const el of hiddenSpoilers) {
                 if ((el as HTMLElement).getAttribute("aria-expanded") === "false") continue;
                 if (el.className.includes("hiddenVisually")) continue;
-                if (el.className.includes("spoiler")) revealNoScroll(el);
+                if (el.className.includes("spoiler")) {
+                    revealNoScroll(el);
+                    revealedTotal++;
+                }
             }
         } finally {
             (this as any)._isAutoRevealing = false;
         }
+        return revealedTotal > 0;
     },
 
     start() {
@@ -186,16 +192,22 @@ export default definePlugin({
     },
 
     syncAutoInterval() {
-        if (settings.store.autoReveal) {
-            if (!this._autoInterval) {
-                this._autoInterval = setInterval(() => {
-                    this.revealAllAuto();
-                }, 800);
-            }
-        } else if (this._autoInterval) {
-            clearInterval(this._autoInterval);
+        if (this._autoInterval) {
+            clearTimeout(this._autoInterval);
             this._autoInterval = undefined;
         }
+        if (!settings.store.autoReveal) return;
+        let delay = 800;
+        const tick = () => {
+            if (!settings.store.autoReveal) {
+                this._autoInterval = undefined;
+                return;
+            }
+            const revealed = this.revealAllAuto();
+            delay = revealed ? 800 : Math.min(delay * 2, 5000);
+            this._autoInterval = setTimeout(tick, delay);
+        };
+        this._autoInterval = setTimeout(tick, delay);
     },
 
     stop() {
@@ -208,7 +220,7 @@ export default definePlugin({
             this._autoSettingListener = null;
         }
         if (this._autoInterval) {
-            clearInterval(this._autoInterval);
+            clearTimeout(this._autoInterval);
             this._autoInterval = undefined;
         }
     }

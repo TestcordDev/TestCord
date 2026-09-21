@@ -41,7 +41,7 @@ const settings = definePluginSettings({
         description: "User reaction rules (JSON format)",
         default: "[]",
     },
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable AutoReact functionality",
         default: true,
@@ -197,7 +197,7 @@ function handleMessageCreate(data: any) {
     const { message } = data;
     if (!message) return;
 
-    if (!settings.store.enabled) return;
+    if (!settings.store.isEnabled) return;
 
     const channelId = message.channel_id;
     const messageId = message.id;

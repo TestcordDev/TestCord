@@ -55,7 +55,7 @@ interface AnchoredUserInfo {
 }
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable Hook plugin",
         default: true,
@@ -558,9 +558,9 @@ const UserContextMenuPatch: NavContextMenuPatchCallback = (
     // Keep this path quiet: it runs on every user right-click when the plugin is enabled.
     verboseLog(`🔍 Context menu called for ${user?.username || "unknown user"}`);
 
-    if (!settings.store.enabled || !user) {
+    if (!settings.store.isEnabled || !user) {
         verboseLog(
-            `❌ Plugin disabled or user missing - enabled: ${settings.store.enabled
+            `❌ Plugin disabled or user missing - enabled: ${settings.store.isEnabled
             }, user: ${!!user}`
         );
         return;
@@ -637,7 +637,7 @@ export default definePlugin({
 
     flux: {
         async VOICE_STATE_UPDATES({ voiceStates }: { voiceStates: VoiceState[]; }) {
-            if (!settings.store.enabled) return;
+            if (!settings.store.isEnabled) return;
 
             const currentUser = UserStore.getCurrentUser();
             if (!currentUser) return;
@@ -908,11 +908,8 @@ export default definePlugin({
         console.log("- UserStore:", !!UserStore);
         console.log("- PermissionStore: not imported (normal)");
 
-        // Start periodic monitoring for anchoring
-        if (settings.store.enableAnchor) {
-            console.log("🔍🔍🔍 STARTING ANCHOR MONITORING AT START 🔍🔍🔍");
-            startAnchorMonitoring();
-        }
+        // Periodic monitoring starts only while a user is anchored (see anchorUser).
+        // The VOICE_STATE_UPDATES flux handler already covers movement detection.
 
         // Save the original function if we want to prevent manual moves
         if (settings.store.preventSelfMove && ChannelActions) {

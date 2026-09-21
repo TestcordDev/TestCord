@@ -21,7 +21,7 @@ function compileWords(words: string) {
 }
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Filter outgoing messages (Ctrl+Alt+P toggles this anywhere)",
         default: true
@@ -56,11 +56,11 @@ function filter(content: string): string {
 function toggleHandler(e: KeyboardEvent) {
     if (e.ctrlKey && e.altKey && !e.shiftKey && !e.metaKey && e.code === "KeyP") {
         e.preventDefault();
-        settings.store.enabled = !settings.store.enabled;
+        settings.store.isEnabled = !settings.store.isEnabled;
         Toasts.show({
-            message: `Profanity filter: ${settings.store.enabled ? "ON" : "OFF"}`,
+            message: `Profanity filter: ${settings.store.isEnabled ? "ON" : "OFF"}`,
             id: Toasts.genId(),
-            type: settings.store.enabled ? Toasts.Type.SUCCESS : Toasts.Type.MESSAGE
+            type: settings.store.isEnabled ? Toasts.Type.SUCCESS : Toasts.Type.MESSAGE
         });
     }
 }
@@ -86,7 +86,7 @@ export default definePlugin({
     },
 
     onBeforeMessageSend(_, msg) {
-        if (!settings.store.enabled || typeof msg.content !== "string") return;
+        if (!settings.store.isEnabled || typeof msg.content !== "string") return;
         const filtered = filter(msg.content);
         const wasFiltered = filtered !== msg.content;
 

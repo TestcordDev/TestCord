@@ -12,7 +12,7 @@ import definePlugin, { OptionType } from "@utils/types";
 import { ChannelStore, Constants, RestAPI, UserStore } from "@webpack/common";
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable AntiGroup plugin",
         default: true,
@@ -227,7 +227,7 @@ export default definePlugin({
                 `📺 CHANNEL_CREATE event detected for channel ${event.channel?.id}`
             );
 
-            if (!settings.store.enabled) {
+            if (!settings.store.isEnabled) {
                 verboseLog("🔒 Plugin disabled, ignored");
                 return;
             }

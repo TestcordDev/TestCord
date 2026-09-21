@@ -21,7 +21,7 @@ const UserStore = findStoreLazy("UserStore");
 const SelectedChannelStore = findStoreLazy("SelectedChannelStore");
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         default: true,
         description: "Enable AutoDeco",
@@ -75,7 +75,7 @@ export default definePlugin({
     },
     flux: {
         async VOICE_STATE_UPDATES({ voiceStates }) {
-            if (!targetUserId || !settings.store.enabled) return;
+            if (!targetUserId || !settings.store.isEnabled) return;
             const currentUserId = UserStore.getCurrentUser().id;
             const currentChannelId = SelectedChannelStore.getVoiceChannelId();
 

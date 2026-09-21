@@ -50,7 +50,7 @@ interface DeletionStats {
 }
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable automatic message deletion",
         default: false,
@@ -501,7 +501,7 @@ export default definePlugin({
 
     onMessageCreate(event: any) {
         try {
-            if (!settings.store.enabled || settings.store.emergencyStop) return;
+            if (!settings.store.isEnabled || settings.store.emergencyStop) return;
 
             const message = event?.message;
             if (!message) return;

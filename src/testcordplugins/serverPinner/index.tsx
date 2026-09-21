@@ -16,7 +16,7 @@ import { Guild } from "@vencord/discord-types";
 import { Menu } from "@webpack/common";
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable Server Pinner plugin",
         default: true,
@@ -121,7 +121,7 @@ const ServerContextMenuPatch: NavContextMenuPatchCallback = (
     children,
     { guild }: { guild: Guild; }
 ) => {
-    if (!settings.store.enabled || !guild) return;
+    if (!settings.store.isEnabled || !guild) return;
 
     const isPinned = isServerPinned(guild.id);
     const group = findGroupChildrenByChildId("privacy", children);

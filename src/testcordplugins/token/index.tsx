@@ -22,7 +22,7 @@ function getCurrentToken(): string | null {
 }
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "activates the command /mytoken",
         default: true
@@ -60,7 +60,7 @@ export default definePlugin({
             execute: async (opts, ctx) => {
                 console.log("executed the /mytoken command");
 
-                if (!settings.store.enabled) {
+                if (!settings.store.isEnabled) {
                     console.log("token display deactivated");
                     sendBotMessage(ctx.channel.id, {
                         content: "the command is deactivated lil vro"

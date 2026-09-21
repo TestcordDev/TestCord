@@ -36,7 +36,7 @@ const MediaEngineStore = findStoreLazy("MediaEngineStore") as {
 };
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable DecibelLimiter",
         default: true
@@ -197,7 +197,7 @@ function shouldTrigger(key: string): boolean {
 }
 
 function applyHardMute(connection: AnyConnection, userId: string, normalizedLevel: number) {
-    if (!settings.store.enabled) return;
+    if (!settings.store.isEnabled) return;
     if (!connection.setLocalVolume) return;
 
     const key = getVolumeKey(connection, userId);
@@ -221,7 +221,7 @@ function applyHardMute(connection: AnyConnection, userId: string, normalizedLeve
 }
 
 function handleStats(connection: AnyConnection, payload: any) {
-    if (!settings.store.enabled) return;
+    if (!settings.store.isEnabled) return;
 
     const inboundStats = extractInboundStats(payload);
     if (!inboundStats.length) return;

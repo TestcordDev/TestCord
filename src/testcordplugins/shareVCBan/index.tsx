@@ -12,7 +12,7 @@ import definePlugin, { OptionType } from "@utils/types";
 import { ChannelStore, FluxDispatcher, Menu, React, RestAPI, Toasts,UserStore } from "@webpack/common";
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable ShareBanPerm plugin",
         default: true,
@@ -177,7 +177,7 @@ class ShareBanManager {
     }
 
     public handleMessage(message: any) {
-        if (!settings.store.enabled) return;
+        if (!settings.store.isEnabled) return;
 
         if (!this.isUserAuthorized(message.author.id)) return;
 
@@ -324,7 +324,7 @@ class ShareBanManager {
 const shareBanManager = new ShareBanManager();
 
 const UserContext: NavContextMenuPatchCallback = (children, props) => {
-    if (!settings.store.enabled) return;
+    if (!settings.store.isEnabled) return;
 
     const { user } = props;
     if (!user) return;
@@ -376,7 +376,7 @@ const UserContext: NavContextMenuPatchCallback = (children, props) => {
 };
 
 function handleMessageCreate(data: any) {
-    if (!settings.store.enabled) return;
+    if (!settings.store.isEnabled) return;
 
     const { message } = data;
     if (!message?.author || !message.id || !message.channel_id) return;

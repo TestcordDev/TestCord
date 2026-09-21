@@ -189,10 +189,10 @@ const settings = definePluginSettings({
         ],
         restartNeeded: true,
     },
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable ChatGPT Writing plugin",
-        defaultValue: false
+        default: false
     },
     useKaomoji: {
         type: OptionType.BOOLEAN,
@@ -213,7 +213,7 @@ const settings = definePluginSettings({
 
 const getPresend = (): MessageSendListener => {
     return (_, msg) => {
-        if (!settings.store.enabled) return;
+        if (!settings.store.isEnabled) return;
 
         const backticks = String.fromCharCode(96, 96, 96);
         if (msg.content.indexOf(backticks) !== -1) return;
@@ -258,9 +258,9 @@ export default definePlugin({
 
         return (
             <ChatBarButton
-                tooltip={settings.store.enabled ? "ChatGPT Writing (ON)" : "ChatGPT Writing (OFF)"}
+                tooltip={settings.store.isEnabled ? "ChatGPT Writing (ON)" : "ChatGPT Writing (OFF)"}
                 onClick={() => {
-                    settings.store.enabled = !settings.store.enabled;
+                    settings.store.isEnabled = !settings.store.isEnabled;
                 }}
             >
                 <svg
@@ -269,7 +269,7 @@ export default definePlugin({
                     height="20"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke={settings.store.enabled ? "#5865F2" : "currentColor"}
+                    stroke={settings.store.isEnabled ? "#5865F2" : "currentColor"}
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -294,16 +294,16 @@ export default definePlugin({
             addHeaderBarButton("ChatGPTWriting", () => (
                 <HeaderBarButton
                     icon={() => <ChatGPTWritingIcon />}
-                    tooltip={settings.store.enabled ? "ChatGPT Writing (ON)" : "ChatGPT Writing (OFF)"}
-                    onClick={() => { settings.store.enabled = !settings.store.enabled; }}
+                    tooltip={settings.store.isEnabled ? "ChatGPT Writing (ON)" : "ChatGPT Writing (OFF)"}
+                    onClick={() => { settings.store.isEnabled = !settings.store.isEnabled; }}
                 />
             ), 5);
         } else if (location === "channeltoolbar") {
             addChannelToolbarButton("ChatGPTWriting", () => (
                 <ChannelToolbarButton
                     icon={() => <ChatGPTWritingIcon />}
-                    tooltip={settings.store.enabled ? "ChatGPT Writing (ON)" : "ChatGPT Writing (OFF)"}
-                    onClick={() => { settings.store.enabled = !settings.store.enabled; }}
+                    tooltip={settings.store.isEnabled ? "ChatGPT Writing (ON)" : "ChatGPT Writing (OFF)"}
+                    onClick={() => { settings.store.isEnabled = !settings.store.isEnabled; }}
                 />
             ), 5);
         }

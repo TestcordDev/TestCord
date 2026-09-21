@@ -55,10 +55,27 @@ let clientId = "";
 let channel: BroadcastChannel | null = null;
 let intervalId: ReturnType<typeof setInterval> | undefined;
 const lastPushed = new Map<string, string>();
+const lastHeartbeat = new Map<string, number>();
 const remoteSeen = new Map<string, string | null>();
 const remoteOwners = new Map<string, string | null>();
+const remoteFreshAt = new Map<string, number>();
 const mirrorApplied = new Map<string, string | null>();
 const mirrored = new Set<string>();
+
+const HEARTBEAT_TICKS = 2;
+const STALE_TICKS = 6;
+
+function tickMs(): number {
+    return Math.max(2, settings.store.pollInterval) * 1000;
+}
+
+function heartbeatDue(key: string, now: number): boolean {
+    return now - (lastHeartbeat.get(key) ?? 0) >= tickMs() * HEARTBEAT_TICKS;
+}
+
+function isStale(key: string, now: number): boolean {
+    return now - (remoteFreshAt.get(key) ?? 0) > tickMs() * STALE_TICKS;
+}
 
 function isKey(value: unknown): value is string {
     return typeof value === "string" && /^[A-Za-z0-9:_-]{1,128}$/.test(value);
@@ -128,9 +145,11 @@ function applySingle(key: string, activity: Activity | null, ignored: string[], 
     if (activity) {
         remoteSeen.set(key, stableStringify(activity));
         remoteOwners.set(key, owner);
+        remoteFreshAt.set(key, Date.now());
     } else {
         remoteSeen.delete(key);
         remoteOwners.delete(key);
+        remoteFreshAt.delete(key);
     }
     if (owner !== null && owner === clientId) return;
 
@@ -168,6 +187,7 @@ async function publishOwn() {
     const own: unknown = PresenceStore.getActivities(me.id);
     if (!Array.isArray(own)) return;
 
+    const now = Date.now();
     const wanted = new Map<string, string>();
     const payloads = new Map<string, Activity>();
     const kept = new Set<string>();
@@ -182,6 +202,10 @@ async function publishOwn() {
         if (remoteSeen.get(key) === json) {
             lastPushed.set(key, json);
             kept.add(key);
+            if (heartbeatDue(key, now)) {
+                lastHeartbeat.set(key, now);
+                await pushBridge(key, entry);
+            }
             continue;
         }
         wanted.set(key, json);
@@ -194,6 +218,7 @@ async function publishOwn() {
             continue;
         }
         lastPushed.set(key, json);
+        lastHeartbeat.set(key, now);
         kept.add(key);
         await pushBridge(key, payloads.get(key) ?? null);
     }
@@ -202,6 +227,7 @@ async function publishOwn() {
         if (kept.has(key)) continue;
         const published = lastPushed.get(key);
         lastPushed.delete(key);
+        lastHeartbeat.delete(key);
         if (remoteSeen.has(key) && remoteSeen.get(key) !== published) continue;
         await pushBridge(key, null);
     }
@@ -210,6 +236,7 @@ async function publishOwn() {
 async function unpublishAll() {
     const keys = [...lastPushed.keys()];
     lastPushed.clear();
+    lastHeartbeat.clear();
     for (const key of keys) await pushBridge(key, null);
 }
 
@@ -229,9 +256,15 @@ async function syncFromBridge() {
     }
     if (!entries || typeof entries !== "object") return;
 
+    const now = Date.now();
     const seen = new Set<string>();
     for (const [key, value] of Object.entries(entries)) {
         if (!isKey(key) || !isBridgeEntry(value)) continue;
+        const { updatedAt } = value as { updatedAt?: unknown; };
+        if (typeof updatedAt === "number" && now - updatedAt > tickMs() * STALE_TICKS) {
+            await pushBridge(key, null);
+            continue;
+        }
         seen.add(key);
         const owner = typeof value.owner === "string" ? value.owner : null;
         applySingle(key, isActivityRecord(value.activity) ? value.activity : null, ignored, owner);
@@ -254,6 +287,14 @@ async function tick() {
     try {
         await publishOwn();
         await syncFromBridge();
+        if (settings.store.mirrorActivities) {
+            const now = Date.now();
+            const ignored = parseIgnored();
+            for (const [key, applied] of mirrorApplied) {
+                if (applied == null || !isStale(key, now)) continue;
+                applySingle(key, null, ignored, null);
+            }
+        }
     } catch (error) {
         logger.debug("Sync tick failed", error);
     }
@@ -292,6 +333,8 @@ export default definePlugin({
         }
         channel?.close();
         channel = null;
+        remoteFreshAt.clear();
+        lastHeartbeat.clear();
         clearAllMirrored();
         void unpublishAll();
     },

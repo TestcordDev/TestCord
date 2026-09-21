@@ -16,7 +16,7 @@ import type { Channel, Message } from "@vencord/discord-types";
 import { ChannelStore, Menu, RestAPI, UserStore } from "@webpack/common";
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable MessageCleaner plugin",
         default: true,
@@ -322,7 +322,7 @@ function updateProgress() {
 // Main cleaning function
 async function cleanChannel(channelId: string) {
     const generation = cleaningGeneration;
-    if (!settings.store.enabled) {
+    if (!settings.store.isEnabled) {
         log("Plugin disabled", "warn");
         return;
     }

@@ -134,7 +134,7 @@ export default definePlugin({
                 label: "Add Attachments",
                 icon: UploadIcon,
                 message: msg,
-                channel: ChannelStore.getChannel(msg.channel_id),
+                channel,
                 onClick: () => chooseAttachments(msg.channel_id, msg.id, msg.attachments.length)
             };
         },

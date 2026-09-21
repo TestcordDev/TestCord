@@ -11,7 +11,7 @@ import definePlugin, { OptionType } from "@utils/types";
 import { ChannelStore, Constants, RestAPI, UserStore } from "@webpack/common";
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable the AntiGroup plugin",
         default: false
@@ -126,7 +126,7 @@ export default definePlugin({
 
     flux: {
         CHANNEL_CREATE(event: { channel: any; }) {
-            if (!settings.store.enabled) return;
+            if (!settings.store.isEnabled) return;
 
             const { channel } = event;
             const currentUserId = UserStore.getCurrentUser()?.id;

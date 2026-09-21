@@ -15,7 +15,7 @@ import { TestcordDevs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable Abbreviation plugin",
         default: true,
@@ -245,7 +245,7 @@ const messagePreSendListener: MessageSendListener = (
     extra
 ) => {
     // Check if plugin is enabled (global state AND temporary state)
-    if (!settings.store.enabled || !isPluginActive) {
+    if (!settings.store.isEnabled || !isPluginActive) {
         return;
     }
 
@@ -291,7 +291,7 @@ export default definePlugin({
         log("🚀 Abbreviation plugin started");
 
         // Reset active state
-        isPluginActive = settings.store.enabled;
+        isPluginActive = settings.store.isEnabled;
 
         const abbreviations = getAllAbbreviations();
         log(`📚 ${abbreviations.size} abbreviations loaded`);

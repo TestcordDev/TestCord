@@ -165,7 +165,7 @@ const languageKeywords: Record<string, string[]> = {
 };
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable or disable automatic blocking",
         default: true,
@@ -229,7 +229,7 @@ function detectLanguage(content: string, lang: string, minMatches: number): bool
 }
 
 const handleMessage = (payload: any) => {
-    if (!settings.store.enabled) return;
+    if (!settings.store.isEnabled) return;
 
     const { message } = payload;
     if (!message?.content || !message?.author) return;

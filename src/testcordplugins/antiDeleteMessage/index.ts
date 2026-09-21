@@ -11,7 +11,7 @@ import definePlugin, { OptionType } from "@utils/types";
 import { Constants, React, RestAPI, UserStore } from "@webpack/common";
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable automatic message restoration (toggle with toolbar button)",
         default: true,
@@ -129,8 +129,8 @@ async function resendMessage(cached: CachedMessage) {
 }
 
 function AntiDeleteIcon({ size = 18 }: { size?: number; }) {
-    const { enabled } = settings.store;
-    const color = enabled ? "#3ba55c" : "#72767d";
+    const { isEnabled } = settings.store;
+    const color = isEnabled ? "#3ba55c" : "#72767d";
     return React.createElement("svg", { width: size, height: size, viewBox: "0 0 24 24", fill: color },
         React.createElement("path", { d: "M19.73 4.87l-1.52-1.52L12 9.43 5.79 3.35 4.27 4.87 10.41 11H2v2h20V9h-8.41l6.14-6.13zM4 15h16v2H4v-2z" })
     );
@@ -151,11 +151,11 @@ export default definePlugin({
         render() {
             return React.createElement(ChannelToolbarButton, {
                 icon: AntiDeleteIcon,
-                tooltip: settings.store.enabled ? "AntiDelete: ON (click to disable)" : "AntiDelete: OFF (click to enable)",
+                tooltip: settings.store.isEnabled ? "AntiDelete: ON (click to disable)" : "AntiDelete: OFF (click to enable)",
                 onClick: () => {
-                    settings.store.enabled = !settings.store.enabled;
+                    settings.store.isEnabled = !settings.store.isEnabled;
                 },
-                selected: settings.store.enabled
+                selected: settings.store.isEnabled
             });
         }
     },
@@ -173,7 +173,7 @@ export default definePlugin({
             };
             guildId?: string;
         }) {
-            if (!settings.store.enabled) return;
+            if (!settings.store.isEnabled) return;
             if (!dbLoaded) return; // not ready yet
 
             const currentUser = UserStore.getCurrentUser();
@@ -199,7 +199,7 @@ export default definePlugin({
         },
 
         MESSAGE_DELETE({ id, channelId }: { id: string; channelId: string; }) {
-            if (!settings.store.enabled) return;
+            if (!settings.store.isEnabled) return;
 
             const cached = memCache[id];
             if (!cached) return;

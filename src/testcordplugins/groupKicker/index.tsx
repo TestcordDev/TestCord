@@ -22,7 +22,7 @@ import {
 } from "@webpack/common";
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable the GroupKicker plugin",
         default: true,
@@ -103,7 +103,7 @@ async function kickUserFromGroup(
 
 // Main function to kick all members from a group
 async function kickAllMembers(channelId: string) {
-    if (!settings.store.enabled) {
+    if (!settings.store.isEnabled) {
         log("Plugin disabled", "warn");
         return;
     }

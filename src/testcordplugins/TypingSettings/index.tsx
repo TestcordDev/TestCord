@@ -415,8 +415,6 @@ function applyCaretPosition() {
 }
 
 let observer: MutationObserver | null = null;
-let scanQueued = false;
-let scanFrame: number | null = null;
 let caretQueued = false;
 let caretFrame: number | null = null;
 
@@ -462,13 +460,7 @@ function observeEditor() {
 
 function startObserver() {
     observer = new MutationObserver(() => {
-        if (scanQueued) return;
-        scanQueued = true;
-        scanFrame = requestAnimationFrame(() => {
-            scanFrame = null;
-            scanQueued = false;
-            if (observer) applyCaretPosition();
-        });
+        scheduleApplyCaretPosition();
     });
 }
 
@@ -476,15 +468,10 @@ function stopObserver() {
     observer?.disconnect();
     observer = null;
     observedEditor = null;
-    if (scanFrame !== null) {
-        cancelAnimationFrame(scanFrame);
-        scanFrame = null;
-    }
     if (caretFrame !== null) {
         cancelAnimationFrame(caretFrame);
         caretFrame = null;
     }
-    scanQueued = false;
     caretQueued = false;
 }
 

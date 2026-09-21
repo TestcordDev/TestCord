@@ -18,7 +18,7 @@ import { ChannelStore, Menu, RestAPI, showToast, Toasts, UserStore } from "@webp
 const PrivateChannelSortStore = findStoreLazy("PrivateChannelSortStore") as { getPrivateChannelIds: () => string[]; };
 
 const settings = definePluginSettings({
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         description: "Enable the LeaveAllGroups plugin",
         default: true
@@ -119,7 +119,7 @@ function getAllGroups(): Channel[] {
 
 // Main function to leave all groups
 async function leaveAllGroups() {
-    if (!settings.store.enabled) {
+    if (!settings.store.isEnabled) {
         log("Plugin disabled", "warn");
         return;
     }
@@ -240,7 +240,7 @@ async function leaveAllGroups() {
 
 // Context menu for groups
 const GroupContextMenuPatch: NavContextMenuPatchCallback = (children, { channel }: { channel: Channel; }) => {
-    if (!settings.store.enabled) return;
+    if (!settings.store.isEnabled) return;
 
     // Check that it's a group DM
     if (channel?.type !== 3) return;
@@ -261,7 +261,7 @@ const GroupContextMenuPatch: NavContextMenuPatchCallback = (children, { channel 
 
 // Context menu for servers (global access)
 const ServerContextMenuPatch: NavContextMenuPatchCallback = (children, props) => {
-    if (!settings.store.enabled) return;
+    if (!settings.store.isEnabled) return;
 
     const group = findGroupChildrenByChildId("privacy", children);
 
@@ -279,7 +279,7 @@ const ServerContextMenuPatch: NavContextMenuPatchCallback = (children, props) =>
 
 // Context menu for users (access from profile)
 const UserContextMenuPatch: NavContextMenuPatchCallback = (children, props) => {
-    if (!settings.store.enabled) return;
+    if (!settings.store.isEnabled) return;
 
     const container = findGroupChildrenByChildId("block", children) || findGroupChildrenByChildId("remove-friend", children);
 

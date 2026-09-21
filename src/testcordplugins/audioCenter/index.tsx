@@ -23,7 +23,7 @@ const configModule = findByPropsLazy("getOutputVolume");
 
 const settings = definePluginSettings({
     // Audio mixer settings
-    enabled: {
+    isEnabled: {
         type: OptionType.BOOLEAN,
         default: false,
         description: "Enable audio center",
