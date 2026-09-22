@@ -17,9 +17,9 @@ export default definePlugin({
         {
             find: "unknownUserMentionPlaceholder:",
             replacement: {
-                // SimpleEmbedTypes.has(embed.type) && isEmbedInline(embed)
-                match: /\i\.has\(\i\.type\)&&\(0,\i\.\i\)\(\i\)/,
-                replace: "false",
+                // hide content when the message is only a simple (image/gif) embed link: cond ? [] : content
+                match: /\(0,\i\.\i\)\(\i\)&&\(0,\i\.\i\)\(\(0,\i\.\i\)\(\i,\i\)\)\?\[]:(\i)/,
+                replace: "$1",
             }
         }
     ]
