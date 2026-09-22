@@ -639,47 +639,6 @@ function buildCSS(): string {
         .panellayout-scrollbar { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thin-thumb, var(--background-tertiary, var(--background-surface-highest))) transparent; }
     `);
 
-    lines.push(`
-        [title="Soundboard disabled when deafened"] *,
-        [title="Open Soundboard"] *,
-        [title="User Settings"] *,
-        [title="Deafen"] *,
-        [title="Mute"] * {
-            fill: var(--background-brand);
-        }
-
-        [title="Soundboard disabled when deafened"] [stroke="rgb(88,101,242)"],
-        [title="Open Soundboard"] [stroke="rgb(88,101,242)"],
-        [title="User Settings"] [stroke="rgb(88,101,242)"],
-        [title="Deafen"] [stroke="rgb(88,101,242)"],
-        [title="Mute"] [stroke="rgb(88,101,242)"] {
-            stroke: var(--background-brand);
-        }
-    `);
-    const iconColor = getTestcordIconColor("userAreaButtonIconColor");
-    if (iconColor || st.forceNativeButtonColor) {
-        const color = iconColor ?? ICON_COLOR_FALLBACK;
-        lines.push(`
-            ${S.panelContainer} { --vc-plugin-icon-color: ${color}; }
-
-            [title="Soundboard disabled when deafened"] *,
-            [title="Open Soundboard"] *,
-            [title="User Settings"] *,
-            [title="Deafen"] *,
-            [title="Mute"] * {
-                fill: currentColor;
-            }
-
-            [title="Soundboard disabled when deafened"] [stroke="rgb(88,101,242)"],
-            [title="Open Soundboard"] [stroke="rgb(88,101,242)"],
-            [title="User Settings"] [stroke="rgb(88,101,242)"],
-            [title="Deafen"] [stroke="rgb(88,101,242)"],
-            [title="Mute"] [stroke="rgb(88,101,242)"] {
-                stroke: currentColor;
-            }
-        `);
-    }
-
     lines.push(`${S.panelContainer} { height: auto !important; min-height: unset !important; }`);
 
     lines.push(`
@@ -688,6 +647,8 @@ function buildCSS(): string {
             color: var(--interactive-normal, var(--interactive-text-default)) !important; fill: currentColor !important;
         }
     `);
+
+    const iconColor = getTestcordIconColor("userAreaButtonIconColor");
 
     lines.push(`
         ${(iconColor || st.forceNativeButtonColor) ? (() => {
@@ -1704,7 +1665,6 @@ function ButtonsDragTab() {
                                                 transition: "opacity 0.1s ease, transform 0.1s ease",
                                                 userSelect: "none",
                                             }}
-                                            className="icon-color-fix"
                                             title={item.label}
                                         >
                                             {isOver && (
