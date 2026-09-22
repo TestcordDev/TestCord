@@ -5,6 +5,9 @@
  */
 
 import { ApplicationCommandInputType, sendBotMessage } from "@api/Commands";
+import { decoratorsFactories, MemberListDecoratorFactory } from "@api/MemberListDecorators";
+import { accessories, MessageAccessoryFactory } from "@api/MessageAccessories";
+import { decorationsFactories, MessageDecorationFactory } from "@api/MessageDecorations";
 import { PluginHealth } from "@api/PluginHealth";
 import { isPluginEnabled, isPluginRequired, plugins as Plugins, pluginStartTimings, startPlugin, stopPlugin } from "@api/PluginManager";
 import { RuntimeInterposition, RuntimeInterpositionPriority } from "@api/RuntimeInterposition";
@@ -46,6 +49,31 @@ let crashGuardsActive = false;
 function crashRejectionHandler(e: PromiseRejectionEvent) {
     e.preventDefault();
     logger.warn("Suppressed unhandled promise rejection:", e.reason);
+}
+
+let contentVisibilityStyleEl: HTMLStyleElement | null = null;
+
+function installContentVisibility() {
+    if (contentVisibilityStyleEl) return;
+    contentVisibilityStyleEl = document.createElement("style");
+    contentVisibilityStyleEl.id = "vc-tc-content-visibility";
+    // Skip rendering/painting offscreen message rows. contain-intrinsic-size gives
+    // the browser a height estimate so the scrollbar stays stable until real height is known.
+    contentVisibilityStyleEl.textContent = [
+        "[class*=\"messageListItem_\"] {",
+        "  content-visibility: auto;",
+        "  contain-intrinsic-size: auto 5rem;",
+        "}",
+    ].join("\n");
+    document.head.appendChild(contentVisibilityStyleEl);
+    logger.info("Content-visibility optimization enabled.");
+}
+
+function uninstallContentVisibility() {
+    if (!contentVisibilityStyleEl) return;
+    contentVisibilityStyleEl.remove();
+    contentVisibilityStyleEl = null;
+    logger.info("Content-visibility optimization disabled.");
 }
 
 function installCrashGuards() {
@@ -454,6 +482,78 @@ function uninstallDebugInstrumentation() {
     handlerWrappers.clear();
     channelSwitchStart = 0;
     logger.info("Debug instrumentation removed.");
+}
+
+const renderStats = new Map<string, { count: number; totalMs: number; maxMs: number; }>();
+// Original render functions keyed by "kind:identifier" so we can restore them.
+const renderOriginals = new Map<string, MessageAccessoryFactory | MessageDecorationFactory | MemberListDecoratorFactory>();
+let renderInstrumented = false;
+
+function recordRender(key: string, dt: number) {
+    const stat = renderStats.get(key) ?? { count: 0, totalMs: 0, maxMs: 0 };
+    stat.count++;
+    stat.totalMs += dt;
+    stat.maxMs = Math.max(stat.maxMs, dt);
+    renderStats.set(key, stat);
+}
+
+function wrapRenderFn<T extends (...args: any[]) => any>(key: string, fn: T): T {
+    return function (this: any, ...args: any[]) {
+        const t0 = performance.now();
+        try {
+            return fn.apply(this, args);
+        } finally {
+            recordRender(key, performance.now() - t0);
+        }
+    } as T;
+}
+
+function installRenderInstrumentation() {
+    if (renderInstrumented) return;
+    renderInstrumented = true;
+
+    // Message accessories: Map<string, { render, position }>
+    for (const [id, accessory] of accessories) {
+        const key = `accessory:${id}`;
+        renderOriginals.set(key, accessory.render);
+        accessory.render = wrapRenderFn(key, accessory.render);
+    }
+
+    // Message decorations: Map<string, factory>
+    for (const [id, factory] of decorationsFactories) {
+        const key = `msgDecoration:${id}`;
+        renderOriginals.set(key, factory);
+        decorationsFactories.set(id, wrapRenderFn(key, factory));
+    }
+
+    // Member list decorators: Map<string, { render, onlyIn }>
+    for (const [id, decorator] of decoratorsFactories) {
+        const key = `memberDecorator:${id}`;
+        renderOriginals.set(key, decorator.render);
+        decorator.render = wrapRenderFn(key, decorator.render);
+    }
+
+    logger.info("Render instrumentation installed on", renderOriginals.size, "render functions.");
+}
+
+function uninstallRenderInstrumentation() {
+    for (const [key, fn] of renderOriginals) {
+        const sep = key.indexOf(":");
+        const kind = key.slice(0, sep);
+        const id = key.slice(sep + 1);
+        if (kind === "accessory") {
+            const a = accessories.get(id);
+            if (a) a.render = fn as MessageAccessoryFactory;
+        } else if (kind === "msgDecoration") {
+            decorationsFactories.set(id, fn as MessageDecorationFactory);
+        } else if (kind === "memberDecorator") {
+            const d = decoratorsFactories.get(id);
+            if (d) d.render = fn as MemberListDecoratorFactory;
+        }
+    }
+    renderOriginals.clear();
+    renderStats.clear();
+    renderInstrumented = false;
 }
 
 interface ProfileTheme {
@@ -1682,6 +1782,7 @@ function handleLiveFixRequest(req: LiveFixRequest): any {
             case "reset": {
                 dispatchStats.clear();
                 recentSlowEvents.length = 0;
+                renderStats.clear();
                 channelSwitchStart = 0;
                 return { id, ok: true };
             }

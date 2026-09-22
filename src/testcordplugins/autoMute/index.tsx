@@ -90,7 +90,7 @@ const settings = definePluginSettings({
     }
 });
 
-const AUTO_MUTE_KEYS = ["isEnabled", "timeout", "nonFriendJoinsChannel"];
+const AUTO_MUTE_KEYS = ["isEnabled", "timeout", "nonFriendJoinsChannel"] as const;
 
 const AudioDeviceContextMenuPatch: NavContextMenuPatchCallback = (children, props: { renderInputVolume?: boolean; }) => {
     const { isEnabled } = settings.store;

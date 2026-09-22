@@ -107,6 +107,7 @@ export default definePlugin({
         },
         {
             find: "#{intl::MESSAGE_ACTION_FORWARD_TO}",
+            noWarn: true,
             replacement: [
                 {
                     match: /(?<=hasContextMessage:null!=(\i)&&.{100,150}?let (\i)=.{0,25}rejected.{0,25}\);)(?=.{0,25}message:(\i))/,

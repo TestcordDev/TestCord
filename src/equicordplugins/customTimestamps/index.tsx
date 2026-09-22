@@ -24,6 +24,7 @@ let tickInterval: ReturnType<typeof setInterval> | null = null;
 function ensureTicker() {
     if (tickInterval !== null) return;
     tickInterval = setInterval(() => {
+        formatCache.clear();
         for (const cb of tickListeners) try { cb(); } catch { }
     }, 1000);
 }
@@ -46,6 +47,12 @@ function useGlobalTick(enabled: boolean) {
     }, [enabled]);
 }
 
+// Output is identical for every timestamp in the same second with the same
+// template, so cache by second + template. Cleared each tick. Bounded so a
+// scrollback of distinct timestamps can't grow it without limit.
+const formatCache = new Map<string, string>();
+const FORMAT_CACHE_MAX = 512;
+
 type TimeFormat = {
     name: string;
     description: string;
@@ -60,18 +67,19 @@ type TimeRowProps = {
 };
 
 const format = (date: Date, formatTemplate: string): string => {
-    const mmt = moment(date);
+    const second = Math.floor(date.getTime() / 1000);
+    const key = `${second}|${formatTemplate}`;
+    const cached = formatCache.get(key);
+    if (cached !== undefined) return cached;
 
-    moment.relativeTimeThreshold("s", 60);
-    moment.relativeTimeThreshold("ss", -1);
-    moment.relativeTimeThreshold("m", 60);
+    const mmt = moment(date);
 
     const sameDayFormat = settings.store?.formats?.sameDayFormat || timeFormats.sameDayFormat.default;
     const lastDayFormat = settings.store?.formats?.lastDayFormat || timeFormats.lastDayFormat.default;
     const lastWeekFormat = settings.store?.formats?.lastWeekFormat || timeFormats.lastWeekFormat.default;
     const sameElseFormat = settings.store?.formats?.sameElseFormat || timeFormats.sameElseFormat.default;
 
-    return mmt.format(formatTemplate)
+    const out = mmt.format(formatTemplate)
         .replace("calendar", () => mmt.calendar(moment(), {
             sameDay: sameDayFormat,
             lastDay: lastDayFormat,
@@ -79,6 +87,13 @@ const format = (date: Date, formatTemplate: string): string => {
             sameElse: sameElseFormat
         }))
         .replace("relative", () => mmt.fromNow());
+
+    if (formatCache.size >= FORMAT_CACHE_MAX) {
+        const oldest = formatCache.keys().next().value;
+        if (oldest !== undefined) formatCache.delete(oldest);
+    }
+    formatCache.set(key, out);
+    return out;
 };
 
 const TimeRow = (props: TimeRowProps) => {
@@ -199,6 +214,21 @@ export default definePlugin({
             }
         }
     ],
+
+    start() {
+        moment.relativeTimeThreshold("s", 60);
+        moment.relativeTimeThreshold("ss", -1);
+        moment.relativeTimeThreshold("m", 60);
+    },
+
+    stop() {
+        if (tickInterval !== null) {
+            clearInterval(tickInterval);
+            tickInterval = null;
+        }
+        tickListeners.clear();
+        formatCache.clear();
+    },
 
     renderTimestamp: (date: Date, type: "cozy" | "compact" | "tooltip" | "ariaLabel") => {
         let formatTemplate: string;

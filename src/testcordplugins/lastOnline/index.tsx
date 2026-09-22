@@ -288,7 +288,6 @@ export default definePlugin({
 
         let text: string;
         if (presenceStatus.lastOffline === null) {
-            // Online now
             text = "now";
         } else {
             const formattedTime = formatTime(presenceStatus.lastOffline);

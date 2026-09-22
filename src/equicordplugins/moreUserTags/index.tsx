@@ -78,6 +78,24 @@ export default definePlugin({
             }
         }
     ],
+    flux: {
+        // Role changes affect permissions guild-wide, so a full clear is warranted.
+        // These are rare compared to message/channel sync events.
+        GUILD_ROLE_UPDATE() { permCache.clear(); },
+        GUILD_ROLE_CREATE() { permCache.clear(); },
+        GUILD_ROLE_DELETE() { permCache.clear(); },
+        // A single member's roles changed: drop only that member's cached entries.
+        GUILD_MEMBER_UPDATE({ member }: { member?: { userId?: string; }; }) {
+            const userId = member?.userId;
+            if (userId == null) return;
+            for (const key of permCache.keys()) {
+                if (key.startsWith(`${userId}:`)) permCache.delete(key);
+            }
+        },
+    },
+    stop() {
+        permCache.clear();
+    },
     start() {
         const tagSettings = settings.store.tagSettings || {} as TagSettings;
         for (const tag of Object.values(tags)) {
@@ -164,6 +182,7 @@ export default definePlugin({
         if (!channel) return null;
 
         const perms = this.getPermissions(user, channel);
+        const isGuildOwner = GuildStore.getGuild(channel?.guild_id)?.ownerId === user.id;
 
         for (const tag of tags) {
             if (isChat && !settings.tagSettings[tag.name]?.showInChat)
@@ -175,12 +194,10 @@ export default definePlugin({
             // avoid adding other tags because the owner will always match the condition for them
             if (
                 (tag.name !== "OWNER" &&
-                    GuildStore.getGuild(channel?.guild_id)?.ownerId ===
-                    user.id &&
+                    isGuildOwner &&
                     isChat &&
                     !settings.tagSettings.OWNER.showInChat) ||
-                (GuildStore.getGuild(channel?.guild_id)?.ownerId ===
-                    user.id &&
+                (isGuildOwner &&
                     !isChat &&
                     !settings.tagSettings.OWNER.showInNotChat)
             )

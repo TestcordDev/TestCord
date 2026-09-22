@@ -298,8 +298,8 @@ export default definePlugin({
             predicate: () => settings.store.showFriendsSection,
             noWarn: true,
             replacement: {
-                match: /subText:\s*\(0,\s*([A-Za-z0-9_$]+)\.jsx\)\(\s*([A-Za-z0-9_$]+\.[A-Za-z0-9_$]+)\s*,\s*\{([\s\S]*?)\}\s*\)/,
-                replace: 'subText:(window.__typingUsers?.has(e.id)?(0,$1.jsx)("div",{children:"Typing in "+window.__typingUsers.get(e.id)}):(0,$1.jsx)($2,{$3}))'
+                match: /subText:(\(0,(\i)\.jsxs?\)\(\i\.Fragment,\{children:\[\(0,\i\.jsx\)\(\i,\{hovered:\i,activities:\i,applicationStream:\i,status:\i,user:(\i),.{0,320}?)(?=,hovered:\i,showAccountIdentifier)/,
+                replace: 'subText:(window.__typingUsers?.has($3.id)?(0,$2.jsx)("div",{children:"Typing in "+window.__typingUsers.get($3.id)}):$1)'
             }
         },
         {

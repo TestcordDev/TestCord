@@ -547,11 +547,5 @@ export default definePlugin({
         "guild-header-popout": guildContextPatch
     },
 
-    renderMessageAccessory: props => {
-        if (!(props.message as any).__vaAnalyzed) {
-            (props.message as any).__vaAnalyzed = true;
-            autoAnalyzeMessage(props.message);
-        }
-        return <AnalysisAccessory message={props.message} />;
-    },
+    renderMessageAccessory: props => <AnalysisAccessory message={props.message} />,
 });

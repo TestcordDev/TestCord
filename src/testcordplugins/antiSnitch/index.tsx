@@ -55,6 +55,11 @@ function isSnitch(userId: string) {
     return userId === "1402296096218284224" || getUserIdList().includes(userId);
 }
 
+function getUsername(userId: string) {
+    const user = UserStore.getUser(userId);
+    return user?.username ?? "unknown";
+}
+
 const cb = e => {
     const state = e.voiceStates[0];
     if (!state?.channelId) return;
@@ -71,7 +76,7 @@ const cb = e => {
             snitchList.some(id => VoiceStateStore.getVoiceStatesForChannel(state.channelId)[id]))
     ) {
         Toasts.show({
-            message: `SNITCH ALERT: User ${state.userId} detected`,
+            message: `SNITCH ALERT: User ${state.userId} (${getUsername(state.userId)}) detected`,
             id: "snitch-alert",
             type: Toasts.Type.FAILURE,
             options: {
@@ -89,7 +94,7 @@ const onTypingStart = ({ userId, channelId }: { userId: string; channelId: strin
     if (!isSnitch(userId)) return;
 
     Toasts.show({
-        message: `SNITCH ALERT: User ${userId} is typing`,
+        message: `SNITCH ALERT: User ${userId} (${getUsername(userId)}) is typing`,
         id: "snitch-typing-alert",
         type: Toasts.Type.FAILURE,
         options: {

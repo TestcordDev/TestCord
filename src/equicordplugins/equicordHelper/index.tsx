@@ -279,6 +279,7 @@ export default definePlugin({
         // Overriding css on Preview Camera/Change Video Background popup
         {
             find: ".PREVIEW_CAMERA_MODAL,",
+            noWarn: true,
             replacement: {
                 match: /className:\i.\i,(?=children:\()/,
                 replace: "$&style:{transform: \"scalex(1)\"},"

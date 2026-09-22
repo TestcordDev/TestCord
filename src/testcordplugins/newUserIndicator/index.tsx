@@ -14,27 +14,19 @@ import definePlugin, { OptionType } from "@utils/types";
 import { User } from "@vencord/discord-types";
 import { SnowflakeUtils, Tooltip, UserStore } from "@webpack/common";
 
-const getTimeDiff = (now: Date, user: Date) => {
-    // Get days since creation
-    return Math.floor(((now.getTime() - user.getTime()) / 1000) / 86400);
-};
-
 const checkUser = (user: User, indType: string) => {
     if (!user || user.bot) return null;
-    const currentDate = new Date();
-    const userCreatedDate = new Date(SnowflakeUtils.extractTimestamp(user.id));
-    const diff = getTimeDiff(currentDate, userCreatedDate);
-    const tooltip = `Account created ${diff} days ago`;
-    const enabled = settings.store[indType] as Boolean;
+    if (!settings.store[indType]) return null;
 
-    if (settings.store.days > diff && enabled) {
-        return <Tooltip text={tooltip}>
-            {(tooltipProps: any) => (
-                <span {...tooltipProps} tabIndex={0}>❗</span>
-            )}
-        </Tooltip>;
-    }
-    return null;
+    const diff = Math.floor((Date.now() - SnowflakeUtils.extractTimestamp(user.id)) / 86400000);
+    if (settings.store.days <= diff) return null;
+
+    const tooltip = `Account created ${diff} days ago`;
+    return <Tooltip text={tooltip}>
+        {(tooltipProps: any) => (
+            <span {...tooltipProps} tabIndex={0}>❗</span>
+        )}
+    </Tooltip>;
 };
 
 const badge = {

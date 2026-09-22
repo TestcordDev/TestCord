@@ -8,6 +8,7 @@ import { SafetyIcon } from "@components/Icons";
 import { Message } from "@vencord/discord-types";
 import { useEffect, useMemo, useState } from "@webpack/common";
 
+import { autoAnalyzeMessage } from "./autoAnalyze";
 import { extractDomain, flagDomain } from "./threatStore";
 import { AnalysisValue, cl, pruneMap } from "./utils";
 
@@ -159,6 +160,9 @@ export function AnalysisAccessory({ message }: { message: Message; }) {
         AnalysisSetters.set(message.id, setAnalysis);
         // clear any results that showed up too early
         flushPending(message.id, setAnalysis);
+        // Trigger analysis for scrollback messages that never fired MESSAGE_CREATE.
+        // autoAnalyzeMessage dedupes via its own TTL map, so repeat mounts are cheap.
+        autoAnalyzeMessage(message);
         return () => void AnalysisSetters.delete(message.id);
     }, [message.id]);
 
