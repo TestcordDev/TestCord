@@ -168,7 +168,7 @@ export const settings = defineModuleSettings("MusicControls", {
         default: true,
     },
     showFailedToasts: {
-        description: "Hide toasts when lyrics fail to fetch",
+        description: "Show toasts when lyrics fail to fetch",
         type: OptionType.BOOLEAN,
         default: true,
     },

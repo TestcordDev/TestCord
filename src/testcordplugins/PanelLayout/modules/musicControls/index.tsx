@@ -344,8 +344,8 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 onChange={v => { settings.store.fallbackProvider = v; forceUpdate(); }}
                             />
                             <FormSwitch
-                                title="Hide Toast on Missing Lyrics"
-                                description="Do not show a toast notification when lyrics cannot be found."
+                                title="Show Toast on Missing Lyrics"
+                                description="Show a toast notification when lyrics cannot be found."
                                 value={s.showFailedToasts}
                                 onChange={v => { settings.store.showFailedToasts = v; forceUpdate(); }}
                             />
@@ -384,7 +384,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 </Paragraph>
                                 <Slider
                                     markers={makeRange(-2500, 2500, 250)}
-                                    initialValue={settings.store.lyricDelay ?? 9}
+                                    initialValue={settings.store.lyricDelay}
                                     stickToMarkers={true}
                                     onValueChange={v => { settings.store.lyricDelay = Math.round(v); forceUpdate(); }}
                                 />
@@ -405,7 +405,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 </Paragraph>
                                 <Input
                                     placeholder={"sl_sk_... or sl_pk_..."}
-                                    initialValue={settings.store.spicyLyricsApiKey ?? ""}
+                                    initialValue={settings.store.spicyLyricsApiKey}
                                     onChange={v => { settings.store.spicyLyricsApiKey = v; forceUpdate(); }}
                                 />
                             </div>
