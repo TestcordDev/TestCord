@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { loadLazyChunks } from "@debug/loadLazyChunks";
 import { User } from "@vencord/discord-types";
 import { ChannelStore, GuildMemberStore, IconUtils } from "@webpack/common";
 
@@ -173,3 +174,5 @@ export function getUserAvatarUrl(user: User, guildId?: string, canAnimate?: bool
 
 // this is all the way down here because i dont feel like dealing with conflicts
 export const pluralize = pluralise;
+
+export { loadLazyChunks };

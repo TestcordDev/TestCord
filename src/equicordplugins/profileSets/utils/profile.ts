@@ -60,9 +60,17 @@ function openProfileImagePreview(
     image: Extract<ImageInput, { imageUri: string; }>,
     guildId?: string
 ) {
+    const mimeType = /^data:([^;,]+)/.exec(image.imageUri)?.[1] ?? "";
     dispatch("PROFILE_CUSTOMIZATION_OPEN_PREVIEW_MODAL", {
-        image,
-        file: {},
+        pendingImage: {
+            assetOrigin: "NEW_ASSET",
+            imageUri: image.imageUri,
+            staticImageUri: undefined,
+            description: image.description,
+            originalAsset: undefined,
+            originalMd5: null
+        },
+        file: { type: mimeType },
         uploadType,
         guildId,
         analyticsSource: guildId ? "user settings guild profile" : "user settings user profile",
