@@ -22,7 +22,7 @@ import { LanguageSelectionModal } from "./LanguageSelectionModal";
 const ChannelListIcon = findComponentByCodeLazy("1-1-1ZM2 8a1");
 
 export function VoiceMessageButton({ src }: { src: string; }) {
-    const { embed, maintainHorizontal, quantized, selectedModel } = settings.use(["embed", "maintainHorizontal", "quantized", "selectedModel"]);
+    const { embed, maintainHorizontal, quantized, selectedModel, useGpu } = settings.use(["embed", "maintainHorizontal", "quantized", "selectedModel", "useGpu"]);
     const [isOpen, setIsOpen] = useState(false);
     const [status, setStatus] = useState<string>("idle");
     const [result, setResult] = useState<TranscriptionResult | null>(null);
@@ -98,13 +98,12 @@ export function VoiceMessageButton({ src }: { src: string; }) {
                 }
             );
 
-            workerRef.current.run(
-                audioData,
-                selectedModel,
+            workerRef.current.run(audioData, {
+                model: selectedModel,
                 quantized,
-                undefined,
-                "transcribe"
-            );
+                useGpu,
+                task: "transcribe"
+            });
         } catch (err) {
             if (runId === activeRunId.current) {
                 setError(String(err));

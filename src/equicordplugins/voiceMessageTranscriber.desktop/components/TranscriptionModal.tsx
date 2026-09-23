@@ -63,14 +63,14 @@ export function TranscriptionModal(props: { modalProps: RenderModalProps, src: s
                     }
                 );
 
-                const { quantized, selectedModel } = settings.store;
-                workerRef.current.run(
-                    audioData,
-                    selectedModel,
+                const { quantized, selectedModel, useGpu } = settings.store;
+                workerRef.current.run(audioData, {
+                    model: selectedModel,
                     quantized,
-                    options.language === "auto" ? undefined : options.language,
-                    options.task
-                );
+                    useGpu,
+                    language: options.language === "auto" ? undefined : options.language,
+                    task: options.task
+                });
             } catch (err) {
                 if (active) {
                     setError(String(err));

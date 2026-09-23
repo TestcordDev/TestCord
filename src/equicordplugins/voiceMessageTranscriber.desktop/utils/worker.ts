@@ -4,19 +4,22 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { DataStore } from "@api/index";
-import { lodash } from "@webpack/common";
+import { cacheFile, getCachedFile } from "./cache";
 
 const workerCode = `
-import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
+import { pipeline, env, Tensor, WhisperTextStreamer } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js';
+
+const CHUNK_LENGTH_S = 30;
+const STRIDE_LENGTH_S = 5;
 
 env.allowLocalModels = false;
 env.useBrowserCache = false;
+env.useWasmCache = false;
 
 const pendingRequests = new Map();
 
 self.addEventListener('message', (event) => {
-    const { type, id, response, error, headers } = event.data;
+    const { type, id, response, status, error, headers } = event.data;
 
     if (type === 'fetch_response') {
         const resolver = pendingRequests.get(id);
@@ -25,10 +28,10 @@ self.addEventListener('message', (event) => {
             if (error) {
                 resolver.reject(new Error(error));
             } else {
-                const res = new Response(response, {
+                resolver.resolve(new Response(response ?? null, {
+                    status: status ?? 200,
                     headers: headers || { 'Content-Type': 'application/octet-stream' }
-                });
-                resolver.resolve(res);
+                }));
             }
         }
     } else if (type === 'run') {
@@ -36,20 +39,40 @@ self.addEventListener('message', (event) => {
     }
 });
 
-const originalFetch = globalThis.fetch;
-globalThis.fetch = async (input, init) => {
-    const url = input.toString();
-    if (url.includes('huggingface.co') || url.includes('cdn.jsdelivr.net')) {
-         const id = Math.random().toString(36).substring(7);
-         return new Promise((resolve, reject) => {
-             pendingRequests.set(id, { resolve, reject });
-             self.postMessage({ type: 'fetch_request', url, id });
-         });
+const originalFetch = globalThis.fetch.bind(globalThis);
+function proxyFetch(input, init) {
+    const url = input instanceof Request ? input.url : input.toString();
+    if (!url.startsWith('https://huggingface.co/') && !url.startsWith('https://cdn.jsdelivr.net/')) {
+        return originalFetch(input, init);
     }
-    return originalFetch(input, init);
-};
+    const id = Math.random().toString(36).substring(7);
+    return new Promise((resolve, reject) => {
+        pendingRequests.set(id, { resolve, reject });
+        self.postMessage({ type: 'fetch_request', url, id });
+    });
+}
+env.fetch = proxyFetch;
+globalThis.fetch = proxyFetch;
 
-let transcriber = null;
+async function supportsWebGpu() {
+    try {
+        const adapter = await navigator.gpu?.requestAdapter();
+        return !!adapter?.features.has('shader-f16');
+    } catch {
+        return false;
+    }
+}
+
+async function loadTranscriber(model, quantized, useGpu) {
+    if (useGpu && await supportsWebGpu()) {
+        try {
+            return await pipeline('automatic-speech-recognition', model, { device: 'webgpu', dtype: 'fp16' });
+        } catch (e) {
+            console.warn('[VoiceMessageTranscriber] WebGPU failed, falling back to CPU', e);
+        }
+    }
+    return pipeline('automatic-speech-recognition', model, { device: 'wasm', dtype: quantized ? 'q8' : 'fp32' });
+}
 
 async function compressionRatio(text) {
     const bytes = new TextEncoder().encode(text);
@@ -58,70 +81,73 @@ async function compressionRatio(text) {
     return bytes.length / compressed.byteLength;
 }
 
-async function runTranscription({ audio, model, quantized, language, task }) {
+let transcriber = null;
+
+// transformers.js has no language detection and falls back to english, which translates everything else
+async function detectLanguage(audio) {
+    const { input_features } = await transcriber.processor(audio.subarray(0, 16000 * CHUNK_LENGTH_S));
+    const { decoder_start_token_id, lang_to_id } = transcriber.model.generation_config;
+    const decoder_input_ids = new Tensor('int64', [BigInt(decoder_start_token_id)], [1, 1]);
+    let { logits } = await transcriber.model({ input_features, decoder_input_ids });
+    if (logits.type !== 'float32') logits = logits.to('float32');
+
+    let best = null;
+    let bestScore = -Infinity;
+    for (const [token, id] of Object.entries(lang_to_id)) {
+        if (logits.data[id] > bestScore) {
+            bestScore = logits.data[id];
+            best = token.slice(2, -2);
+        }
+    }
+    return best;
+}
+
+async function runTranscription({ audio, model, quantized, useGpu, language, task }) {
     try {
         if (!transcriber) {
             self.postMessage({ type: 'status', status: 'loading' });
-            transcriber = await pipeline('automatic-speech-recognition', model, {
-                quantized: quantized,
-                progress_callback: (data) => {
-                    self.postMessage({ type: 'progress', data });
-                }
-            });
+            transcriber = await loadTranscriber(model, quantized, useGpu);
         }
 
         self.postMessage({ type: 'status', status: 'transcribing' });
 
+        language ??= await detectLanguage(audio);
+
         const time_precision =
             transcriber.processor.feature_extractor.config.chunk_length /
             transcriber.model.config.max_source_positions;
-
-        let chunks_to_process;
-
-        function chunk_callback(chunk) {
-            let last = chunks_to_process[chunks_to_process.length - 1];
-
-            Object.assign(last, chunk);
-            last.finalised = true;
-
-            if (!chunk.is_last) {
-                chunks_to_process.push({
-                    tokens: [],
-                    finalised: false,
-                });
-            }
-        }
-
-        function callback_function(item) {
-            let last = chunks_to_process[chunks_to_process.length - 1];
-
-            last.tokens = [...item[0].output_token_ids];
-
-            let data = transcriber.tokenizer._decode_asr(chunks_to_process, {
-                time_precision: time_precision,
-                return_timestamps: true,
-                force_full_sequences: false,
-            });
-
-            self.postMessage({
-                type: 'partial',
-                output: {
-                    text: data[0],
-                    chunks: data[1].chunks
-                }
-            });
-        }
+        const windowStep = CHUNK_LENGTH_S - 2 * STRIDE_LENGTH_S;
 
         async function transcribe(extraOptions) {
-            chunks_to_process = [{ tokens: [], finalised: false }];
+            let text = '';
+            const chunks = [];
+            let windowIndex = 0;
+
+            const streamer = new WhisperTextStreamer(transcriber.tokenizer, {
+                time_precision,
+                skip_prompt: true,
+                on_chunk_start: time => {
+                    chunks.push({ timestamp: [windowIndex * windowStep + time, null], text: '' });
+                },
+                callback_function: piece => {
+                    text += piece;
+                    if (chunks.length) chunks[chunks.length - 1].text += piece;
+                    self.postMessage({ type: 'partial', output: { text, chunks } });
+                },
+                on_chunk_end: time => {
+                    if (chunks.length) chunks[chunks.length - 1].timestamp[1] = windowIndex * windowStep + time;
+                },
+                on_finalize: () => {
+                    windowIndex++;
+                }
+            });
+
             return transcriber(audio, {
-                top_k: 0,
                 do_sample: false,
-                chunk_length_s: 30,
-                stride_length_s: 5,
+                chunk_length_s: CHUNK_LENGTH_S,
+                stride_length_s: STRIDE_LENGTH_S,
                 return_timestamps: true,
-                callback_function,
-                chunk_callback,
+                streamer,
                 language,
                 task: task === "translate" ? "translate" : undefined,
                 ...extraOptions
@@ -190,35 +216,27 @@ export class TranscriptionWorker {
         switch (type) {
             case "fetch_request":
                 try {
-                    const cachedData = await DataStore.get(`VoiceMessageTranscriber_${url}`);
-
-                    if (cachedData && lodash.isArrayBuffer(cachedData)) {
-                        this.worker.postMessage({
-                            type: "fetch_response",
-                            id,
-                            response: cachedData,
-                            headers: {
-                                "Content-Length": cachedData.byteLength.toString(),
-                                "Content-Type": this.getMimeType(url)
-                            }
-                        });
-                    } else {
+                    let data = await getCachedFile(url);
+                    if (!(data instanceof ArrayBuffer)) {
                         const res = await fetch(url);
-                        if (!res.ok) throw new Error("Failed to fetch " + url);
+                        if (!res.ok) {
+                            this.worker.postMessage({ type: "fetch_response", id, status: res.status });
+                            break;
+                        }
 
-                        const buffer = await res.arrayBuffer();
-                        await DataStore.set(`VoiceMessageTranscriber_${url}`, buffer);
-
-                        this.worker.postMessage({
-                            type: "fetch_response",
-                            id,
-                            response: buffer,
-                            headers: {
-                                "Content-Length": res.headers.get("Content-Length") || buffer.byteLength.toString(),
-                                "Content-Type": this.getMimeType(url)
-                            }
-                        });
+                        data = await res.arrayBuffer();
+                        await cacheFile(url, data);
                     }
+
+                    this.worker.postMessage({
+                        type: "fetch_response",
+                        id,
+                        response: data,
+                        headers: {
+                            "Content-Length": data.byteLength.toString(),
+                            "Content-Type": this.getMimeType(url)
+                        }
+                    }, [data]);
                 } catch (err) {
                     this.worker.postMessage({
                         type: "fetch_response",
@@ -242,15 +260,8 @@ export class TranscriptionWorker {
         }
     }
 
-    public run(audio: Float32Array, model: string, quantized: boolean = true, language?: string, task?: string) {
-        this.worker.postMessage({
-            type: "run",
-            audio,
-            model,
-            quantized,
-            language,
-            task
-        });
+    public run(audio: Float32Array, options: { model: string; quantized: boolean; useGpu: boolean; language?: string; task?: string; }) {
+        this.worker.postMessage({ type: "run", audio, ...options });
     }
 
     public terminate() {

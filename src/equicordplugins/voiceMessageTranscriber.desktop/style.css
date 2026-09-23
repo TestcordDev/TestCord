@@ -153,6 +153,11 @@
     padding: 8px 12px;
     max-height: 180px;
     overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.vc-transcription-embed-body::-webkit-scrollbar {
+    display: none;
 }
 
 .vc-transcription-embed-text {

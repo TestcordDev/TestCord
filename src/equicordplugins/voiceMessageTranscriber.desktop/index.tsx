@@ -12,7 +12,8 @@ import definePlugin from "@utils/types";
 
 import { setManaBaseRadioGroup } from "./components/LanguageSelectionModal";
 import { VoiceMessageButton } from "./components/VoiceMessageButton";
-import { settings } from "./settings";
+import { migrateLegacyModel, settings } from "./settings";
+import { deleteLegacyCache } from "./utils/cache";
 
 const VoiceMessageButtonWrapped = ErrorBoundary.wrap(VoiceMessageButton, { noop: true });
 
@@ -41,6 +42,11 @@ export default definePlugin({
         setManaBaseRadioGroup(value);
     },
     settings,
+
+    start() {
+        migrateLegacyModel();
+        deleteLegacyCache();
+    },
 
     button(src: string) {
         return <VoiceMessageButtonWrapped src={src} />;

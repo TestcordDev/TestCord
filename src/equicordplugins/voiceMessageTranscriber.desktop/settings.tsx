@@ -10,12 +10,24 @@ import { OptionType } from "@utils/types";
 import { DeleteCacheButton } from "./components/DeleteCacheButton";
 import { cl } from "./utils/misc";
 
-const MODEL_SIZES: Record<string, { quantized: string; full: string; }> = {
-    "Xenova/whisper-tiny": { quantized: "~40 MB", full: "~150 MB" },
-    "Xenova/whisper-base": { quantized: "~77 MB", full: "~290 MB" },
-    "Xenova/whisper-small": { quantized: "~250 MB", full: "~960 MB" },
-    "Xenova/whisper-medium": { quantized: "~765 MB", full: "~3.1 GB" },
+const MODEL_SIZES: Record<string, { quantized: string; full: string; gpu: string; }> = {
+    "onnx-community/whisper-tiny": { quantized: "~40 MB", full: "~150 MB", gpu: "~75 MB" },
+    "onnx-community/whisper-base": { quantized: "~77 MB", full: "~290 MB", gpu: "~145 MB" },
+    "onnx-community/whisper-small": { quantized: "~250 MB", full: "~970 MB", gpu: "~490 MB" },
+    "onnx-community/whisper-large-v3-turbo": { quantized: "~1.1 GB", full: "~3.2 GB", gpu: "~1.6 GB" },
 };
+
+const LEGACY_MODELS: Record<string, string> = {
+    "Xenova/whisper-tiny": "onnx-community/whisper-tiny",
+    "Xenova/whisper-base": "onnx-community/whisper-base",
+    "Xenova/whisper-small": "onnx-community/whisper-small",
+    "Xenova/whisper-medium": "onnx-community/whisper-large-v3-turbo",
+};
+
+export function migrateLegacyModel() {
+    const migrated = LEGACY_MODELS[settings.store.selectedModel];
+    if (migrated) settings.store.selectedModel = migrated;
+}
 
 function renderModelOption(option?: { label: string; value: string; }) {
     if (!option) return null;
@@ -23,8 +35,8 @@ function renderModelOption(option?: { label: string; value: string; }) {
 }
 
 function ModelOption({ option }: { option: { label: string; value: string; }; }) {
-    const isQuantized = settings.use(["quantized"]).quantized ?? true;
-    const size = MODEL_SIZES[option.value]?.[isQuantized ? "quantized" : "full"];
+    const { quantized, useGpu } = settings.use(["quantized", "useGpu"]);
+    const size = MODEL_SIZES[option.value]?.[useGpu ? "gpu" : quantized ? "quantized" : "full"];
 
     return (
         <div className={cl("model-option")}>
@@ -57,20 +69,20 @@ export const settings = definePluginSettings({
         options: [
             {
                 label: "Tiny (Fastest, lowest accuracy)",
-                value: "Xenova/whisper-tiny",
+                value: "onnx-community/whisper-tiny",
             },
             {
                 label: "Base (Recommended)",
-                value: "Xenova/whisper-base",
+                value: "onnx-community/whisper-base",
                 default: true
             },
             {
                 label: "Small",
-                value: "Xenova/whisper-small"
+                value: "onnx-community/whisper-small"
             },
             {
-                label: "Medium (Slowest, best accuracy)",
-                value: "Xenova/whisper-medium"
+                label: "Large v3 Turbo (Best accuracy, GPU recommended)",
+                value: "onnx-community/whisper-large-v3-turbo"
             }
         ],
         componentProps: {
@@ -79,9 +91,15 @@ export const settings = definePluginSettings({
         },
         restartNeeded: false
     },
+    useGpu: {
+        type: OptionType.BOOLEAN,
+        description: "Run the model on your GPU (WebGPU) when supported. Much faster, and makes the larger models usable. Falls back to CPU if unavailable.",
+        default: true,
+        restartNeeded: false
+    },
     quantized: {
         type: OptionType.BOOLEAN,
-        description: "Use quantized models (smaller size, slight quality loss).",
+        description: "Use quantized models when running on CPU (smaller size, slight quality loss).",
         default: true,
         restartNeeded: false
     },
