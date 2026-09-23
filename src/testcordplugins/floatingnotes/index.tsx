@@ -12,8 +12,9 @@ import { definePluginSettings } from "@api/Settings";
 import { Button } from "@components/Button";
 import { TestcordDevs } from "@utils/constants";
 import { classNameFactory } from "@utils/css";
-import definePlugin, { OptionType } from "@utils/types";
-import { ChannelStore, Clickable, GuildStore, ReactDOM, SelectedChannelStore, SelectedGuildStore, useEffect, useRef, useState, useStateFromStores } from "@webpack/common";
+import { classes } from "@utils/misc";
+import definePlugin, { OptionType, type PluginSettingComponentProps } from "@utils/types";
+import { ChannelStore, Clickable, GuildStore, ReactDOM, SelectedChannelStore, SelectedGuildStore, ThemeStore, useEffect, useRef, useState, useStateFromStores } from "@webpack/common";
 import type { CSSProperties, PointerEvent as ReactPointerEvent, SVGProps } from "react";
 
 const NotesStore = createStore("FloatingNotes", "notes");
@@ -40,29 +41,134 @@ export const settings = definePluginSettings({
         default: 260,
         description: "Note window height.",
     },
+    appearance: {
+        type: OptionType.SELECT,
+        description: "Background style of the floating window.",
+        options: [
+            { label: "Solid", value: "solid", default: true },
+            { label: "Liquid Glass", value: "glass" },
+            { label: "Blur", value: "blur" },
+            { label: "Neon", value: "neon" },
+            { label: "Custom Color", value: "custom" },
+        ],
+    },
+    customColor: {
+        type: OptionType.COMPONENT,
+        description: "Custom background color. Only used when appearance is Custom Color.",
+        default: "#2b2d31",
+        hidden: () => settings.store.appearance !== "custom",
+        component: CustomColorEditor,
+    },
+    neonColor: {
+        type: OptionType.COMPONENT,
+        description: "Neon glow color. Only used when appearance is Neon.",
+        default: "#ff6a00",
+        hidden: () => settings.store.appearance !== "neon",
+        component: NeonColorEditor,
+    },
+    resizable: {
+        type: OptionType.BOOLEAN,
+        default: true,
+        description: "Show a resize handle in the bottom right corner to resize the window with the mouse. The size is saved.",
+    },
+    barPosition: {
+        type: OptionType.SELECT,
+        description: "Which side of the window the drag bar sits on.",
+        options: [
+            { label: "Left", value: "left", default: true },
+            { label: "Top", value: "top" },
+            { label: "Right", value: "right" },
+            { label: "Bottom", value: "bottom" },
+        ],
+    },
     resetPosition: {
         type: OptionType.COMPONENT,
-        description: "Reset the floating window position back to the top right.",
+        description: "Reset the floating window position and size back to the defaults.",
         component: () => (
             <Button
                 onClick={() => {
                     settings.store.posX = null;
                     settings.store.posY = null;
+                    settings.store.sizeW = null;
+                    settings.store.sizeH = null;
                 }}
             >
-                Reset window position
+                Reset window position and size
             </Button>
         ),
     },
 }).withPrivateSettings<{
     posX: number | null;
     posY: number | null;
+    sizeW: number | null;
+    sizeH: number | null;
     open: boolean;
     collapsed: boolean;
 }>();
 
-const PUBLIC_KEYS = ["guildNotesPerServer", "windowWidth", "windowHeight"] satisfies Array<keyof typeof settings.store>;
-const PRIVATE_KEYS = ["open", "collapsed", "posX", "posY"] satisfies Array<keyof typeof settings.store>;
+const PUBLIC_KEYS = ["guildNotesPerServer", "windowWidth", "windowHeight", "appearance", "customColor", "neonColor", "resizable", "barPosition"] satisfies Array<keyof typeof settings.store>;
+const PRIVATE_KEYS = ["open", "collapsed", "posX", "posY", "sizeW", "sizeH"] satisfies Array<keyof typeof settings.store>;
+
+function isHexColor(value: unknown): value is string {
+    return typeof value === "string" && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value);
+}
+
+function hexLuminance(hex: string): number {
+    const v = hex.slice(1);
+    const full = v.length === 3 ? v.split("").map(c => c + c).join("") : v;
+    const r = parseInt(full.slice(0, 2), 16) / 255;
+    const g = parseInt(full.slice(2, 4), 16) / 255;
+    const b = parseInt(full.slice(4, 6), 16) / 255;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function expandHex(hex: string): string {
+    const v = hex.slice(1);
+    return "#" + (v.length === 3 ? v.split("").map(c => c + c).join("") : v);
+}
+
+function ColorField({ initial, onCommit }: { initial: string; onCommit: (value: string) => void; }) {
+    const [text, setText] = useState(initial);
+    return (
+        <div className={cl("color-row")}>
+            <input
+                type="color"
+                className={cl("color-swatch")}
+                aria-label="Pick a color"
+                value={isHexColor(text) ? expandHex(text) : expandHex(initial)}
+                onChange={e => {
+                    setText(e.target.value);
+                    onCommit(e.target.value);
+                }}
+            />
+            <input
+                className={cl("color-hex")}
+                value={text}
+                spellCheck={false}
+                placeholder="#2b2d31"
+                onChange={e => setText(e.target.value)}
+                onBlur={() => {
+                    if (isHexColor(text)) onCommit(text);
+                    else setText(initial);
+                }}
+            />
+        </div>
+    );
+}
+
+function CustomColorEditor({ setValue }: PluginSettingComponentProps) {
+    const initial = isHexColor(settings.store.customColor) ? settings.store.customColor : "#2b2d31";
+    return <ColorField initial={initial} onCommit={setValue} />;
+}
+
+function NeonColorEditor({ setValue }: PluginSettingComponentProps) {
+    const initial = isHexColor(settings.store.neonColor) ? settings.store.neonColor : "#ff6a00";
+    return <ColorField initial={initial} onCommit={setValue} />;
+}
+
+interface FloatingNotesStyle extends CSSProperties {
+    "--vc-floatingnotes-neon"?: string;
+}
 
 function clamp(value: number, min: number, max: number): number {
     if (value < min) return min;
@@ -112,11 +218,25 @@ function GripIcon() {
     );
 }
 
+function LiquidGlassFilter() {
+    return (
+        <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true" focusable="false">
+            <defs>
+                <filter id="vc-floatingnotes-liquid" x="-20%" y="-20%" width="140%" height="140%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="2" seed="4" result="noise" />
+                    <feDisplacementMap in="SourceGraphic" in2="noise" scale="16" xChannelSelector="R" yChannelSelector="G" />
+                </filter>
+            </defs>
+        </svg>
+    );
+}
+
 function FloatingNotesWindow() {
     const channelId = useStateFromStores([SelectedChannelStore], () => SelectedChannelStore.getChannelId());
     const rawGuildId = useStateFromStores([SelectedGuildStore], () => SelectedGuildStore.getGuildId());
-    const { guildNotesPerServer, windowWidth, windowHeight } = settings.use(PUBLIC_KEYS);
-    const { open, collapsed, posX, posY } = settings.use(PRIVATE_KEYS);
+    const theme = useStateFromStores([ThemeStore], () => ThemeStore.theme);
+    const { guildNotesPerServer, windowWidth, windowHeight, appearance, customColor, neonColor, resizable, barPosition } = settings.use(PUBLIC_KEYS);
+    const { open, collapsed, posX, posY, sizeW, sizeH } = settings.use(PRIVATE_KEYS);
 
     const guildId = rawGuildId || null;
     const key = channelId ? noteKey(channelId, guildId, guildNotesPerServer) : null;
@@ -127,7 +247,9 @@ function FloatingNotesWindow() {
     const [text, setText] = useState("");
     const [dirty, setDirty] = useState(false);
     const [dragPos, setDragPos] = useState<{ x: number; y: number; } | null>(null);
+    const [resizeSize, setResizeSize] = useState<{ w: number; h: number; } | null>(null);
     const dragState = useRef<{ startX: number; startY: number; origX: number; origY: number; pointerId: number; } | null>(null);
+    const resizeState = useRef<{ startX: number; startY: number; origW: number; origH: number; pointerId: number; } | null>(null);
     const saveTimer = useRef<number | undefined>(undefined);
 
     useEffect(() => {
@@ -172,6 +294,8 @@ function FloatingNotesWindow() {
     const baseY = posY ?? 80;
     const left = dragPos ? dragPos.x : baseX;
     const top = dragPos ? dragPos.y : baseY;
+    const effW = resizeSize ? resizeSize.w : (sizeW ?? windowWidth);
+    const effH = resizeSize ? resizeSize.h : (sizeH ?? windowHeight);
     const activeKey: string = key;
 
     function persist(value: string, target: string) {
@@ -211,7 +335,7 @@ function FloatingNotesWindow() {
         const s = dragState.current;
         if (!s || s.pointerId !== e.pointerId) return null;
         return {
-            x: clamp(s.origX + e.clientX - s.startX, -(windowWidth - 80), window.innerWidth - 80),
+            x: clamp(s.origX + e.clientX - s.startX, -(effW - 80), window.innerWidth - 80),
             y: clamp(s.origY + e.clientY - s.startY, 0, Math.max(0, window.innerHeight - 60))
         };
     }
@@ -230,15 +354,57 @@ function FloatingNotesWindow() {
         settings.store.posY = Math.round(next.y);
     }
 
-    const style: CSSProperties = {
+    function handleResizePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        resizeState.current = { startX: e.clientX, startY: e.clientY, origW: effW, origH: effH, pointerId: e.pointerId };
+        e.currentTarget.setPointerCapture(e.pointerId);
+    }
+
+    function moveResize(e: ReactPointerEvent<HTMLDivElement>) {
+        const s = resizeState.current;
+        if (!s || s.pointerId !== e.pointerId) return null;
+        return {
+            w: Math.max(60, s.origW + e.clientX - s.startX),
+            h: Math.max(60, s.origH + e.clientY - s.startY)
+        };
+    }
+
+    function handleResizePointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+        const next = moveResize(e);
+        if (next) setResizeSize(next);
+    }
+
+    function handleResizePointerUp(e: ReactPointerEvent<HTMLDivElement>) {
+        const next = moveResize(e);
+        if (!next) return;
+        resizeState.current = null;
+        setResizeSize(null);
+        settings.store.sizeW = Math.round(next.w);
+        settings.store.sizeH = Math.round(next.h);
+    }
+
+    const useCustomColor = appearance === "custom" && isHexColor(customColor);
+    const horizontalBar = barPosition === "top" || barPosition === "bottom";
+    const style: FloatingNotesStyle = {
         left: left,
         top: top,
-        width: collapsed ? 30 : windowWidth,
-        height: windowHeight
+        width: collapsed ? (horizontalBar ? effW : 30) : effW,
+        height: collapsed ? (horizontalBar ? 30 : effH) : effH,
+        transform: collapsed
+            ? barPosition === "right"
+                ? "translateX(" + (effW - 30) + "px)"
+                : barPosition === "bottom"
+                    ? "translateY(" + (effH - 30) + "px)"
+                    : undefined
+            : undefined,
+        backgroundColor: useCustomColor ? customColor : undefined,
+        "--vc-floatingnotes-neon": appearance === "neon" && isHexColor(neonColor) ? neonColor : undefined
     };
 
     return ReactDOM.createPortal(
-        <div className={cl("root", { collapsed: collapsed })} style={style}>
+        <div className={classes(cl("root", { collapsed: collapsed, dragging: dragPos !== null || resizeSize !== null, "custom-light": appearance === "custom" && isHexColor(customColor) && hexLuminance(customColor) > 0.55 }, "theme-" + appearance, "bar-" + barPosition), "theme-" + (theme || "dark"), theme === "light" && "vc-floatingnotes-light")} style={style}>
+            {appearance === "glass" && <LiquidGlassFilter />}
             <div
                 className={cl("bar")}
                 title="Drag to move"
@@ -266,7 +432,7 @@ function FloatingNotesWindow() {
                 <textarea
                     className={cl("input")}
                     aria-label={"Floating note for " + shownTitle}
-                    placeholder="Type your note here. It saves automatically."
+                    placeholder="Type here..."
                     value={text}
                     onChange={e => handleChange(e.target.value)}
                     onBlur={handleBlur}
@@ -275,10 +441,20 @@ function FloatingNotesWindow() {
                     tabIndex={collapsed ? -1 : undefined}
                 />
                 <div className={cl("foot")}>
-                    <span className={cl("status")}>{dirty ? "Saving." : "Saved."}</span>
                     <span className={cl("count")}>{text.length}</span>
                 </div>
             </div>
+            {resizable && !collapsed && (
+                <div
+                    className={cl("resize")}
+                    title="Drag to resize"
+                    aria-hidden="true"
+                    onPointerDown={handleResizePointerDown}
+                    onPointerMove={handleResizePointerMove}
+                    onPointerUp={handleResizePointerUp}
+                    onPointerCancel={handleResizePointerUp}
+                />
+            )}
         </div>,
         document.body
     );
