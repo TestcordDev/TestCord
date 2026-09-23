@@ -16,7 +16,7 @@ import { openModal, ScrollerAuto, Tooltip, useEffect, useRef, useState } from "@
 import { settings } from "../settings";
 import { decodeAudio, fetchVoiceMessage } from "../utils/audio";
 import { cl, formatTranscript } from "../utils/misc";
-import { TranscriptionResult, TranscriptionWorker } from "../utils/worker";
+import { TranscriptionJob, TranscriptionResult } from "../utils/worker";
 import { LanguageSelectionModal } from "./LanguageSelectionModal";
 
 const ChannelListIcon = findComponentByCodeLazy("1-1-1ZM2 8a1");
@@ -30,7 +30,7 @@ export function VoiceMessageButton({ src }: { src: string; }) {
     const [error, setError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
 
-    const workerRef = useRef<TranscriptionWorker | null>(null);
+    const jobRef = useRef<TranscriptionJob | null>(null);
     const activeRunId = useRef(0);
     const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -53,15 +53,15 @@ export function VoiceMessageButton({ src }: { src: string; }) {
     useEffect(() => {
         return () => {
             activeRunId.current++;
-            workerRef.current?.terminate();
-            workerRef.current = null;
+            jobRef.current?.cancel();
+            jobRef.current = null;
         };
     }, []);
 
     const startTranscription = async () => {
         const runId = ++activeRunId.current;
-        workerRef.current?.terminate();
-        workerRef.current = null;
+        jobRef.current?.cancel();
+        jobRef.current = null;
 
         setIsOpen(true);
         setError(null);
@@ -77,28 +77,28 @@ export function VoiceMessageButton({ src }: { src: string; }) {
 
             if (runId !== activeRunId.current) return;
 
-            workerRef.current = new TranscriptionWorker(
-                s => {
+            jobRef.current = new TranscriptionJob({
+                onStatus: s => {
                     if (runId === activeRunId.current) setStatus(s);
                 },
-                out => {
+                onComplete: out => {
                     if (runId === activeRunId.current) {
                         setResult(out);
                         setStatus("complete");
                     }
                 },
-                err => {
+                onError: err => {
                     if (runId === activeRunId.current) {
                         setError(String(err));
                         setStatus("error");
                     }
                 },
-                partial => {
+                onPartial: partial => {
                     if (runId === activeRunId.current) setResult(partial);
                 }
-            );
+            });
 
-            workerRef.current.run(audioData, {
+            jobRef.current.run(audioData, {
                 model: selectedModel,
                 quantized,
                 useGpu,

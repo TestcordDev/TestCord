@@ -14,6 +14,7 @@ import { setManaBaseRadioGroup } from "./components/LanguageSelectionModal";
 import { VoiceMessageButton } from "./components/VoiceMessageButton";
 import { migrateLegacyModel, settings } from "./settings";
 import { deleteLegacyCache } from "./utils/cache";
+import { terminateWorker } from "./utils/worker";
 
 const VoiceMessageButtonWrapped = ErrorBoundary.wrap(VoiceMessageButton, { noop: true });
 
@@ -46,6 +47,10 @@ export default definePlugin({
     start() {
         migrateLegacyModel();
         deleteLegacyCache();
+    },
+
+    stop() {
+        terminateWorker();
     },
 
     button(src: string) {

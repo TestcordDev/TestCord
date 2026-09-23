@@ -14,7 +14,7 @@ import { Modal, useEffect, useRef, useState } from "@webpack/common";
 import { settings } from "../settings";
 import { decodeAudio, fetchVoiceMessage } from "../utils/audio";
 import { cl, formatTranscript } from "../utils/misc";
-import { TranscriptionResult, TranscriptionWorker } from "../utils/worker";
+import { TranscriptionJob, TranscriptionResult } from "../utils/worker";
 
 export function TranscriptionModal(props: { modalProps: RenderModalProps, src: string, options: { language: string, task: string; }; }) {
     const { modalProps, src, options } = props;
@@ -25,7 +25,7 @@ export function TranscriptionModal(props: { modalProps: RenderModalProps, src: s
     const [copied, setCopied] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
 
-    const workerRef = useRef<TranscriptionWorker | null>(null);
+    const jobRef = useRef<TranscriptionJob | null>(null);
 
     useEffect(() => {
         let active = true;
@@ -41,30 +41,30 @@ export function TranscriptionModal(props: { modalProps: RenderModalProps, src: s
                 const audioData = await decodeAudio(blob);
 
                 if (!active) return;
-                workerRef.current?.terminate();
-                workerRef.current = new TranscriptionWorker(
-                    s => {
+                jobRef.current?.cancel();
+                jobRef.current = new TranscriptionJob({
+                    onStatus: s => {
                         if (active) setStatus(s);
                     },
-                    out => {
+                    onComplete: out => {
                         if (active) {
                             setResult(out);
                             setStatus("complete");
                         }
                     },
-                    err => {
+                    onError: err => {
                         if (active) {
                             setError(String(err));
                             setStatus("error");
                         }
                     },
-                    partial => {
+                    onPartial: partial => {
                         if (active) setResult(partial);
                     }
-                );
+                });
 
                 const { quantized, selectedModel, useGpu } = settings.store;
-                workerRef.current.run(audioData, {
+                jobRef.current.run(audioData, {
                     model: selectedModel,
                     quantized,
                     useGpu,
@@ -81,7 +81,7 @@ export function TranscriptionModal(props: { modalProps: RenderModalProps, src: s
 
         return () => {
             active = false;
-            workerRef.current?.terminate();
+            jobRef.current?.cancel();
         };
     }, [retryCount]);
 

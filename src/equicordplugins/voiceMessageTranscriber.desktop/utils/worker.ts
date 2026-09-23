@@ -17,6 +17,8 @@ env.useBrowserCache = false;
 env.useWasmCache = false;
 
 const pendingRequests = new Map();
+const cancelledRuns = new Set();
+let queue = Promise.resolve();
 
 self.addEventListener('message', (event) => {
     const { type, id, response, status, error, headers } = event.data;
@@ -35,7 +37,9 @@ self.addEventListener('message', (event) => {
             }
         }
     } else if (type === 'run') {
-        runTranscription(event.data);
+        queue = queue.then(() => runTranscription(event.data));
+    } else if (type === 'cancel') {
+        cancelledRuns.add(event.data.runId);
     }
 });
 
@@ -82,6 +86,9 @@ async function compressionRatio(text) {
 }
 
 let transcriber = null;
+let loadedKey = null;
+
+class Cancelled extends Error {}
 
 // transformers.js has no language detection and falls back to english, which translates everything else
 async function detectLanguage(audio) {
@@ -102,16 +109,32 @@ async function detectLanguage(audio) {
     return best;
 }
 
-async function runTranscription({ audio, model, quantized, useGpu, language, task }) {
+async function runTranscription({ runId, audio, model, quantized, useGpu, language, task }) {
+    const post = msg => self.postMessage({ ...msg, runId });
+    const checkCancelled = () => {
+        if (cancelledRuns.has(runId)) throw new Cancelled();
+    };
+
     try {
-        if (!transcriber) {
-            self.postMessage({ type: 'status', status: 'loading' });
+        checkCancelled();
+
+        // keep the model loaded between runs, only reload when the settings change
+        const key = [model, quantized, useGpu].join();
+        if (loadedKey !== key) {
+            post({ type: 'status', status: 'loading' });
+            const previous = transcriber;
+            transcriber = null;
+            loadedKey = null;
+            await previous?.dispose();
             transcriber = await loadTranscriber(model, quantized, useGpu);
+            loadedKey = key;
         }
 
-        self.postMessage({ type: 'status', status: 'transcribing' });
+        checkCancelled();
+        post({ type: 'status', status: 'transcribing' });
 
         language ??= await detectLanguage(audio);
+        checkCancelled();
 
         const time_precision =
             transcriber.processor.feature_extractor.config.chunk_length /
@@ -130,9 +153,10 @@ async function runTranscription({ audio, model, quantized, useGpu, language, tas
                     chunks.push({ timestamp: [windowIndex * windowStep + time, null], text: '' });
                 },
                 callback_function: piece => {
+                    checkCancelled();
                     text += piece;
                     if (chunks.length) chunks[chunks.length - 1].text += piece;
-                    self.postMessage({ type: 'partial', output: { text, chunks } });
+                    post({ type: 'partial', output: { text, chunks } });
                 },
                 on_chunk_end: time => {
                     if (chunks.length) chunks[chunks.length - 1].timestamp[1] = windowIndex * windowStep + time;
@@ -160,10 +184,12 @@ async function runTranscription({ audio, model, quantized, useGpu, language, tas
             output = await transcribe({ no_repeat_ngram_size: 4 });
         }
 
-        self.postMessage({ type: 'complete', output });
+        post({ type: 'complete', output });
 
     } catch (e) {
-        self.postMessage({ type: 'error', error: e.toString() });
+        if (!(e instanceof Cancelled)) post({ type: 'error', error: e.toString() });
+    } finally {
+        cancelledRuns.delete(runId);
     }
 }
 `;
@@ -178,93 +204,133 @@ export interface TranscriptionResult {
     chunks: TranscriptionChunk[];
 }
 
-export class TranscriptionWorker {
-    private worker: Worker;
-    private onStatus: (status: string) => void;
-    private onComplete: (output: TranscriptionResult) => void;
-    private onError: (error: unknown) => void;
-    private onPartial: (output: TranscriptionResult) => void;
+export interface TranscriptionOptions {
+    model: string;
+    quantized: boolean;
+    useGpu: boolean;
+    language?: string;
+    task?: string;
+}
 
-    constructor(
-        onStatus: (status: string) => void,
-        onComplete: (output: TranscriptionResult) => void,
-        onError: (error: unknown) => void,
-        onPartial: (output: TranscriptionResult) => void
-    ) {
-        this.onStatus = onStatus;
-        this.onComplete = onComplete;
-        this.onError = onError;
-        this.onPartial = onPartial;
+interface TranscriptionCallbacks {
+    onStatus: (status: string) => void;
+    onComplete: (output: TranscriptionResult) => void;
+    onError: (error: unknown) => void;
+    onPartial: (output: TranscriptionResult) => void;
+}
 
-        const blob = new Blob([workerCode], { type: "text/javascript" });
-        const objectUrl = URL.createObjectURL(blob);
-        this.worker = new Worker(objectUrl, { type: "module" });
-        URL.revokeObjectURL(objectUrl);
-        this.worker.onmessage = this.handleMessage.bind(this);
-    }
+let worker: Worker | null = null;
+let nextRunId = 0;
+const runs = new Map<number, TranscriptionCallbacks>();
 
-    private getMimeType(url: string): string {
-        if (url.endsWith(".wasm")) return "application/wasm";
-        if (url.endsWith(".json")) return "application/json";
-        if (url.endsWith(".onnx")) return "application/octet-stream";
-        return "application/octet-stream";
-    }
+function getMimeType(url: string): string {
+    if (url.endsWith(".wasm")) return "application/wasm";
+    if (url.endsWith(".json")) return "application/json";
+    return "application/octet-stream";
+}
 
-    private async handleMessage(event: MessageEvent) {
-        const { type, id, url, status, output, error } = event.data;
+async function handleFetchRequest(target: Worker, id: string, url: string) {
+    try {
+        let data = await getCachedFile(url);
+        if (!(data instanceof ArrayBuffer)) {
+            const res = await fetch(url);
+            if (!res.ok) {
+                target.postMessage({ type: "fetch_response", id, status: res.status });
+                return;
+            }
 
-        switch (type) {
-            case "fetch_request":
-                try {
-                    let data = await getCachedFile(url);
-                    if (!(data instanceof ArrayBuffer)) {
-                        const res = await fetch(url);
-                        if (!res.ok) {
-                            this.worker.postMessage({ type: "fetch_response", id, status: res.status });
-                            break;
-                        }
-
-                        data = await res.arrayBuffer();
-                        await cacheFile(url, data);
-                    }
-
-                    this.worker.postMessage({
-                        type: "fetch_response",
-                        id,
-                        response: data,
-                        headers: {
-                            "Content-Length": data.byteLength.toString(),
-                            "Content-Type": this.getMimeType(url)
-                        }
-                    }, [data]);
-                } catch (err) {
-                    this.worker.postMessage({
-                        type: "fetch_response",
-                        id,
-                        error: String(err)
-                    });
-                }
-                break;
-            case "status":
-                this.onStatus(status);
-                break;
-            case "complete":
-                this.onComplete(output);
-                break;
-            case "partial":
-                this.onPartial(output);
-                break;
-            case "error":
-                this.onError(error);
-                break;
+            data = await res.arrayBuffer();
+            await cacheFile(url, data);
         }
+
+        target.postMessage({
+            type: "fetch_response",
+            id,
+            response: data,
+            headers: {
+                "Content-Length": data.byteLength.toString(),
+                "Content-Type": getMimeType(url)
+            }
+        }, [data]);
+    } catch (err) {
+        target.postMessage({
+            type: "fetch_response",
+            id,
+            error: String(err)
+        });
+    }
+}
+
+function handleMessage(target: Worker, event: MessageEvent) {
+    const { type, id, url, runId, status, output, error } = event.data;
+
+    if (type === "fetch_request") {
+        handleFetchRequest(target, id, url);
+        return;
     }
 
-    public run(audio: Float32Array, options: { model: string; quantized: boolean; useGpu: boolean; language?: string; task?: string; }) {
-        this.worker.postMessage({ type: "run", audio, ...options });
+    const run = runs.get(runId);
+    if (!run) return;
+
+    switch (type) {
+        case "status":
+            run.onStatus(status);
+            break;
+        case "partial":
+            run.onPartial(output);
+            break;
+        case "complete":
+            runs.delete(runId);
+            run.onComplete(output);
+            break;
+        case "error":
+            runs.delete(runId);
+            run.onError(error);
+            break;
+    }
+}
+
+function getWorker() {
+    if (worker) return worker;
+
+    const blob = new Blob([workerCode], { type: "text/javascript" });
+    const objectUrl = URL.createObjectURL(blob);
+    const created = new Worker(objectUrl, { type: "module" });
+    URL.revokeObjectURL(objectUrl);
+
+    created.onmessage = event => handleMessage(created, event);
+    created.onerror = event => {
+        event.preventDefault();
+        terminateWorker(event.message || "Transcription worker crashed");
+    };
+
+    return worker = created;
+}
+
+export function terminateWorker(reason = "Transcription worker was stopped") {
+    worker?.terminate();
+    worker = null;
+
+    const pending = [...runs.values()];
+    runs.clear();
+    for (const run of pending) run.onError(reason);
+}
+
+export class TranscriptionJob {
+    private runId: number | null = null;
+
+    constructor(private callbacks: TranscriptionCallbacks) { }
+
+    public run(audio: Float32Array, options: TranscriptionOptions) {
+        this.cancel();
+        const runId = this.runId = nextRunId++;
+        runs.set(runId, this.callbacks);
+        getWorker().postMessage({ type: "run", runId, audio, ...options });
     }
 
-    public terminate() {
-        this.worker.terminate();
+    public cancel() {
+        if (this.runId === null) return;
+        if (runs.delete(this.runId)) worker?.postMessage({ type: "cancel", runId: this.runId });
+        this.runId = null;
     }
 }
