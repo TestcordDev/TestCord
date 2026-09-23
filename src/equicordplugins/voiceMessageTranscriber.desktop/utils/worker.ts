@@ -5,139 +5,7 @@
  */
 
 import { DataStore } from "@api/index";
-import { classNameFactory } from "@utils/css";
 import { lodash } from "@webpack/common";
-
-export const LANGUAGES = {
-    en: "english",
-    zh: "chinese",
-    de: "german",
-    es: "spanish/castilian",
-    ru: "russian",
-    ko: "korean",
-    fr: "french",
-    ja: "japanese",
-    pt: "portuguese",
-    tr: "turkish",
-    pl: "polish",
-    ca: "catalan/valencian",
-    nl: "dutch/flemish",
-    ar: "arabic",
-    sv: "swedish",
-    it: "italian",
-    id: "indonesian",
-    hi: "hindi",
-    fi: "finnish",
-    vi: "vietnamese",
-    he: "hebrew",
-    uk: "ukrainian",
-    el: "greek",
-    ms: "malay",
-    cs: "czech",
-    ro: "romanian/moldavian/moldovan",
-    da: "danish",
-    hu: "hungarian",
-    ta: "tamil",
-    no: "norwegian",
-    th: "thai",
-    ur: "urdu",
-    hr: "croatian",
-    bg: "bulgarian",
-    lt: "lithuanian",
-    la: "latin",
-    mi: "maori",
-    ml: "malayalam",
-    cy: "welsh",
-    sk: "slovak",
-    te: "telugu",
-    fa: "persian",
-    lv: "latvian",
-    bn: "bengali",
-    sr: "serbian",
-    az: "azerbaijani",
-    sl: "slovenian",
-    kn: "kannada",
-    et: "estonian",
-    mk: "macedonian",
-    br: "breton",
-    eu: "basque",
-    is: "icelandic",
-    hy: "armenian",
-    ne: "nepali",
-    mn: "mongolian",
-    bs: "bosnian",
-    kk: "kazakh",
-    sq: "albanian",
-    sw: "swahili",
-    gl: "galician",
-    mr: "marathi",
-    pa: "punjabi/panjabi",
-    si: "sinhala/sinhalese",
-    km: "khmer",
-    sn: "shona",
-    yo: "yoruba",
-    so: "somali",
-    af: "afrikaans",
-    oc: "occitan",
-    ka: "georgian",
-    be: "belarusian",
-    tg: "tajik",
-    sd: "sindhi",
-    gu: "gujarati",
-    am: "amharic",
-    yi: "yiddish",
-    lo: "lao",
-    uz: "uzbek",
-    fo: "faroese",
-    ht: "haitian creole/haitian",
-    ps: "pashto/pushto",
-    tk: "turkmen",
-    nn: "nynorsk",
-    mt: "maltese",
-    sa: "sanskrit",
-    lb: "luxembourgish/letzeburgesch",
-    my: "myanmar/burmese",
-    bo: "tibetan",
-    tl: "tagalog",
-    mg: "malagasy",
-    as: "assamese",
-    tt: "tatar",
-    haw: "hawaiian",
-    ln: "lingala",
-    ha: "hausa",
-    ba: "bashkir",
-    jw: "javanese",
-    su: "sundanese",
-};
-
-export const cl = classNameFactory("vc-transcription-");
-
-const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-const getAudioContext = () => {
-    if (!AudioContextClass) throw new Error("AudioContext is not supported in this environment");
-    return new AudioContextClass({ sampleRate: 16000 });
-};
-export async function decodeAudio(blob: Blob): Promise<Float32Array> {
-    const arrayBuffer = await blob.arrayBuffer();
-    const audioContext = getAudioContext();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-
-    // Mix down to mono
-    const channelData = audioBuffer.getChannelData(0);
-    if (audioBuffer.numberOfChannels > 1) {
-        for (let i = 1; i < audioBuffer.numberOfChannels; i++) {
-            const channel = audioBuffer.getChannelData(i);
-            for (let j = 0; j < channelData.length; j++) {
-                channelData[j] += channel[j];
-            }
-        }
-        for (let i = 0; i < channelData.length; i++) {
-            channelData[i] /= audioBuffer.numberOfChannels;
-        }
-    }
-
-    return channelData;
-}
 
 const workerCode = `
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
@@ -183,6 +51,13 @@ globalThis.fetch = async (input, init) => {
 
 let transcriber = null;
 
+async function compressionRatio(text) {
+    const bytes = new TextEncoder().encode(text);
+    if (!bytes.length) return 0;
+    const compressed = await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer();
+    return bytes.length / compressed.byteLength;
+}
+
 async function runTranscription({ audio, model, quantized, language, task }) {
     try {
         if (!transcriber) {
@@ -201,12 +76,7 @@ async function runTranscription({ audio, model, quantized, language, task }) {
             transcriber.processor.feature_extractor.config.chunk_length /
             transcriber.model.config.max_source_positions;
 
-        let chunks_to_process = [
-            {
-                tokens: [],
-                finalised: false,
-            },
-        ];
+        let chunks_to_process;
 
         function chunk_callback(chunk) {
             let last = chunks_to_process[chunks_to_process.length - 1];
@@ -242,17 +112,27 @@ async function runTranscription({ audio, model, quantized, language, task }) {
             });
         }
 
-        const output = await transcriber(audio, {
-            top_k: 0,
-            do_sample: false,
-            chunk_length_s: 30,
-            stride_length_s: 5,
-            return_timestamps: true,
-            callback_function,
-            chunk_callback,
-            language,
-            task: task === "translate" ? "translate" : undefined
-        });
+        async function transcribe(extraOptions) {
+            chunks_to_process = [{ tokens: [], finalised: false }];
+            return transcriber(audio, {
+                top_k: 0,
+                do_sample: false,
+                chunk_length_s: 30,
+                stride_length_s: 5,
+                return_timestamps: true,
+                callback_function,
+                chunk_callback,
+                language,
+                task: task === "translate" ? "translate" : undefined,
+                ...extraOptions
+            });
+        }
+
+        let output = await transcribe();
+
+        if (await compressionRatio(output.text) > 2.4) {
+            output = await transcribe({ no_repeat_ngram_size: 4 });
+        }
 
         self.postMessage({ type: 'complete', output });
 
