@@ -141,7 +141,7 @@ export default definePlugin({
         {
             find: "#{intl::STATUS_MENU_LABEL}",
             replacement: {
-                match: /(popoutContainerRef:\i,forceOpen:\i\}\))(?=\])/,
+                match: /(popoutContainerRef:\i,forceOpen:\i.{0,25}\}\))(?=\])/,
                 replace: "$1,$self.render()"
             }
         },
