@@ -9,6 +9,7 @@ import { settings } from "@testcordplugins/PanelLayout/modules/musicControls/set
 import { Track } from "@testcordplugins/PanelLayout/modules/musicControls/spotify/SpotifyStore";
 
 import { getLyricsLrclib } from "./providers/lrclibAPI";
+import { getLyricsSpicyLyrics } from "./providers/SpicyLyricsAPI";
 import { getLyricsSpotify } from "./providers/SpotifyAPI";
 import { LyricsData, Provider, SyncedLyric } from "./providers/types";
 
@@ -17,6 +18,7 @@ const LyricsCacheKey = "SpotifyLyricsCacheNew";
 interface NullLyricCacheEntry {
     [Provider.Lrclib]?: boolean;
     [Provider.Spotify]?: boolean;
+    [Provider.SpicyLyrics]?: boolean;
 }
 
 const nullLyricCache = new Map<string, NullLyricCacheEntry>();
@@ -24,6 +26,7 @@ const nullLyricCache = new Map<string, NullLyricCacheEntry>();
 export const lyricFetchers = {
     [Provider.Spotify]: async (track: Track) => await getLyricsSpotify(track.id, settings.store.spotifyLyricsApiUrl),
     [Provider.Lrclib]: getLyricsLrclib,
+    [Provider.SpicyLyrics]: async (track: Track) => await getLyricsSpicyLyrics(track.id, settings.store.spicyLyricsApiKey),
 };
 
 export const providers = Object.keys(lyricFetchers) as Provider[];
@@ -102,7 +105,11 @@ export async function removeTranslations() {
 
     for (const [trackId, trackData] of Object.entries(cache)) {
         const { Translated, ...lyricsVersions } = trackData?.lyricsVersions || {};
-        const newUseLyric = !!lyricsVersions[Provider.Spotify] ? Provider.Spotify : Provider.Lrclib;
+        const newUseLyric = lyricsVersions[Provider.Spotify]
+            ? Provider.Spotify
+            : lyricsVersions[Provider.SpicyLyrics]
+                ? Provider.SpicyLyrics
+                : Provider.Lrclib;
 
         newCache[trackId] = { lyricsVersions, useLyric: newUseLyric };
     }

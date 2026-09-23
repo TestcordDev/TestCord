@@ -58,6 +58,7 @@ function LyricsProviderSettings() {
                     options={[
                         { value: Provider.Lrclib, label: "LRCLIB", default: true },
                         { value: Provider.Spotify, label: "Spotify (Musixmatch)" },
+                        { value: Provider.SpicyLyrics, label: "Spicy Lyrics (experimental)" },
                     ]}
                     isSelected={v => v === store.lyricsProvider}
                     select={v => { store.lyricsProvider = v as Provider; }}
@@ -115,6 +116,7 @@ export const settings = defineModuleSettings("MusicControls", {
         options: [
             { value: Provider.Lrclib, label: "LRCLIB", default: true },
             { value: Provider.Spotify, label: "Spotify (Musixmatch)" },
+            { value: Provider.SpicyLyrics, label: "Spicy Lyrics (experimental)" },
         ],
         hidden: true,
     },
@@ -123,6 +125,16 @@ export const settings = defineModuleSettings("MusicControls", {
         description: "Spotify lyrics API base URL.",
         hidden: true,
         default: "https://spotify-lyrics-api-pi.vercel.app",
+        onChange: async () => {
+            await clearLyricsCache();
+            showToast("Lyrics cache purged", Toasts.Type.SUCCESS);
+        }
+    },
+    spicyLyricsApiKey: {
+        type: OptionType.STRING,
+        description: "Spicy lyrics API key (can be acquired by asking AVIV in the Testcord server).",
+        hidden: true,
+        default: "sl_...",
         onChange: async () => {
             await clearLyricsCache();
             showToast("Lyrics cache purged", Toasts.Type.SUCCESS);
@@ -156,12 +168,12 @@ export const settings = defineModuleSettings("MusicControls", {
         default: true,
     },
     showFailedToasts: {
-        description: "Hide toasts when lyrics fail to fetch",
+        description: "Show toasts when lyrics fail to fetch",
         type: OptionType.BOOLEAN,
         default: true,
     },
     lyricDelay: {
-        description: "",
+        description: "Universal lyrics delay",
         type: OptionType.SLIDER,
         default: 0,
         ...sliderOptions

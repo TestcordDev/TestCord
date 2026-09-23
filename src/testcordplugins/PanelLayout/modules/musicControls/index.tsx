@@ -12,9 +12,11 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import { Flex } from "@components/Flex";
 import { FormSwitch } from "@components/FormSwitch";
 import { Paragraph } from "@components/Paragraph";
+import { Input } from "@testcordplugins/jstextreplace/components/Input";
 import { Devs, EquicordDevs } from "@utils/constants";
+import { makeRange } from "@utils/types";
 import type { RenderModalProps } from "@vencord/discord-types";
-import { Modal, openModalLazy, React, Select, showToast, Toasts, useState } from "@webpack/common";
+import { Modal, openModalLazy, React, Select, showToast, Slider, Toasts, useState } from "@webpack/common";
 
 import type { UserAreaModule } from "../types";
 import { settings, toggleBetterSpotifyControls, toggleHoverControls } from "./settings";
@@ -342,8 +344,8 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 onChange={v => { settings.store.fallbackProvider = v; forceUpdate(); }}
                             />
                             <FormSwitch
-                                title="Hide Toast on Missing Lyrics"
-                                description="Do not show a toast notification when lyrics cannot be found."
+                                title="Show Toast on Missing Lyrics"
+                                description="Show a toast notification when lyrics cannot be found."
                                 value={s.showFailedToasts}
                                 onChange={v => { settings.store.showFailedToasts = v; forceUpdate(); }}
                             />
@@ -369,10 +371,42 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                     options={[
                                         { label: "LRCLIB (Default)", value: Provider.Lrclib },
                                         { label: "Spotify (Musixmatch)", value: Provider.Spotify },
+                                        { label: "Spicy Lyrics (experimental)", value: Provider.SpicyLyrics },
                                     ]}
                                     isSelected={v => v === s.lyricsProvider}
                                     select={v => { settings.store.lyricsProvider = v as Provider; forceUpdate(); }}
                                     serialize={v => String(v)}
+                                />
+                            </div>
+                            <div style={{ padding: "10px 0" }}>
+                                <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+                                    Universal Lyrics Delay:
+                                </Paragraph>
+                                <Slider
+                                    markers={makeRange(-2500, 2500, 250)}
+                                    initialValue={settings.store.lyricDelay}
+                                    stickToMarkers={true}
+                                    onValueChange={v => { settings.store.lyricDelay = Math.round(v); forceUpdate(); }}
+                                />
+                            </div>
+                            <div style={{ padding: "10px 0", display: `${settings.store.lyricsProvider === Provider.Spotify ? "unset" : "none"}` }}>
+                                <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+                                    Spotify lyrics API base URL:
+                                </Paragraph>
+                                <Input
+                                    placeholder={"https://spotify-lyrics-api-pi.vercel.app"}
+                                    initialValue={settings.store.spotifyLyricsApiUrl ?? ""}
+                                    onChange={v => { settings.store.spotifyLyricsApiUrl = v; forceUpdate(); }}
+                                />
+                            </div>
+                            <div style={{ padding: "10px 0", display: `${settings.store.lyricsProvider === Provider.SpicyLyrics ? "unset" : "none"}` }}>
+                                <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+                                    Spicy Lyrics Api Key (can be acquired by asking AVIV in the Testcord server):
+                                </Paragraph>
+                                <Input
+                                    placeholder={"sl_sk_... or sl_pk_..."}
+                                    initialValue={settings.store.spicyLyricsApiKey}
+                                    onChange={v => { settings.store.spicyLyricsApiKey = v; forceUpdate(); }}
                                 />
                             </div>
                             <div style={{ paddingTop: "8px" }}>

@@ -148,6 +148,7 @@ export const CspPolicies: PolicyMap = {
     "http:": ImageSrc,
     "*": ImageSrc,
     "lrclib.net": ConnectSrc,
+    "api.spicylyrics.org": ConnectSrc,
     "nekos.best": ConnectSrc,
     "openpgpjs.org": ConnectSrc,
     "keys.openpgp.org": ConnectSrc,
