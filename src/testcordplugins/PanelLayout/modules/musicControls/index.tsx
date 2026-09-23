@@ -404,7 +404,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                     Spicy Lyrics Api Key (can be acquired by asking AVIV in the Testcord server):
                                 </Paragraph>
                                 <Input
-                                    placeholder={"sl_sk_... || sl_pk_..."}
+                                    placeholder={"sl_sk_... or sl_pk_..."}
                                     initialValue={""}
                                     onChange={v => { settings.store.spicyLyricsApiKey = v; forceUpdate(); }}
                                 />
