@@ -29,6 +29,7 @@
 .vc-spotify-lyrics-prev {
     color: var(--text-muted) !important;
     margin-bottom: 1%;
+    margin-top: 1%;
 }
 
 @keyframes side-to-side {
@@ -85,6 +86,44 @@
 .vc-spotify-lyrics-modal-no-lyrics {
     text-align: center;
     padding: 1rem;
+}
+
+.vc-spotify-lyrics-word {
+    color: var(--text-muted);
+    display: inline-block;
+    transition: color 0.15s ease, text-shadow 0.15s ease;
+}
+
+.vc-spotify-lyrics-word-sung {
+    color: var(--text-strong);
+    display: inline-block;
+}
+
+@property --vc-spotify-word-progress {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 0%;
+}
+
+@keyframes vc-spotify-word-sweep {
+    from { --vc-spotify-word-progress: 0%; }
+    to { --vc-spotify-word-progress: 100%; }
+}
+
+.vc-spotify-lyrics-word-active {
+    display: inline-block;
+    font-weight: 600;
+    --vc-spotify-word-progress: 0%;
+    background-image: linear-gradient(90deg, var(--text-strong, #fff) var(--vc-spotify-word-progress), var(--text-muted) var(--vc-spotify-word-progress));
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 0.35em color-mix(in srgb, var(--text-strong, #fff) 60%, transparent);
+    transition: text-shadow 0.15s ease;
+    animation-name: vc-spotify-word-sweep;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
 }
 
 .eq-tidal-lyrics {

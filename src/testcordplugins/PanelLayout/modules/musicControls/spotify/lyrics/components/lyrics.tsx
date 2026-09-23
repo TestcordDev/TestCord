@@ -18,10 +18,13 @@ import { cl, NoteSvg, useLyrics } from "./util";
 const prevCl = cl("prev");
 const nextCl = cl("next");
 const currentCl = cl("current");
+const wordCl = cl("word");
+const wordSungCl = cl("word-sung");
+const wordActiveCl = cl("word-active");
 
 function LyricsDisplay({ scroll = true, style }: { scroll?: boolean; style?: React.CSSProperties; }) {
     const { showMusicNoteOnNoLyrics } = settings.use(["showMusicNoteOnNoLyrics"]);
-    const { lyricsInfo, lyricRefs, currLrcIndex } = useLyrics({ scroll });
+    const { lyricsInfo, lyricRefs, currLrcIndex, activeWordIndex, sungWordIndex, activeWordSync, isPlaying } = useLyrics({ scroll });
 
     const currentLyrics = lyricsInfo?.lyricsVersions[lyricsInfo.useLyric] || null;
 
@@ -42,16 +45,42 @@ function LyricsDisplay({ scroll = true, style }: { scroll?: boolean; style?: Rea
             onContextMenu={e => ContextMenuApi.openContextMenu(e, () => <LyricsContextMenu />)}
         >
             <div className="vc-spotify-lyrics-inner">
-                {currentLyrics ? currentLyrics.map((line, i) => (
-                    <div ref={lyricRefs[i]} key={i}>
-                        <BaseText
-                            size={currLrcIndex === i ? "sm" : "xs"}
-                            className={makeClassName(i)}
-                        >
-                            {line.text || NoteSvg()}
-                        </BaseText>
-                    </div>
-                )) : showMusicNoteOnNoLyrics ? (
+                {currentLyrics ? currentLyrics.map((line, i) => {
+                    const isCurrentLine = currLrcIndex === i;
+                    const hasWordTiming = isCurrentLine && !!line.words?.length;
+                    const activeIdx = activeWordIndex ?? -1;
+
+                    return (
+                        <div ref={lyricRefs[i]} key={i}>
+                            <BaseText
+                                size={isCurrentLine ? "sm" : "xs"}
+                                className={makeClassName(i)}
+                            >
+                                {hasWordTiming
+                                    ? line.words!.map((word, w) => {
+                                        const isActive = w === activeIdx;
+                                        const isSung = w <= sungWordIndex || w < activeIdx;
+                                        const wordClassName = isActive ? wordActiveCl : isSung ? wordSungCl : wordCl;
+                                        const wordStyle: React.CSSProperties | undefined = isActive && activeWordSync
+                                            ? {
+                                                animationDuration: `${activeWordSync.duration}ms`,
+                                                animationDelay: `-${activeWordSync.elapsed}ms`,
+                                                animationPlayState: isPlaying ? "running" : "paused"
+                                            } as React.CSSProperties
+                                            : undefined;
+
+                                        return (
+                                            <React.Fragment key={w}>
+                                                <span className={wordClassName} style={wordStyle}>{word.text}</span>
+                                                {w < line.words!.length - 1 ? " " : ""}
+                                            </React.Fragment>
+                                        );
+                                    })
+                                    : (line.text || NoteSvg())}
+                            </BaseText>
+                        </div>
+                    );
+                }) : showMusicNoteOnNoLyrics ? (
                     <TooltipContainer text="No synced lyrics found">
                         <NoteSvg />
                     </TooltipContainer>

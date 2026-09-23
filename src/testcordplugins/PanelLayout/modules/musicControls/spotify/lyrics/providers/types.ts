@@ -4,14 +4,22 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+export interface LyricWord {
+    text: string;
+    startTime: number;
+    endTime: number;
+}
+
 export interface SyncedLyric {
     time: number;
     text: string | null;
+    words?: LyricWord[];
 }
 
 export enum Provider {
     Lrclib = "LRCLIB",
     Spotify = "Spotify",
+    SpicyLyrics = "Spicy Lyrics",
     Translated = "Translated",
     Romanized = "Romanized",
     None = "None",
