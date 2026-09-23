@@ -125,11 +125,24 @@ export function initWs(isManual = false) {
         /**
          * @param error the error to reply with. if there is no error, the reply is a sucess
          */
-        function reply(error?: string) {
-            const toSend = { nonce: d.nonce, ok: !error } as Record<string, unknown>;
-            if (error) toSend.error = error;
+        function replyError(error: string) {
+            const toSend = { nonce: d.nonce, ok: false, error } as Record<string, unknown>;
             logger.debug("Replying with:", toSend);
             ws.send(JSON.stringify(toSend));
+        }
+        function replyOk() {
+            const toSend = {
+                nonce: d.nonce,
+                ok: true,
+                type: "genericOk",
+                data: {},
+            } as Record<string, unknown>;
+            logger.debug("Replying with:", toSend);
+            ws.send(JSON.stringify(toSend));
+        }
+        function reply(error?: string) {
+            if (error) replyError(error);
+            else replyOk();
         }
         function replyData(data: OutgoingMessage) {
             const toSend: FullOutgoingMessage = {

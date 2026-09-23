@@ -170,6 +170,7 @@ if (!IS_VANILLA) {
     });
 
     process.env.DATA_DIR = join(app.getPath("userData"), "..", "Equicord");
+    process.env.ELECTRON_ENABLE_STACK_DUMPING = "true";
 
     // Monkey patch commandLine to:
     // - disable UseEcoQoSForBackgroundProcess: Work around Discord unloading when in background

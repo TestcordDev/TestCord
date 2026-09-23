@@ -82,7 +82,7 @@ export default definePlugin({
             predicate: () => settings.store.file
         },
         {
-            find: "deleteGuild",
+            find: "#{intl::DELETE_SERVER_ENTER_NAME}",
             replacement: {
                 match: /\{name:\i\}\s*=\s*(\i)\.guild/,
                 replace: "$self.HandleGuildDeleteModal($1);$&"

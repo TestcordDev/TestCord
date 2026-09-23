@@ -38,9 +38,14 @@ ExtensionCache/
 # wakatime related stuff
 .wakatime-project
 
-
 # todo
 TODO.md*
 nul
 
 who-fucking-cares-dude/
+
+# discord modules cache
+misc/bundle
+
+# intl scripts
+misc/scripts

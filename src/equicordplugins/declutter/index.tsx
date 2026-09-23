@@ -234,7 +234,7 @@ export default definePlugin({
             // Nameplate
             find: ".MINI_PREVIEW,[",
             replacement: {
-                match: /function \i\((\i)\)\{(?=let.{1,5}\{nameplate:\i,)/,
+                match: /function \i\((\i)\)\{(?=let.{0,5}\{nameplate:\i,)/,
                 replace:
                     '$&if($1.placement!=="preview"&&$1.placement!=="mini_preview")return null;',
             },

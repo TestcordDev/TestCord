@@ -124,7 +124,7 @@ export default definePlugin({
                     replace: "$self.renderWrapper(__state,$&)"
                 },
                 {
-                    match: /(?<=#{intl::CHECKPOINT_2025}.{50,100}?)\i>0&&\(.{200,250}?\}\)\]\}\)/,
+                    match: /(?<=compact:\i\}\),)\i>0&&\(.{200,250}?\}\)\]\}\)/,
                     replace: "$self.ForwardPicker()"
                 },
                 {

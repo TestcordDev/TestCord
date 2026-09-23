@@ -18,7 +18,7 @@ import { cl, ForwardOptionsContext, ForwardOptionsState } from ".";
 
 type AttachmentType = "IMAGE" | "VIDEO" | "CLIP" | "AUDIO" | "VISUAL_PLACEHOLDER" | "PLAINTEXT_PREVIEW" | "OTHER" | "INVALID";
 
-const TagGroup = findComponentByCodeLazy('"filter-tag-group"', '"tag-group"');
+const TagGroup = findComponentByCodeLazy('="default",layout:', '="inline"===');
 const ServerProfileComponent = findComponentByCodeLazy("{guildProfile:", "GUILD_PROFILE");
 const getAttachmentType = findByCodeLazy('"PLAINTEXT_PREVIEW":"OTHER"');
 const formatChannelName = findByCodeLazy("#{intl::NO_ACCESS}", "isObfuscated()");
