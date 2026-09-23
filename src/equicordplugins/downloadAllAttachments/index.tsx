@@ -4,15 +4,24 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { definePluginSettings } from "@api/Settings";
 import { CloudDownloadIcon } from "@components/Icons";
 import { EquicordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import { pluralize } from "@utils/misc";
-import definePlugin from "@utils/types";
+import definePlugin, { OptionType } from "@utils/types";
 import { Message, MessageAttachment } from "@vencord/discord-types";
 import { ChannelStore, showToast, Toasts } from "@webpack/common";
 
 const logger = new Logger("DownloadAllAttachments");
+
+const settings = definePluginSettings({
+    downloadAllFileTypes: {
+        type: OptionType.BOOLEAN,
+        description: "Also download non-media attachments. Only enable this if you trust what people send you.",
+        default: false
+    }
+});
 
 async function downloadAll(attachments: MessageAttachment[]) {
     const usedNames = new Map<string, number>();
@@ -29,10 +38,17 @@ async function downloadAll(attachments: MessageAttachment[]) {
 
     const results = await Promise.allSettled(attachments.map(async attachment => {
         const filename = uniqueName(attachment.filename);
-        if (!attachment.proxy_url) throw new Error("Missing Proxy URL");
+        const sources = [attachment.proxy_url];
+        if (settings.store.downloadAllFileTypes) sources.push(attachment.url);
+        if (!sources.some(Boolean)) throw new Error("Missing attachment URL");
 
-        const res = await fetch(attachment.proxy_url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        let res: Response | undefined;
+        for (const source of sources) {
+            if (!source) continue;
+            res = await fetch(source).catch(() => undefined);
+            if (res?.ok) break;
+        }
+        if (!res?.ok) throw new Error(res ? `HTTP ${res.status}` : "Network error");
 
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
@@ -41,7 +57,7 @@ async function downloadAll(attachments: MessageAttachment[]) {
         a.href = url;
         a.download = filename;
         a.click();
-        URL.revokeObjectURL(url);
+        setTimeout(() => URL.revokeObjectURL(url), 10_000);
     }));
 
     const failed = results.filter(r => {
@@ -66,6 +82,7 @@ export default definePlugin({
     tags: ["Utility", "Chat"],
     authors: [EquicordDevs.dhopcs],
     dependencies: ["MessagePopoverAPI"],
+    settings,
     messagePopoverButton: {
         icon: CloudDownloadIcon,
         render(message: Message) {
