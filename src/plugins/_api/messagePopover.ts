@@ -57,10 +57,16 @@ export default definePlugin({
         {
             find: "#{intl::MESSAGE_UTILITIES_A11Y_LABEL}",
             replacement: [
+                {
+                    noWarn: true,
+                    match: /(?<=\]\}\)),(.{0,40}togglePopout:.{0,120}?\}\))\]\}\):null,(?<=\((\i),\{label:.{0,80}?:null,(\i)\?\(0,\i\.jsxs?\)\(\i\.Fragment.{0,200}?message:(\i).{0,200}?)/,
+                    replace: (_, ReactButton, ButtonComponent, showReactButton, message) => "" +
+                        `]}):null,Vencord.Api.MessagePopover._buildPopoverElements(${ButtonComponent},${message}),${showReactButton}?${ReactButton}:null,`
+                },
                 // Primary: New Discord Canary - togglePopout and message are in the same
                 // nE component call, followed by a np toolbar button with {label:
                 {
-                    match: /\{togglePopout:\i,.+?message:(\i)\}\)\]\}\):null,.*?\(?\(0,\i\.jsx\)\((\i),\{label:/,
+                    match: /\{togglePopout:\i,.+?message:(\i)\}\)\]\}\):null,(?!Vencord\.Api\.MessagePopover).*?\(?\(0,\i\.jsx\)\((\i),\{label:/,
                     replace: (_, message, buttonComponent) => {
                         const i = _.indexOf("):null,") + 7;
                         return _.slice(0, i) + `Vencord.Api.MessagePopover._buildPopoverElements(Vencord.Api.MessagePopover._captureToolbarButton(${buttonComponent}),${message}),` + _.slice(i);
@@ -126,6 +132,20 @@ export default definePlugin({
                     replace: ",Vencord.Api.MessagePopover._buildPopoverElements(null,$2),$1"
                 }
             ]
+        },
+        {
+            find: "#{intl::MESSAGE_UTILITIES_A11Y_LABEL}",
+            replacement: {
+                match: /className:(\i\(\)\(\i\.className,.{0,80}?\)),(onClick:.{0,150}?children:\(0,\i\.jsxs?\)\(\i,\{className:)(\i\.innerClassName),children:(\[\i,\i\])/,
+                replace: 'className:"vc-message-popover "+$1,$2$3+" vc-message-popover-bar",children:Vencord.Api.MessagePopover._wrapPopoverBar($4)'
+            }
+        },
+        {
+            find: 'role:"article",onMouseEnter',
+            replacement: {
+                match: /(?<=null!=(\i)\?\(0,\i\.jsxs?\)\("div",\{className:)\i\.\i(?=,children:\1\}\))/,
+                replace: '$&+" vc-message-popover-slot"'
+            }
         }
     ]
 });
