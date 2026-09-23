@@ -395,7 +395,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 </Paragraph>
                                 <Input
                                     placeholder={"https://spotify-lyrics-api-pi.vercel.app"}
-                                    initialValue={""}
+                                    initialValue={settings.store.spotifyLyricsApiUrl ?? ""}
                                     onChange={v => { settings.store.spotifyLyricsApiUrl = v; forceUpdate(); }}
                                 />
                             </div>
@@ -405,7 +405,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 </Paragraph>
                                 <Input
                                     placeholder={"sl_sk_... or sl_pk_..."}
-                                    initialValue={""}
+                                    initialValue={settings.store.spicyLyricsApiKey ?? ""}
                                     onChange={v => { settings.store.spicyLyricsApiKey = v; forceUpdate(); }}
                                 />
                             </div>
