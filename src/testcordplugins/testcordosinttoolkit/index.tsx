@@ -28,6 +28,18 @@ import type { ComponentProps } from "react";
 
 import { callAI, CordCatResult, fetchCordCatData } from "./aiManager";
 import { AlgorithmResult, analyzeMessages, MessageData } from "./algorithms";
+import {
+    buildFingerprint,
+    buildUserSnapshot,
+    compareSnapshots,
+    enrichSnapshotWithProfile,
+    extractSocials,
+    LinkReport,
+    sharedBridges,
+    SharedContact,
+    sharedContacts,
+    SocialHit,
+} from "./linkAnalysis";
 
 const logger = new Logger("TestcordOSINTToolkit");
 
@@ -1262,8 +1274,10 @@ function OSINTHistoryPanel({ modalProps, onSelect }: { modalProps: any; onSelect
 }
 function OSINTMultiScan({ modalProps }: { modalProps: any; }) {
     const [userInput, setUserInput] = useState("");
-    const [targets, setTargets] = useState<Array<{ userId: string; username: string; status: "pending" | "scanning" | "done" | "error"; result?: AlgorithmResult; aiResult?: string; msgCount: number; }>>([]);
+    const [targets, setTargets] = useState<Array<{ userId: string; username: string; status: "pending" | "scanning" | "done" | "error"; result?: AlgorithmResult; aiResult?: string; msgCount: number; msgs?: MessageData[]; }>>([]);
     const [scanning, setScanning] = useState(false);
+    const [comparing, setComparing] = useState(false);
+    const [comparison, setComparison] = useState<Array<{ aId: string; bId: string; aName: string; bName: string; report: LinkReport; socialsA: SocialHit[]; socialsB: SocialHit[]; contacts: SharedContact[]; bridges: Array<{ userId: string; username: string; }>; }> | null>(null);
     const abortRef = useRef(false);
     function addTarget() {
         const input = userInput.trim();
@@ -1336,7 +1350,7 @@ function OSINTMultiScan({ modalProps }: { modalProps: any; }) {
                         });
                     } catch { aiRes = "AI analysis failed"; }
                 }
-                setTargets(prev => prev.map((t, idx) => idx === i ? { ...t, status: "done", result, aiResult: aiRes, msgCount: acc.length } : t));
+                setTargets(prev => prev.map((t, idx) => idx === i ? { ...t, status: "done", result, aiResult: aiRes, msgCount: acc.length, msgs: acc } : t));
                 await saveToHistory({
                     userId: targets[i].userId, username: targets[i].username, globalName: UserStore.getUser(targets[i].userId)?.globalName,
                     avatar: UserStore.getUser(targets[i].userId)?.avatar, messageCount: acc.length, scannedAt: Date.now(), algorithmResult: result, aiResult: aiRes || undefined, mode: unlimited ? "unlimited" : `limited-${limit}`,
@@ -1346,6 +1360,42 @@ function OSINTMultiScan({ modalProps }: { modalProps: any; }) {
             }
         }
         setScanning(false);
+    }
+    async function startLinkAnalysis() {
+        const done = targets.filter(t => t.status === "done");
+        if (done.length < 2 || comparing) return;
+        setComparing(true);
+        setComparison(null);
+        try {
+            const snaps = new Map<string, Awaited<ReturnType<typeof enrichSnapshotWithProfile>>>();
+            for (const t of done) {
+                snaps.set(t.userId, await enrichSnapshotWithProfile(buildUserSnapshot(t.userId)));
+            }
+            const fps = new Map<string, ReturnType<typeof buildFingerprint>>();
+            const socials = new Map<string, SocialHit[]>();
+            for (const t of done) {
+                const msgs = t.msgs ?? [];
+                fps.set(t.userId, buildFingerprint(msgs));
+                const snap = snaps.get(t.userId)!;
+                socials.set(t.userId, extractSocials(msgs, snap.bio, snap.connections));
+            }
+            const pairs: NonNullable<typeof comparison> = [];
+            for (let i = 0; i < done.length; i++) {
+                for (let j = i + 1; j < done.length; j++) {
+                    const a = done[i], b = done[j];
+                    const report = compareSnapshots(snaps.get(a.userId)!, snaps.get(b.userId)!, fps.get(a.userId), fps.get(b.userId), socials.get(a.userId), socials.get(b.userId));
+                    pairs.push({
+                        aId: a.userId, bId: b.userId, aName: a.username, bName: b.username, report,
+                        socialsA: socials.get(a.userId)!, socialsB: socials.get(b.userId)!,
+                        contacts: sharedContacts(a.msgs ?? [], b.msgs ?? []),
+                        bridges: sharedBridges(a.userId, b.userId),
+                    });
+                }
+            }
+            pairs.sort((x, y) => y.report.score - x.report.score);
+            setComparison(pairs);
+        } catch { showToast("Link analysis failed", Toasts.Type.FAILURE); }
+        setComparing(false);
     }
     return (
         <Modal {...modalProps} size="lg" className="vc-osint-root" title={
@@ -1389,10 +1439,42 @@ function OSINTMultiScan({ modalProps }: { modalProps: any; }) {
                             {t.aiResult && <div className="vc-osint-section-content" style={{ marginTop: 8 }}>{t.aiResult.slice(0, 300)}...</div>}
                         </div>
                     ))}
+                    {comparison && comparison.map(p => (
+                        <div key={`${p.aId}-${p.bId}`} className="vc-osint-section" style={{ marginTop: 16 }}>
+                            <div className="vc-osint-section-title">@{p.aName} vs @{p.bName} — {p.report.score.toFixed(0)}% ({p.report.verdict})</div>
+                            <div className="vc-osint-section-content" style={{ marginBottom: 8, fontWeight: 600 }}>Estimates only. Shared signals can be coincidental, verify before acting.</div>
+                            {p.report.signals.map((s, i) => (
+                                <div key={i} className="vc-osint-section-content" style={{ marginBottom: 4 }}>[{(s.score * 100).toFixed(0)}%] {s.label}: {s.detail}</div>
+                            ))}
+                            {p.report.dimensions.length > 0 && (
+                                <div className="vc-osint-section-content" style={{ marginTop: 8 }}>
+                                    Writing style: {p.report.dimensions.map(d => `${d.label} ${(d.score * 100).toFixed(0)}%`).join(" · ")}
+                                </div>
+                            )}
+                            {(p.socialsA.length > 0 || p.socialsB.length > 0) && (
+                                <div className="vc-osint-section-content" style={{ marginTop: 8 }}>
+                                    Socials @{p.aName}: {p.socialsA.slice(0, 8).map(s => `${s.platform} ${s.handle}${s.verified ? " (verified)" : ""}`).join(", ") || "none found"}
+                                    <br />
+                                    Socials @{p.bName}: {p.socialsB.slice(0, 8).map(s => `${s.platform} ${s.handle}${s.verified ? " (verified)" : ""}`).join(", ") || "none found"}
+                                </div>
+                            )}
+                            {p.contacts.length > 0 && (
+                                <div className="vc-osint-section-content" style={{ marginTop: 8 }}>
+                                    Shared contacts: {p.contacts.slice(0, 8).map(c => `@${c.username} (${c.aCount + c.bCount}x)`).join(", ")}
+                                </div>
+                            )}
+                            {p.bridges.length > 0 && (
+                                <div className="vc-osint-section-content" style={{ marginTop: 8 }}>
+                                    Shared friend bridges: {p.bridges.slice(0, 8).map(b => `@${b.username}`).join(", ")}
+                                </div>
+                            )}
+                        </div>
+                    ))}
                 </div>
             </ModalContent>
             <ModalFooter>
                 <Button onClick={startBatchScan} disabled={scanning || targets.length === 0}>{scanning ? "Scanning..." : `Scan ${targets.filter(t => t.status === "pending").length} Targets`}</Button>
+                <Button onClick={startLinkAnalysis} disabled={scanning || comparing || targets.filter(t => t.status === "done").length < 2}>{comparing ? "Comparing..." : "Compare for Alt Links"}</Button>
                 <Button onClick={modalProps.onClose} color={Button.Colors.PRIMARY}>Close</Button>
             </ModalFooter>
         </Modal>
@@ -1697,6 +1779,38 @@ export default definePlugin({
                 else if (limitOverride > 0) { settings.store.unlimitedMessages = false; settings.store.messageLimit = limitOverride; }
                 if (mutualOverride) settings.store.scanMutualServers = true;
                 openScan(userId, ctx.channel.id);
+            },
+        },
+        {
+            name: "altcheck",
+            description: "Estimate whether two users are linked alts (profile comparison).",
+            inputType: ApplicationCommandInputType.BUILT_IN,
+            options: [
+                { name: "user1", description: "First user", type: 6, required: true },
+                { name: "user2", description: "Second user", type: 6, required: true },
+            ],
+            execute: async (args, ctx) => {
+                const id1 = findOption(args, "user1", "") as string;
+                const id2 = findOption(args, "user2", "") as string;
+                if (!id1 || !id2) { sendBotMessage(ctx.channel.id, { content: "Please specify two users to compare." }); return; }
+                if (id1 === id2) { sendBotMessage(ctx.channel.id, { content: "Those are the same user." }); return; }
+                sendBotMessage(ctx.channel.id, { content: "Comparing profiles..." });
+                try {
+                    const [snapA, snapB] = await Promise.all([
+                        enrichSnapshotWithProfile(buildUserSnapshot(id1)),
+                        enrichSnapshotWithProfile(buildUserSnapshot(id2)),
+                    ]);
+                    const socialsA = extractSocials([], snapA.bio, snapA.connections);
+                    const socialsB = extractSocials([], snapB.bio, snapB.connections);
+                    const report = compareSnapshots(snapA, snapB, undefined, undefined, socialsA, socialsB);
+                    const lines = [
+                        `Alt check: @${snapA.username} vs @${snapB.username}`,
+                        `Score: ${report.score.toFixed(0)}% (${report.verdict})`,
+                        ...report.signals.map(s => `[${(s.score * 100).toFixed(0)}%] ${s.label}: ${s.detail}`),
+                        "Estimates only. Verify before acting. Use Multi-Target Scan compare for writing style analysis.",
+                    ];
+                    sendBotMessage(ctx.channel.id, { content: lines.join("\n") });
+                } catch { sendBotMessage(ctx.channel.id, { content: "Alt check failed. One of the users may be unknown." }); }
             },
         },
         {

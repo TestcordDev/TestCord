@@ -1,0 +1,175 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+.vc-floatingnotes-root {
+    position: fixed;
+    z-index: 9999;
+    display: flex;
+    flex-direction: row;
+    overflow: hidden;
+    background-color: var(--background-primary);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    box-shadow: var(--shadow-high);
+    animation: vc-floatingnotes-in 180ms ease;
+    transition: width 240ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.vc-floatingnotes-root:focus-within {
+    border-color: var(--brand-500);
+}
+
+.vc-floatingnotes-bar {
+    display: flex;
+    width: 30px;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 0;
+    background-color: var(--background-secondary);
+    border-right: 1px solid var(--border-subtle);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+}
+
+.vc-floatingnotes-bar:active {
+    cursor: grabbing;
+}
+
+.vc-floatingnotes-collapsed .vc-floatingnotes-bar {
+    border-right: none;
+}
+
+.vc-floatingnotes-collapse {
+    display: flex;
+    width: 20px;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    color: var(--interactive-normal);
+    border-radius: 6px;
+}
+
+.vc-floatingnotes-collapse:hover {
+    color: var(--interactive-hover);
+    background-color: var(--background-modifier-hover);
+}
+
+.vc-floatingnotes-grip {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    opacity: 0.7;
+}
+
+.vc-floatingnotes-body {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    transition: opacity 180ms ease, transform 220ms ease;
+}
+
+.vc-floatingnotes-collapsed .vc-floatingnotes-body {
+    opacity: 0;
+    transform: translateX(-12px);
+    pointer-events: none;
+}
+
+.vc-floatingnotes-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 10px 0;
+}
+
+.vc-floatingnotes-title {
+    overflow: hidden;
+    min-width: 0;
+    flex: 1;
+    color: var(--header-primary);
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-floatingnotes-scope {
+    flex: none;
+    padding: 1px 7px;
+    color: var(--text-muted);
+    background-color: var(--background-modifier-accent);
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.vc-floatingnotes-input {
+    min-height: 0;
+    flex: 1;
+    margin: 8px 10px 0;
+    padding: 8px;
+    color: var(--text-normal);
+    background-color: var(--background-secondary);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.45;
+    resize: none;
+    outline: none;
+    scrollbar-color: var(--interactive-normal) transparent;
+}
+
+.vc-floatingnotes-input:focus {
+    border-color: var(--brand-500);
+}
+
+.vc-floatingnotes-input::placeholder {
+    color: var(--text-muted);
+}
+
+.vc-floatingnotes-input::-webkit-scrollbar {
+    width: 8px;
+}
+
+.vc-floatingnotes-input::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.vc-floatingnotes-input::-webkit-scrollbar-thumb {
+    background-color: var(--interactive-normal);
+    border-radius: 999px;
+}
+
+.vc-floatingnotes-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px 9px;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+@keyframes vc-floatingnotes-in {
+    from {
+        opacity: 0;
+        transform: scale(0.96) translateY(6px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .vc-floatingnotes-root,
+    .vc-floatingnotes-body {
+        animation: none;
+        transition: none;
+    }
+}
