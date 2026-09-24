@@ -832,6 +832,7 @@ const IGNORED_GLOBAL_ERROR_PATTERNS = [
     /Failed to fetch/i,
     /NetworkError/i,
     /Load failed/i,
+    /url parse[\s\S]*libdiscore/i,
     /Sentry successfully disabled/i
 ];
 

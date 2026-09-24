@@ -102,6 +102,8 @@ function fetchWrapper(this: unknown, input: RequestInfo | URL, init?: RequestIni
 }
 
 function xhrOpenWrapper(this: XMLHttpRequest, method: string, url: string, ...rest: any[]) {
+    if (!enabled) return (originalXhrOpen as any).call(this, method, url, ...rest);
+
     const xhr = this as any;
     xhr.__vc_net_method = method;
     try {
@@ -113,19 +115,30 @@ function xhrOpenWrapper(this: XMLHttpRequest, method: string, url: string, ...re
 }
 
 function xhrSendWrapper(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+    if (!enabled) return originalXhrSend!.call(this, body);
+
     const xhr = this as any;
     xhr.__vc_net_stack = captureStack();
-    // One listener per XHR instance, refreshed implicitly on reuse — multiple
-    // send() calls must not stack duplicate loadend listeners.
-    if (!xhr.__vc_net_listener) {
-        xhr.__vc_net_listener = function (this: XMLHttpRequest) {
-            const self = this as any;
-            if (!self.__vc_net_url) return;
-            record(self.__vc_net_url, self.__vc_net_method ?? "GET", this.status, self.__vc_net_stack ?? "");
-        };
-        xhr.addEventListener("loadend", xhr.__vc_net_listener);
+    const listener = () => {
+        const url = xhr.__vc_net_url;
+        const method = xhr.__vc_net_method ?? "GET";
+        const stack = xhr.__vc_net_stack ?? "";
+        delete xhr.__vc_net_url;
+        delete xhr.__vc_net_method;
+        delete xhr.__vc_net_stack;
+        if (!enabled || !url) return;
+        record(url, method, xhr.status, stack);
+    };
+    xhr.addEventListener("loadend", listener, { once: true });
+    try {
+        return originalXhrSend!.call(this, body);
+    } catch (error) {
+        xhr.removeEventListener("loadend", listener);
+        delete xhr.__vc_net_url;
+        delete xhr.__vc_net_method;
+        delete xhr.__vc_net_stack;
+        throw error;
     }
-    return originalXhrSend!.call(this, body);
 }
 
 function isDiscordDomain(domain: string): boolean {

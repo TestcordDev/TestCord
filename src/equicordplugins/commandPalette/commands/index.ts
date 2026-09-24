@@ -13,7 +13,10 @@ import { sendDmCommand } from "./sendDm";
 import { testcordCommands } from "./testcord";
 import { themeCommands } from "./themes";
 
-export async function registerBuiltinCommands() {
+export async function registerBuiltinCommands(isCurrent: () => boolean) {
+    await loadCustomCommands();
+    if (!isCurrent()) return;
+
     registerCommands("CommandPalette.builtin", [
         ...navigationCommands,
         ...discordCommands,
@@ -22,7 +25,5 @@ export async function registerBuiltinCommands() {
         ...themeCommands,
         sendDmCommand
     ]);
-
-    await loadCustomCommands();
     registerCustomCommands();
 }

@@ -28,6 +28,7 @@ const headlessCtx: PaletteContext = {
 };
 
 const MODIFIER_KEYS = ["meta", "ctrl", "shift", "alt"];
+let startGeneration = 0;
 
 function hasModifier(combo: string[]) {
     return combo.some(key => MODIFIER_KEYS.includes(key) && key !== "shift");
@@ -78,14 +79,17 @@ export default definePlugin({
     settings,
 
     async start() {
+        const generation = ++startGeneration;
         installKeyboardListeners();
         setGlobalKeyHandler(handleGlobalKey);
 
         await Promise.all([loadFrecency(), loadPins(), loadAliases(), loadHotkeys()]);
-        await registerBuiltinCommands();
+        if (generation !== startGeneration) return;
+        await registerBuiltinCommands(() => generation === startGeneration);
     },
 
     stop() {
+        startGeneration++;
         closePalette();
         removeKeyboardListeners();
         clearRegistry();

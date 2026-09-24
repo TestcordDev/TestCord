@@ -648,8 +648,10 @@ export const settings = definePluginSettings({
         default: true,
         onChange: (val: boolean) => {
             if (val) {
+                cancelScheduledAutocomplete();
                 initTcpAutocomplete();
             } else {
+                cancelScheduledAutocomplete();
                 cleanupTcpAutocomplete();
             }
         }
@@ -837,9 +839,10 @@ export const settings = definePluginSettings({
         description: "Start a local HTTP server (port 18963) for opencode to search webpack modules, read source code, and test patch patterns in real time.",
         default: false,
         onChange(value) {
-            if (value) startLiveFixServer();
+            liveFixDesired = value;
+            if (value) void startLiveFixServer();
             else {
-                stopLiveFixServer();
+                void stopLiveFixServer();
                 uninstallLoafRecorder();
             }
         }
@@ -1460,6 +1463,21 @@ const ProfileCards = ErrorBoundary.wrap(function ProfileCards({ message }: { mes
 }, { noop: true });
 
 let liveFixInterval: ReturnType<typeof setInterval> | null = null;
+let liveFixStartPromise: Promise<void> | null = null;
+let liveFixGeneration = 0;
+let liveFixDesired = false;
+let autocompleteScheduled: number | null = null;
+let autocompleteUsesIdleCallback = false;
+
+function cancelScheduledAutocomplete() {
+    if (autocompleteScheduled === null) return;
+    if (autocompleteUsesIdleCallback) {
+        (window as any).cancelIdleCallback?.(autocompleteScheduled);
+    } else {
+        clearTimeout(autocompleteScheduled);
+    }
+    autocompleteScheduled = null;
+}
 
 interface LiveFixRequest {
     id: string;
@@ -1796,50 +1814,69 @@ function handleLiveFixRequest(req: LiveFixRequest): any {
 }
 
 async function startLiveFixServer() {
-    if (liveFixInterval) return;
+    if (!liveFixDesired || liveFixInterval) return;
+    if (liveFixStartPromise) {
+        await liveFixStartPromise;
+        if (liveFixDesired && !liveFixInterval) await startLiveFixServer();
+        return;
+    }
 
-    try {
-        const token = await NativeHelper.startLiveFixServer();
-        installLoafRecorder();
+    const generation = ++liveFixGeneration;
+    const startPromise = (async () => {
+        try {
+            const token = await NativeHelper.startLiveFixServer();
+            if (generation !== liveFixGeneration || !liveFixDesired) return;
 
-        liveFixInterval = setInterval(async () => {
-            let cmd: string | null = null;
-            let reqId = "unknown";
-            try {
-                cmd = await NativeHelper.getCommand();
-                if (!cmd) return;
-
-                const req: LiveFixRequest = JSON.parse(cmd);
-                reqId = req.id;
-                const response = handleLiveFixRequest(req);
-                await NativeHelper.writeResponse(JSON.stringify(response));
-            } catch (e) {
-                logger.error("LiveFix loop failed:", e);
+            installLoafRecorder();
+            liveFixInterval = setInterval(async () => {
+                let cmd: string | null = null;
+                let reqId = "unknown";
                 try {
-                    await NativeHelper.writeResponse(JSON.stringify({ id: reqId, error: String(e) }));
-                } catch { /* ignore */ }
-            }
-        }, 500);
+                    cmd = await NativeHelper.getCommand();
+                    if (!cmd) return;
 
-        const requireToken = settings.store.liveFixRequireToken !== false;
-        logger.info(requireToken
-            ? `LiveFix integration started — HTTP server on port 18963, auth token: ${token}`
-            : "LiveFix integration started — HTTP server on port 18963, auth token disabled");
-        showToast(requireToken
-            ? `LiveFix started on port 18963 (token ${token.slice(0, 8)}…, full token in console)`
-            : "LiveFix started on port 18963 — auth token disabled", Toasts.Type.SUCCESS);
-    } catch (e) {
-        logger.error("Failed to start LiveFix server:", e);
-        showToast(`LiveFix failed: ${e}`, Toasts.Type.FAILURE);
+                    const req: LiveFixRequest = JSON.parse(cmd);
+                    reqId = req.id;
+                    const response = handleLiveFixRequest(req);
+                    await NativeHelper.writeResponse(JSON.stringify(response));
+                } catch (e) {
+                    logger.error("LiveFix loop failed:", e);
+                    try {
+                        await NativeHelper.writeResponse(JSON.stringify({ id: reqId, error: String(e) }));
+                    } catch { /* ignore */ }
+                }
+            }, 500);
+
+            const requireToken = settings.store.liveFixRequireToken !== false;
+            logger.info(requireToken
+                ? `LiveFix integration started — HTTP server on port 18963, auth token: ${token}`
+                : "LiveFix integration started — HTTP server on port 18963, auth token disabled");
+            showToast(requireToken
+                ? `LiveFix started on port 18963 (token ${token.slice(0, 8)}…, full token in console)`
+                : "LiveFix started on port 18963 — auth token disabled", Toasts.Type.SUCCESS);
+        } catch (e) {
+            logger.error("Failed to start LiveFix server:", e);
+            showToast(`LiveFix failed: ${e}`, Toasts.Type.FAILURE);
+        }
+    })();
+
+    liveFixStartPromise = startPromise;
+    try {
+        await startPromise;
+    } finally {
+        if (liveFixStartPromise === startPromise) liveFixStartPromise = null;
     }
 }
 
 async function stopLiveFixServer() {
+    liveFixGeneration++;
+    const pendingStart = liveFixStartPromise;
     if (liveFixInterval) {
         clearInterval(liveFixInterval);
         liveFixInterval = null;
     }
 
+    if (pendingStart) await pendingStart;
     try {
         await NativeHelper.stopLiveFixServer();
         logger.info("LiveFix integration stopped");
@@ -1942,10 +1979,11 @@ export default definePlugin({
     },
 
     start() {
+        liveFixDesired = settings.store.liveFix;
         if (settings.store.preventCrashes) installCrashGuards();
         if (settings.store.liveFix) {
             installConsoleCapture();
-            startLiveFixServer();
+            void startLiveFixServer();
         }
         if (settings.store.debugMode) settings.store.debugMode = false;
         this.syncPronounsBadge();
@@ -1990,26 +2028,35 @@ export default definePlugin({
         this.pronounsBadgeListener = () => this.syncPronounsBadge();
         SettingsStore.addChangeListener("plugins.TestcordHelper.pronounsBadge", this.pronounsBadgeListener);
 
+        cancelScheduledAutocomplete();
         // Deferred past startup: initTcpAutocomplete does a synchronous full
         // webpack scan that measured as a ~12ms start spike. Autocomplete is
         // only needed once the user starts typing, long after this has run.
         // The setting is re-read then, so toggles in the meantime are honored.
         const initAutocomplete = () => {
+            autocompleteScheduled = null;
             try {
                 if (settings.store.tcpAutocomplete !== false) initTcpAutocomplete();
             } catch { /* autocomplete simply stays off */ }
         };
-        const ric = (window as any).requestIdleCallback as ((cb: () => void, opts?: { timeout: number; }) => void) | undefined;
-        if (typeof ric === "function") ric(initAutocomplete, { timeout: 2000 });
-        else setTimeout(initAutocomplete, 500);
+        const ric = (window as any).requestIdleCallback as ((cb: () => void, opts?: { timeout: number; }) => number) | undefined;
+        if (typeof ric === "function") {
+            autocompleteUsesIdleCallback = true;
+            autocompleteScheduled = ric(initAutocomplete, { timeout: 2000 });
+        } else {
+            autocompleteUsesIdleCallback = false;
+            autocompleteScheduled = window.setTimeout(initAutocomplete, 500);
+        }
     },
 
     stop() {
+        liveFixDesired = false;
         uninstallCrashGuards();
         uninstallDebugInstrumentation();
         uninstallConsoleCapture();
         uninstallLoafRecorder();
-        stopLiveFixServer();
+        void stopLiveFixServer();
+        cancelScheduledAutocomplete();
         cleanupTcpAutocomplete();
         pluginResolveCache.clear();
         userResolveCache.clear();
