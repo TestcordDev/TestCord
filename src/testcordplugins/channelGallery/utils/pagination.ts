@@ -34,7 +34,6 @@ export async function fetchMessagesPage(args: {
         else signal.addEventListener("abort", () => controller.abort(), { once: true });
     }
 
-    // Discord API enforces a maximum limit of 100 for messages requests.
     const safeLimit = Math.min(100, Math.max(1, Math.floor(args.limit)));
 
     try {

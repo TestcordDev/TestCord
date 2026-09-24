@@ -8,10 +8,9 @@ import { ChannelToolbarButton } from "@api/HeaderBar";
 import { definePluginSettings } from "@api/Settings";
 import { disableStyle, enableStyle } from "@api/Styles";
 import { EquicordDevs, TestcordDevs } from "@utils/constants";
-import { closeModal, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
-import { ChannelStore, PermissionsBits, PermissionStore, React, SelectedChannelStore, useStateFromStores } from "@webpack/common";
+import { ChannelStore, closeModal, openModal, PermissionsBits, PermissionStore, React, SelectedChannelStore, useStateFromStores } from "@webpack/common";
 
 import { GalleryModal } from "./components/GalleryModal";
 import styles from "./style.css?managed";
@@ -78,8 +77,6 @@ function isSupportedChannel(channel: any): boolean {
     if (typeof channel.isThread === "function" && channel.isThread()) return true;
 
     if (ChannelTypesSets?.GUILD_TEXTUAL?.has?.(type) || ChannelTypesSets?.THREADS?.has?.(type)) return true;
-
-    // Fallback for numeric channel types: 0 (GUILD_TEXT), 1 (DM), 2 (GUILD_VOICE), 3 (GROUP_DM), 5 (ANNOUNCEMENT), 10, 11, 12 (THREADS), 15 (FORUM), 16 (MEDIA)
     if (typeof type === "number" && [0, 1, 2, 3, 5, 10, 11, 12, 15, 16].includes(type)) return true;
 
     return false;
@@ -127,7 +124,6 @@ function GalleryToolbarButton() {
     const supported = canUseGallery(channel);
     const selected = Boolean(modalKey && modalChannelId === channelId);
 
-    // Close the modal when switching channels to avoid stale content.
     React.useEffect(() => {
         if (!modalKey) return;
         if (modalChannelId && modalChannelId !== channelId) {
@@ -154,9 +150,6 @@ export default definePlugin({
     dependencies: ["HeaderBarAPI"],
 
     settings,
-
-    // Patch the built-in media viewer so clicking left/right halves navigates.
-    // This complements the existing arrow-key navigation in Discord's viewer.
     patches: [],
 
     handleMediaViewerClick(e: any) {
@@ -170,13 +163,11 @@ export default definePlugin({
         const x = (e.clientX ?? 0) - rect.left;
         const key = x < rect.width / 2 ? "ArrowLeft" : "ArrowRight";
 
-        // Discord's media viewer already listens for arrow keys; synthesize the same event on click.
         try {
             window.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
         } catch { }
     },
 
-    // Injects a button into the channel header toolbar via HeaderBarAPI.
     headerBarButton: {
         location: "channeltoolbar",
         icon: GalleryIcon,

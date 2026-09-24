@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { ModalContent, ModalProps } from "@utils/modal";
-import { Button, ChannelStore, MessageStore, Modal, React, showToast, Toasts, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
+import type { RenderModalProps } from "@vencord/discord-types";
+import { ChannelStore, MessageStore, Modal, React, showToast, Toasts, Tooltip, useEffect, useMemo, useRef, UserStore, useState } from "@webpack/common";
 
 import { downloadItemsToFolder } from "../utils/download";
 import { extractImages, GalleryItem } from "../utils/extractImages";
 import { fetchMessagesPage } from "../utils/pagination";
 import { GalleryGrid } from "./GalleryGrid";
+import { CheckAllIcon, CheckboxCheckedIcon, CheckboxEmptyIcon, ClearSelectionIcon, DownloadIcon, SpinnerIcon } from "./Icons";
 import { LightboxViewer } from "./LightboxViewer";
 
 type PluginSettings = {
@@ -117,7 +118,7 @@ function getGalleryTitle(channel: any): string {
     return "Gallery";
 }
 
-export function GalleryModal(props: ModalProps & { channelId: string; settings: PluginSettings; }) {
+export function GalleryModal(props: RenderModalProps & { channelId: string; settings: PluginSettings; }) {
     const { channelId, settings, ...modalProps } = props;
 
     const channel = ChannelStore?.getChannel?.(channelId);
@@ -132,7 +133,9 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
     const [viewerIndex, setViewerIndex] = useState<number | null>(null);
     const [downloadState, setDownloadState] = useState<{ done: number; total: number } | null>(null);
     const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
+    const [manualSelectMode, setManualSelectMode] = useState<boolean>(false);
 
+    const isSelectionMode = manualSelectMode || selectedKeys.size > 0;
     const selectedItems = useMemo(() => items.filter(i => selectedKeys.has(i.key)), [items, selectedKeys]);
 
     const abortRef = useRef<AbortController | null>(null);
@@ -205,8 +208,35 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
 
     useEffect(() => {
         setSelectedKeys(new Set());
+        setManualSelectMode(false);
         setViewerIndex(null);
     }, [channelId]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                if (document.querySelector('[class*="mediaModal"], [aria-label*="Media Viewer"]')) {
+                    return;
+                }
+
+                if (viewerIndex != null) {
+                    return;
+                }
+
+                if (isSelectionMode) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    setManualSelectMode(false);
+                    setSelectedKeys(new Set());
+                    return;
+                }
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown, { capture: true });
+        return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    }, [viewerIndex, isSelectionMode]);
 
     function toggleSelect(index: number) {
         const key = items[index]?.key;
@@ -224,7 +254,17 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
     }
 
     function handleClearSelection() {
+        setManualSelectMode(false);
         setSelectedKeys(new Set());
+    }
+
+    function handleToggleSelectMode() {
+        if (isSelectionMode) {
+            setManualSelectMode(false);
+            setSelectedKeys(new Set());
+        } else {
+            setManualSelectMode(true);
+        }
     }
 
     const onCloseAll = () => {
@@ -268,61 +308,97 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
 
     return (
         <Modal {...modalProps} onClose={onCloseAll} size="lg" title={title} className="vc-channel-gallery-root">
-            {!viewerItem && (
-                <div
-                    style={{
-                        display: "flex",
-                        gap: 8,
-                        padding: "8px 14px",
-                        alignItems: "center",
-                        borderBottom: "1px solid var(--background-modifier-accent)",
-                        background: "var(--background-secondary)",
-                        flexWrap: "wrap"
-                    }}
-                >
-                    <span style={{ flex: "1 1 auto", fontSize: 13, color: "var(--text-muted)" }}>
-                        {selectedKeys.size ? `${selectedKeys.size} selected • ${items.length} images` : `${items.length} images`}
-                        {hasMore ? " • more available" : ""}
-                        {downloading ? ` • Downloading ${downloadState?.done}/${downloadState?.total}` : ""}
-                    </span>
-                    <Button
-                        size={Button.Sizes.SMALL}
-                        color={Button.Colors.PRIMARY}
-                        look={Button.Looks.LINK}
-                        disabled={!items.length || selectedKeys.size === items.length}
-                        onClick={handleSelectAll}
-                    >
-                        Select all
-                    </Button>
-                    <Button
-                        size={Button.Sizes.SMALL}
-                        color={Button.Colors.PRIMARY}
-                        look={Button.Looks.LINK}
-                        disabled={!selectedKeys.size}
-                        onClick={handleClearSelection}
-                    >
-                        Clear
-                    </Button>
-                    <Button
-                        size={Button.Sizes.SMALL}
-                        disabled={!selectedKeys.size || downloading}
-                        onClick={handleDownloadSelected}
-                    >
-                        Download selected{selectedKeys.size ? ` (${selectedKeys.size})` : ""}
-                    </Button>
-                    <Button
-                        size={Button.Sizes.SMALL}
-                        disabled={!items.length || downloading}
-                        onClick={handleDownloadAll}
-                    >
-                        {downloading ? `Downloading ${downloadState!.done}/${downloadState!.total}` : "Download all"}
-                    </Button>
-                </div>
-            )}
-            <ModalContent
+            <div
                 className="vc-channel-gallery-modal"
-                style={{ padding: 0, overflow: "hidden" }}
+                style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "100%" }}
             >
+                {!viewerItem && (
+                    <div className="vc-channel-gallery-header">
+                        <span style={{ flex: "1 1 auto", fontSize: 13, color: "var(--text-muted)", minWidth: 140 }}>
+                            {selectedKeys.size ? `${selectedKeys.size} selected • ${items.length} images` : `${items.length} images`}
+                            {hasMore ? " • more available" : ""}
+                            {downloading ? ` • Downloading ${downloadState?.done}/${downloadState?.total}` : ""}
+                        </span>
+
+                        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            {isSelectionMode ? (
+                                <>
+                                    <Tooltip text={downloading ? "Downloading…" : `Download selected (${selectedKeys.size})`}>
+                                        {(tooltipProps: any) => (
+                                            <button
+                                                {...tooltipProps}
+                                                className="vc-channel-gallery-icon-btn primary vc-channel-gallery-btn-enter"
+                                                disabled={downloading || !selectedKeys.size}
+                                                onClick={handleDownloadSelected}
+                                                aria-label={`Download selected (${selectedKeys.size})`}
+                                            >
+                                                {downloading ? <SpinnerIcon size={16} /> : <DownloadIcon size={16} />}
+                                                <span>Selected ({selectedKeys.size})</span>
+                                            </button>
+                                        )}
+                                    </Tooltip>
+
+                                    <Tooltip text="Select all">
+                                        {(tooltipProps: any) => (
+                                            <button
+                                                {...tooltipProps}
+                                                className="vc-channel-gallery-icon-btn vc-channel-gallery-btn-enter"
+                                                disabled={!items.length || selectedKeys.size === items.length}
+                                                onClick={handleSelectAll}
+                                                aria-label="Select all"
+                                            >
+                                                <CheckAllIcon size={16} />
+                                                <span>Select all</span>
+                                            </button>
+                                        )}
+                                    </Tooltip>
+
+                                    <Tooltip text="Clear">
+                                        {(tooltipProps: any) => (
+                                            <button
+                                                {...tooltipProps}
+                                                className="vc-channel-gallery-icon-btn vc-channel-gallery-btn-enter"
+                                                onClick={handleClearSelection}
+                                                aria-label="Clear"
+                                            >
+                                                <ClearSelectionIcon size={16} />
+                                                <span>Clear</span>
+                                            </button>
+                                        )}
+                                    </Tooltip>
+                                </>
+                            ) : (
+                                <Tooltip text={downloading ? "Downloading…" : "Download all"}>
+                                    {(tooltipProps: any) => (
+                                        <button
+                                            {...tooltipProps}
+                                            className="vc-channel-gallery-icon-btn vc-channel-gallery-btn-enter"
+                                            disabled={!items.length || downloading}
+                                            onClick={handleDownloadAll}
+                                            aria-label="Download all"
+                                        >
+                                            {downloading ? <SpinnerIcon size={16} /> : <DownloadIcon size={16} />}
+                                            <span>Download all</span>
+                                        </button>
+                                    )}
+                                </Tooltip>
+                            )}
+
+                            <Tooltip text={isSelectionMode ? "Exit select mode" : "Select"}>
+                                {(tooltipProps: any) => (
+                                    <button
+                                        {...tooltipProps}
+                                        className="vc-channel-gallery-icon-btn vc-channel-gallery-btn-enter"
+                                        onClick={handleToggleSelectMode}
+                                        aria-label={isSelectionMode ? "Exit select mode" : "Select"}
+                                    >
+                                        {isSelectionMode ? <CheckboxCheckedIcon size={18} /> : <CheckboxEmptyIcon size={18} />}
+                                    </button>
+                                )}
+                            </Tooltip>
+                        </div>
+                    </div>
+                )}
                 {viewerItem ? (
                     <LightboxViewer
                         items={items}
@@ -344,9 +420,10 @@ export function GalleryModal(props: ModalProps & { channelId: string; settings: 
                         onSelect={setViewerIndex}
                         selectedKeys={selectedKeys}
                         onToggleSelect={toggleSelect}
+                        isSelectionMode={isSelectionMode}
                     />
                 )}
-            </ModalContent>
+            </div>
         </Modal>
     );
 }

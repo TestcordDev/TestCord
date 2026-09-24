@@ -41,8 +41,9 @@ export function GalleryGrid(props: {
     onSelect(index: number): void;
     selectedKeys?: Set<string>;
     onToggleSelect?(index: number): void;
+    isSelectionMode?: boolean;
 }) {
-    const { items, showCaptions, isLoading, hasMore, error, onRetry, onLoadMore, onSelect, selectedKeys, onToggleSelect } = props;
+    const { items, showCaptions, isLoading, hasMore, error, onRetry, onLoadMore, onSelect, selectedKeys, onToggleSelect, isSelectionMode: propSelectionMode } = props;
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const [viewport, setViewport] = useState({ width: 0, height: 0, scrollTop: 0 });
@@ -92,7 +93,6 @@ export function GalleryGrid(props: {
         };
     }, [columns, items.length, rowHeight, rows, viewport.height, viewport.scrollTop]);
 
-    // Infinite load: observe a sentinel element near the bottom.
     const sentinelRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const root = scrollRef.current;
@@ -136,11 +136,21 @@ export function GalleryGrid(props: {
                     const row = Math.floor(idx / columns);
                     const col = idx % columns;
                     const isSelected = selectedKeys?.has(item.key) ?? false;
+                    const isSelectionMode = propSelectionMode ?? ((selectedKeys?.size ?? 0) > 0);
 
                     return (
                         <button
                             key={item.key}
-                            onClick={() => onSelect(idx)}
+                            className="vc-channel-gallery-thumb-card"
+                            onClick={e => {
+                                if (e.ctrlKey || e.metaKey || isSelectionMode) {
+                                    e.preventDefault();
+                                    onToggleSelect?.(idx);
+                                } else {
+                                    onSelect(idx);
+                                }
+                            }}
+                            title={item.filename ?? "Image"}
                             style={{
                                 position: "absolute",
                                 left: col * (cell + GAP),
@@ -173,7 +183,7 @@ export function GalleryGrid(props: {
                                     loading="lazy"
                                     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", opacity: isSelected ? 0.92 : 1 }}
                                 />
-                                {onToggleSelect && (
+                                {onToggleSelect && isSelectionMode && (
                                     <span
                                         role="checkbox"
                                         aria-checked={isSelected}
@@ -197,7 +207,10 @@ export function GalleryGrid(props: {
                                             justifyContent: "center",
                                             cursor: "pointer",
                                             backdropFilter: "blur(2px)",
-                                            boxSizing: "border-box"
+                                            boxSizing: "border-box",
+                                            zIndex: 2,
+                                            animation: "vc-gallery-fade-in 0.15s ease both",
+                                            transition: "background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease"
                                         }}
                                     >
                                         {isSelected && (
