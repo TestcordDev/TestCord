@@ -1,15 +1,14 @@
 /*
  * Vencord, a Discord client mod
  * Copyright (c) 2026 Vendicated and contributors
- * Pinterest Tool modifications Copyright (c) 2026 szaleniec1327
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 import * as DataStore from "@api/DataStore";
 import { copyWithToast, openImageModal } from "@utils/discord";
-import { ModalCloseButton, ModalContent, ModalHeader, ModalProps, ModalRoot, ModalSize } from "@utils/modal";
 import { Logger } from "@utils/Logger";
 import { classes } from "@utils/misc";
+import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, ModalSize, RenderModalProps } from "@utils/modal";
 import { saveFile } from "@utils/web";
 import { findByPropsLazy, findComponentByCodeLazy } from "@webpack";
 import { ExpressionPickerStore, FluxDispatcher, showToast, Toasts, useEffect, useMemo, useRef, useState } from "@webpack/common";
@@ -80,7 +79,6 @@ function getResultLabel(result: PinterestImageResult) {
         return "Pinterest image";
     }
 }
-
 
 function mergeUniqueResults(
     current: PinterestImageResult[],
@@ -207,7 +205,6 @@ async function saveResult(result: PinterestImageResult) {
         showToast("Could not save that media.", Toasts.Type.FAILURE);
     }
 }
-
 
 const FAVORITES_STORAGE_KEYS: Record<Extract<SearchKind, "AVATAR" | "BANNER">, string> = {
     AVATAR: "PinterestTool_favorites_avatar_v2",
@@ -375,7 +372,6 @@ function SelectionDropdown({
     );
 }
 
-
 function PinterestLogo({ size = 18 }: { size?: number; }) {
     return (
         <svg
@@ -449,7 +445,7 @@ function hsvToHex(h: number, s: number, v: number) {
     else if (h < 180) [r, g, b] = [0, chroma, x];
     else if (h < 240) [r, g, b] = [0, x, chroma];
     else if (h < 300) [r, g, b] = [x, 0, chroma];
-    else [r, g, b] = [chroma, 0, x];
+    else[r, g, b] = [chroma, 0, x];
 
     return rgbToHex((r + m) * 255, (g + m) * 255, (b + m) * 255);
 }
@@ -980,69 +976,68 @@ function ResultsSection({
                     </div>
 
                     {pagedResults.length ? (
-                    <div className={classes(
-                        cl("grid"),
-                        kind === "BANNER" && cl("grid-banner"),
-                        gifsOnly && kind !== "BANNER" && pagedResults.length > 0 && pagedResults.length < slotCount && cl("grid-gif-sparse")
-                    )}>
-                        {pagedResults.map(result => (
-                            <div
-                                key={`${kind}-${result.id}`}
-                                role="button"
-                                tabIndex={0}
-                                className={cl("card")}
-                                onMouseDown={event => event.preventDefault()}
-                                onClick={() => onSelectResult(result, kind)}
-                                onKeyDown={event => {
-                                    if (event.currentTarget !== event.target) return;
-                                    if (event.key === "Enter" || event.key === " ") {
-                                        event.preventDefault();
-                                        onSelectResult(result, kind);
-                                    }
-                                }}
-                            >
-                                <div className={cl("card-top")}>
-                                    <button
-                                        type="button"
-                                        className={classes(cl("favorite-button"), isFavorite(result, kind) && cl("favorite-button-active"))}
-                                        aria-label={isFavorite(result, kind) ? "Remove from favorites" : "Add to favorites"}
-                                        title={isFavorite(result, kind) ? "Remove from favorites" : "Add to favorites"}
-                                        onMouseDown={event => event.stopPropagation()}
-                                        onClick={event => {
+                        <div className={classes(
+                            cl("grid"),
+                            kind === "BANNER" && cl("grid-banner"),
+                            gifsOnly && kind !== "BANNER" && pagedResults.length > 0 && pagedResults.length < slotCount && cl("grid-gif-sparse")
+                        )}>
+                            {pagedResults.map(result => (
+                                <div
+                                    key={`${kind}-${result.id}`}
+                                    role="button"
+                                    tabIndex={0}
+                                    className={cl("card")}
+                                    onMouseDown={event => event.preventDefault()}
+                                    onClick={() => onSelectResult(result, kind)}
+                                    onKeyDown={event => {
+                                        if (event.currentTarget !== event.target) return;
+                                        if (event.key === "Enter" || event.key === " ") {
                                             event.preventDefault();
-                                            event.stopPropagation();
-                                            onToggleFavorite(result, kind);
-                                        }}
-                                    >
-                                        <HeartIcon filled={isFavorite(result, kind)} />
-                                    </button>
-                                    <ResultMenu
-                                        result={result}
-                                        open={menuId === `${kind}:${result.id}`}
-                                        onToggle={() => setMenuId(current => current === `${kind}:${result.id}` ? "" : `${kind}:${result.id}`)}
-                                    />
-                                </div>
-                                <div className={classes(cl("art"), kind === "BANNER" && cl("art-banner"))}>
-                                    <img src={result.url} alt={result.title || bucket.activeQuery} />
-                                    <span className={cl("card-use")}>Select</span>
-                                </div>
-                                <div className={cl("card-bottom")}>
-                                    <div className={cl("card-title")}>{getResultLabel(result)}</div>
-                                    <div className={cl("card-meta")}>
-                                        {result.isGif ? <span>GIF</span> : <span>Image</span>}
-                                        <span>{targetLabel(kind)}</span>
+                                            onSelectResult(result, kind);
+                                        }
+                                    }}
+                                >
+                                    <div className={cl("card-top")}>
+                                        <button
+                                            type="button"
+                                            className={classes(cl("favorite-button"), isFavorite(result, kind) && cl("favorite-button-active"))}
+                                            aria-label={isFavorite(result, kind) ? "Remove from favorites" : "Add to favorites"}
+                                            title={isFavorite(result, kind) ? "Remove from favorites" : "Add to favorites"}
+                                            onMouseDown={event => event.stopPropagation()}
+                                            onClick={event => {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                onToggleFavorite(result, kind);
+                                            }}
+                                        >
+                                            <HeartIcon filled={isFavorite(result, kind)} />
+                                        </button>
+                                        <ResultMenu
+                                            result={result}
+                                            open={menuId === `${kind}:${result.id}`}
+                                            onToggle={() => setMenuId(current => current === `${kind}:${result.id}` ? "" : `${kind}:${result.id}`)}
+                                        />
+                                    </div>
+                                    <div className={classes(cl("art"), kind === "BANNER" && cl("art-banner"))}>
+                                        <img src={result.url} alt={result.title || bucket.activeQuery} />
+                                        <span className={cl("card-use")}>Select</span>
+                                    </div>
+                                    <div className={cl("card-bottom")}>
+                                        <div className={cl("card-title")}>{getResultLabel(result)}</div>
+                                        <div className={cl("card-meta")}>
+                                            {result.isGif ? <span>GIF</span> : <span>Image</span>}
+                                            <span>{targetLabel(kind)}</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
                     ) : null}
                 </div>
             ) : null}
         </section>
     );
 }
-
 
 function FavoritesSection({
     target,
@@ -1325,7 +1320,6 @@ function PinterestBrowser({
             ? Math.max(48, base * 18)
             : Math.max(32, base * 12);
     }
-
 
     function currentFavoriteTarget(): SearchKind {
         return target === "ALL" ? "AVATAR" : target;
@@ -1857,8 +1851,7 @@ export function PinterestProfilePanel({ guildId }: { guildId?: string; }) {
     );
 }
 
-
-interface PinterestProfileModalProps extends ModalProps {
+interface PinterestProfileModalProps extends RenderModalProps {
     target: Extract<SearchKind, "AVATAR" | "BANNER">;
     onEditFile?(file: File, onApplyStart?: () => void): Promise<"APPLIED" | "CANCELLED" | false>;
     onApplied?(): void;
@@ -1927,45 +1920,45 @@ export function PinterestProfileModal({ target, onEditFile, onApplied, ...props 
                         }
 
                         async function selectResult(result: PinterestImageResult) {
-                        if (editBeforeApply && onEditFile) {
-                            try {
-                                const file = await fetchProfileFile(result);
+                            if (editBeforeApply && onEditFile) {
+                                try {
+                                    const file = await fetchProfileFile(result);
 
-                                // Hand the file to Discord's own upload/editor flow. The
-                                // previous flashing/disappearing editor was actually caused
-                                // by handing the file to the wrong <input> (the chat
-                                // attachment uploader) — now that the correct dialog input
-                                // is used, Discord's real editor should open and stay open.
-                                const editorResult = await onEditFile(file, () => {
-                                    // Close Pinterest as soon as Discord's Apply button is pressed,
-                                    // while Edit Image is still covering it. Waiting until the editor
-                                    // disappears causes one frame of Pinterest to flash back onscreen.
-                                    props.onClose();
-                                });
+                                    // Hand the file to Discord's own upload/editor flow. The
+                                    // previous flashing/disappearing editor was actually caused
+                                    // by handing the file to the wrong <input> (the chat
+                                    // attachment uploader) — now that the correct dialog input
+                                    // is used, Discord's real editor should open and stay open.
+                                    const editorResult = await onEditFile(file, () => {
+                                        // Close Pinterest as soon as Discord's Apply button is pressed,
+                                        // while Edit Image is still covering it. Waiting until the editor
+                                        // disappears causes one frame of Pinterest to flash back onscreen.
+                                        props.onClose();
+                                    });
 
-                                // Keep Pinterest mounted underneath Discord's native editor.
-                                // If the user presses Cancel (or closes the editor), Discord
-                                // reveals this same Pinterest modal again with the search/results
-                                // preserved. Only close Pinterest after a successful Apply.
-                                if (editorResult === "APPLIED") {
-                                    // Pinterest was already closed on the Apply click to avoid a
-                                    // visible flash between Discord's editor and the profile page.
-                                    return;
+                                    // Keep Pinterest mounted underneath Discord's native editor.
+                                    // If the user presses Cancel (or closes the editor), Discord
+                                    // reveals this same Pinterest modal again with the search/results
+                                    // preserved. Only close Pinterest after a successful Apply.
+                                    if (editorResult === "APPLIED") {
+                                        // Pinterest was already closed on the Apply click to avoid a
+                                        // visible flash between Discord's editor and the profile page.
+                                        return;
+                                    }
+
+                                    if (editorResult === "CANCELLED") {
+                                        return;
+                                    }
+                                } catch (error) {
+                                    logger.error("Could not open Discord image editor", error);
                                 }
-
-                                if (editorResult === "CANCELLED") {
-                                    return;
-                                }
-                            } catch (error) {
-                                logger.error("Could not open Discord image editor", error);
                             }
-                        }
 
-                        const applied = await applyProfileResult(result, target);
-                        if (!applied) return;
+                            const applied = await applyProfileResult(result, target);
+                            if (!applied) return;
 
-                        props.onClose();
-                        window.setTimeout(() => onApplied?.(), 90);
+                            props.onClose();
+                            window.setTimeout(() => onApplied?.(), 90);
                         }
                     }}
                     rootClassName={classes(

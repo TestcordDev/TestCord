@@ -1,7 +1,7 @@
 /*
- * Pinterest Tool — TestCord user plugin
- * Based on the PinterestSearch browser/search implementation.
- * Adds Pinterest directly to Discord's "Select an Image" profile modal.
+ * Vencord, a Discord client mod
+ * Copyright (c) 2026 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
 import ErrorBoundary from "@components/ErrorBoundary";
@@ -9,8 +9,7 @@ import { openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
 
 import { PinterestProfileModal } from "./components";
-import type { SearchKind } from "./shared";
-import { settings } from "./shared";
+import { type SearchKind, settings } from "./shared";
 import managedStyle from "./style.css?managed";
 
 const WrappedPinterestProfileModal = ErrorBoundary.wrap(PinterestProfileModal, { noop: true });
@@ -217,7 +216,7 @@ function getReferencedFileInput(element: HTMLElement): HTMLInputElement | null {
 
     for (let depth = 0; current && depth < 6; depth++, current = current.parentElement) {
         if (current instanceof HTMLLabelElement) {
-            const control = current.control;
+            const { control } = current;
             if (control instanceof HTMLInputElement && isSafeProfileImageInput(control)) return control;
         }
 
@@ -439,16 +438,18 @@ async function captureDiscordProfileInput(dialog: HTMLElement): Promise<HTMLInpu
     const originalClick = inputPrototype.click;
     const originalShowPicker = (inputPrototype as any).showPicker as ((this: HTMLInputElement) => void) | undefined;
 
-    let captured: HTMLInputElement | null = null;
-    let rejected: HTMLInputElement | null = null;
+    const probe = {
+        captured: null as HTMLInputElement | null,
+        rejected: null as HTMLInputElement | null
+    };
 
     const capture = (input: HTMLInputElement) => {
         if (input.type !== "file") return false;
 
         // Suppress every native file chooser during this very short probe so an
         // unexpected Discord implementation still cannot open Windows Explorer.
-        if (!captured && isSafeProfileImageInput(input)) captured = input;
-        else if (!isSafeProfileImageInput(input)) rejected = input;
+        if (!probe.captured && isSafeProfileImageInput(input)) probe.captured = input;
+        else if (!isSafeProfileImageInput(input)) probe.rejected = input;
         return true;
     };
 
@@ -480,7 +481,7 @@ async function captureDiscordProfileInput(dialog: HTMLElement): Promise<HTMLInpu
 
         // React handlers normally call the file input synchronously, but leave a
         // tiny window for a queued callback while the interception remains active.
-        for (let attempt = 0; attempt < 8 && !captured; attempt++) {
+        for (let attempt = 0; attempt < 8 && !probe.captured; attempt++) {
             await new Promise(resolve => window.setTimeout(resolve, 20));
         }
     } catch (error) {
@@ -491,6 +492,7 @@ async function captureDiscordProfileInput(dialog: HTMLElement): Promise<HTMLInpu
         if (originalShowPicker) (inputPrototype as any).showPicker = originalShowPicker;
     }
 
+    const { captured, rejected } = probe;
     if (captured) {
         console.info("[PinterestTool] Edit handoff: captured Discord's profile upload input without opening the OS picker.", {
             insideDialog: dialog.contains(captured),
@@ -663,7 +665,7 @@ function removeInjectedEntries() {
 
 export default definePlugin({
     name: "Pinterest Tool",
-    description: "Adds Pinterest search to Discord\'s avatar and banner picker, with GIFs, favorites, themes and image editing—no manual downloads.",
+    description: "Adds Pinterest search to Discord's avatar and banner picker, with GIFs, favorites, themes and image editing—no manual downloads.",
     tags: ["Utility", "Customisation"],
     authors: [{ name: "szaleniec1327", id: 0n }],
     settings,

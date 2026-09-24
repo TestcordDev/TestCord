@@ -1,7 +1,6 @@
 /*
  * Vencord, a Discord client mod
  * Copyright (c) 2026 Vendicated and contributors
- * Pinterest Tool modifications Copyright (c) 2026 szaleniec1327
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
@@ -12,7 +11,6 @@ import { makeRange, OptionType, PluginNative } from "@utils/types";
 export type SearchTarget = "IMAGE" | "ALL" | "AVATAR" | "BANNER";
 export type SearchKind = Exclude<SearchTarget, "ALL">;
 export type MediaFilter = "ALL" | "GIFS" | "STATIC";
-
 
 export const PINTEREST_THEMES = [
     { label: "Pinterest", value: "pinterest", accent: "#e60023", accentHover: "#ff2446", soft: "rgba(230, 0, 35, .16)" },
@@ -157,7 +155,7 @@ export const settings = definePluginSettings({
                 label: "Custom",
                 value: "custom"
             }
-        ]
+        ] as { label: string; value: PinterestTheme; default?: boolean; }[]
     },
     customAccent: {
         type: OptionType.STRING,

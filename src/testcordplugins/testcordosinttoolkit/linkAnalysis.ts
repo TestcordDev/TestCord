@@ -416,7 +416,7 @@ export function buildUserSnapshot(userId: string): UserSnapshot {
         globalName: user?.globalName ?? null,
         avatarHash: user?.avatar ?? null,
         bannerHash: (user as { banner?: string; } | undefined)?.banner ?? null,
-        accentColor: user?.accentColor ?? null,
+        accentColor: (user as { accentColor?: number; } | undefined)?.accentColor ?? (profile as { accentColor?: number; } | undefined)?.accentColor ?? null,
         bot: user?.bot ?? false,
         flags: decodePublicFlags(user?.publicFlags ?? 0),
         createdAt: creationDate(userId),
