@@ -78,7 +78,7 @@ const TESTCORD_MODIFIED_VENCORD_NAMES = new Set([
     "VolumeBooster"
 ]);
 
-function getPluginFolderKey(folderName: string): { category: string; dir: string } | null {
+function getPluginFolderKey(folderName: string): { category: string; dir: string; } | null {
     if (!folderName) return null;
     const parts = folderName.replace(/\\/g, "/").replace(/^src\//, "").split("/");
     if (parts.length >= 2) {

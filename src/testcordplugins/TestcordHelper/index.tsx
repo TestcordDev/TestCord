@@ -24,6 +24,7 @@ import { gitHashShort } from "@shared/vencordUserAgent";
 import { fetchUserProfile, openUserProfile } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import { sleep, tryOrElse } from "@utils/misc";
+import { isTestcordModified } from "@utils/testcordIcons";
 import { makeCodeblock, ZWSP } from "@utils/text";
 import definePlugin, { OptionType, PluginNative } from "@utils/types";
 import { Message, User } from "@vencord/discord-types";
@@ -566,10 +567,10 @@ const RenderEmbeds = getUserSettingLazy<boolean>("textAndImages", "renderEmbeds"
 const MESSAGE_LIMIT = 1900;
 const MB = 1024 * 1024;
 
-const PLUGIN_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?|plg?):([^\s,;\n]+)/gi;
-const PLUGIN_MATCH_PATTERN = /(testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?|plg?):([^\s,;\n]+)/i;
+const PLUGIN_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?|plg?|testcordmodified|tcm):([^\s,;\n]+)/gi;
+const PLUGIN_MATCH_PATTERN = /(testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?|plg?|testcordmodified|tcm):([^\s,;\n]+)/i;
 const PLUGIN_LINK_PATTERN = /\[([^\]]+)]\(<?https:\/\/github\.com\/TestcordDev\/Testcord\/tree\/main\/src\/(?:plugins|equicordplugins|testcordplugins)\/[^>)]+>?\)/gi;
-const PLUGIN_CARD_MARKER_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?|plg?):|github\.com\/TestcordDev\/Testcord\/tree\/main\/src\/(?:plugins|equicordplugins|testcordplugins)\//i;
+const PLUGIN_CARD_MARKER_PATTERN = /(?:testcordplugin|tcp|vencordplugin|vcp|equicordplugin|eqp|plugins?|plg?|testcordmodified|tcm):|github\.com\/TestcordDev\/Testcord\/tree\/main\/src\/(?:plugins|equicordplugins|testcordplugins)\//i;
 const PLUGIN_RESOLVE_CACHE_LIMIT = 500;
 const pluginResolveCache = new Map<string, string | null>();
 const USER_PATTERN = /dcp:([^\s,;\n]+)/gi;
@@ -644,7 +645,7 @@ function getMemoryUsage(): string {
 export const settings = definePluginSettings({
     tcpAutocomplete: {
         type: OptionType.BOOLEAN,
-        description: "Show an extend-up autocomplete panel when typing tcp:, vcp:, eqp:, or plg: in chat to reference plugins",
+        description: "Show an extend-up autocomplete panel when typing tcp:, vcp:, eqp:, plg:, or tcm: in chat to reference plugins",
         default: true,
         onChange: (val: boolean) => {
             if (val) {
@@ -1109,7 +1110,8 @@ function getCategoryFolders(prefix?: string): string[] | undefined {
     if (lower === "tcp" || lower === "testcordplugin") return ["src/testcordplugins/"];
     if (lower === "vcp" || lower === "vencordplugin") return ["src/plugins/"];
     if (lower === "eqp" || lower === "equicordplugin") return ["src/equicordplugins/"];
-    if (lower === "plg" ||lower === "plugin" || lower === "plugins") return ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"];
+    if (lower === "plg" || lower === "plugin" || lower === "plugins") return ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"];
+    if (lower === "tcm" || lower === "testcordmodified") return ["src/testcordplugins/", "src/equicordplugins/", "src/plugins/"];
     return undefined;
 }
 
@@ -1152,9 +1154,12 @@ function resolvePluginNameCached(search: string, prefix?: string) {
     };
 
     if (categoryFolders) {
+        const isModifiedPrefix = prefix?.toLowerCase() === "tcm" || prefix?.toLowerCase() === "testcordmodified";
         const categoryData = allData.filter(p => {
             const folder = p.folderName;
-            return folder ? categoryFolders.some(f => folder.startsWith(f)) : false;
+            if (!folder || !categoryFolders.some(f => folder.startsWith(f))) return false;
+            if (isModifiedPrefix) return isTestcordModified(plugins[p.name], folder);
+            return true;
         });
         const matched = findInData(categoryData);
         if (matched) return matched;
