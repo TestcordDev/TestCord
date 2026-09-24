@@ -86,7 +86,9 @@ const FORMAT_CACHE_MAX = 512;
 
 function formatCached(date: Date, type: "cozy" | "compact" | "tooltip", fmt: string): string {
     const { showInCompact, showInTooltip } = settings.store;
-    const second = Math.floor(date.getTime() / 1000);
+    const time = date.getTime();
+    if (Number.isNaN(time)) return "";
+    const second = Math.floor(time / 1000);
     const key = `${type}|${second}|${fmt}|${showInCompact ? 1 : 0}|${showInTooltip ? 1 : 0}`;
 
     const cached = formatCache.get(key);
@@ -115,8 +117,40 @@ function formatCached(date: Date, type: "cozy" | "compact" | "tooltip", fmt: str
     return out;
 }
 
-function renderTimestamp(date: Date, type: "cozy" | "compact" | "tooltip"): string {
-    if (type !== "tooltip") useGlobalTick();
+function toDate(input: unknown): Date | null {
+    if (input instanceof Date) return Number.isNaN(input.getTime()) ? null : input;
+    if (typeof input === "number" && Number.isFinite(input)) {
+        const ms = input > 1e9 && input < 1e11 ? input * 1000 : input;
+        const d = new Date(ms);
+        return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof input === "string") {
+        const d = new Date(input);
+        return Number.isNaN(d.getTime()) ? null : d;
+    }
+    try {
+        const maybe = input as { toDate?: unknown; valueOf?: unknown; };
+        if (typeof maybe?.toDate === "function") {
+            const d = (maybe.toDate as () => unknown)();
+            if (d instanceof Date && !Number.isNaN(d.getTime())) return d;
+        }
+        if (typeof maybe?.valueOf === "function") {
+            const ms = Number((maybe.valueOf as () => unknown)());
+            if (Number.isFinite(ms)) {
+                const normalized = ms > 1e9 && ms < 1e11 ? ms * 1000 : ms;
+                const d = new Date(normalized);
+                if (!Number.isNaN(d.getTime())) return d;
+            }
+        }
+    } catch { }
+    return null;
+}
+
+function renderTimestamp(input: unknown, type: "cozy" | "compact" | "tooltip"): string {
+    useGlobalTick();
+
+    const date = toDate(input);
+    if (!date) return "";
 
     const fmt = settings.store.format ?? "HH:mm:ss";
     return formatCached(date, type, fmt);
