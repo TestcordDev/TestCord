@@ -6,6 +6,7 @@
 
 import { Settings } from "@api/Settings";
 import { copyWithToast } from "@utils/discord";
+import { themeFileToId } from "@utils/themeIds";
 import { React, showToast, Toasts } from "@webpack/common";
 
 import type { PaletteAction, PaletteCommand, PaletteListItem } from "../api/types";
@@ -300,7 +301,11 @@ async function installedThemeItems(): Promise<PaletteListItem[]> {
             const enabledThemes = Array.isArray(Settings.enabledThemes) ? Settings.enabledThemes : [];
 
             for (const theme of localThemes) {
-                const isEnabled = enabledThemes.includes(theme.fileName);
+                const id = ((theme as any).id || themeFileToId(theme.fileName)).toLowerCase();
+                const isEnabled = enabledThemes.some((t: string) => {
+                    const tl = t.toLowerCase();
+                    return tl === id || tl === theme.fileName.toLowerCase();
+                });
                 const isPinned = pinned.includes(theme.fileName);
                 const name = theme.name ?? theme.fileName;
 
@@ -317,9 +322,18 @@ async function installedThemeItems(): Promise<PaletteListItem[]> {
                             keepOpen: true,
                             run: () => {
                                 if (isEnabled) {
-                                    Settings.enabledThemes = Settings.enabledThemes.filter(f => f !== theme.fileName);
+                                    Settings.enabledThemes = Settings.enabledThemes.filter(f => {
+                                        const fl = f.toLowerCase();
+                                        return fl !== id && fl !== theme.fileName.toLowerCase();
+                                    });
                                 } else {
-                                    Settings.enabledThemes = [...Settings.enabledThemes, theme.fileName];
+                                    Settings.enabledThemes = [
+                                        ...Settings.enabledThemes.filter(f => {
+                                            const fl = f.toLowerCase();
+                                            return fl !== id && fl !== theme.fileName.toLowerCase();
+                                        }),
+                                        id
+                                    ];
                                 }
                                 showToast(`Theme ${isEnabled ? "disabled" : "enabled"}.`, Toasts.Type.SUCCESS);
                             }
@@ -344,7 +358,10 @@ async function installedThemeItems(): Promise<PaletteListItem[]> {
                             icon: TrashIcon,
                             keepOpen: true,
                             run: async () => {
-                                Settings.enabledThemes = Settings.enabledThemes.filter(f => f !== theme.fileName);
+                                Settings.enabledThemes = Settings.enabledThemes.filter(f => {
+                                    const fl = f.toLowerCase();
+                                    return fl !== id && fl !== theme.fileName.toLowerCase();
+                                });
                                 await VencordNative.themes.deleteTheme(theme.fileName);
                                 showToast(`Deleted ${theme.fileName}.`, Toasts.Type.SUCCESS);
                             }

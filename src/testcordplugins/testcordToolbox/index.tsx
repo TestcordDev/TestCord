@@ -24,7 +24,7 @@ import { Devs } from "@utils/constants";
 import definePlugin, { OptionType } from "@utils/types";
 import { Popout, useRef, useState } from "@webpack/common";
 
-import { renderPopout } from "./menu";
+import { ToolboxMenu } from "./menu";
 
 export const settings = definePluginSettings({
     showPluginMenu: {
@@ -57,7 +57,7 @@ function VencordPopoutButton() {
                 shouldShow={show}
                 onRequestClose={() => setShow(false)}
                 targetElementRef={buttonRef}
-                renderPopout={() => renderPopout(() => setShow(false))}
+                renderPopout={() => <ToolboxMenu onClose={() => setShow(false)} />}
             >
                 {(_, { isShown }) => (
                     <HeaderBarButton
