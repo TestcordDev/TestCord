@@ -226,8 +226,8 @@ export default definePlugin({
         {
             find: "missing validator for this component",
             replacement: {
-                match: /(\i)(\.type\)\s*\{\s*case \i\.\i\.BUTTON\s*:)\s*return null;/,
-                replace: "$1$2return ($self.handleButtonClick($1),null);"
+                match: /(case \i\.\i\.CHECKBOX\s*:)\s*return null;/,
+                replace: "$1return ($self.handleButtonClick(arguments[0]),null);"
             }
         }
     ],

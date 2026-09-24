@@ -531,8 +531,9 @@ export default definePlugin({
         MESSAGE_CREATE({ message, optimistic }: { message: Message; optimistic: boolean; }) {
             if (optimistic) return;
             if ((message as any).__vaAnalyzed) return;
+            if (!message.content && !message.embeds?.length && !message.components?.length && !message.attachments?.length) return;
             (message as any).__vaAnalyzed = true;
-            autoAnalyzeMessage(message);
+            setTimeout(() => autoAnalyzeMessage(message), 0);
         }
     },
 

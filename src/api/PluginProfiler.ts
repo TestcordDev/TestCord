@@ -11,6 +11,8 @@ import { type RuntimeHookOwnership, RuntimeInterposition, RuntimeInterpositionPr
 
 const logger = new Logger("PluginProfiler", "#3498db");
 
+export const PROFILE_WINDOW_MS = 60_000;
+
 // Fallback stack inspection when a timer or listener is created outside an
 // active plugin execution frame.
 const PLUGIN_PATH_PATTERNS = [
@@ -66,6 +68,7 @@ export interface PluginProfileData {
     heapMB: number;
     lastHeapDeltaMB: number;
     extraRAMMB: number;
+    sampleWindowMs: number;
     impactScore: number;
     signals: SignalFlag[];
     advisory: string | null;
@@ -82,6 +85,7 @@ interface ActiveContext {
 }
 
 interface RawPluginMetrics {
+    windowStartedAt: number;
     totalCpuTimeMs: number;
     callCount: number;
     maxCallMs: number;
@@ -129,6 +133,7 @@ function ensureMetrics(pluginName: string): RawPluginMetrics {
     let metrics = metricsRegistry.get(pluginName);
     if (!metrics) {
         metrics = {
+            windowStartedAt: performance.now(),
             totalCpuTimeMs: 0,
             callCount: 0,
             maxCallMs: 0,
@@ -144,6 +149,25 @@ function ensureMetrics(pluginName: string): RawPluginMetrics {
         metricsRegistry.set(pluginName, metrics);
     }
     return metrics;
+}
+
+function resetPerformanceWindow(metrics: RawPluginMetrics, now: number) {
+    metrics.windowStartedAt = now;
+    metrics.totalCpuTimeMs = 0;
+    metrics.callCount = 0;
+    metrics.maxCallMs = 0;
+    metrics.slowSpikes = 0;
+    metrics.asyncTimeMs = 0;
+    metrics.allocatedHeapBytes = 0;
+    metrics.lastHeapBytes = 0;
+    metrics.lastHeapDeltaMB = 0;
+    metrics.surfaces = {};
+}
+
+function rollPerformanceWindow(metrics: RawPluginMetrics, now: number) {
+    if (now - metrics.windowStartedAt >= PROFILE_WINDOW_MS) {
+        resetPerformanceWindow(metrics, now);
+    }
 }
 
 function ensureSurface(metrics: RawPluginMetrics, surface: string): SurfaceStats {
@@ -560,6 +584,8 @@ export const PluginProfiler = {
 
         const beforeHeap = (performance as any)?.memory?.usedJSHeapSize;
         const start = performance.now();
+        const metrics = ensureMetrics(pluginName);
+        rollPerformanceWindow(metrics, start);
         activeStack.push({ pluginName, surface: category });
 
         try {
@@ -569,7 +595,7 @@ export const PluginProfiler = {
                 const asyncStart = performance.now();
                 void Promise.resolve(result).finally(() => {
                     const duration = performance.now() - asyncStart;
-                    const metrics = ensureMetrics(pluginName);
+                    rollPerformanceWindow(metrics, asyncStart);
                     metrics.asyncTimeMs += duration;
                     const surf = ensureSurface(metrics, category);
                     surf.asyncMs += duration;
@@ -581,7 +607,6 @@ export const PluginProfiler = {
         } finally {
             activeStack.pop();
             const duration = performance.now() - start;
-            const metrics = ensureMetrics(pluginName);
 
             metrics.totalCpuTimeMs += duration;
             metrics.callCount++;
@@ -608,7 +633,7 @@ export const PluginProfiler = {
                 const delta = afterHeap - beforeHeap;
                 metrics.lastHeapBytes = afterHeap;
                 metrics.lastHeapDeltaMB = Math.round((delta / (1024 * 1024)) * 100) / 100;
-                if (delta > 0) metrics.allocatedHeapBytes += delta;
+                if (delta > 0) metrics.allocatedHeapBytes = Math.max(metrics.allocatedHeapBytes, delta);
             }
 
             notifySubscribers();
@@ -622,11 +647,12 @@ export const PluginProfiler = {
         if (!pluginName) return promiseFn();
 
         const start = performance.now();
+        const metrics = ensureMetrics(pluginName);
+        rollPerformanceWindow(metrics, start);
         try {
             return await promiseFn();
         } finally {
             const duration = performance.now() - start;
-            const metrics = ensureMetrics(pluginName);
             metrics.asyncTimeMs += duration;
             const surf = ensureSurface(metrics, category);
             surf.asyncMs += duration;
@@ -677,6 +703,9 @@ export const PluginProfiler = {
      */
     getProfile(pluginName: string): PluginProfileData {
         const metrics = metricsRegistry.get(pluginName);
+        const now = performance.now();
+        if (metrics) rollPerformanceWindow(metrics, now);
+
         const heapBytes = metrics?.lastHeapBytes ?? 0;
         const heapMB = Math.round((heapBytes / (1024 * 1024)) * 100) / 100;
         const extraRAMMB = Math.round(((metrics?.allocatedHeapBytes ?? 0) / (1024 * 1024)) * 100) / 100;
@@ -720,6 +749,9 @@ export const PluginProfiler = {
             heapMB,
             lastHeapDeltaMB,
             extraRAMMB,
+            sampleWindowMs: metrics
+                ? Math.min(PROFILE_WINDOW_MS, Math.round(now - metrics.windowStartedAt))
+                : 0,
             impactScore,
             signals,
             advisory,
@@ -744,16 +776,9 @@ export const PluginProfiler = {
      * Reset recorded performance metrics
      */
     resetMetrics() {
+        const now = performance.now();
         for (const metrics of metricsRegistry.values()) {
-            metrics.totalCpuTimeMs = 0;
-            metrics.callCount = 0;
-            metrics.maxCallMs = 0;
-            metrics.slowSpikes = 0;
-            metrics.asyncTimeMs = 0;
-            metrics.allocatedHeapBytes = 0;
-            metrics.lastHeapBytes = 0;
-            metrics.lastHeapDeltaMB = 0;
-            metrics.surfaces = {};
+            resetPerformanceWindow(metrics, now);
         }
         notifySubscribers(true);
     },
@@ -764,15 +789,7 @@ export const PluginProfiler = {
     resetPluginMetrics(pluginName: string) {
         const metrics = metricsRegistry.get(pluginName);
         if (!metrics) return;
-        metrics.totalCpuTimeMs = 0;
-        metrics.callCount = 0;
-        metrics.maxCallMs = 0;
-        metrics.slowSpikes = 0;
-        metrics.asyncTimeMs = 0;
-        metrics.allocatedHeapBytes = 0;
-        metrics.lastHeapBytes = 0;
-        metrics.lastHeapDeltaMB = 0;
-        metrics.surfaces = {};
+        resetPerformanceWindow(metrics, performance.now());
         notifySubscribers(true);
     },
 

@@ -123,27 +123,12 @@ export async function getChannelLogsAfter(channelId: string, timestamp: string) 
     return records;
 }
 
-export async function getChannelEditedLogsAfter(channelId: string, timestamp: string) {
-    let normalizedTs: string;
-    try {
-        normalizedTs = new Date(String(timestamp)).toISOString();
-    } catch {
-        normalizedTs = String(timestamp);
-    }
+export async function getAllHistoryForChannel(channelId: string) {
     const database = await getDatabase();
-    const index = database.transaction("messages").store.index("by_timestamp_and_message_id");
-    const range = IDBKeyRange.bound([channelId, normalizedTs], [channelId, "\uffff"]);
-    const records: LogRecord[] = [];
-    let cursor = await index.openCursor(range);
-    while (cursor) {
-        if (cursor.value.status === LogStatus.EDITED) records.push(cursor.value);
-        cursor = await cursor.continue();
-    }
-    return records;
-}
-
-export async function getAllEditedForChannel(channelId: string) {
-    return getChannelEditedLogsAfter(channelId, new Date(0).toISOString());
+    const index = database.transaction("messages").store.index("by_channel_id");
+    const records = await index.getAll(channelId);
+    return records.filter(record => record.status === LogStatus.EDITED
+        || (Array.isArray(record.message.editHistory) && record.message.editHistory.length > 0));
 }
 
 export async function getLogById(messageId: string) {

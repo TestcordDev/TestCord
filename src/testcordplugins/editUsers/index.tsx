@@ -40,7 +40,7 @@ export default definePlugin({
         {
             find: ",getUserTag:",
             replacement: {
-                match: /function \i\((\i)\)\{return(?=c\(\1\.global_name\))/,
+                match: /function (\i)\((\i)\)\{return(?=\s*\i\(\2\.global_name\))/,
                 replace: "function $1($2){const vcEuName=$self.getUsername($2);if(vcEuName)return vcEuName;return"
             }
         },
@@ -65,8 +65,8 @@ export default definePlugin({
                     replace: "$& && !$self.shouldIgnoreGuildBanner(this.userId)"
                 },
                 {
-                    match: /(?<=:\s*)\i\.\i\(\{id:this\.userId,banner:this\.banner/,
-                    replace: "$self.getBannerUrl(this.userId)||$&"
+                    match: /(null!=this\.guildId&&this\.isUsingGuildMemberBanner\(\)\?)(\(0,\i\.\i\))/,
+                    replace: "$1$self.getBannerUrl(this.userId)||$2"
                 },
                 {
                     match: /isUsingGuildMemberPronouns\(\)\{/,

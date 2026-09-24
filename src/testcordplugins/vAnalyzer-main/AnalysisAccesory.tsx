@@ -162,8 +162,11 @@ export function AnalysisAccessory({ message }: { message: Message; }) {
         flushPending(message.id, setAnalysis);
         // Trigger analysis for scrollback messages that never fired MESSAGE_CREATE.
         // autoAnalyzeMessage dedupes via its own TTL map, so repeat mounts are cheap.
-        autoAnalyzeMessage(message);
-        return () => void AnalysisSetters.delete(message.id);
+        const timer = setTimeout(() => autoAnalyzeMessage(message), 0);
+        return () => {
+            clearTimeout(timer);
+            void AnalysisSetters.delete(message.id);
+        };
     }, [message.id]);
 
     useEffect(() => {

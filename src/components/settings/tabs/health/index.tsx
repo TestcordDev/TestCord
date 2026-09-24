@@ -10,7 +10,7 @@ import * as DataStore from "@api/DataStore";
 import { type NetworkDomainSummary, NetworkMonitor } from "@api/NetworkMonitor";
 import { type PatchFailure, PluginHealth, type PluginHealthEntry, type RuntimeError, type SessionRecord, type StabilityScore } from "@api/PluginHealth";
 import { pluginStartTimings } from "@api/PluginManager";
-import { PluginProfileData, PluginProfiler } from "@api/PluginProfiler";
+import { PluginProfileData, PluginProfiler, PROFILE_WINDOW_MS } from "@api/PluginProfiler";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
 import { CodeBlock } from "@components/CodeBlock";
@@ -31,6 +31,8 @@ import { getBuildNumber, getFactoryPatchedSource, SYM_ORIGINAL_FACTORY } from "@
 import Plugins from "~plugins";
 
 type DiagnosticTabKey = "overview" | "diagnostics" | "impact" | "monitor" | "finder" | "guide";
+
+const PROFILE_WINDOW_SECONDS = PROFILE_WINDOW_MS / 1000;
 
 function formatRelative(ts: number): string {
     const diff = Date.now() - ts;
@@ -1291,7 +1293,7 @@ function HealthTab() {
             "Plugin Health & Diagnostics",
             `Renderer Heap: ${heapUsed}`,
             "",
-            "Plugin | Impact | CPU (ms) | Calls | Slow Spikes | Resources | Hot Surface | Max Call (ms)",
+            `Plugin | Impact | CPU (ms, max ${PROFILE_WINDOW_SECONDS}s) | Calls (max ${PROFILE_WINDOW_SECONDS}s) | Slow Spikes (max ${PROFILE_WINDOW_SECONDS}s) | Live Resources | Hot Surface | Max Call (ms)`,
             ...diagRows.map(p => [
                 p.pluginName,
                 p.impactScore.toFixed(1),
@@ -1334,10 +1336,10 @@ function HealthTab() {
             `Impact Score: ${profile.impactScore.toFixed(1)}`,
             "",
             "Metric | Value",
-            `CPU Time | ${profile.totalCpuTimeMs.toFixed(1)} ms`,
-            `CPU Share | ${totalCpuTimeMs > 0 ? ((profile.totalCpuTimeMs / totalCpuTimeMs) * 100).toFixed(1) : 0}%`,
-            `Calls | ${profile.callCount}`,
-            `Slow Spikes | ${profile.slowSpikes}`,
+            `CPU Time (max ${PROFILE_WINDOW_SECONDS}s) | ${profile.totalCpuTimeMs.toFixed(1)} ms`,
+            `CPU Share (max ${PROFILE_WINDOW_SECONDS}s) | ${totalCpuTimeMs > 0 ? ((profile.totalCpuTimeMs / totalCpuTimeMs) * 100).toFixed(1) : 0}%`,
+            `Calls (max ${PROFILE_WINDOW_SECONDS}s) | ${profile.callCount}`,
+            `Slow Spikes (max ${PROFILE_WINDOW_SECONDS}s) | ${profile.slowSpikes}`,
             `Max Call | ${profile.maxCallMs.toFixed(1)} ms`,
             `Active Resources | ${profile.activeResources}`,
             `Intervals | ${profile.activeIntervals}`,
@@ -2010,7 +2012,7 @@ function HealthTab() {
                         </div>
                         <div className="vc-health-stat-card">
                             <div className="vc-health-stat-value">{totalCpuTimeMs.toFixed(1)} ms</div>
-                            <div className="vc-health-stat-label">Callback time</div>
+                            <div className="vc-health-stat-label">Callback time (max {PROFILE_WINDOW_SECONDS}s)</div>
                         </div>
                         <div className="vc-health-stat-card">
                             <div className="vc-health-stat-value">{totalActiveResources}</div>
@@ -2021,6 +2023,10 @@ function HealthTab() {
                             <div className="vc-health-stat-label">Plugin startup time</div>
                         </div>
                     </div>
+
+                    <Paragraph color="text-subtle" className={Margins.bottom16}>
+                        CPU, call, spike, and heap-allocation counters cover the current {PROFILE_WINDOW_SECONDS}-second window. Resources are live counts and are not reset with the window.
+                    </Paragraph>
 
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", marginBottom: "1rem" }}>
                         <div style={{ flex: 1 }}>
@@ -2064,12 +2070,12 @@ function HealthTab() {
                             <thead>
                                 <tr>
                                     <SortableTh column="pluginName" label="Plugin" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
-                                    <SortableTh column="impactScore" label="Impact" title="Composite Impact Score" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
-                                    <SortableTh column="totalCpuTimeMs" label="CPU" title="Total CPU Time (ms)" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
-                                    <SortableTh column="callCount" label="Calls" title="Execution Call Count" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
-                                    <SortableTh column="slowSpikes" label="Spikes" title="Slow Call Spikes (>= 16ms)" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="impactScore" label="Impact" title="Composite Impact Score for the current performance window plus live resources" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="totalCpuTimeMs" label="CPU" title={`Callback CPU time in the current ${PROFILE_WINDOW_SECONDS}-second window`} sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="callCount" label="Calls" title={`Execution calls in the current ${PROFILE_WINDOW_SECONDS}-second window`} sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="slowSpikes" label="Spikes" title={`Slow call spikes in the current ${PROFILE_WINDOW_SECONDS}-second window`} sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
                                     <SortableTh column="maxCallMs" label="Max Call" title="Maximum Single Call Duration (ms)" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
-                                    <SortableTh column="activeResources" label="Resources" title="Active Persistent Resources (Intervals + Listeners + Hooks)" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
+                                    <SortableTh column="activeResources" label="Resources" title="Live persistent resources (intervals + listeners + hooks)" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
                                     <SortableTh column="hotSurface" label="Hot Surface" title="Most Time-Consuming Execution Surface" sortColumn={sortColumn} sortDirection={sortDirection} onSort={handleSortColumn} />
                                 </tr>
                             </thead>
@@ -2159,7 +2165,7 @@ function HealthTab() {
             {activeTab === "impact" && (
                 <div className="vc-health-tab-content">
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                        <HeadingSecondary style={{ margin: 0 }}>Ranked Lag Impact Score</HeadingSecondary>
+                        <HeadingSecondary style={{ margin: 0 }}>Ranked Recent Lag Impact</HeadingSecondary>
                         <Button
                             size="small"
                             variant="secondary"
@@ -2295,8 +2301,8 @@ function HealthTab() {
                                         options={[
                                             { label: "Sort: Impact", value: "impact" },
                                             { label: "Sort: Name", value: "name" },
-                                            { label: "Sort: CPU", value: "cpu" },
-                                            { label: "Sort: Calls", value: "calls" }
+                                            { label: `Sort: CPU (${PROFILE_WINDOW_SECONDS}s)`, value: "cpu" },
+                                            { label: `Sort: Calls (${PROFILE_WINDOW_SECONDS}s)`, value: "calls" }
                                         ]}
                                         closeOnSelect
                                         select={val => setMonitorSort(val)}
@@ -2364,21 +2370,21 @@ function HealthTab() {
                                 <div className="vc-health-metrics-grid-8">
                                     <div className="vc-health-metric-card-sm">
                                         <div className="vc-health-metric-val">{currentPluginProfile.totalCpuTimeMs.toFixed(1)} ms</div>
-                                        <div className="vc-health-metric-label">Extra CPU</div>
+                                        <div className="vc-health-metric-label">Extra CPU (max {PROFILE_WINDOW_SECONDS}s)</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
                                         <div className="vc-health-metric-val">
                                             {totalCpuTimeMs > 0 ? ((currentPluginProfile.totalCpuTimeMs / totalCpuTimeMs) * 100).toFixed(1) : 0}%
                                         </div>
-                                        <div className="vc-health-metric-label">CPU Share</div>
+                                        <div className="vc-health-metric-label">CPU Share (max {PROFILE_WINDOW_SECONDS}s)</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
                                         <div className="vc-health-metric-val">{currentPluginProfile.callCount}</div>
-                                        <div className="vc-health-metric-label">Calls</div>
+                                        <div className="vc-health-metric-label">Calls (max {PROFILE_WINDOW_SECONDS}s)</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
                                         <div className="vc-health-metric-val">{currentPluginProfile.slowSpikes}</div>
-                                        <div className="vc-health-metric-label">Slow Spikes</div>
+                                        <div className="vc-health-metric-label">Slow Spikes (max {PROFILE_WINDOW_SECONDS}s)</div>
                                     </div>
                                     <div className="vc-health-metric-card-sm">
                                         <div className="vc-health-metric-val">{currentPluginProfile.maxCallMs.toFixed(1)} ms</div>
@@ -2538,7 +2544,7 @@ function HealthTab() {
                                 Impact Score = (CPU_ms * 0.5) + (Slow_Spikes * 25) + (Active_Resources * 5)
                             </div>
                             <Paragraph color="text-subtle" style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>
-                                Active resources track persistent unreleased handles (live intervals, event listeners, and runtime interposition hooks) retained by the plugin, attributed automatically in both Development and Production builds.
+                                CPU time and slow spikes come from the current {PROFILE_WINDOW_SECONDS}-second window, so client uptime does not inflate rankings. Active resources are live counts of persistent unreleased handles (intervals, event listeners, and runtime interposition hooks) and do not reset with the performance window.
                             </Paragraph>
                         </Card>
 

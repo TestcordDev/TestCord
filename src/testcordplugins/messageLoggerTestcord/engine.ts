@@ -40,11 +40,13 @@ interface MessageWithToJS {
     toJS(): MessageJSON;
 }
 
-function hasToJS(message: Message | MessageJSON): message is Message & MessageWithToJS {
+type SnapshotMessage = Message | MessageJSON | LoggedMessage;
+
+function hasToJS(message: SnapshotMessage): message is (Message | LoggedMessage) & MessageWithToJS {
     return "toJS" in message && typeof message.toJS === "function";
 }
 
-function snapshotMessage(message: Message | MessageJSON): LoggedMessage {
+function snapshotMessage(message: SnapshotMessage): LoggedMessage {
     const raw = hasToJS(message) ? message.toJS() : message;
     const copy = lodash.cloneDeep(raw) as LoggedMessage;
     const rawAny = raw as any;
@@ -84,7 +86,7 @@ function remember(message: LoggedMessage) {
     recentMessages.delete(message.id);
     recentMessages.set(message.id, message);
     // Keep channel cache in sync for per-channel DB fallback (supports reduced global cache)
-    if ((message as any).channel_id) {
+    if (message.channel_id) {
         channelMessageCache.set(message.id, message);
         while (channelMessageCache.size > 5000) {
             const first = channelMessageCache.keys().next().value;
@@ -96,6 +98,34 @@ function remember(message: LoggedMessage) {
 
 export function getCachedLoggedMessage(id: string) {
     return recentMessages.get(id) ?? channelMessageCache.get(id);
+}
+
+export function isHistoryNewer(incoming: LoggedMessage["editHistory"], current: LoggedMessage["editHistory"]) {
+    if (!Array.isArray(incoming) || incoming.length === 0) return false;
+    if (!Array.isArray(current) || current.length === 0) return true;
+    if (incoming.length !== current.length) return incoming.length > current.length;
+
+    const incomingLast = incoming[incoming.length - 1];
+    const currentLast = current[current.length - 1];
+    if (!incomingLast || !currentLast) return false;
+
+    const incomingTime = Date.parse(String(incomingLast.timestamp));
+    const currentTime = Date.parse(String(currentLast.timestamp));
+    if (Number.isFinite(incomingTime) && Number.isFinite(currentTime)) {
+        return incomingTime > currentTime || incomingTime === currentTime && incomingLast.content !== currentLast.content;
+    }
+    return incomingLast.content !== currentLast.content;
+}
+
+export function isEditHistoryNewer(incoming: LoggedMessage, current?: LoggedMessage) {
+    return isHistoryNewer(incoming.editHistory, current?.editHistory);
+}
+
+function mergeMessageHistory(target: LoggedMessage, incoming: LoggedMessage) {
+    if (isEditHistoryTempCleared(target.id) || !isEditHistoryNewer(incoming, target)) return false;
+    target.editHistory = incoming.editHistory;
+    invalidateLoggedCaches(target.id);
+    return true;
 }
 
 /**
@@ -112,31 +142,16 @@ export function rememberLiveMessages(messages: LoggedMessage[]) {
             // remember() refreshes recency and enforces the caps as before.
             const known = recentMessages.get(m.id) ?? channelMessageCache.get(m.id);
             if (known) {
-                // Heal: the incoming copy may carry logged editHistory the cached
-                // one lacks (e.g. fetch bodies after the fetch hook attached it,
-                // or store objects patched by the channel-select inject). Without
-                // this the first history-less snapshot shadows the good copy
-                // forever and history blanks out on later revisits.
-                try {
-                    const incomingHist = (m as any)?.editHistory;
-                    const knownLen = Array.isArray(known.editHistory) ? known.editHistory.length : 0;
-                    if (Array.isArray(incomingHist) && incomingHist.length > knownLen && !isEditHistoryTempCleared(m.id)) {
-                        known.editHistory = incomingHist;
-                        const chan = channelMessageCache.get(m.id);
-                        if (chan && chan !== known) {
-                            const chanLen = Array.isArray((chan as any).editHistory) ? (chan as any).editHistory.length : 0;
-                            if (incomingHist.length > chanLen) (chan as any).editHistory = incomingHist;
-                        }
-                        invalidateLoggedCaches(m.id);
-                    }
-                } catch { }
+                mergeMessageHistory(known, m);
+                const channelCopy = channelMessageCache.get(m.id);
+                if (channelCopy && channelCopy !== known) mergeMessageHistory(channelCopy, m);
                 remember(known);
                 continue;
             }
-            if ((((m as any).flags ?? 0) & EPHEMERAL) === EPHEMERAL) continue;
+            if (((m.flags ?? 0) & EPHEMERAL) === EPHEMERAL) continue;
             let snapshot: LoggedMessage;
             try {
-                snapshot = snapshotMessage(m as any);
+                snapshot = snapshotMessage(m);
             } catch {
                 snapshot = m;
             }
@@ -148,25 +163,12 @@ export function rememberLiveMessages(messages: LoggedMessage[]) {
 export function cacheChannelMessages(records: LogRecord[]) {
     for (const rec of records) {
         if (isTempHiddenMessage(rec.message?.id)) continue;
-        if (rec.message?.id) channelMessageCache.set(rec.message.id, rec.message);
-        // Backfill the shadowing recentMessages entry: getCachedLoggedMessage
-        // prefers it, so a history-less snapshot taken before the DB load would
-        // otherwise hide this record's history on later revisits. No new ids are
-        // added, so the memory caps are unaffected.
-        try {
-            const hist = rec.message?.editHistory;
-            const id = rec.message?.id;
-            if (id && Array.isArray(hist) && hist.length && !isEditHistoryTempCleared(id)) {
-                const known = recentMessages.get(id);
-                if (known) {
-                    const knownLen = Array.isArray(known.editHistory) ? known.editHistory.length : 0;
-                    if (hist.length > knownLen) {
-                        known.editHistory = hist;
-                        invalidateLoggedCaches(id);
-                    }
-                }
-            }
-        } catch { }
+        const id = rec.message?.id;
+        if (id) channelMessageCache.set(id, rec.message);
+        if (id) {
+            const known = recentMessages.get(id);
+            if (known) mergeMessageHistory(known, rec.message);
+        }
     }
     while (channelMessageCache.size > 5000) {
         const first = channelMessageCache.keys().next().value;
@@ -175,13 +177,16 @@ export function cacheChannelMessages(records: LogRecord[]) {
     }
 }
 
-export function clearChannelCache(channelId?: string) {
-    if (channelId) {
-        for (const [id, msg] of [...channelMessageCache.entries()]) {
-            if ((msg as any).channel_id === channelId) channelMessageCache.delete(id);
-        }
-    } else {
-        channelMessageCache.clear();
+export function invalidateChannelCache(channelId: string) {
+    for (const [id, message] of [...recentMessages.entries()]) {
+        if (message.channel_id !== channelId) continue;
+        recentMessages.delete(id);
+        invalidateLoggedCaches(id);
+    }
+    for (const [id, message] of [...channelMessageCache.entries()]) {
+        if (message.channel_id !== channelId) continue;
+        channelMessageCache.delete(id);
+        invalidateLoggedCaches(id);
     }
 }
 
@@ -561,6 +566,7 @@ function queueRecord(message: LoggedMessage, status: LogStatus) {
         protected: pending?.protected,
         hidden: pending?.hidden
     });
+    invalidateLoggedCaches(message.id);
     scheduleFlush();
 }
 
@@ -569,6 +575,7 @@ function queueDelete(id: string) {
     pendingDeletes.add(id);
     recentMessages.delete(id);
     channelMessageCache.delete(id);
+    invalidateLoggedCaches(id);
     scheduleFlush();
 }
 
@@ -578,14 +585,16 @@ export function flushQueuedLogs() {
         flushTimer = undefined;
     }
 
-    const records = [...pendingWrites.values()];
-    const deletedIds = [...pendingDeletes];
-    pendingWrites.clear();
-    pendingDeletes.clear();
-
-    flushChain = flushChain
-        .then(() => applyBatch(records, deletedIds))
-        .catch(error => log.error("Failed to flush queued logs.", error));
+    const flush = flushChain.then(async () => {
+        while (pendingWrites.size > 0 || pendingDeletes.size > 0) {
+            const records = [...pendingWrites.values()];
+            const deletedIds = [...pendingDeletes];
+            pendingWrites.clear();
+            pendingDeletes.clear();
+            await applyBatch(records, deletedIds);
+        }
+    });
+    flushChain = flush.catch(error => log.error("Failed to flush queued logs.", error));
     return flushChain;
 }
 
@@ -662,6 +671,7 @@ export function handleMessageCreate(payload: MessageCreatePayload) {
     })) return;
 
     remember(snapshot);
+    invalidateLoggedCaches(snapshot.id);
 
     // Fast-delete race: MESSAGE_DELETE can arrive before MESSAGE_CREATE is processed
     // (gateway out-of-order or optimistic). If we buffered a delete for this id,

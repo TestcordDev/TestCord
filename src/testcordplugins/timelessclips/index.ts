@@ -25,16 +25,19 @@ export default definePlugin({
     tags: ["Voice", "Utility"],
     patches: [
         {
-            find: '"Save clip keybind unset"',
+            find: ".SECONDS_30,label:",
             replacement: {
-                match: /(\{value:\i,label:.+?\}\])/,
-                replace: "$1.concat({value:$self.getClipLength(true),label:$self.getClipLength(false)})"
+                match: /\[\{.{0,100}\i\.\i\.SECONDS_30.{0,500}\}\]/,
+                replace: "$self.patchTimeslots($&)"
             }
         },
     ],
     settings,
-    getClipLength(millis: boolean) {
-        const minutes = settings.store.clipLength;
-        return millis ? minutes * 6e4 : `${minutes} minutes`;
+    patchTimeslots(timeslots: { id: string; value: number; label: string; }[]) {
+        return [...timeslots, {
+            id: `${settings.store.clipLength}min`,
+            value: settings.store.clipLength * 6e4,
+            label: `${settings.store.clipLength} minutes`
+        }].sort((a, b) => a.value - b.value);
     }
 });

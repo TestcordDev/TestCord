@@ -25,7 +25,6 @@ import { escapeRegExp } from "@utils/text";
 import type { FluxStore } from "@vencord/discord-types";
 import type { ModuleExports, ModuleFactory, WebpackRequire } from "@vencord/discord-types/webpack";
 
-import { Flux } from "./common";
 import type { AnyModuleFactory, AnyWebpackRequire } from "./types";
 
 const logger = new Logger("Webpack");
@@ -538,6 +537,7 @@ export function findByCodeLazy(...code: CodeFilter) {
 export function findStore(name: StoreNameFilter) {
     let res = fluxStores[name] as any;
     if (res == null) {
+        const { Flux } = require("./common") as typeof import("./common");
         for (const store of Flux.Store.getAll?.() ?? []) {
             const storeName = store.getName();
 
