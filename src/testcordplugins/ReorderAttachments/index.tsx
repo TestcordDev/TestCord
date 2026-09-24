@@ -18,11 +18,23 @@ const AttachmentItem = findComponentByCodeLazy(/channelId:\i,draftType:\i,upload
 const ItemType = "DND_ATTACHMENT";
 const cl = classNameFactory("vc-drag-att-");
 
+interface UploadItem {
+    id: string;
+    filename?: string;
+    clip?: unknown;
+}
+
 interface DragItem {
     id: string;
 }
 
-const DraggableItem = ({ uploadItem, moveItem, children }) => {
+interface DraggableItemProps {
+    uploadItem: UploadItem;
+    moveItem: (fromId: string, toId: string) => void;
+    children: React.ReactNode;
+}
+
+const DraggableItem = ({ uploadItem, moveItem, children }: DraggableItemProps) => {
     const [{ isDragging }, drag] = useDrag({
         type: ItemType,
         item: { id: uploadItem.id },
@@ -61,10 +73,30 @@ const DraggableItem = ({ uploadItem, moveItem, children }) => {
     );
 };
 
-const DraggableList = ({ channelId, draftType, keyboardModeEnabled, size, attachments, ignoredFilename }) => {
-    const forceUpdate = useForceUpdater();
+interface DraggableListProps {
+    channelId: string;
+    draftType: number;
+    keyboardModeEnabled: boolean;
+    size: unknown;
+    attachments: UploadItem[];
+    ignoredId?: string;
+    ignoredFilename?: string;
+}
 
-    const items = attachments.filter(a => a.filename !== ignoredFilename);
+const DraggableList = ({
+    channelId,
+    draftType,
+    keyboardModeEnabled,
+    size,
+    attachments,
+    ignoredId,
+    ignoredFilename
+}: DraggableListProps) => {
+    const forceUpdate = useForceUpdater();
+    const ignored = ignoredId ?? ignoredFilename;
+    const isIgnored = (a: UploadItem) => Boolean(ignored) && (a.id === ignored || a.filename === ignored);
+
+    const items = attachments.filter(a => !isIgnored(a));
 
     const moveItem = (fromId: string, toId: string) => {
         const from = items.findIndex(item => item.id === fromId);
@@ -77,7 +109,7 @@ const DraggableList = ({ channelId, draftType, keyboardModeEnabled, size, attach
         // Keep Discord's non-rendered upload entries in their original slots.
         let itemIndex = 0;
         const next = attachments.map(attachment =>
-            attachment.filename === ignoredFilename ? attachment : nextItems[itemIndex++]
+            isIgnored(attachment) ? attachment : nextItems[itemIndex++]
         );
         attachments.splice(0, attachments.length, ...next);
         UploadManager.setUploads({ uploads: next, channelId, draftType });
@@ -112,8 +144,8 @@ export default definePlugin({
             find: ')("attachments",',
             replacement: [
                 {
-                    match: /:(\i).map\(\i=>[\s\S]*?(channelId:\i,[\s\S]*?\i\.\i\.MEDIUM)},\i\.id\)\)(?<=\1=(\i)\.filter\(\i=>\i\.filename!==(\i)[\s\S]*?)/,
-                    replace: ":$self.DraggableList({$2,attachments:$3,ignoredFilename:$4})"
+                    match: /:(\i)\.map\(\i=>.{0,50}?(channelId:\i,.{0,150}?\i\.\i\.MEDIUM)},.{0,20}?\i\.id\)\)(?<=\1=(\i)\.filter\(\i=>\i\.(?:id|filename)!==(\i)\).{0,450})/,
+                    replace: ":$self.DraggableList({$2,attachments:$3,ignoredId:$4})"
                 }
             ]
         },
