@@ -4,10 +4,15 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { exec, execFile } from "child_process";
 import { type IpcMainInvokeEvent, shell } from "electron";
 import { existsSync, mkdirSync } from "fs";
 import { mkdir, readdir, readFile, unlink, writeFile } from "fs/promises";
 import { basename, join, resolve } from "path";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 function getRepoRootDir(): string {
     const candidates = [
@@ -142,5 +147,262 @@ export async function openUserModulesFolder(
         return { success: true };
     } catch (e: any) {
         return { success: false, error: e?.message || "Failed to open user modules folder" };
+    }
+}
+
+let cachedStrawberryBinary: string | null = null;
+
+function findStrawberryBinary(customPath?: string): string | null {
+    if (customPath && customPath.trim()) {
+        const trimmed = customPath.trim();
+        if (existsSync(trimmed)) return trimmed;
+    }
+
+    if (cachedStrawberryBinary && existsSync(cachedStrawberryBinary)) {
+        return cachedStrawberryBinary;
+    }
+
+    if (process.platform === "win32") {
+        const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+        const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+        const localAppData = process.env.LOCALAPPDATA || "";
+        const candidates = [
+            join(programFiles, "Strawberry Music Player", "strawberry.exe"),
+            join(programFilesX86, "Strawberry Music Player", "strawberry.exe"),
+            join(localAppData, "Programs", "Strawberry Music Player", "strawberry.exe"),
+            join(programFiles, "Strawberry", "strawberry.exe"),
+            "strawberry.exe"
+        ];
+        for (const candidate of candidates) {
+            if (candidate === "strawberry.exe" || existsSync(candidate)) {
+                cachedStrawberryBinary = candidate;
+                return candidate;
+            }
+        }
+    } else {
+        cachedStrawberryBinary = "strawberry";
+        return "strawberry";
+    }
+    return null;
+}
+
+export interface StrawberryNativeState {
+    running: boolean;
+    isPlaying: boolean;
+    track: {
+        id: string;
+        name: string;
+        artist: string;
+        album: string;
+        imageSrc: string | null;
+        songDuration: number;
+        elapsedSeconds: number;
+        url?: string | null;
+    } | null;
+    position: number;
+    volume: number;
+}
+
+export async function getStrawberryState(
+    _: IpcMainInvokeEvent,
+    customBinaryPath?: string
+): Promise<StrawberryNativeState> {
+    const defaultState: StrawberryNativeState = {
+        running: false,
+        isPlaying: false,
+        track: null,
+        position: 0,
+        volume: 100,
+    };
+
+    try {
+        if (process.platform === "linux") {
+            try {
+                const { stdout } = await execAsync(
+                    "playerctl -p strawberry metadata --format \"{{status}};;;{{xesam:title}};;;{{xesam:artist}};;;{{xesam:album}};;;{{mpris:artUrl}};;;{{position}};;;{{mpris:length}};;;{{volume}}\" 2>/dev/null"
+                );
+                const parts = stdout.trim().split(";;;");
+                if (parts.length >= 8) {
+                    const status = parts[0]?.trim();
+                    const title = parts[1]?.trim() || "Unknown Title";
+                    const artist = parts[2]?.trim() || "Unknown Artist";
+                    const album = parts[3]?.trim() || "";
+                    let artUrl = parts[4]?.trim() || null;
+                    const positionMicros = parseInt(parts[5] || "0", 10);
+                    const lengthMicros = parseInt(parts[6] || "0", 10);
+                    const volFloat = parseFloat(parts[7] || "1");
+
+                    if (artUrl?.startsWith("file://")) {
+                        const localPath = decodeURIComponent(artUrl.replace(/^file:\/\//, ""));
+                        if (existsSync(localPath)) {
+                            try {
+                                const buffer = await readFile(localPath);
+                                const ext = localPath.endsWith(".png") ? "png" : "jpeg";
+                                artUrl = `data:image/${ext};base64,${buffer.toString("base64")}`;
+                            } catch { }
+                        }
+                    }
+
+                    const isPlaying = status.toLowerCase() === "playing";
+                    const durationSec = lengthMicros > 0 ? Math.round(lengthMicros / 1000000) : 0;
+                    const elapsedSec = positionMicros > 0 ? Math.round(positionMicros / 1000000) : 0;
+
+                    return {
+                        running: true,
+                        isPlaying,
+                        track: {
+                            id: `${title}-${artist}`,
+                            name: title,
+                            artist,
+                            album,
+                            imageSrc: artUrl,
+                            songDuration: durationSec,
+                            elapsedSeconds: elapsedSec,
+                            url: null,
+                        },
+                        position: elapsedSec * 1000,
+                        volume: Math.round(volFloat * 100),
+                    };
+                }
+            } catch { }
+        } else if (process.platform === "win32") {
+            try {
+                const { stdout } = await execAsync(
+                    "powershell -NoProfile -Command \"Get-Process strawberry -ErrorAction SilentlyContinue | Select-Object -ExpandProperty MainWindowTitle\"",
+                    { timeout: 3000 }
+                );
+                const rawTitle = stdout.trim();
+                if (rawTitle) {
+                    if (rawTitle.toLowerCase() === "strawberry music player" || rawTitle.toLowerCase() === "strawberry") {
+                        return {
+                            running: true,
+                            isPlaying: false,
+                            track: null,
+                            position: 0,
+                            volume: 100,
+                        };
+                    }
+
+                    const cleaned = rawTitle
+                        .replace(/\s*-\s*Strawberry Music Player\s*$/i, "")
+                        .replace(/\s*-\s*Strawberry\s*$/i, "")
+                        .trim();
+
+                    const segments = cleaned.split(" - ");
+                    let artist = "Strawberry Music Player";
+                    let title = cleaned;
+                    if (segments.length >= 2) {
+                        artist = segments[0].trim();
+                        title = segments.slice(1).join(" - ").trim();
+                    }
+
+                    return {
+                        running: true,
+                        isPlaying: true,
+                        track: {
+                            id: `${title}-${artist}`,
+                            name: title,
+                            artist,
+                            album: "",
+                            imageSrc: null,
+                            songDuration: 0,
+                            elapsedSeconds: 0,
+                            url: null,
+                        },
+                        position: 0,
+                        volume: 100,
+                    };
+                }
+            } catch { }
+        }
+
+        return defaultState;
+    } catch {
+        return defaultState;
+    }
+}
+
+export async function sendStrawberryCommand(
+    _: IpcMainInvokeEvent,
+    action: string,
+    arg?: any,
+    customBinaryPath?: string
+): Promise<{ success: boolean; error?: string; }> {
+    try {
+        if (process.platform === "linux") {
+            const actionMap: Record<string, string> = {
+                play: "play",
+                pause: "pause",
+                toggle: "play-pause",
+                stop: "stop",
+                next: "next",
+                previous: "previous",
+            };
+
+            if (actionMap[action]) {
+                try {
+                    await execAsync(`playerctl -p strawberry ${actionMap[action]}`);
+                    return { success: true };
+                } catch { }
+            } else if (action === "seek" && typeof arg === "number") {
+                try {
+                    await execAsync(`playerctl -p strawberry position ${arg}`);
+                    return { success: true };
+                } catch { }
+            } else if (action === "volume" && typeof arg === "number") {
+                try {
+                    await execAsync(`playerctl -p strawberry volume ${arg / 100}`);
+                    return { success: true };
+                } catch { }
+            }
+        }
+
+        const binary = findStrawberryBinary(customBinaryPath);
+        if (!binary) {
+            return { success: false, error: "Strawberry executable not found" };
+        }
+
+        let cliArgs: string[] = [];
+        switch (action) {
+            case "play":
+                cliArgs = ["-p"];
+                break;
+            case "pause":
+                cliArgs = ["-u"];
+                break;
+            case "toggle":
+                cliArgs = ["-t"];
+                break;
+            case "stop":
+                cliArgs = ["-s"];
+                break;
+            case "next":
+                cliArgs = ["-f"];
+                break;
+            case "previous":
+                cliArgs = ["-r"];
+                break;
+            case "seek":
+                if (typeof arg === "number") {
+                    cliArgs = ["--seek-to", String(Math.round(arg))];
+                }
+                break;
+            case "volume":
+                if (typeof arg === "number") {
+                    cliArgs = ["-v", String(Math.max(0, Math.min(100, Math.round(arg))))];
+                }
+                break;
+            default:
+                return { success: false, error: `Unknown action: ${action}` };
+        }
+
+        if (cliArgs.length > 0) {
+            await execFileAsync(binary, cliArgs);
+            return { success: true };
+        }
+
+        return { success: false, error: "No arguments to execute" };
+    } catch (e: any) {
+        return { success: false, error: e?.message || "Failed to execute Strawberry command" };
     }
 }

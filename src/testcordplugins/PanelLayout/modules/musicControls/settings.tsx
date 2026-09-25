@@ -260,5 +260,50 @@ export const settings = defineModuleSettings("MusicControls", {
         description: "Default is ws://localhost:24123",
         default: "ws://localhost:24123",
         restartNeeded: true,
+    },
+
+    strawberrySectionTitle: {
+        type: OptionType.COMPONENT,
+        component: () => (
+            <section>
+                <HeadingSecondary>Strawberry Music Player</HeadingSecondary>
+            </section>
+        )
+    },
+    showStrawberryControls: {
+        description: "Show Strawberry Player",
+        type: OptionType.BOOLEAN,
+        default: false,
+    },
+    showStrawberryLyrics: {
+        description: "Show Strawberry Synced Lyrics",
+        type: OptionType.BOOLEAN,
+        default: false,
+    },
+    strawberryConnectionMode: {
+        description: "Connection method to Strawberry",
+        type: OptionType.SELECT,
+        options: [
+            { value: "auto", label: "Auto (Native MPRIS/CLI & WebSocket)", default: true },
+            { value: "native", label: "Native (MPRIS on Linux / CLI on Windows)" },
+            { value: "websocket", label: "WebSocket Bridge (e.g. ws://localhost:24124)" },
+            { value: "http", label: "HTTP Polling (e.g. http://localhost:6800)" },
+        ],
+    },
+    strawberryWebsocketUrl: {
+        type: OptionType.STRING,
+        description: "WebSocket URL for Strawberry (default: ws://localhost:24124)",
+        default: "ws://localhost:24124",
+        restartNeeded: true,
+    },
+    strawberryHttpUrl: {
+        type: OptionType.STRING,
+        description: "HTTP URL for Strawberry (default: http://localhost:6800)",
+        default: "http://localhost:6800",
+    },
+    strawberryBinaryPath: {
+        type: OptionType.STRING,
+        description: "Custom path to strawberry executable (optional)",
+        default: "",
     }
 });

@@ -1,0 +1,269 @@
+#eq-strawberry-player {
+    padding: 12px;
+    background: var(--background-base-low);
+    margin: 0;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+
+    --eq-strawberry-slider-gradient: linear-gradient(to right, #e63946 80%, #ff4d6d 100%);
+    --eq-strawberry-slider-grabber: #e63946;
+
+    /* so custom themes can easily change it */
+    --eq-strawberry-red-90: color-mix(in hsl, var(--eq-strawberry-slider-grabber), transparent 90%);
+    --eq-strawberry-red-80: color-mix(in hsl, var(--eq-strawberry-slider-grabber), transparent 80%);
+}
+
+.eq-strawberry-artist,
+.eq-strawberry-album {
+    color: var(--text-strong);
+}
+
+.eq-strawberry-secondary-song-info {
+    font-size: 12px;
+}
+
+#eq-strawberry-progress-bar {
+    position: relative;
+    color: var(--text-default);
+    width: 100%;
+    margin: 0.5em 0;
+    margin-bottom: 5px;
+}
+
+#eq-strawberry-progress-bar > [class*="slider"] {
+    flex-grow: 1;
+    width: 100%;
+    padding: 0 !important;
+}
+
+#eq-strawberry-progress-bar > [class*="slider"] [class*="bar"] {
+    height: 3px !important;
+    top: calc(12px - 4px / 2 + var(--bar-offset));
+}
+
+#eq-strawberry-progress-bar > [class*="slider"] [class*="barFill"] {
+    background-image: var(--eq-strawberry-slider-gradient);
+}
+
+#eq-strawberry-progress-bar > [class*="slider"]:hover [class*="barFill"] {
+    background-image: var(--eq-strawberry-slider-gradient);
+}
+
+#eq-strawberry-progress-bar > [class*="slider"] [class*="grabber"] {
+    background-color: var(--eq-strawberry-slider-grabber);
+    width: 12px !important;
+    height: 12px !important;
+    margin-top: calc(13px/-2 + var(--bar-offset)/2);
+    margin-left: -0.5px;
+    border: unset;
+    color: var(--interactive-icon-default);
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+
+#eq-strawberry-progress-bar:hover > [class*="slider"] [class*="grabber"] {
+    opacity: 1;
+}
+
+.eq-strawberry-progress-time {
+    margin-top: 8px;
+    font-family: var(--font-code);
+    font-size: 12px;
+    top: 10px;
+    position: absolute;
+}
+
+.eq-strawberry-button-row {
+    justify-content: center;
+    margin-top: 14px;
+}
+
+.eq-strawberry-button {
+    margin: 0 2px;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--interactive-icon-default);
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+.eq-strawberry-button:hover {
+    color: var(--interactive-icon-hover);
+    background-color: var(--background-mod-strong);
+}
+
+.eq-strawberry-button svg {
+    height: 24px;
+    width: 24px;
+}
+
+[class*="shuffle"] > svg,
+[class*="repeat"] > svg {
+    width: 22px;
+    height: 22px;
+}
+
+.eq-strawberry-button svg path {
+    width: 100%;
+    height: 100%;
+}
+
+.eq-strawberry-repeat-context,
+.eq-strawberry-repeat-track,
+.eq-strawberry-shuffle-on {
+    background-color: var(--eq-strawberry-red-90);
+}
+
+.eq-strawberry-repeat-context:hover,
+.eq-strawberry-repeat-track:hover,
+.eq-strawberry-shuffle-on:hover {
+    background-color: var(--eq-strawberry-red-80);
+}
+
+.eq-strawberry-repeat-1 {
+    font-size: 70%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-55%, -50%);
+}
+
+#eq-strawberry-info-wrapper {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    height: 3em;
+    gap: 0.5em;
+}
+
+#eq-strawberry-info-wrapper img {
+    height: 90%;
+    object-fit: contain;
+}
+
+#eq-strawberry-album-expanded-wrapper img {
+    width: 100%;
+    object-fit: contain;
+}
+
+#eq-strawberry-titles {
+    display: flex;
+    flex-direction: column;
+    padding: 0.2rem;
+    align-items: flex-start;
+    place-content: flex-start center;
+    overflow: hidden;
+}
+
+#eq-strawberry-song-title {
+    color: var(--text-strong);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.eq-strawberry-ellipoverflow {
+    white-space: nowrap;
+    overflow: hidden;
+    width: 100%;
+    text-overflow: ellipsis;
+}
+
+.eq-strawberry-artist[role="link"]:hover,
+#eq-strawberry-album-title[role="link"]:hover,
+#eq-strawberry-song-title[role="link"]:hover {
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+#eq-strawberry-album-image {
+    border-radius: 3px;
+    transition: filter 0.2s;
+}
+
+#eq-strawberry-album-image:hover {
+    filter: brightness(1.2);
+    cursor: pointer;
+}
+
+.eq-strawberry-cover-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, rgba(230, 57, 70, 0.2), rgba(255, 77, 109, 0.1));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.eq-strawberry-time-left {
+    left: 0;
+}
+
+.eq-strawberry-time-right {
+    right: 0;
+}
+
+/* Lyrics Styling for Strawberry */
+.eq-strawberry-lyrics {
+    padding: 0.375rem 0.5rem;
+    text-align: center;
+    overflow: hidden;
+    max-height: 60px;
+    cursor: pointer;
+    mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+    user-select: none;
+}
+
+.eq-strawberry-lyrics-music-note {
+    font-size: 16px;
+    text-align: center;
+    animation: strawberry-side-to-side 2s ease-in-out infinite;
+    color: var(--text-muted);
+    height: 18px;
+    margin: 3px;
+    filter: drop-shadow(0 0 4px rgb(0 0 0 / 15%));
+}
+
+.eq-strawberry-lyrics-next,
+.eq-strawberry-lyrics-prev {
+    color: var(--text-muted);
+    margin-bottom: 1%;
+}
+
+@keyframes strawberry-side-to-side {
+    100% {
+        transform: translateX(0);
+    }
+    50% {
+        transform: translateX(-10px);
+    }
+}
+
+.eq-strawberry-lyrics-current,
+.eq-strawberry-lyrics-next,
+.eq-strawberry-lyrics-prev {
+    transition: color .2s ease, opacity .2s ease, transform .2s ease, text-shadow .2s ease;
+}
+
+.eq-strawberry-lyrics-current {
+    font-weight: 600;
+    color: var(--text-default);
+    text-shadow: 0 0 .35em rgb(0 0 0 / 15%);
+}
+
+.eq-strawberry-lyrics-next {
+    opacity: .85;
+    color: var(--text-muted);
+}
+
+.eq-strawberry-lyrics-prev {
+    opacity: .65;
+    color: var(--text-muted);
+}

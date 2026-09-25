@@ -3,19 +3,22 @@
    eliminating all layout reflows and sidebar height changes completely. */
 
 #vc-spotify-player,
-#eq-tdl-player {
+#eq-tdl-player,
+#eq-strawberry-player {
     position: relative !important;
 }
 
 #vc-spotify-progress-bar,
-#eq-tdl-progress-bar {
+#eq-tdl-progress-bar,
+#eq-strawberry-progress-bar {
     opacity: 1;
     transition: opacity 0.15s ease-out, transform 0.15s ease-out;
     will-change: opacity, transform;
 }
 
 .vc-spotify-button-row,
-.eq-tdl-button-row {
+.eq-tdl-button-row,
+.eq-strawberry-button-row {
     position: absolute !important;
     bottom: 8px !important;
     left: 12px !important;
@@ -31,28 +34,32 @@
 }
 
 #vc-spotify-player:hover #vc-spotify-progress-bar,
-#eq-tdl-player:hover #eq-tdl-progress-bar {
+#eq-tdl-player:hover #eq-tdl-progress-bar,
+#eq-strawberry-player:hover #eq-strawberry-progress-bar {
     opacity: 0;
     pointer-events: none;
     transform: translateY(-2px);
 }
 
 #vc-spotify-player:hover .vc-spotify-button-row,
-#eq-tdl-player:hover .eq-tdl-button-row {
+#eq-tdl-player:hover .eq-tdl-button-row,
+#eq-strawberry-player:hover .eq-strawberry-button-row {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0);
 }
 
 #vc-spotify-player.vc-ctrl-active #vc-spotify-progress-bar,
-#eq-tdl-player.vc-ctrl-active #eq-tdl-progress-bar {
+#eq-tdl-player.vc-ctrl-active #eq-tdl-progress-bar,
+#eq-strawberry-player.vc-ctrl-active #eq-strawberry-progress-bar {
     opacity: 1 !important;
     pointer-events: auto !important;
     transform: translateY(0) !important;
 }
 
 #vc-spotify-player.vc-ctrl-active .vc-spotify-button-row,
-#eq-tdl-player.vc-ctrl-active .eq-tdl-button-row {
+#eq-tdl-player.vc-ctrl-active .eq-tdl-button-row,
+#eq-strawberry-player.vc-ctrl-active .eq-strawberry-button-row {
     opacity: 0 !important;
     pointer-events: none !important;
     transform: translateY(4px) !important;

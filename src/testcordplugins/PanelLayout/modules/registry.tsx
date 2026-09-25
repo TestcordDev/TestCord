@@ -63,7 +63,7 @@ export const DEFAULT_USER_AREA_ORDER: UserAreaReorderItem[] = [
         id: "music-controls",
         type: "module",
         name: "Music Controls",
-        description: "Control Spotify & Tidal playback in the user area",
+        description: "Control Spotify, Tidal & Strawberry playback in the user area",
         order: 0,
         enabled: true,
         installed: true,

@@ -24,6 +24,10 @@ import { clearLyricsCache, migrateOldLyrics } from "./spotify/lyrics/api";
 import { SpotifyLyrics } from "./spotify/lyrics/components/lyrics";
 import { Provider } from "./spotify/lyrics/providers/types";
 import { SpotifyPlayer } from "./spotify/PlayerComponent";
+import { StrawberryLyrics } from "./strawberry/lyrics/components/lyrics";
+import { stopStrawberryLrcStore } from "./strawberry/lyrics/providers/store";
+import { StrawberryPlayer } from "./strawberry/StrawberryPlayer";
+import { stopStrawberryStore } from "./strawberry/StrawberryStore";
 import { TidalLyrics } from "./tidal/lyrics/components/lyrics";
 import { stopTidalLrcStore } from "./tidal/lyrics/providers/store";
 import { TidalPlayer } from "./tidal/TidalPlayer";
@@ -48,7 +52,7 @@ export function resetCtrlState() {
 
 function updatePlayerCtrlState() {
     const isCtrlActive = isToggled !== isCtrlHeld;
-    const players = document.querySelectorAll("#vc-spotify-player, #eq-tdl-player");
+    const players = document.querySelectorAll("#vc-spotify-player, #eq-tdl-player, #eq-strawberry-player");
     players.forEach(player => {
         if (isCtrlActive) {
             player.classList.add("vc-ctrl-active");
@@ -144,6 +148,8 @@ export function stopMusicControls() {
     resetCtrlState();
     stopTidalLrcStore();
     stopTidalStore();
+    stopStrawberryLrcStore();
+    stopStrawberryStore();
 }
 
 export const musicControlsPatches = [
@@ -174,11 +180,21 @@ export const musicControlsPatches = [
 ];
 
 export function MusicControlsComponent({ isPreview }: { isPreview: boolean; }) {
-    const { showTidalControls, showTidalLyrics, showSpotifyLyrics, showSpotifyControls, lyricsPosition } = settings.use([
+    const {
+        showTidalControls,
+        showTidalLyrics,
+        showSpotifyLyrics,
+        showSpotifyControls,
+        showStrawberryControls,
+        showStrawberryLyrics,
+        lyricsPosition
+    } = settings.use([
         "showTidalControls",
         "showTidalLyrics",
         "showSpotifyLyrics",
         "showSpotifyControls",
+        "showStrawberryControls",
+        "showStrawberryLyrics",
         "lyricsPosition",
     ]);
 
@@ -194,6 +210,11 @@ export function MusicControlsComponent({ isPreview }: { isPreview: boolean; }) {
                 {showTidalLyrics && lyricsPosition === "above" && <TidalLyrics />}
                 {showTidalControls && <TidalPlayer />}
                 {showTidalLyrics && lyricsPosition === "below" && <TidalLyrics />}
+
+                {showStrawberryLyrics && lyricsPosition === "above" && <StrawberryLyrics />}
+                {showStrawberryControls && <StrawberryPlayer />}
+                {showStrawberryLyrics && lyricsPosition === "below" && <StrawberryLyrics />}
+
                 {showSpotifyLyrics && lyricsPosition === "above" && <SpotifyLyrics />}
                 {showSpotifyControls && <SpotifyPlayer fiveMinuteHide={settings.store.fiveMinuteHide} isPreview={isPreview} />}
                 {showSpotifyLyrics && lyricsPosition === "below" && <SpotifyLyrics />}
@@ -211,6 +232,12 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
         "previousButtonRestartsTrack",
         "showTidalControls",
         "showTidalLyrics",
+        "showStrawberryControls",
+        "showStrawberryLyrics",
+        "strawberryConnectionMode",
+        "strawberryWebsocketUrl",
+        "strawberryHttpUrl",
+        "strawberryBinaryPath",
         "hoverControls",
         "lyricsPosition",
         "lyricsProvider",
@@ -219,7 +246,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
         "fiveMinuteHide",
     ]);
 
-    const [tab, setTab] = useState<"spotify" | "tidal" | "lyrics">("spotify");
+    const [tab, setTab] = useState<"spotify" | "tidal" | "strawberry" | "lyrics">("spotify");
     const handleClose = () => (modalProps?.onClose ?? onClose)?.();
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
 
@@ -246,6 +273,12 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                     className={`vc-pl-subtab ${tab === "tidal" ? "active" : ""}`}
                 >
                     Tidal
+                </div>
+                <div
+                    onClick={() => setTab("strawberry")}
+                    className={`vc-pl-subtab ${tab === "strawberry" ? "active" : ""}`}
+                >
+                    Strawberry
                 </div>
                 <div
                     onClick={() => setTab("lyrics")}
@@ -320,6 +353,86 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 onChange={v => { settings.store.showTidalLyrics = v; forceUpdate(); }}
                                 hideBorder
                             />
+                        </Card>
+                    </div>
+                )}
+
+                {tab === "strawberry" && (
+                    <div style={{ display: "grid", gap: "10px" }}>
+                        <Card variant="primary">
+                            <FormSwitch
+                                title="Show Strawberry Controls"
+                                description="Display Strawberry Music Player controls in the user panel."
+                                value={s.showStrawberryControls}
+                                onChange={v => { settings.store.showStrawberryControls = v; forceUpdate(); }}
+                            />
+                            <FormSwitch
+                                title="Show Strawberry Synced Lyrics"
+                                description="Display synchronized lyrics for Strawberry playback."
+                                value={s.showStrawberryLyrics}
+                                onChange={v => { settings.store.showStrawberryLyrics = v; forceUpdate(); }}
+                            />
+                            <div style={{ padding: "10px 0" }}>
+                                <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+                                    Connection Mode:
+                                </Paragraph>
+                                <Select
+                                    options={[
+                                        { label: "Auto-detect (Native MPRIS/CLI & WebSocket)", value: "auto" },
+                                        { label: "Native (MPRIS on Linux / CLI on Windows)", value: "native" },
+                                        { label: "WebSocket Bridge (e.g. ws://localhost:24124)", value: "websocket" },
+                                        { label: "HTTP Polling (e.g. http://localhost:6800)", value: "http" },
+                                    ]}
+                                    isSelected={v => v === (s.strawberryConnectionMode || "auto")}
+                                    select={v => { settings.store.strawberryConnectionMode = v as any; forceUpdate(); }}
+                                    serialize={v => String(v)}
+                                />
+                            </div>
+                            {(s.strawberryConnectionMode === "websocket" || s.strawberryConnectionMode === "auto" || !s.strawberryConnectionMode) && (
+                                <div style={{ padding: "10px 0" }}>
+                                    <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+                                        Strawberry WebSocket URL:
+                                    </Paragraph>
+                                    <Input
+                                        placeholder="ws://localhost:24124"
+                                        initialValue={s.strawberryWebsocketUrl ?? "ws://localhost:24124"}
+                                        onChange={v => { settings.store.strawberryWebsocketUrl = v; forceUpdate(); }}
+                                    />
+                                </div>
+                            )}
+                            {s.strawberryConnectionMode === "http" && (
+                                <div style={{ padding: "10px 0" }}>
+                                    <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+                                        Strawberry HTTP Endpoint URL:
+                                    </Paragraph>
+                                    <Input
+                                        placeholder="http://localhost:6800"
+                                        initialValue={s.strawberryHttpUrl ?? "http://localhost:6800"}
+                                        onChange={v => { settings.store.strawberryHttpUrl = v; forceUpdate(); }}
+                                    />
+                                </div>
+                            )}
+                            <div style={{ padding: "10px 0" }}>
+                                <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
+                                    Custom Strawberry Binary Path (optional):
+                                </Paragraph>
+                                <Input
+                                    placeholder="e.g. C:\Program Files\Strawberry Music Player\strawberry.exe"
+                                    initialValue={s.strawberryBinaryPath ?? ""}
+                                    onChange={v => { settings.store.strawberryBinaryPath = v; forceUpdate(); }}
+                                />
+                            </div>
+                        </Card>
+                        <Card variant="primary">
+                            <Paragraph style={{ fontSize: "12px", lineHeight: "1.5em", color: "var(--text-muted)" }}>
+                                🍓 <strong>How Strawberry Compatibility Works:</strong>
+                                <br />
+                                • <strong>Linux:</strong> Automatic zero-config integration via native MPRIS D-Bus interface / <code>playerctl</code>.
+                                <br />
+                                • <strong>Windows:</strong> Native process integration via <code>strawberry.exe</code> CLI controls and window title tracking.
+                                <br />
+                                • <strong>Network Remote & WebSocket:</strong> Connects to Strawberry network remote or any MPRIS-WebSocket bridge on port 24124.
+                            </Paragraph>
                         </Card>
                     </div>
                 )}
@@ -437,10 +550,10 @@ export function openMusicControlsSettings() {
 export const musicControlsModule: Omit<UserAreaModule, "order" | "enabled"> = {
     id: "music-controls",
     name: "Music Controls",
-    description: "Spotify & Tidal playback controls, song progress, and synced lyrics right in your user panel.",
+    description: "Spotify, Tidal & Strawberry playback controls, song progress, and synced lyrics right in your user panel.",
     authors: [Devs.Ven, Devs.afn, Devs.KraXen72, Devs.Av32000, Devs.nin0dev, Devs.thororen, EquicordDevs.vmohammad, Devs.Joona],
-    version: "2.0.0",
-    tags: ["Media", "Audio", "Spotify", "Tidal"],
+    version: "2.1.0",
+    tags: ["Media", "Audio", "Spotify", "Tidal", "Strawberry"],
     position: "above",
     render: () => <MusicControlsComponent isPreview={false} />,
     onEnable: startMusicControls,
@@ -451,5 +564,7 @@ export const musicControlsModule: Omit<UserAreaModule, "order" | "enabled"> = {
 export { settings };
 export type { Track as SpotifyTrack } from "./spotify/SpotifyStore";
 export { SpotifyStore } from "./spotify/SpotifyStore";
+export type { StrawberryTrack } from "./strawberry/StrawberryStore";
+export { StrawberryStore } from "./strawberry/StrawberryStore";
 export type { Track as TidalTrack } from "./tidal/TidalStore";
 export { TidalStore } from "./tidal/TidalStore";
