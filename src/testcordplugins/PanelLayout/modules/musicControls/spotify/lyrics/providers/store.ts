@@ -14,7 +14,7 @@ import { Flux, FluxDispatcher } from "@webpack/common";
 import { lyricsAlternativeFetchers } from "./translator";
 import { LyricsData, Provider } from "./types";
 
-export const lyricsAlternative = [Provider.Translated, Provider.Romanized];
+export const lyricsAlternative = [Provider.Translated, Provider.Romanized, Provider.SpicyRomanized];
 
 function showNotif(title: string, body: string) {
     if (settings.store.showFailedToasts) {

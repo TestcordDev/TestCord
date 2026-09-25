@@ -8,6 +8,7 @@ export interface LyricWord {
     text: string;
     startTime: number;
     endTime: number;
+    IsPartOfWord: boolean;
 }
 
 export interface SyncedLyric {
@@ -22,6 +23,7 @@ export enum Provider {
     SpicyLyrics = "Spicy Lyrics",
     Translated = "Translated",
     Romanized = "Romanized",
+    SpicyRomanized = "Spicy Lyrics Romanized",
     None = "None",
 }
 

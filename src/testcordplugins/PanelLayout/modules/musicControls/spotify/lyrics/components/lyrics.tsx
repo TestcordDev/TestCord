@@ -72,7 +72,7 @@ function LyricsDisplay({ scroll = true, style }: { scroll?: boolean; style?: Rea
                                         return (
                                             <React.Fragment key={w}>
                                                 <span className={wordClassName} style={wordStyle}>{word.text}</span>
-                                                {w < line.words!.length - 1 ? " " : ""}
+                                                {word.IsPartOfWord ? "" : " "}
                                             </React.Fragment>
                                         );
                                     })
