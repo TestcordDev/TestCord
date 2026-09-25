@@ -129,8 +129,6 @@ function buildWords(syllables: Syllable[], getText: (syllable: Syllable) => stri
         const piece = (getText(syllable) ?? "").trim();
         if (!piece) return;
 
-        console.warn(`syllable: text: ${syllable.Text}, IsPartOfWord: ${syllable.IsPartOfWord}`);
-
         words.push({
             text: syllable.IsPartOfWord ? piece : piece + " ",
             startTime: syllable.StartTime ?? 0,
