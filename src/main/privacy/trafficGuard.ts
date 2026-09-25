@@ -105,6 +105,19 @@ const FIRST_PARTY_HOSTS = [
     "discord.dev"
 ];
 
+const TOKEN_GUARD_EXEMPT_HOSTS = [
+    "api.spicylyrics.org",
+    "spicylyrics.org",
+    "lrclib.net",
+    "api.spotify.com",
+    "api.openai.com",
+    "api.groq.com",
+    "api.anthropic.com",
+    "generativelanguage.googleapis.com",
+    "api.github.com",
+    "api.music.yandex.net"
+];
+
 // Substrings in a script/code URL that indicate a likely malicious payload.
 // A match triggers a hard block + immediate user alert.
 const MALICIOUS_KEYWORDS = [
@@ -253,7 +266,15 @@ class TrafficGuardEngine {
             id: "plugin_services",
             title: "Optional Plugin Services",
             status: "Plugin Controlled",
-            endpoints: ["api.github.com", "translate-pa.googleapis.com", "manti.vendicated.dev", "decor.fieryflames.dev"],
+            endpoints: [
+                "api.github.com",
+                "translate-pa.googleapis.com",
+                "manti.vendicated.dev",
+                "decor.fieryflames.dev",
+                "api.spicylyrics.org",
+                "spicylyrics.org",
+                "lrclib.net"
+            ],
             description: "External theme & third-party plugin integrations",
             count: 0,
             blockedCount: 0
@@ -630,13 +651,16 @@ class TrafficGuardEngine {
                 return callback({ requestHeaders: details.requestHeaders });
             }
 
-            const shouldStrip = details.requestHeaders
-                && details.requestHeaders.Authorization
-                && (!isDiscordDomain || rule === "block")
-                && (this.shields.tokenGuard || rule === "block");
+            const authKey = Object.keys(details.requestHeaders || {}).find(k => k.toLowerCase() === "authorization");
+            const hasAuth = Boolean(authKey && details.requestHeaders[authKey]);
+            const isExempt = TOKEN_GUARD_EXEMPT_HOSTS.some(h => host === h || host.endsWith("." + h));
 
-            if (shouldStrip) {
-                delete details.requestHeaders.Authorization;
+            const shouldStrip = hasAuth
+                && (!isDiscordDomain || rule === "block")
+                && (rule === "block" || (this.shields.tokenGuard && !isExempt));
+
+            if (shouldStrip && authKey) {
+                delete details.requestHeaders[authKey];
                 this.counters.totalStripped++;
                 this.counters.tokens++;
                 this.logBlockedEvent(url, "Authorization Header Stripped", "tokens", "stripped");

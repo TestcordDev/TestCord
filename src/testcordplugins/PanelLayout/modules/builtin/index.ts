@@ -35,10 +35,10 @@ export const MARKETPLACE_CATALOG: MarketplaceCatalogItem[] = [
     {
         id: "music-controls",
         name: "Music Controls",
-        description: "Control Spotify & Tidal playback and display synced lyrics in the user area.",
+        description: "Control Spotify, Tidal & Strawberry playback and display synced lyrics in the user area.",
         authors: [Devs.Ven, Devs.afn, Devs.KraXen72, Devs.Av32000, Devs.nin0dev, Devs.thororen, EquicordDevs.vmohammad, Devs.Joona],
-        version: "2.0.0",
-        tags: ["Media", "Audio", "Spotify", "Tidal"],
+        version: "2.1.0",
+        tags: ["Media", "Audio", "Spotify", "Tidal", "Strawberry"],
         category: "audio",
         isBuiltin: true,
         factory: () => musicControlsModule,

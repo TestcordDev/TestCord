@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { showNotification } from "@api/Notifications";
+import { settings } from "@testcordplugins/PanelLayout/modules/musicControls/settings";
 import { LyricsData, LyricWord, Provider, SyncedLyric } from "@testcordplugins/PanelLayout/modules/musicControls/spotify/lyrics/providers/types";
 
 type Source = "spicy_lyrics" | "apple_music" | "spotify" | "unknown";
@@ -246,26 +248,77 @@ function buildSpicyRomanizedLyrics(body: Lyrics): SyncedLyric[] | null {
 }
 
 export async function getLyricsSpicyLyrics(trackId: string, apiKey: string): Promise<LyricsData | null> {
+    const id = trackId?.trim();
+    const key = apiKey?.trim();
+    if (!id) return null;
+    if (!key) {
+        if (settings.store.showFailedToasts) {
+            showNotification({
+                color: "#ee2902",
+                title: "Spicy Lyrics",
+                body: "API key is missing. Enter your key (sl_sk_...) in settings.",
+                noPersist: true
+            });
+        }
+        return null;
+    }
+
     try {
-        const resp = await fetch(`https://api.spicylyrics.org/v1/lyrics/${trackId}`, {
-            headers: { Authorization: `Bearer ${apiKey}` },
-        });
+        let body: Lyrics | null = null;
+        const nativeHelper = (VencordNative?.pluginHelpers as any)?.PanelLayout;
 
-        console.warn("[Spicy Lyrics] is ", resp);
-
-        if (!resp.ok) {
-            const errBody = await resp.json().catch(() => null) as SpicyLyricsAPIError | null;
-            console.warn(
-                "[Spicy Lyrics] request failed",
-                resp.status,
-                errBody?.Body?.error ?? resp.statusText,
-                errBody?.Body?.message ?? ""
-            );
-            return null;
+        if (IS_DISCORD_DESKTOP && typeof nativeHelper?.fetchSpicyLyrics === "function") {
+            try {
+                const res = await nativeHelper.fetchSpicyLyrics(id, key);
+                if (res?.status === 200 && res.data?.Body) {
+                    body = res.data.Body;
+                } else if (res?.error) {
+                    console.warn("[Spicy Lyrics] request failed", res.status, res.error);
+                    if (settings.store.showFailedToasts) {
+                        showNotification({
+                            color: "#ee2902",
+                            title: "Spicy Lyrics",
+                            body: res.error,
+                            noPersist: true
+                        });
+                    }
+                    return null;
+                }
+            } catch { }
         }
 
-        const data = await resp.json() as SpicyLyricsAPIResp;
-        const body = data.Body;
+        if (!body) {
+            const auth = key.startsWith("Bearer ") ? key : `Bearer ${key}`;
+            const resp = await fetch(`https://api.spicylyrics.org/v1/lyrics/${encodeURIComponent(id)}`, {
+                headers: {
+                    Authorization: auth,
+                    Accept: "application/json"
+                },
+            });
+
+            if (!resp.ok) {
+                const errBody = await resp.json().catch(() => null) as SpicyLyricsAPIError | null;
+                const errMsg = errBody?.Body?.message ?? errBody?.Body?.error ?? resp.statusText;
+                console.warn(
+                    "[Spicy Lyrics] request failed",
+                    resp.status,
+                    errMsg
+                );
+                if (settings.store.showFailedToasts) {
+                    showNotification({
+                        color: "#ee2902",
+                        title: "Spicy Lyrics",
+                        body: errMsg || `Request failed with status ${resp.status}`,
+                        noPersist: true
+                    });
+                }
+                return null;
+            }
+
+            const data = await resp.json() as SpicyLyricsAPIResp;
+            body = data.Body;
+        }
+
         if (!body) return null;
 
         let lines: SyncedLyric[];
