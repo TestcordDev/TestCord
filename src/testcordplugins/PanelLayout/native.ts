@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { safeFetch } from "@main/utils/safeFetch";
 import { exec, execFile } from "child_process";
 import { type IpcMainInvokeEvent, shell } from "electron";
 import { existsSync, mkdirSync } from "fs";
@@ -404,5 +405,43 @@ export async function sendStrawberryCommand(
         return { success: false, error: "No arguments to execute" };
     } catch (e: any) {
         return { success: false, error: e?.message || "Failed to execute Strawberry command" };
+    }
+}
+
+export async function fetchSpicyLyrics(
+    _: IpcMainInvokeEvent,
+    trackId: string,
+    apiKey: string
+): Promise<{ status: number; data?: any; error?: string; }> {
+    try {
+        const id = encodeURIComponent(trackId.trim());
+        const key = apiKey.trim();
+        const auth = key.startsWith("Bearer ") ? key : `Bearer ${key}`;
+        const response = await safeFetch(`https://api.spicylyrics.org/v1/lyrics/${id}`, {
+            method: "GET",
+            headers: {
+                Authorization: auth,
+                Accept: "application/json"
+            }
+        });
+
+        if (!response.ok) {
+            const errBody = await response.json().catch(() => null);
+            return {
+                status: response.status,
+                error: errBody?.Body?.error ?? errBody?.Body?.message ?? response.statusText
+            };
+        }
+
+        const data = await response.json();
+        return {
+            status: response.status,
+            data
+        };
+    } catch (e: any) {
+        return {
+            status: 500,
+            error: e?.message || "Failed to fetch Spicy Lyrics"
+        };
     }
 }

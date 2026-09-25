@@ -248,26 +248,47 @@ function buildSpicyRomanizedLyrics(body: Lyrics): SyncedLyric[] | null {
 }
 
 export async function getLyricsSpicyLyrics(trackId: string, apiKey: string): Promise<LyricsData | null> {
+    const id = trackId?.trim();
+    const key = apiKey?.trim();
+    if (!id || !key) return null;
+
     try {
-        const resp = await fetch(`https://api.spicylyrics.org/v1/lyrics/${trackId}`, {
-            headers: { Authorization: `Bearer ${apiKey}` },
-        });
+        let body: Lyrics | null = null;
+        const nativeHelper = (VencordNative?.pluginHelpers as any)?.PanelLayout;
 
-        console.warn("[Spicy Lyrics] is ", resp);
-
-        if (!resp.ok) {
-            const errBody = await resp.json().catch(() => null) as SpicyLyricsAPIError | null;
-            console.warn(
-                "[Spicy Lyrics] request failed",
-                resp.status,
-                errBody?.Body?.error ?? resp.statusText,
-                errBody?.Body?.message ?? ""
-            );
-            return null;
+        if (IS_DISCORD_DESKTOP && typeof nativeHelper?.fetchSpicyLyrics === "function") {
+            try {
+                const res = await nativeHelper.fetchSpicyLyrics(id, key);
+                if (res?.status === 200 && res.data?.Body) {
+                    body = res.data.Body;
+                }
+            } catch { }
         }
 
-        const data = await resp.json() as SpicyLyricsAPIResp;
-        const body = data.Body;
+        if (!body) {
+            const auth = key.startsWith("Bearer ") ? key : `Bearer ${key}`;
+            const resp = await fetch(`https://api.spicylyrics.org/v1/lyrics/${encodeURIComponent(id)}`, {
+                headers: {
+                    Authorization: auth,
+                    Accept: "application/json"
+                },
+            });
+
+            if (!resp.ok) {
+                const errBody = await resp.json().catch(() => null) as SpicyLyricsAPIError | null;
+                console.warn(
+                    "[Spicy Lyrics] request failed",
+                    resp.status,
+                    errBody?.Body?.error ?? resp.statusText,
+                    errBody?.Body?.message ?? ""
+                );
+                return null;
+            }
+
+            const data = await resp.json() as SpicyLyricsAPIResp;
+            body = data.Body;
+        }
+
         if (!body) return null;
 
         let lines: SyncedLyric[];

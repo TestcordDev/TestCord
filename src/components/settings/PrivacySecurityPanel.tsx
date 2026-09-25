@@ -73,7 +73,9 @@ const UNTRUSTED_KNOWN_HOSTS: Record<string, string> = {
 
 const TRUSTED_KNOWN_HOSTS: Record<string, string> = {
     "cdn.jsdelivr.net": "jsDelivr public CDN (serves open-source assets, e.g. Shiki syntax highlighting).",
-    "unpkg.com": "unpkg public CDN (serves npm package assets)."
+    "unpkg.com": "unpkg public CDN (serves npm package assets).",
+    "api.spicylyrics.org": "Spicy Lyrics API (lyrics provider for Spotify & music controls).",
+    "lrclib.net": "LRCLIB API (open-source synced lyrics provider)."
 };
 
 export type HostReputation = "first-party" | "trusted-third-party" | "third-party";
