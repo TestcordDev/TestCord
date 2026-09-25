@@ -1,4 +1,24 @@
+.vc-dxtokenimporter-modal,
+[role="dialog"]:has(> .vc-dxtokenimporter-content) {
+    width: min(660px, 95vw) !important;
+    max-width: 660px !important;
+    min-width: min(660px, 95vw) !important;
+    height: min(540px, 85vh) !important;
+    min-height: min(540px, 85vh) !important;
+    max-height: min(540px, 85vh) !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    margin: auto !important;
+}
+
 .vc-dxtokenimporter-content {
+    flex: 1 1 auto !important;
+    height: min(460px, calc(85vh - 80px)) !important;
+    min-height: min(460px, calc(85vh - 80px)) !important;
+    max-height: min(460px, calc(85vh - 80px)) !important;
+    box-sizing: border-box !important;
+    overflow-y: auto !important;
     padding: 14px 16px 16px;
     display: flex;
     flex-direction: column;
@@ -22,6 +42,13 @@
     gap: 4px;
     border-bottom: 1px solid var(--border-subtle, var(--background-modifier-accent, rgb(255 255 255 / 8%)));
     margin-bottom: 4px;
+    flex-shrink: 0;
+    position: sticky;
+    top: -14px;
+    padding-top: 14px;
+    margin-top: -14px;
+    background: var(--modal-background, var(--background-primary, #313338));
+    z-index: 5;
 }
 
 .vc-dxtokenimporter-tab {
@@ -67,6 +94,7 @@
     padding: 4px 0 10px;
     border-bottom: 1px solid var(--border-subtle, var(--background-modifier-accent, rgb(255 255 255 / 8%)));
     gap: 8px;
+    flex-shrink: 0;
 }
 
 .vc-dxtokenimporter-actions {
@@ -76,6 +104,7 @@
     padding: 10px 0 4px;
     margin-bottom: 4px;
     gap: 8px;
+    flex-shrink: 0;
 }
 
 .vc-dxtokenimporter-search {
@@ -115,13 +144,18 @@ textarea.vc-dxtokenimporter-textarea::placeholder {
     color: var(--text-muted, #b5bac1);
     font-size: 13px;
     padding: 24px 0;
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .vc-dxtokenimporter-list {
     display: flex;
     flex-direction: column;
     gap: 3px;
-    max-height: 340px;
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-auto-scrollbar-color-thumb, color-mix(in srgb, var(--text-default, #fff) 15%, transparent)) transparent;
@@ -310,23 +344,34 @@ textarea.vc-dxtokenimporter-textarea::placeholder {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.vc-dxtokenimporter-textarea,
+.vc-dxtokenimporter-textarea > div {
+    width: 100% !important;
+    box-sizing: border-box !important;
 }
 
 .vc-dxtokenimporter-textarea textarea,
 textarea.vc-dxtokenimporter-textarea {
-    width: 100%;
-    min-height: 110px;
-    resize: none;
+    width: 100% !important;
+    height: 160px !important;
+    min-height: 160px !important;
+    max-height: 160px !important;
+    resize: none !important;
+    box-sizing: border-box !important;
     background: var(--background-base-low, var(--background-secondary, rgb(0 0 0 / 25%)));
     color: var(--text-default, var(--text-normal, #f2f3f5));
     border: 1.5px solid var(--border-subtle, var(--background-modifier-accent, rgb(255 255 255 / 8%)));
     border-radius: 8px;
     caret-color: var(--text-default, var(--text-normal, #f2f3f5));
     outline: none;
-    box-sizing: border-box;
     font-family: monospace;
     font-size: 13px;
     padding: 10px 12px;
+    overflow-y: auto !important;
     transition: border-color .15s;
 }
 
@@ -369,6 +414,7 @@ textarea.vc-dxtokenimporter-textarea:focus {
     gap: 4px;
     padding-top: 8px;
     color: var(--text-default, var(--text-normal, #f2f3f5));
+    flex-shrink: 0;
 }
 
 .vc-dxtokenimporter-enc-actions {
@@ -443,7 +489,7 @@ textarea.vc-dxtokenimporter-textarea:focus {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 220px;
+    max-width: 320px;
     display: inline-block;
     animation: vc-dxtokenimporter-reveal-fade .2s ease-in;
 }
@@ -461,6 +507,7 @@ textarea.vc-dxtokenimporter-textarea:focus {
     border-radius: 6px;
     background: color-mix(in srgb, var(--brand-500, #5865f2) 10%, transparent);
     border: 1px solid color-mix(in srgb, var(--brand-500, #5865f2) 30%, transparent);
+    flex-shrink: 0;
 }
 
 .vc-dxtokenimporter-bulk-count {
@@ -543,7 +590,7 @@ textarea.vc-dxtokenimporter-textarea:focus {
 }
 
 .vc-dxtokenimporter-close-btn,
-button[class*="closeButton"] {
+.vc-dxtokenimporter-modal button[class*="closeButton"] {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -552,10 +599,10 @@ button[class*="closeButton"] {
     transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-button[class*="closeButton"]:hover {
+.vc-dxtokenimporter-modal button[class*="closeButton"]:hover {
     background-color: var(--background-modifier-hover);
 }
 
-button[class*="closeButton"]:active {
+.vc-dxtokenimporter-modal button[class*="closeButton"]:active {
     background-color: var(--background-modifier-active);
 }

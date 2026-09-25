@@ -948,7 +948,8 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
     return (
         <Modal
             {...rootProps}
-            size="md"
+            size="lg"
+            className={cl("modal")}
             title={
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <FolderIcon width={16} height={16} /> DX Token Importer
@@ -1137,6 +1138,8 @@ function TokenModal({ rootProps }: { rootProps: RenderModalProps; }) {
                             placeholder="Paste your Discord tokens here... (one per line, comma-separated, or 3-line userId/blank/token format)"
                             value={pasteValue}
                             onChange={handlePasteChange}
+                            autosize={false}
+                            rows={7}
                         />
                         <div className={cl("add-footer")}>
                             <span className={cl("detected")}>{detectedCount} token{detectedCount !== 1 ? "s" : ""} detected</span>
