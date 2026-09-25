@@ -256,7 +256,7 @@ export async function getLyricsSpicyLyrics(trackId: string, apiKey: string): Pro
             showNotification({
                 color: "#ee2902",
                 title: "Spicy Lyrics",
-                body: "API key is missing. Enter your key (sl_sk_...) in settings.",
+                body: "API key is missing.",
                 noPersist: true
             });
         }
@@ -299,7 +299,7 @@ export async function getLyricsSpicyLyrics(trackId: string, apiKey: string): Pro
             if (!resp.ok) {
                 const errBody = await resp.json().catch(() => null) as SpicyLyricsAPIError | null;
                 const errMsg = errBody?.Body?.message ?? errBody?.Body?.error ?? resp.statusText;
-                console.warn(
+                console.error(
                     "[Spicy Lyrics] request failed",
                     resp.status,
                     errMsg
@@ -308,7 +308,7 @@ export async function getLyricsSpicyLyrics(trackId: string, apiKey: string): Pro
                     showNotification({
                         color: "#ee2902",
                         title: "Spicy Lyrics",
-                        body: errMsg || `Request failed with status ${resp.status}`,
+                        body: "Api key is wrong, please try to update. Please report if the problem persists.",
                         noPersist: true
                     });
                 }
@@ -328,12 +328,36 @@ export async function getLyricsSpicyLyrics(trackId: string, apiKey: string): Pro
                 lines = body.Content.map(fromSyllableLine).filter((l): l is SyncedLyric => l !== null);
                 break;
             case "Line":
+                if (settings.store.showFailedToasts) {
+                    showNotification({
+                        color: "#ee2902",
+                        title: "Spicy Lyrics",
+                        body: "Spicy lyrics doesn't have timed words for this song.",
+                        noPersist: true
+                    });
+                }
                 lines = body.Content.map(fromLineLine).filter((l): l is SyncedLyric => l !== null);
                 break;
             case "Static":
+                if (settings.store.showFailedToasts) {
+                    showNotification({
+                        color: "#ee2902",
+                        title: "Spicy Lyrics",
+                        body: "Spicy lyrics doesn't have timed words for this song.",
+                        noPersist: true
+                    });
+                }
                 lines = body.Lines.map(fromStaticLine);
                 break;
             default:
+                if (settings.store.showFailedToasts) {
+                showNotification({
+                        color: "#ee2902",
+                        title: "Spicy Lyrics",
+                        body: "Spicy lyrics doesn't have lyrics for this song.",
+                        noPersist: true
+                    });
+                }
                 return null;
         }
 
