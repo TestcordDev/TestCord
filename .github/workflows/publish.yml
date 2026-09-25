@@ -83,8 +83,45 @@ jobs:
                   zip -r dist/extension-sources.zip . -x "node_modules/*" -x "dist/*" -x
                   ".git/*"
 
-            - name: Publish extension
+            # Every one of these has to be present or the publisher rejects its own config
+            # and exits non-zero, which fails the whole release job even though the build
+            # and the zips are fine. A repo without store credentials (a fork, or secrets
+            # that have not been set yet) should get a warning, not a red build.
+            - name: Check store credentials
               if: steps.check.outputs.release == 'true' && vars.ACT != 'true'
+              id: creds
+              env:
+                  CHROME_API_VERSION: ${{ secrets.CHROME_API_VERSION }}
+                  CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+                  CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+                  CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ secrets.CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL }}
+                  CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_PRIVATE_KEY }}
+                  EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
+                  EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+                  EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+                  FIREFOX_COMPATIBILITY: ${{ secrets.FIREFOX_COMPATIBILITY }}
+                  FIREFOX_EXTENSION_ID: ${{ secrets.FIREFOX_EXTENSION_ID }}
+                  FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+                  FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
+              run: |
+                  missing=()
+                  for v in CHROME_API_VERSION CHROME_EXTENSION_ID CHROME_PUBLISHER_ID \
+                           CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL CHROME_SERVICE_ACCOUNT_PRIVATE_KEY \
+                           EDGE_API_KEY EDGE_PRODUCT_ID EDGE_CLIENT_ID \
+                           FIREFOX_COMPATIBILITY FIREFOX_EXTENSION_ID FIREFOX_JWT_ISSUER \
+                           FIREFOX_JWT_SECRET; do
+                      if [ -z "${!v}" ]; then missing+=("$v"); fi
+                  done
+
+                  if [ ${#missing[@]} -eq 0 ]; then
+                      echo "configured=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "configured=false" >> "$GITHUB_OUTPUT"
+                      echo "::warning title=Store credentials missing::Skipping extension publish. Unset: ${missing[*]}. The build and zips were produced; only the upload is being skipped."
+                  fi
+
+            - name: Publish extension
+              if: steps.check.outputs.release == 'true' && vars.ACT != 'true' && steps.creds.outputs.configured == 'true'
               run:
                   pnpx @equicord/publish-browser-extension@latest
                   --chrome-zip dist/extension-chrome.zip
