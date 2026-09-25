@@ -845,7 +845,11 @@ function buildCSS(): string {
     }
 
     if ((st.buttonStyle === "outlineold" || st.buttonStyle === "outlined") && st.hoverEffect === "glow") {
-        lines.push(`${S.panelButtons} ${S.panelButton}.plated__67645:not(.plateMuted__67645)${callButtonStylingCamera === true ? `${defaultBtn}Camera"]:not([aria-pressed="true"])` : ""}${callButtonStylingScreenShare === true ? `${defaultBtn}Screen Share"]:not([aria-pressed="true"])` : ""}${callButtonStylingActivity === true ? `${defaultBtn}Activity"]:not([aria-pressed="true"])` : ""}${callButtonStylingSoundboard === true ? `, ${S.callControls} [data-deracul-label="Soundboard"] ${S.callButton}[type="button"]:not([aria-pressed="true"])` : ""} { background: transparent !important }`);
+        lines.push(`${S.panelButtons} ${S.panelButton}.plated__67645:not(.plateMuted__67645) { background: transparent !important }`);
+    }
+
+    if (st.buttonStyle === "outlineold" || st.buttonStyle === "outlined") {
+        lines.push(`absolutelyNothing${callButtonStylingCamera === true ? `${defaultBtn}Camera"]:not([aria-pressed="true"])` : ""}${callButtonStylingScreenShare === true ? `${defaultBtn}Screen Share"]:not([aria-pressed="true"])` : ""}${callButtonStylingActivity === true ? `${defaultBtn}Activity"]:not([aria-pressed="true"])` : ""}${callButtonStylingSoundboard === true ? `, ${S.callControls} [data-deracul-label="Soundboard"] ${S.callButton}[type="button"]:not([aria-pressed="true"])` : ""} { background: transparent !important }`);
     }
 
     if (st.hideChevrons) lines.push(`${S.panelButtons} ${S.chevron} { display: none !important; }`);
