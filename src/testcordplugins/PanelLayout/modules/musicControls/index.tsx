@@ -513,16 +513,6 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                     onChange={v => { settings.store.spotifyLyricsApiUrl = v; refreshSpotifyLyrics(); forceUpdate(); }}
                                 />
                             </div>
-                            <div style={{ padding: "10px 0", display: `${settings.store.lyricsProvider === Provider.SpicyLyrics ? "unset" : "none"}` }}>
-                                <Paragraph style={{ fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>
-                                    Spicy Lyrics Api Key (can be acquired by asking AVIV in the Testcord server):
-                                </Paragraph>
-                                <Input
-                                    placeholder={"sl_sk_... or sl_pk_..."}
-                                    initialValue={settings.store.spicyLyricsApiKey}
-                                    onChange={v => { settings.store.spicyLyricsApiKey = v; refreshSpotifyLyrics(); forceUpdate(); }}
-                                />
-                            </div>
                             <div style={{ paddingTop: "8px" }}>
                                 <Button
                                     variant="secondary"

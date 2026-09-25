@@ -132,9 +132,9 @@ export const settings = defineModuleSettings("MusicControls", {
     },
     spicyLyricsApiKey: {
         type: OptionType.STRING,
-        description: "Spicy lyrics API key (can be acquired by asking AVIV in the Testcord server).",
+        description: "Spicy lyrics API key.",
         hidden: true,
-        default: "sl_...",
+        default: "sl_pk_SIdRGszanA0Rzk3vFne0LH1QT3RP03d4EymnxMhWkFs",
         onChange: async () => {
             await clearLyricsCache();
             showToast("Lyrics cache purged", Toasts.Type.SUCCESS);
