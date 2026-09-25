@@ -29,6 +29,7 @@ export default definePlugin({
     description: "Bypasses youtube videos being blocked from display on Discord (for example by UMG)",
     tags: ["Media", "Utility"],
     authors: [Devs.coolelectronics, Devs.arHSM],
+    isModified: true,
     settings,
     patches: [
         {

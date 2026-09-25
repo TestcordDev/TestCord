@@ -7,4 +7,6 @@ export interface ThreadMemberListSection {
 
 export class ThreadMemberListStore extends FluxStore {
     getMemberListSections(channelId?: string): Record<string, ThreadMemberListSection>;
+    getMemberListVersion(channelId: string): number | undefined;
+    canUserViewChannel(channelId: string, sectionId: string, userId: string): boolean;
 }

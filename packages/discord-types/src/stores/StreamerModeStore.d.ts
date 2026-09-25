@@ -8,6 +8,7 @@ export interface StreamerModeSettings {
     disableSounds: boolean;
     disableNotifications: boolean;
     enableContentProtection: boolean;
+    disabledOverlayWidgets?: string[];
 }
 
 export class StreamerModeStore extends FluxStore {
@@ -21,4 +22,6 @@ export class StreamerModeStore extends FluxStore {
 
     getSettings(): StreamerModeSettings;
     getState(): Record<string, StreamerModeSettings>;
+    /** true only when the overlay widget is listed in disabledOverlayWidgets and streamer mode is enabled */
+    isOverlayWidgetDisabled(widget: string): boolean;
 }

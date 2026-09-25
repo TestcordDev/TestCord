@@ -18,6 +18,8 @@ export default defineConfig(
             "dist",
             "browser",
             "packages/vencord-types",
+            "misc/bundle",
+            "misc/scripts",
             "src/testcordplugins/IGP/openpgp.min.mjs",
         ],
     },

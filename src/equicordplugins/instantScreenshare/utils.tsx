@@ -11,7 +11,7 @@ import { Paragraph } from "@components/Paragraph";
 import { IS_WINDOWS } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import { OptionType } from "@utils/types";
-import { findByCodeLazy, findByPropsLazy } from "@webpack";
+import { findByCodeLazy } from "@webpack";
 import { MediaEngineStore, SearchableSelect, useEffect, useState } from "@webpack/common";
 
 interface PickerProps {
@@ -20,7 +20,6 @@ interface PickerProps {
 }
 
 const getDesktopSources = findByCodeLazy("desktop sources");
-const configModule = findByPropsLazy("getOutputVolume");
 const log = new Logger("InstantScreenShare");
 
 export const settings = definePluginSettings({
@@ -73,7 +72,7 @@ export async function getCurrentMedia() {
 
     if (settings.store.includeVideoDevices) {
         try {
-            const videoDevices = Object.values(configModule.getVideoDevices() || {});
+            const videoDevices = Object.values(MediaEngineStore.getVideoDevices() || {});
             const videoSources = videoDevices.map((device: any) => ({
                 id: device.id,
                 name: device.name,
@@ -127,7 +126,7 @@ function ScreenSetting() {
 
             if (includeVideoDevices) {
                 try {
-                    const videoDevices = Object.values(configModule.getVideoDevices() || {});
+                    const videoDevices = Object.values(MediaEngineStore.getVideoDevices() || {});
                     const videoSources = videoDevices.map((device: any) => ({
                         id: device.id,
                         name: device.name,

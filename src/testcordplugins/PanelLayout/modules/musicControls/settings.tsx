@@ -49,8 +49,6 @@ function InstallInstructions() {
 }
 
 function LyricsProviderSettings() {
-    const { store } = settings;
-
     return (
         <>
             <SettingsSection id="lyrics-provider" name="Lyrics Provider" description="Where lyrics are fetched from.">
@@ -60,14 +58,14 @@ function LyricsProviderSettings() {
                         { value: Provider.Spotify, label: "Spotify (Musixmatch)" },
                         { value: Provider.SpicyLyrics, label: "Spicy Lyrics (experimental)" },
                     ]}
-                    isSelected={v => v === store.lyricsProvider}
-                    select={v => { store.lyricsProvider = v as Provider; }}
+                    isSelected={v => v === settings.store.lyricsProvider}
+                    select={v => { settings.store.lyricsProvider = v as Provider; }}
                     serialize={v => v}
                     placeholder="Select a lyrics provider"
                 />
             </SettingsSection>
 
-            {store.lyricsProvider === Provider.Spotify && (
+            {settings.store.lyricsProvider === Provider.Spotify && (
                 <SettingsSection
                     id="spotify-lyrics-provider"
                     name="Spotify Lyrics API Base URL"
@@ -75,9 +73,9 @@ function LyricsProviderSettings() {
                 >
                     <TextInput
                         type="text"
-                        value={store.spotifyLyricsApiUrl}
+                        value={settings.store.spotifyLyricsApiUrl}
                         onChange={v => {
-                            store.spotifyLyricsApiUrl = v;
+                            settings.store.spotifyLyricsApiUrl = v;
                             void clearLyricsCache();
                             showToast("Lyrics cache purged", Toasts.Type.SUCCESS);
                         }}

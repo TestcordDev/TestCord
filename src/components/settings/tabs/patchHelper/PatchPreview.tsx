@@ -120,7 +120,7 @@ export function PatchPreview({ module, match, replacement, setReplacementError }
 
     return (
         <>
-            <Heading>Module {id}</Heading>
+            <Heading style={{ userSelect: "text" }}>Module {id}</Heading>
 
             <Match matchResult={matchResult} />
             <Diff diff={diff} />

@@ -45,11 +45,11 @@ async function fetchMediaData(): Promise<JfMediaData | null> {
 
         const contentType = res.headers.get("content-type") ?? "";
         if (!contentType.includes("application/json")) {
-        if (!hasShownError) {
-            logger.error("Jellyfin returned non-JSON response. Check your server URL and API key.");
-            showToast("Jellyfin returned an invalid response. Your API key may be wrong.", "failure", { duration: 15000 });
-            hasShownError = true;
-        }
+            if (!hasShownError) {
+                logger.error("Jellyfin returned non-JSON response. Check your server URL and API key.");
+                showToast("Jellyfin returned an invalid response. Your API key may be wrong.", "failure", { duration: 15000 });
+                hasShownError = true;
+            }
             return null;
         }
 
@@ -89,13 +89,12 @@ async function fetchMediaData(): Promise<JfMediaData | null> {
 }
 
 async function getActivity(): Promise<Activity | null> {
-    const { store } = settings;
     const mediaData = await fetchMediaData();
     if (!mediaData) return null;
 
     let richPresenceType: number;
-    if (store.jf_overrideType !== "off") {
-        richPresenceType = parseInt(store.jf_overrideType as string, 10);
+    if (settings.store.jf_overrideType !== "off") {
+        richPresenceType = parseInt(settings.store.jf_overrideType as string, 10);
     } else {
         richPresenceType = mediaData.type === "Audio" ? 2 : 3;
     }
@@ -111,25 +110,25 @@ async function getActivity(): Promise<Activity | null> {
             .replace(/\{year\}/g, mediaData.year?.toString() || "");
 
     let appName: string;
-    const nameSetting = store.jf_nameDisplay || "default";
+    const nameSetting = settings.store.jf_nameDisplay || "default";
 
     switch (nameSetting) {
         case "full":
             if (mediaData.type === "Episode" && mediaData.seriesName) {
-                appName = store.jf_privacyMode
+                appName = settings.store.jf_privacyMode
                     ? `${mediaData.seriesName} - [Episode Hidden]`
                     : `${mediaData.seriesName} - ${mediaData.name}`;
             } else if (mediaData.type === "Audio") {
-                appName = store.jf_privacyMode
+                appName = settings.store.jf_privacyMode
                     ? "[Track Hidden]"
                     : `${mediaData.artist || "Unknown Artist"} - ${mediaData.name}`;
             } else {
-                appName = store.jf_privacyMode ? "[Movie Hidden]" : mediaData.name || "Jellyfin";
+                appName = settings.store.jf_privacyMode ? "[Movie Hidden]" : mediaData.name || "Jellyfin";
             }
             break;
         case "custom":
-            appName = templateReplace(store.jf_customName || "{name} on Jellyfin");
-            if (store.jf_privacyMode) {
+            appName = templateReplace(settings.store.jf_customName || "{name} on Jellyfin");
+            if (settings.store.jf_privacyMode) {
                 appName = appName
                     .replace(mediaData.name || "", "[Title Hidden]")
                     .replace(mediaData.seriesName || "", "[Series Hidden]")
@@ -141,13 +140,13 @@ async function getActivity(): Promise<Activity | null> {
             if (mediaData.type === "Episode" && mediaData.seriesName) {
                 appName = mediaData.seriesName;
             } else {
-                appName = store.jf_privacyMode ? "[Media Hidden]" : mediaData.name || "Jellyfin";
+                appName = settings.store.jf_privacyMode ? "[Media Hidden]" : mediaData.name || "Jellyfin";
             }
             break;
     }
 
     const assets = {
-        large_image: !store.jf_privacyMode && mediaData.imageUrl
+        large_image: !settings.store.jf_privacyMode && mediaData.imageUrl
             ? await getAsset(mediaData.imageUrl) : undefined,
         large_text: mediaData.seriesName || mediaData.album || undefined,
     };
@@ -155,9 +154,9 @@ async function getActivity(): Promise<Activity | null> {
     const getDetails = () => {
         let details: string;
         if (mediaData.type === "Episode" && mediaData.seriesName)
-            details = store.jf_privacyMode ? "Watching a TV Show" : mediaData.seriesName;
+            details = settings.store.jf_privacyMode ? "Watching a TV Show" : mediaData.seriesName;
         else
-            details = store.jf_privacyMode ? "Watching Something" : mediaData.name;
+            details = settings.store.jf_privacyMode ? "Watching Something" : mediaData.name;
         if (mediaData.isPaused) details += " - Paused";
         return details;
     };
@@ -169,7 +168,7 @@ async function getActivity(): Promise<Activity | null> {
             let episodeFormat = "";
             const season = mediaData.seasonNumber;
             const episode = mediaData.episodeNumber;
-            const format = store.jf_episodeFormat || "long";
+            const format = settings.store.jf_episodeFormat || "long";
 
             if (season != null && episode != null) {
                 switch (format) {
@@ -189,10 +188,10 @@ async function getActivity(): Promise<Activity | null> {
                 episodeFormat = format === "fulltext" ? `Episode ${episode}` : `E${episode.toString().padStart(2, "0")}`;
             }
 
-            state = (store.jf_showEpisodeName && mediaData.name && !store.jf_privacyMode)
+            state = (settings.store.jf_showEpisodeName && mediaData.name && !settings.store.jf_privacyMode)
                 ? `${episodeFormat} - ${mediaData.name}`
                 : episodeFormat;
-        } else if (store.jf_privacyMode) {
+        } else if (settings.store.jf_privacyMode) {
             state = mediaData.type === "Audio" ? "Listening to music" : (mediaData.year ? "(????)" : undefined);
         } else {
             state = mediaData.artist || (mediaData.year ? `(${mediaData.year})` : undefined);

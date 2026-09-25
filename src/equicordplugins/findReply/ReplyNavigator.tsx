@@ -13,7 +13,7 @@ import { findComponentByCodeLazy, findCssClassesLazy } from "@webpack";
 import { React, useRef, useState } from "@webpack/common";
 
 const CloseButton = findComponentByCodeLazy("CLOSE_BUTTON_LABEL");
-import { MutableRefObject } from "react";
+import type { RefObject } from "react";
 
 import { jumper } from "./index";
 
@@ -22,7 +22,7 @@ const containerStyles = findCssClassesLazy("containerBottom", "containerTop");
 export default function ReplyNavigator({ replies }: { replies: Message[]; }) {
     const [page, setPage] = useState(1);
     const [visible, setVisible] = useState(true);
-    const ref: MutableRefObject<HTMLDivElement | null> = useRef(null);
+    const ref: RefObject<HTMLDivElement | null> = useRef(null);
     React.useEffect(() => {
         setPage(1);
         setVisible(true);
