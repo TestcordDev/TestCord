@@ -40,9 +40,8 @@ import { PluginTarget } from "@utils/pluginTargets";
 import { isExperimentalPlugin, isLegacyPlugin } from "@utils/pluginWarnings";
 import { useAwaiter, useCleanupEffect, useIntersection } from "@utils/react";
 import { isTestcordModified } from "@utils/testcordIcons";
-import { PluginTag, PluginTags } from "@utils/types";
+import { Plugin, PluginTag, PluginTags } from "@utils/types";
 import { Alerts, ConfirmModal, openModal, Parser, React, SearchableSelect, Select, TextInput, Toasts, Tooltip, useCallback, useEffect, useMemo, useRef, useState } from "@webpack/common";
-import { JSX } from "react";
 
 import Plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
 
@@ -175,7 +174,9 @@ function ExcludedPluginsList({ search }: { search: string; }) {
 }
 
 function PluginSettings() {
-    const settings = useSettings();
+    // Every settings read in this tab is under `plugins`, so scoping the subscription
+    // stops unrelated settings writes (themes, layout, ...) from re-rendering it.
+    const settings = useSettings(["plugins.*"]);
     const changeRef = useRef<ChangeList<string>>(null);
     const changes = changeRef.current ??= new ChangeList<string>();
 
@@ -232,8 +233,7 @@ function PluginSettings() {
     const sortedPlugins = useMemo(() =>
         Object.values(Plugins)
             .filter(p => p.name)
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .toSorted((a, b) => Number(settings.plugins[b.name]?.isFavorite ?? false) - Number(settings.plugins[a.name]?.isFavorite ?? false)),
+            .sort((a, b) => a.name.localeCompare(b.name)),
         []
     );
 
@@ -415,51 +415,55 @@ function PluginSettings() {
 
     const handleRestartNeeded = useCallback((name: string, key: string) => changes.handleChange(`${name}:${key}`), [changes]);
 
-    const { plugins, requiredPlugins } = useMemo(() => {
-        const plugins = [] as JSX.Element[];
-        const requiredPlugins = [] as JSX.Element[];
+    // Filtering is cheap; building JSX is not. This used to allocate a <PluginCard>
+    // element for every matching plugin (~700) on each keystroke, of which the
+    // visiblePlugins slice below then discarded all but `visibleCount`. Split the two:
+    // filter and classify first, build elements only for what actually renders.
+    const { filteredPlugins, requiredPluginDefs } = useMemo(() => {
+        const filtered: Plugin[] = [];
+        const required: Plugin[] = [];
+
+        // Favorites first, each group still in name order. This used to be a second full
+        // sort chained onto `sortedPlugins`, whose `[]` deps meant it never re-ran when a
+        // plugin was favorited, so the order only refreshed on remount. Doing it here costs
+        // two cheap passes and reuses a memo that already re-runs on settings changes.
+        const ordered = [
+            ...sortedPlugins.filter(p => settings.plugins[p.name]?.isFavorite),
+            ...sortedPlugins.filter(p => !settings.plugins[p.name]?.isFavorite)
+        ];
 
         const showApi = searchValue.status === SearchStatus.API_PLUGINS;
-        for (const p of sortedPlugins) {
+        for (const p of ordered) {
             if (p.hidden || (!p.settings?.def && p.name.endsWith("API") && !showApi))
                 continue;
 
             if (!pluginFilter(p, newPluginsSet)) continue;
 
             const isRequired = p.required || p.isDependency || depMap[p.name]?.some(d => settings.plugins[d].enabled);
-
-            if (isRequired) {
-                const tooltipText = p.required || !depMap[p.name]
-                    ? "This plugin is required for Testcord to function."
-                    : <PluginDependencyList deps={depMap[p.name]?.filter(d => settings.plugins[d].enabled)} />;
-
-                requiredPlugins.push(
-                    <Tooltip text={tooltipText} key={p.name}>
-                        {({ onMouseLeave, onMouseEnter }) => (
-                            <PluginCard
-                                onMouseLeave={onMouseLeave}
-                                onMouseEnter={onMouseEnter}
-                                onRestartNeeded={handleRestartNeeded}
-                                disabled={true}
-                                plugin={p}
-                            />
-                        )}
-                    </Tooltip>
-                );
-            } else {
-                plugins.push(
-                    <PluginCard
-                        onRestartNeeded={handleRestartNeeded}
-                        disabled={false}
-                        plugin={p}
-                        isNew={newPluginsSet?.has(p.name)}
-                        key={p.name}
-                    />
-                );
-            }
+            (isRequired ? required : filtered).push(p);
         }
-        return { plugins, requiredPlugins };
-    }, [sortedPlugins, searchValue, newPluginsSet, depMap, settings.plugins, pluginFilter, handleRestartNeeded]);
+        return { filteredPlugins: filtered, requiredPluginDefs: required };
+    }, [sortedPlugins, searchValue, newPluginsSet, depMap, settings.plugins, pluginFilter]);
+
+    const requiredPlugins = useMemo(() => requiredPluginDefs.map(p => {
+        const tooltipText = p.required || !depMap[p.name]
+            ? "This plugin is required for Testcord to function."
+            : <PluginDependencyList deps={depMap[p.name]?.filter(d => settings.plugins[d].enabled)} />;
+
+        return (
+            <Tooltip text={tooltipText} key={p.name}>
+                {({ onMouseLeave, onMouseEnter }) => (
+                    <PluginCard
+                        onMouseLeave={onMouseLeave}
+                        onMouseEnter={onMouseEnter}
+                        onRestartNeeded={handleRestartNeeded}
+                        disabled={true}
+                        plugin={p}
+                    />
+                )}
+            </Tooltip>
+        );
+    }), [requiredPluginDefs, depMap, settings.plugins, handleRestartNeeded]);
 
     function resetCheckAndDo() {
         let restartNeeded = false;
@@ -516,20 +520,28 @@ function PluginSettings() {
         const enabledUserPlugins = enabledPlugins.filter(p => PluginMeta[p].userPlugin).length;
         return { totalStockPlugins, totalUserPlugins, enabledStockPlugins, enabledUserPlugins, enabledPlugins };
     }, [settings.plugins]);
-    const pluginsToLoad = Math.min(PluginLoadBatchSize, plugins.length);
+    const pluginsToLoad = Math.min(PluginLoadBatchSize, filteredPlugins.length);
     const [visibleCount, setVisibleCount] = React.useState(pluginsToLoad);
     const loadMore = React.useCallback(() => {
-        setVisibleCount(v => Math.min(v + pluginsToLoad, plugins.length));
-    }, [plugins.length]);
+        setVisibleCount(v => Math.min(v + pluginsToLoad, filteredPlugins.length));
+    }, [pluginsToLoad, filteredPlugins.length]);
 
     const [sentinelRef, isSentinelVisible] = useIntersection();
     React.useEffect(() => {
-        if (isSentinelVisible && visibleCount < plugins.length) {
+        if (isSentinelVisible && visibleCount < filteredPlugins.length) {
             loadMore();
         }
-    }, [isSentinelVisible, visibleCount, plugins.length, loadMore]);
+    }, [isSentinelVisible, visibleCount, filteredPlugins.length, loadMore]);
 
-    const visiblePlugins = plugins.slice(0, visibleCount);
+    const visiblePlugins = useMemo(() => filteredPlugins.slice(0, visibleCount).map(p => (
+        <PluginCard
+            onRestartNeeded={handleRestartNeeded}
+            disabled={false}
+            plugin={p}
+            isNew={newPluginsSet?.has(p.name)}
+            key={p.name}
+        />
+    )), [filteredPlugins, visibleCount, newPluginsSet, handleRestartNeeded]);
     const rawAuthorGithub = searchValue.author ? (authorOptions.find(a => a.value === searchValue.author)?.github || searchValue.author) : "";
     const authorGithub = rawAuthorGithub ? (rawAuthorGithub.startsWith("http") ? rawAuthorGithub : "https://github.com/" + rawAuthorGithub) : "";
 
@@ -622,7 +634,7 @@ function PluginSettings() {
 
             <HeadingTertiary className={classes(Margins.top20, Margins.bottom8, cl("section-heading"))}>Plugins</HeadingTertiary>
 
-            {plugins.length || requiredPlugins.length
+            {filteredPlugins.length || requiredPlugins.length
                 ? (
                     <>
                         <div className={cl("grid")}>
@@ -631,7 +643,7 @@ function PluginSettings() {
                                 : <Paragraph>No plugins meet the search criteria.</Paragraph>
                             }
                         </div>
-                        {visibleCount < plugins.length && (
+                        {visibleCount < filteredPlugins.length && (
                             <div ref={sentinelRef} style={{ height: 32 }} />
                         )}
                     </>

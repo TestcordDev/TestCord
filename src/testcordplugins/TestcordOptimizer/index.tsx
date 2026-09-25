@@ -972,16 +972,22 @@ const PRESENCE_DISPATCH_TYPES = new Set([
 
 let origFluxDispatch: typeof FluxDispatcher.dispatch | null = null;
 let disposePresenceDispatch: (() => void) | null = null;
-const pendingPresenceDispatch = new Map<string, { event: any; timer: ReturnType<typeof setTimeout>; }>();
+const pendingPresenceDispatch = new Map<string, { events: any[]; timer: ReturnType<typeof setTimeout>; }>();
 
 function flushPresenceDispatch(type: string) {
     const pending = pendingPresenceDispatch.get(type);
     if (!pending) return;
     pendingPresenceDispatch.delete(type);
-    try {
-        origFluxDispatch?.call(FluxDispatcher, pending.event);
-    } catch (err) {
-        logger.warn("flush presence dispatch failed", err);
+    // Every accumulated event is dispatched, in order. This previously kept only the
+    // newest event per type, so a "stop activity" arriving inside the window replaced the
+    // "start activity" and subscribers (PerformanceBoost's game detection among them) never
+    // saw the transition. Batching still gives React one render pass per flush.
+    for (const event of pending.events) {
+        try {
+            origFluxDispatch?.call(FluxDispatcher, event);
+        } catch (err) {
+            logger.warn("flush presence dispatch failed", err);
+        }
     }
 }
 
@@ -991,10 +997,15 @@ function patchedDispatch(event: any): Promise<void> {
     }
 
     const existing = pendingPresenceDispatch.get(event.type);
-    if (existing) clearTimeout(existing.timer);
+    if (existing) {
+        // Fixed window from the first event of a burst: appending without resetting the
+        // timer means a continuous stream still flushes every 8s instead of starving.
+        existing.events.push(event);
+        return Promise.resolve();
+    }
 
     const timer = setTimeout(() => flushPresenceDispatch(event.type), 8000);
-    pendingPresenceDispatch.set(event.type, { event, timer });
+    pendingPresenceDispatch.set(event.type, { events: [event], timer });
     return Promise.resolve();
 }
 
@@ -1013,7 +1024,9 @@ function applyPresenceThrottle(enable: boolean) {
         for (const type of Array.from(pendingPresenceDispatch.keys())) {
             const pending = pendingPresenceDispatch.get(type)!;
             clearTimeout(pending.timer);
-            try { origFluxDispatch.call(FluxDispatcher, pending.event); } catch { /* ignore */ }
+            for (const event of pending.events) {
+                try { origFluxDispatch.call(FluxDispatcher, event); } catch { /* ignore */ }
+            }
         }
         pendingPresenceDispatch.clear();
         disposePresenceDispatch?.();
@@ -3253,7 +3266,10 @@ export default definePlugin({
         } as typeof FluxDispatcher.dispatch;
 
         this.disposeFluxDispatchHook = RuntimeInterposition.register({
-            owner: "TestcordOptimizer",
+            // Distinct owner from the presence throttle: getActiveHooks(owner) filters by
+            // this string, and sharing it reported one plugin as owning two layers, which
+            // inflated activeResources and the profiler's impact score.
+            owner: "TestcordOptimizer:typing",
             hook: "fluxDispatch",
             priority: RuntimeInterpositionPriority.BEHAVIOR,
             wrap: next => {

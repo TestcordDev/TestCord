@@ -27,6 +27,27 @@ interface Reply {
 }
 
 const fetching = new Map<string, string>();
+/** messageId -> earliest time another fetch may be attempted after a failed one. */
+const retryAfter = new Map<string, number>();
+const RETRY_COOLDOWN_MS = 5_000;
+/** Entries are only read on the next hover, which may never come, so prune by size. */
+const RETRY_MAP_MAX = 500;
+
+function setRetryAfter(messageId: string, at: number) {
+    if (retryAfter.size >= RETRY_MAP_MAX) {
+        const now = Date.now();
+        for (const [id, until] of retryAfter) {
+            if (until <= now) retryAfter.delete(id);
+        }
+        while (retryAfter.size >= RETRY_MAP_MAX) {
+            const oldest = retryAfter.keys().next().value;
+            if (oldest === undefined) break;
+            retryAfter.delete(oldest);
+        }
+    }
+    retryAfter.set(messageId, at);
+}
+
 let ReplyStore: any;
 
 const createMessageRecord = findByCodeLazy(".createFromServer(", ".isBlockedForMessage", "messageReference:");
@@ -63,6 +84,12 @@ export default definePlugin({
     async fetchReply(reply: Reply) {
         const { channel_id: channelId, message_id: messageId } = reply.baseMessage.messageReference!;
 
+        const retryAt = retryAfter.get(messageId);
+        if (retryAt !== undefined) {
+            if (Date.now() < retryAt) return;
+            retryAfter.delete(messageId);
+        }
+
         if (fetching.has(messageId)) {
             return;
         }
@@ -94,7 +121,13 @@ export default definePlugin({
                     });
                 }
             })
-            .catch(() => { })
+            .catch(() => {
+                // Nothing was resolved, so the "not loaded" placeholder stays and can be
+                // hovered again. Hold a short cooldown before allowing another attempt,
+                // otherwise enter/leave/enter re-requests on every pass. A successful
+                // fetch flips the placeholder to Loaded or Deleted, so it never re-hovers.
+                setRetryAfter(messageId, Date.now() + RETRY_COOLDOWN_MS);
+            })
             .finally(() => {
                 fetching.delete(messageId);
             });

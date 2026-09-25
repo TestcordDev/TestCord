@@ -23,6 +23,7 @@ import { definePluginSettings } from "@api/Settings";
 import { getUserSettingLazy } from "@api/UserSettings";
 import { BaseText } from "@components/BaseText";
 import { Devs } from "@utils/constants.js";
+import { Logger } from "@utils/Logger";
 import { Queue } from "@utils/Queue";
 import definePlugin, { OptionType } from "@utils/types";
 import { Channel, Message } from "@vencord/discord-types";
@@ -43,9 +44,12 @@ import { ComponentType, JSX } from "react";
 const messageCache = new Map<string, {
     message?: Message;
     fetched: boolean;
+    /** Epoch ms before which no new fetch may be started for this key. */
+    retryAfter?: number;
 }>();
 
 const getCacheKey = (channelId: string, messageId: string) => `${channelId}:${messageId}`;
+const logger = new Logger("MessageLinkEmbeds");
 
 const Embed = findComponentLazy(m => m.prototype?.renderSuppressButton);
 const ChannelMessage = findComponentByCodeLazy("childrenExecutedCommand:", ".hideAccessories");
@@ -128,15 +132,42 @@ const settings = definePluginSettings({
     }
 });
 
+/**
+ * How long to wait before retrying a link whose fetch failed. Long enough that a passing
+ * outage does not turn into one request per render pass per link (the fetch queue is
+ * unbounded), short enough that a transient failure is not cached for the whole session.
+ */
+const FETCH_RETRY_DELAY_MS = 30_000;
+
 async function fetchMessage(channelId: string, messageId: string) {
     const cacheKey = getCacheKey(channelId, messageId);
 
     const cached = messageCache.get(cacheKey);
-    if (cached) return cached.message;
+    if (cached) {
+        // A resolved message is the final answer.
+        if (cached.message !== undefined) return cached.message;
+        // A retry cooldown is not an answer, but it does mean "do not re-request yet".
+        if (cached.retryAfter !== undefined && Date.now() < cached.retryAfter) return undefined;
+        // Expired cooldown: drop it so a dead link does not hold a slot for the session.
+        messageCache.delete(cacheKey);
+    }
 
+    // In-flight marker so concurrent renders of the same link do not stack requests.
     messageCache.set(cacheKey, { fetched: false });
 
-    const msg = await TestcordRequestCoordinator.fetchMessageAround(channelId, messageId).catch(() => null);
+    let msg: Awaited<ReturnType<typeof TestcordRequestCoordinator.fetchMessageAround>>;
+    try {
+        msg = await TestcordRequestCoordinator.fetchMessageAround(channelId, messageId);
+    } catch (e) {
+        // A transport failure is not an answer about the message. Back off instead of
+        // caching the blank forever (the old behaviour) or retrying on every render pass
+        // (a request storm, since the fetch queue is unbounded). A "message is gone"
+        // verdict is conclusive, so that one stays cached unconditionally.
+        messageCache.set(cacheKey, { fetched: false, retryAfter: Date.now() + FETCH_RETRY_DELAY_MS });
+        logger.error(`Failed to fetch linked message ${messageId}:`, e);
+        return;
+    }
+
     if (!msg) return;
 
     if (msg.id !== messageId) return;

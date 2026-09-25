@@ -170,7 +170,12 @@ if (!IS_VANILLA) {
     });
 
     process.env.DATA_DIR = join(app.getPath("userData"), "..", "Testcord");
-    if (settings.plugins?.NoTrack?.disableStackDumping !== false) process.env.ELECTRON_ENABLE_STACK_DUMPING = "true";
+    // The setting is `default: false` and its description is "print a native stack trace
+    // when Discord crashes", i.e. the toggle turns traces *on*. `=== true` is therefore
+    // "off unless explicitly enabled". The previous `!== false` also turned them on for any
+    // unset or legacy value, which is every install that never touched the toggle, since
+    // the renderer only materialises the default via getDefaultValue.
+    if (settings.plugins?.NoTrack?.disableStackDumping === true) process.env.ELECTRON_ENABLE_STACK_DUMPING = "true";
 } else {
     console.log("[Testcord] Running in vanilla mode. Not loading Testcord");
 }

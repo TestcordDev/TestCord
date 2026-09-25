@@ -49,6 +49,24 @@ function djb2(str: string): number {
     return hash >>> 0;
 }
 
+/**
+ * `checkAndStore` is called once per *applied patch*, and every patch on a module is handed
+ * the same `originalFactoryCode` string. Hashing walked that whole string each time, so a
+ * module patched by N plugins was walked N times during boot. Remembering the last string
+ * turns that into one walk per module; string `===` is a pointer compare for the repeated
+ * same-reference case.
+ */
+let lastHashedSource: string | undefined;
+let lastHashedValue = 0;
+
+function hashSource(source: string): number {
+    if (source === lastHashedSource) return lastHashedValue;
+    const hash = djb2(source);
+    lastHashedSource = source;
+    lastHashedValue = hash;
+    return hash;
+}
+
 async function load() {
     if (loaded) return;
     loaded = true;
@@ -95,7 +113,7 @@ export const PatchVersioning = {
      */
     checkAndStore(plugin: string, find: string, originalSource: string, buildNumber: number, moduleId?: string) {
         const key = moduleId ? `${plugin}:${find}:${moduleId}` : `${plugin}:${find}`;
-        const currentHash = djb2(originalSource);
+        const currentHash = hashSource(originalSource);
 
         // Load lazily if not yet loaded — the check will just skip
         // gracefully if data isn't available yet on the very first run.

@@ -294,6 +294,23 @@ async function flushNow() {
     }
 }
 
+/**
+ * `enabledPlugins` is looked up once per session per plugin by `computeStability`,
+ * and the Health tab recomputes every plugin's score on each profiler tick. Scanning
+ * the ~700-entry array each time made that pass quadratic. The array is always
+ * reassigned (never mutated in place), so caching on its identity is exact.
+ */
+const enabledPluginsSets = new WeakMap<object, { source: string[] | undefined; set: Set<string>; }>();
+
+function sessionEnabledPlugins(session: { enabledPlugins?: string[]; }): Set<string> {
+    const cached = enabledPluginsSets.get(session);
+    if (cached && cached.source === session.enabledPlugins) return cached.set;
+
+    const set = new Set(session.enabledPlugins ?? []);
+    enabledPluginsSets.set(session, { source: session.enabledPlugins, set });
+    return set;
+}
+
 function computeStability(plugin: string, options?: { excludeSourceChanges?: boolean; excludePastHistory?: boolean; }): StabilityScore {
     let sessionsSeen = 0;
     let sessionsBroken = 0;
@@ -308,7 +325,7 @@ function computeStability(plugin: string, options?: { excludeSourceChanges?: boo
         // webpack patch failures fire during patching, before
         // `registerEnabledPlugins` runs, so the plugin may not yet be in
         // `enabledPlugins` even though it clearly ran this session.
-        const seen = session.enabledPlugins?.includes(plugin) || counts != null;
+        const seen = sessionEnabledPlugins(session).has(plugin) || counts != null;
         if (!seen) continue;
         sessionsSeen++;
         if (counts) {

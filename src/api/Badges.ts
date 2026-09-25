@@ -72,6 +72,33 @@ function isRenderableBadge(badge: Partial<ProfileBadge>) {
         || typeof badge.iconSrc === "string" && badge.iconSrc.length > 0;
 }
 
+/**
+ * `ErrorBoundary.wrap` returns a brand-new function component on every call, so wrapping
+ * inline in `normalizeBadges` gave every badge a fresh component type on every render.
+ * Discord calls this once per message author, and React treats a changed component type
+ * as a different component: it unmounted and remounted the whole badge subtree each pass
+ * (losing internal state) and allocated a closure per badge per author per render.
+ *
+ * The props are the same constant object at this call site, so caching on the source
+ * component is exact. `ErrorBoundary.wrap` itself is untouched - other callers pass
+ * varying props and must keep getting fresh wrappers.
+ */
+const wrappedBadgeComponents = new WeakMap<ComponentType<any>, ComponentType<any>>();
+const wrappedBadgeOutputs = new WeakSet<ComponentType<any>>();
+
+/** Idempotent, so a component that was already wrapped at registration is not wrapped again. */
+function wrapBadgeComponent(component: ComponentType<any>) {
+    if (wrappedBadgeOutputs.has(component)) return component;
+
+    const cached = wrappedBadgeComponents.get(component);
+    if (cached) return cached;
+
+    const wrapped = ErrorBoundary.wrap(component, { noop: true });
+    wrappedBadgeComponents.set(component, wrapped);
+    wrappedBadgeOutputs.add(wrapped);
+    return wrapped;
+}
+
 function normalizeBadges(rawBadges: unknown[] | undefined, args: BadgeUserArgs, offset = 0) {
     return (rawBadges ?? [])
         .filter((badge): badge is Partial<ProfileBadge> => typeof badge === "object" && badge != null)
@@ -79,7 +106,7 @@ function normalizeBadges(rawBadges: unknown[] | undefined, args: BadgeUserArgs, 
             ...args,
             ...badge,
             id: getBadgeId(badge, args.userId, offset + index),
-            component: badge.component && ErrorBoundary.wrap(badge.component, { noop: true })
+            component: badge.component && wrapBadgeComponent(badge.component)
         }))
         .filter(isRenderableBadge);
 }
@@ -89,7 +116,7 @@ function normalizeBadges(rawBadges: unknown[] | undefined, args: BadgeUserArgs, 
  * @param badge The badge to register
  */
 export function addProfileBadge(badge: ProfileBadge) {
-    badge.component &&= ErrorBoundary.wrap(badge.component, { noop: true });
+    badge.component &&= wrapBadgeComponent(badge.component);
     Badges.add(badge);
 }
 

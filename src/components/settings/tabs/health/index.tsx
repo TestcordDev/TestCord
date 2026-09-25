@@ -328,13 +328,13 @@ function sortSnapshot(
         case "name":
             arr.sort((a, b) => a[0].localeCompare(b[0]));
             break;
-        case "stability":
-            arr.sort((a, b) => {
-                const sa = PluginHealth.getStability(a[0]);
-                const sb = PluginHealth.getStability(b[0]);
-                return STABILITY_RANK[sa.badge] - STABILITY_RANK[sb.badge];
-            });
+        case "stability": {
+            // Sort comparators run O(n log n) times, and getStability walks the session
+            // history, so compute each rank once up front instead of twice per comparison.
+            const ranks = new Map(arr.map(([name]) => [name, STABILITY_RANK[PluginHealth.getStability(name).badge]]));
+            arr.sort((a, b) => ranks.get(a[0])! - ranks.get(b[0])!);
             break;
+        }
         case "recent":
             arr.sort((a, b) => getLastSeen(b[1]) - getLastSeen(a[1]));
             break;
@@ -1442,7 +1442,11 @@ function HealthTab() {
 
     const profiles = useMemo(() => PluginProfiler.getAllProfiles(), [tick]);
 
+    // Diagnostics/Monitor only render on their own sub-tab, but their memos ran on every
+    // profiler tick regardless. Each one filters and sorts ~400 profile rows, so the
+    // Overview tab was paying for two tables it never showed, twice a second.
     const diagRows = useMemo(() => {
+        if (activeTab !== "diagnostics") return [];
         const query = diagSearchQuery.toLowerCase();
         return profiles
             .filter(p => p.pluginName.toLowerCase().includes(query))
@@ -1453,9 +1457,10 @@ function HealthTab() {
                 if (valA > valB) return sortDirection === "asc" ? 1 : -1;
                 return 0;
             });
-    }, [profiles, diagSearchQuery, sortColumn, sortDirection]);
+    }, [profiles, diagSearchQuery, sortColumn, sortDirection, activeTab]);
 
     const monitorRows = useMemo(() => {
+        if (activeTab !== "monitor") return [];
         const query = monitorSearchQuery.toLowerCase();
         return profiles
             .filter(p => p.pluginName.toLowerCase().includes(query))
@@ -1473,7 +1478,7 @@ function HealthTab() {
                         return b.impactScore - a.impactScore;
                 }
             });
-    }, [profiles, monitorSearchQuery, monitorImpactFilter, monitorSort]);
+    }, [profiles, monitorSearchQuery, monitorImpactFilter, monitorSort, activeTab]);
 
     // Whole-install health score: 100 minus penalties. Explainable by design —
     // the formula is shown next to the number.

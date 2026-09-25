@@ -122,32 +122,47 @@ export function normalizeName(name: string): string {
 }
 
 /**
+ * Normalised lookup tables for the registries above.
+ *
+ * `getPluginWarning` runs for every rendered plugin card, and each call used to
+ * `Object.entries()` two records and re-run `normalizeName` over ~44 registry entries
+ * (three string allocations and a regex each) just to answer a membership question. The
+ * registries are module constants that are never mutated, so index them once. First
+ * entry wins on both maps, matching the previous `find`/loop behaviour.
+ */
+function indexByNormalizedName<V>(record: Record<string, V>): Map<string, V> {
+    const index = new Map<string, V>();
+    for (const [key, value] of Object.entries(record)) {
+        const norm = normalizeName(key);
+        if (!index.has(norm)) index.set(norm, value);
+    }
+    return index;
+}
+
+const legacyReplacementsByName = indexByNormalizedName(LEGACY_REPLACEMENTS);
+const customWarningsByName = indexByNormalizedName(CUSTOM_PLUGIN_WARNINGS);
+const experimentalNames = new Set(EXPERIMENTAL_PLUGINS.map(normalizeName));
+const legacyNames = new Set(LEGACY_PLUGINS.map(normalizeName));
+
+/**
  * Gets the replacement plugin name for a legacy plugin if defined.
  */
 export function getLegacyReplacement(pluginName: string): string | undefined {
-    const norm = normalizeName(pluginName);
-    for (const [key, replacement] of Object.entries(LEGACY_REPLACEMENTS)) {
-        if (normalizeName(key) === norm) {
-            return replacement;
-        }
-    }
-    return undefined;
+    return legacyReplacementsByName.get(normalizeName(pluginName));
 }
 
 /**
  * Checks whether a given plugin name is in the EXPERIMENTAL list.
  */
 export function isExperimentalPlugin(pluginName: string): boolean {
-    const norm = normalizeName(pluginName);
-    return EXPERIMENTAL_PLUGINS.some(p => normalizeName(p) === norm);
+    return experimentalNames.has(normalizeName(pluginName));
 }
 
 /**
  * Checks whether a given plugin name is in the LEGACY list or has a legacy replacement.
  */
 export function isLegacyPlugin(pluginName: string): boolean {
-    const norm = normalizeName(pluginName);
-    return !!getLegacyReplacement(pluginName) || LEGACY_PLUGINS.some(p => normalizeName(p) === norm);
+    return legacyReplacementsByName.has(normalizeName(pluginName)) || legacyNames.has(normalizeName(pluginName));
 }
 
 /**
@@ -163,9 +178,9 @@ export function getPluginWarning(pluginOrName: { name?: string; experimental?: b
     const norm = normalizeName(name);
     const replacementPlugin = getLegacyReplacement(name);
 
-    const customMatch = Object.entries(CUSTOM_PLUGIN_WARNINGS).find(([key]) => normalizeName(key) === norm);
+    const customMatch = customWarningsByName.get(norm);
     if (customMatch) {
-        const [, val] = customMatch;
+        const val = customMatch;
         const type = val.type ?? "warning";
         const rep = val.replacementPlugin ?? (type === "legacy" ? replacementPlugin : undefined);
         return {
@@ -181,11 +196,11 @@ export function getPluginWarning(pluginOrName: { name?: string; experimental?: b
         };
     }
 
-    if (EXPERIMENTAL_PLUGINS.some(p => normalizeName(p) === norm)) {
+    if (experimentalNames.has(norm)) {
         return EXPERIMENTAL_INFO;
     }
 
-    if (replacementPlugin || LEGACY_PLUGINS.some(p => normalizeName(p) === norm)) {
+    if (replacementPlugin || legacyNames.has(norm)) {
         return {
             ...LEGACY_INFO,
             replacementPlugin,

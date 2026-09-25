@@ -735,7 +735,7 @@ function renderUsername(
     const isReaction = isReactionsTooltip || isReactionsPopout;
     const isVoice = type === "voiceChannel";
 
-    const config = hookless ? settings.store : settings.use(["messages", "replies", "mentions", "typingIndicator", "memberList", "searchAutocomplete", "styleDirectMessagesList", "styleDirectMessagesMessages", "styleFriendsList", "styleActiveNow", "profilePopout", "reactions", "friendNameOnlyInDirectMessages", "customNameOnlyInDirectMessages", "discriminators", "hideDefaultAtSign", "truncateAllNamesWithStreamerMode", "removeDuplicates", "ignoreEffects", "ignoreFonts", "animateEffects", "alwaysAnimateEffects", "gradientGlow", "includedNames", "customNameColor", "friendNameColor", "nicknameColor", "displayNameColor", "usernameColor", "nameSeparator"]);
+    const config = hookless ? settings.store : settings.use(SETTINGS_KEYS);
     const { messages, replies, mentions, typingIndicator, memberList, searchAutocomplete, styleDirectMessagesMessages, profilePopout, reactions, friendNameOnlyInDirectMessages, customNameOnlyInDirectMessages, discriminators, truncateAllNamesWithStreamerMode, removeDuplicates, ignoreEffects, ignoreFonts, animateEffects, includedNames, customNameColor, friendNameColor, nicknameColor, displayNameColor, usernameColor, nameSeparator } = config;
 
     // Subscribed renders refresh on the local signal instead of the old hidden
@@ -1372,6 +1372,18 @@ const userContextPatch: NavContextMenuPatchCallback = (children, { user }) => {
 migratePluginSetting("ShowMeYourName", "ignoreEffects", "ignoreGradients");
 migratePluginSetting("ShowMeYourName", "animateEffects", "animateGradients");
 migratePluginSetting("ShowMeYourName", "alwaysAnimateEffects", "alwaysShowEffects");
+
+// renderUsername runs for every username in every message and every member list row,
+// so this array is hoisted to keep the settings subscription on a stable identity.
+const SETTINGS_KEYS = [
+    "messages", "replies", "mentions", "typingIndicator", "memberList", "searchAutocomplete",
+    "styleDirectMessagesList", "styleDirectMessagesMessages", "styleFriendsList", "styleActiveNow",
+    "profilePopout", "reactions", "friendNameOnlyInDirectMessages", "customNameOnlyInDirectMessages",
+    "discriminators", "hideDefaultAtSign", "truncateAllNamesWithStreamerMode", "removeDuplicates",
+    "ignoreEffects", "ignoreFonts", "animateEffects", "alwaysAnimateEffects", "gradientGlow",
+    "includedNames", "customNameColor", "friendNameColor", "nicknameColor", "displayNameColor",
+    "usernameColor", "nameSeparator"
+] as const;
 
 const settings = definePluginSettings({
     messages: {

@@ -62,12 +62,18 @@ export function AddonCard({ disabled, isNew, sourceBadge, warningBadge, tooltip,
                             <div
                                 ref={titleRef}
                                 className={cl("title")}
-                                onMouseOver={() => {
-                                    const title = titleRef.current!;
-                                    const titleContainer = titleContainerRef.current!;
+                                // onMouseEnter, not onMouseOver: over bubbles, so moving the
+                                // pointer between descendants re-ran this for every card in
+                                // the grid, and each run forced a layout via clientWidth and
+                                // scrollWidth before writing two custom properties back.
+                                onMouseEnter={() => {
+                                    const title = titleRef.current;
+                                    const titleContainer = titleContainerRef.current;
+                                    if (!title || !titleContainer) return;
 
-                                    title.style.setProperty("--offset", `${titleContainer.clientWidth - title.scrollWidth}px`);
-                                    title.style.setProperty("--duration", `${Math.max(0.5, (title.scrollWidth - titleContainer.clientWidth) / 7)}s`);
+                                    const overflow = title.scrollWidth - titleContainer.clientWidth;
+                                    title.style.setProperty("--offset", `${-overflow}px`);
+                                    title.style.setProperty("--duration", `${Math.max(0.5, overflow / 7)}s`);
                                 }}
                             >
                                 {name}

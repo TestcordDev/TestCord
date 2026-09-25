@@ -39,6 +39,7 @@ const NativeHelper = VencordNative.pluginHelpers.TestcordHelper as PluginNative<
 
 import plugins, { ExcludedPlugins, PluginMeta } from "~plugins";
 
+import { describeConsoleArg } from "./consoleArgs";
 import { hexToInt, ICON_COLOR_FALLBACK, IconColorSettingKey, IconColorSettings, intToHex, isIconColorInputValid } from "./iconColors";
 import { cleanupTcpAutocomplete, initTcpAutocomplete } from "./tcpAutocomplete";
 
@@ -169,6 +170,8 @@ const recentSlowEvents: Array<{ at: number; type: string; ms: number; plugins: s
 let pluginFluxMap: Map<string, string[]> | undefined;
 const handlerPluginMap = new Map<(...args: any[]) => void, string>();
 const handlerWrappers = new Map<(...args: any[]) => void, (...args: any[]) => void>();
+/** Whether the wrappers installed by `installDebugInstrumentation` should do their timing work. */
+let debugInstrumentationActive = false;
 
 function getPluginFluxMap() {
     if (pluginFluxMap) return pluginFluxMap;
@@ -207,6 +210,14 @@ const currentDispatchCost = new Map<string, number>();
 
 function wrapHandlerTiming(handler: (...args: any[]) => void): (...args: any[]) => void {
     const wrapped = function (this: any, ...args: any[]) {
+        // Handlers are wrapped once and stay wrapped, because unwrapping them again is
+        // not possible from here: the flux bus owns its subscriber sets, and a handler
+        // can reach Discord's dispatcher directly if the bus was stopped in between. That
+        // left every plugin paying two performance.now() calls plus three Map operations
+        // on every dispatch for the rest of the session. Gating on the flag makes the
+        // residue a single boolean test, and it cannot desynchronise the bus.
+        if (!debugInstrumentationActive) return handler.apply(this, args);
+
         const t0 = performance.now();
         handler.apply(this, args);
         const dt = performance.now() - t0;
@@ -384,6 +395,7 @@ function installDebugInstrumentation() {
     dumpPatchDiagnostics();
     dumpPatchTimings();
     buildHandlerPluginMap();
+    debugInstrumentationActive = true;
 
     if (!FluxDispatcher?.dispatch) return;
     disposeDispatch = RuntimeInterposition.register({
@@ -454,10 +466,8 @@ function installDebugInstrumentation() {
         wrapFluxHandlers(handler => {
             const name = handlerPluginMap.get(handler);
             if (name && !handlerWrappers.has(handler)) {
-                const wrapped = wrapHandlerTiming(handler);
-                handlerWrappers.set(handler, wrapped);
                 wrappedCount++;
-                return wrapped;
+                return wrapHandlerTiming(handler);
             }
             return handler;
         });
@@ -477,8 +487,15 @@ function uninstallDebugInstrumentation() {
     disposeSubscribe = null;
     origDispatch = null;
     origSubscribe = null;
+
+    // Wrappers already swapped into the flux bus stay in place, so flip them inert
+    // instead of trying to put the originals back (see wrapHandlerTiming).
+    debugInstrumentationActive = false;
+
     dispatchStats.clear();
     pluginDispatchStats.clear();
+    recentSlowEvents.length = 0;
+    currentDispatchCost.clear();
     handlerPluginMap.clear();
     handlerWrappers.clear();
     channelSwitchStart = 0;
@@ -1577,7 +1594,7 @@ function installConsoleCapture() {
     for (const level of levels) {
         origConsole[level] = (console as any)[level].bind(console);
         (console as any)[level] = function (...args: any[]) {
-            const msg = args.map(a => typeof a === "object" ? safeStringify(a).slice(0, 500) : String(a).slice(0, 500)).join(" ").slice(0, 2000);
+            const msg = args.map(describeConsoleArg).join(" ").slice(0, 2000);
             consoleBuf.push({ level, msg, time: Date.now() });
             if (consoleBuf.length > CONSOLE_BUF_MAX) consoleBuf.shift();
             return origConsole[level](...args);
@@ -1592,10 +1609,6 @@ function uninstallConsoleCapture() {
         (console as any)[level] = origConsole[level];
     }
     origConsole = {};
-}
-
-function safeStringify(obj: any): string {
-    try { return JSON.stringify(obj); } catch { return String(obj); }
 }
 
 function handleLiveFixRequest(req: LiveFixRequest): any {

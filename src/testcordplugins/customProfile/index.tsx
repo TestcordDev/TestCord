@@ -642,11 +642,18 @@ function scanTextNode(node: Text) {
     if (storedData.createdAt) {
         const realDates = getRealDateVariants(); const fakeDates = getFakeDateVariants(storedData.createdAt);
         if (realDates.length > 0 && fakeDates.length > 0) {
+            // Lowercased once per text node instead of once per candidate date. The old
+            // expression allocated a full lowercase copy of the node for every variant
+            // that failed the exact-case check, on every node of the document.
+            let lowerVal = "";
             for (let i = 0; i < realDates.length; i++) {
                 const realDate = realDates[i];
-                if (realDate.length >= 4 && (val.includes(realDate) || val.toLowerCase().includes(realDate.toLowerCase()))) {
-                    result = result.split(realDate).join(fakeDates[0]); replaced = true;
+                if (realDate.length < 4) continue;
+                if (!val.includes(realDate)) {
+                    if (!lowerVal) lowerVal = val.toLowerCase();
+                    if (!lowerVal.includes(realDate.toLowerCase())) continue;
                 }
+                result = result.split(realDate).join(fakeDates[0]); replaced = true;
             }
         }
     }

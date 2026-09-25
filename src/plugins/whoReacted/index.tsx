@@ -74,15 +74,62 @@ function fetchReactions(msg: Message, emoji: ReactionEmoji, type: number) {
         .finally(() => sleep(250));
 }
 
+// Scrolling a busy channel renders one fetch per reaction, and each queued task keeps its
+// Message and ReactionEmoji reachable and waits out a 250ms sleep before the next one runs.
+// Unbounded, a fast scroll through a few hundred reacted messages held every one of them
+// alive and queued minutes of API calls nobody was waiting on.
+//
+// The bound is enforced here rather than via Queue's maxSize on purpose: a task dropped by
+// Queue's overflow would never run, so `cache.fetched` would stay true and that reaction
+// could never be fetched again. Skipping the enqueue instead leaves it retryable on the next
+// render, and the newest reactions are the ones still on screen.
+const MAX_PENDING_FETCHES = 50;
+
 function getReactionsWithQueue(msg: Message, e: ReactionEmoji, type: number) {
     const key = `${msg.id}:${e.name}:${e.id ?? ""}:${type}`;
     const cache = reactions[key] ??= { fetched: false, users: new Map() };
-    if (!cache.fetched) {
+    if (!cache.fetched && queue.size < MAX_PENDING_FETCHES) {
         queue.unshift(() => fetchReactions(msg, e, type));
         cache.fetched = true;
     }
 
     return cache.users;
+}
+
+/**
+ * One client-wide `MESSAGE_REACTION_ADD_USERS` subscription instead of one per rendered
+ * reaction chip. The plugin injects a component per reaction, so a channel with 50
+ * messages carrying 5 reactions each installed ~250 subscribers, and every reaction
+ * event anywhere in the client invoked all of them just to compare a message id.
+ */
+const reactionListeners = new Map<string, Set<() => void>>();
+
+function onReactionUsers(e: { messageId?: string; }) {
+    const listeners = e?.messageId && reactionListeners.get(e.messageId);
+    if (!listeners) return;
+    for (const listener of listeners) listener();
+}
+
+function subscribeToReactionUsers(messageId: string, listener: () => void) {
+    let listeners = reactionListeners.get(messageId);
+    if (!listeners) {
+        listeners = new Set();
+        reactionListeners.set(messageId, listeners);
+        if (reactionListeners.size === 1) {
+            FluxDispatcher.subscribe("MESSAGE_REACTION_ADD_USERS", onReactionUsers);
+        }
+    }
+    listeners.add(listener);
+
+    return () => {
+        listeners.delete(listener);
+        if (listeners.size === 0) {
+            reactionListeners.delete(messageId);
+            if (reactionListeners.size === 0) {
+                FluxDispatcher.unsubscribe("MESSAGE_REACTION_ADD_USERS", onReactionUsers);
+            }
+        }
+    };
 }
 
 function handleClickAvatar(event: React.UIEvent<HTMLElement, Event>) {
@@ -160,18 +207,16 @@ export default definePlugin({
 
     renderUsers: ErrorBoundary.wrap(({ message, emoji, type }: ReactionProps) => {
         const forceUpdate = useForceUpdater();
+        // Checked before subscribing but after the hooks, so the hook order stays stable
+        // when a message crosses the threshold while mounted.
+        const tooManyReactions = message.reactions.length > 10;
 
         useEffect(() => {
-            const cb = (e: any) => {
-                if (e?.messageId === message.id)
-                    forceUpdate();
-            };
-            FluxDispatcher.subscribe("MESSAGE_REACTION_ADD_USERS", cb);
+            if (tooManyReactions) return;
+            return subscribeToReactionUsers(message.id, forceUpdate);
+        }, [message.id, forceUpdate, tooManyReactions]);
 
-            return () => FluxDispatcher.unsubscribe("MESSAGE_REACTION_ADD_USERS", cb);
-        }, [message.id, forceUpdate]);
-
-        if (message.reactions.length > 10) return null;
+        if (tooManyReactions) return null;
 
         const reactionMap = getReactionsWithQueue(message, emoji, type);
         let users = Array.from(reactionMap, ([id]) => UserStore.getUser(id)).filter(Boolean);

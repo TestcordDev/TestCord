@@ -13,28 +13,6 @@ const logger = new Logger("PluginProfiler", "#3498db");
 
 export const PROFILE_WINDOW_MS = 60_000;
 
-// Fallback stack inspection when a timer or listener is created outside an
-// active plugin execution frame.
-const PLUGIN_PATH_PATTERNS = [
-    /testcordplugins[/\\]([^/\\]+?)[/\\]/,
-    /equicordplugins[/\\]([^/\\]+?)[/\\]/,
-    /userplugins[/\\]([^/\\]+?)[/\\]/,
-    /[/\\]plugins[/\\]([^/\\]+?)[/\\]/
-];
-
-function guessPluginFromStack(): string | null {
-    try {
-        const stack = new Error().stack ?? "";
-        for (const pattern of PLUGIN_PATH_PATTERNS) {
-            const match = stack.match(pattern);
-            if (match) return match[1];
-        }
-    } catch {
-        // Stack inspection is best-effort.
-    }
-    return null;
-}
-
 export interface SurfaceStats {
     calls: number;
     totalMs: number;
@@ -96,12 +74,16 @@ interface RawPluginMetrics {
     allocatedHeapBytes: number;
     lastHeapBytes: number;
     lastHeapDeltaMB: number;
+    /** Slow-call log lines already emitted in the current window, so the budget resets with it. */
+    warnedSlowCalls: number;
     surfaces: Record<string, SurfaceStats>;
 }
 
 const metricsRegistry = new Map<string, RawPluginMetrics>();
 const listeners = new Set<() => void>();
 const activeStack: ActiveContext[] = [];
+const SLOW_CALL_WARN_LIMIT = 5;
+let heapTrackingEnabled = false;
 
 let slowCallThresholdMs = 16; // configurable threshold for slow call spikes
 
@@ -118,15 +100,18 @@ const listenerCountByPlugin = new Map<string, number>();
 const sourceSnippets = new Map<string, SourceSnippet[]>();
 const measuredFunctions = new WeakSet<object>();
 
+/**
+ * Attribution for a timer or listener created outside an active plugin frame.
+ *
+ * There is deliberately no stack inspection here. The renderer ships as a single
+ * script (`//# sourceURL=file:///VencordRenderer`) and every webpack module gets
+ * `file:///WebpackModule<id>`, so no frame in a captured stack ever contains a
+ * `testcordplugins/<name>/` style segment. The previous implementation built a full
+ * `new Error().stack` and ran four regexes over it on *every* `addEventListener` and
+ * `setInterval` call in the whole client, and could only ever return null.
+ */
 function currentContext(): ActiveContext | undefined {
-    if (activeStack.length > 0) {
-        return activeStack[activeStack.length - 1];
-    }
-    const guessed = guessPluginFromStack();
-    if (guessed) {
-        return { pluginName: guessed, surface: "unknown" };
-    }
-    return undefined;
+    return activeStack.length > 0 ? activeStack[activeStack.length - 1] : undefined;
 }
 
 function ensureMetrics(pluginName: string): RawPluginMetrics {
@@ -144,6 +129,7 @@ function ensureMetrics(pluginName: string): RawPluginMetrics {
             allocatedHeapBytes: 0,
             lastHeapBytes: 0,
             lastHeapDeltaMB: 0,
+            warnedSlowCalls: 0,
             surfaces: {}
         };
         metricsRegistry.set(pluginName, metrics);
@@ -161,6 +147,7 @@ function resetPerformanceWindow(metrics: RawPluginMetrics, now: number) {
     metrics.allocatedHeapBytes = 0;
     metrics.lastHeapBytes = 0;
     metrics.lastHeapDeltaMB = 0;
+    metrics.warnedSlowCalls = 0;
     metrics.surfaces = {};
 }
 
@@ -582,7 +569,14 @@ export const PluginProfiler = {
     profileExecution<T>(pluginName: string, category: string, fn: () => T): T {
         if (!pluginName) return fn();
 
-        const beforeHeap = (performance as any)?.memory?.usedJSHeapSize;
+        // `performance.memory.usedJSHeapSize` is not a plain field read in Chromium; it
+        // materialises heap statistics. This wrapper runs for every flux handler, every
+        // message accessory and every lifecycle call, so the two reads per invocation
+        // are skipped until something has actually asked to see them. Sticky rather than
+        // "currently subscribed", so closing the Health tab does not silently blank the
+        // heap columns for the rest of the session.
+        const trackHeap = heapTrackingEnabled;
+        const beforeHeap = trackHeap ? (performance as any)?.memory?.usedJSHeapSize : undefined;
         const start = performance.now();
         const metrics = ensureMetrics(pluginName);
         rollPerformanceWindow(metrics, start);
@@ -617,7 +611,17 @@ export const PluginProfiler = {
             const isSlow = duration >= slowCallThresholdMs;
             if (isSlow) {
                 metrics.slowSpikes++;
-                logger.warn(`[Slow Call Spike] ${pluginName} (${category}): ${duration.toFixed(2)}ms (threshold: ${slowCallThresholdMs}ms)`);
+                // The counter stays exact; only the log line is thinned. A surface that is
+                // permanently over the threshold used to emit one warn per call, and each
+                // of those went back out through the console wrappers. The budget lives on
+                // the metrics so it resets with the performance window.
+                if (metrics.warnedSlowCalls < SLOW_CALL_WARN_LIMIT) {
+                    const last = metrics.warnedSlowCalls === SLOW_CALL_WARN_LIMIT - 1;
+                    metrics.warnedSlowCalls++;
+                    logger.warn(last
+                        ? `[Slow Call Spike] ${pluginName} (${category}): further spikes this window suppressed (still counted).`
+                        : `[Slow Call Spike] ${pluginName} (${category}): ${duration.toFixed(2)}ms (threshold: ${slowCallThresholdMs}ms)`);
+                }
             }
 
             const surfaceStat = ensureSurface(metrics, category);
@@ -628,7 +632,7 @@ export const PluginProfiler = {
                 surfaceStat.slowCalls++;
             }
 
-            const afterHeap = (performance as any)?.memory?.usedJSHeapSize;
+            const afterHeap = trackHeap ? (performance as any)?.memory?.usedJSHeapSize : undefined;
             if (typeof beforeHeap === "number" && typeof afterHeap === "number") {
                 const delta = afterHeap - beforeHeap;
                 metrics.lastHeapBytes = afterHeap;
@@ -798,6 +802,7 @@ export const PluginProfiler = {
      */
     subscribe(listener: () => void): () => void {
         listeners.add(listener);
+        heapTrackingEnabled = true;
         return () => listeners.delete(listener);
     }
 };

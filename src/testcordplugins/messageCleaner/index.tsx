@@ -73,6 +73,20 @@ const settings = definePluginSettings({
         maxValue: 365,
         stickToMarkers: false,
     },
+    deleteRetries: {
+        type: OptionType.SLIDER,
+        description: "Retries per message when a delete fails, after confirming the message is still there (0 = give up immediately)",
+        default: 3,
+        markers: [0, 1, 3, 5],
+        minValue: 0,
+        maxValue: 10,
+        stickToMarkers: false,
+    },
+    verifyAfterFailure: {
+        type: OptionType.BOOLEAN,
+        description: "After a failed delete, check whether the message is actually gone before retrying (a request can succeed even when the response fails)",
+        default: true,
+    },
 });
 
 // Global variables for control
@@ -240,6 +254,66 @@ async function deleteMessage(
 
         return false;
     }
+}
+
+/**
+ * Confirm whether a message is really still present.
+ *
+ * A delete can fail for reasons that have nothing to do with the message surviving: the
+ * response can be lost, the connection can drop, or Discord can 429 after applying the
+ * delete. Retrying blindly in that case double-deletes (harmless but wasteful) and, worse,
+ * reporting a successful delete as a failure makes the stats wrong. Discord answers 404 for
+ * a message that no longer exists, so that is the authoritative answer.
+ *
+ * Any other failure is treated as inconclusive - i.e. still present - because guessing
+ * "deleted" would silently hide a real failure.
+ */
+async function isMessageGone(channelId: string, messageId: string): Promise<boolean> {
+    try {
+        await RestAPI.get({ url: `/channels/${channelId}/messages/${messageId}` });
+        return false;
+    } catch (error: any) {
+        const statusCode = error?.status || error?.statusCode;
+        return statusCode === 404;
+    }
+}
+
+type DeleteOutcome = "deleted" | "gone" | "failed";
+
+/**
+ * Delete one message, retrying while it is genuinely still there.
+ *
+ * Retries reuse `delayBetweenDeletes` so a burst of failures cannot turn into a burst of
+ * requests. `isCancelled` is checked before and after every await so Stop stays responsive
+ * during a retry sequence.
+ */
+async function deleteMessageWithRetry(
+    channelId: string,
+    messageId: string,
+    isCancelled: () => boolean
+): Promise<DeleteOutcome> {
+    const maxRetries = settings.store.deleteRetries;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        if (isCancelled()) return "failed";
+
+        if (attempt > 0) {
+            debugLog(`Retrying delete for ${messageId} (attempt ${attempt}/${maxRetries})`);
+            await waitCleaningDelay(settings.store.delayBetweenDeletes);
+            if (isCancelled()) return "failed";
+        }
+
+        if (await deleteMessage(channelId, messageId)) return "deleted";
+        if (isCancelled()) return "failed";
+
+        if (settings.store.verifyAfterFailure && await isMessageGone(channelId, messageId)) {
+            debugLog(`Message ${messageId} is gone despite the error; counting as deleted`);
+            return "gone";
+        }
+    }
+
+    debugLog(`Giving up on ${messageId} after ${maxRetries + 1} attempt(s)`);
+    return "failed";
 }
 
 // Function to get messages from a channel
@@ -462,15 +536,23 @@ async function cleanChannel(channelId: string) {
                         break;
                     }
 
-                    const success = await deleteMessage(channelId, message.id);
+                    const outcome = await deleteMessageWithRetry(
+                        channelId,
+                        message.id,
+                        () => shouldStopCleaning || generation !== cleaningGeneration
+                    );
                     if (generation !== cleaningGeneration || shouldStopCleaning) break;
 
-                    if (success) {
-                        cleaningStats.deleted++;
-                        debugLog(`✅ Message ${message.id} deleted`);
-                    } else {
+                    if (outcome === "failed") {
                         cleaningStats.failed++;
                         debugLog(`❌ Failed to delete message ${message.id}`);
+                    } else {
+                        cleaningStats.deleted++;
+                        debugLog(
+                            outcome === "gone"
+                                ? `✅ Message ${message.id} was already gone`
+                                : `✅ Message ${message.id} deleted`
+                        );
                     }
 
                     totalProcessed++;

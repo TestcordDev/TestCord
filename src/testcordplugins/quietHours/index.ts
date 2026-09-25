@@ -44,7 +44,12 @@ export default definePlugin({
     start() {
         try {
             soundModule = findByProps("playSound", "createSound");
-            if (!soundModule?.playSound) return;
+            if (!soundModule?.playSound) {
+                // Discord moved these; without this the feature just silently stops
+                // muting sounds and there is nothing to grep for.
+                logger.warn("Could not find the sound module; sound muting is inactive this session.");
+                return;
+            }
             originalPlaySound = soundModule.playSound;
             soundModule.playSound = function (...args: any[]) {
                 if (inQuietHours()) return;

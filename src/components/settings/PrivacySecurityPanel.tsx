@@ -524,8 +524,21 @@ export function PrivacySecurityPanel() {
     };
 
     useEffect(() => {
-        fetchData();
-        const interval = setInterval(fetchData, 2000);
+        // `fetchData` is async and does IPC, so a round trip slower than the interval
+        // would let polls overlap and interleave their state updates.
+        let inFlight = false;
+        const poll = async () => {
+            if (inFlight) return;
+            inFlight = true;
+            try {
+                await fetchData();
+            } finally {
+                inFlight = false;
+            }
+        };
+
+        poll();
+        const interval = setInterval(poll, 2000);
         return () => clearInterval(interval);
     }, []);
 

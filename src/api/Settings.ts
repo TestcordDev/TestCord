@@ -278,6 +278,20 @@ export const Settings = SettingsStore.store;
  * @returns Settings
  */
 // TODO: Representing paths as essentially "string[].join('.')" wont allow dots in paths, change to "paths?: string[][]" later
+// Joining a paths array into the effect key costs one string allocation per element.
+// The win is on the call sites that pass a stable, hoisted array (showMeYourName alone
+// passes 30 keys, and its render runs for every username in every message). Call sites
+// that pass a fresh literal each render simply miss, and pay one extra WeakMap insert.
+const pathKeyCache = new WeakMap<readonly (string | undefined)[], string>();
+
+function getPathKey(paths: readonly (string | undefined)[]): string {
+    const cached = pathKeyCache.get(paths);
+    if (cached !== undefined) return cached;
+    const key = paths.join("\0");
+    pathKeyCache.set(paths, key);
+    return key;
+}
+
 export function useSettings(paths?: readonly UseSettings<Settings>[]) {
     const [, forceUpdate] = React.useReducer(() => ({}), {});
 
@@ -286,7 +300,7 @@ export function useSettings(paths?: readonly UseSettings<Settings>[]) {
     // the contents instead and read the current paths through a ref.
     const pathsRef = React.useRef(paths);
     pathsRef.current = paths;
-    const pathKey = paths ? paths.join("\0") : null;
+    const pathKey = paths ? getPathKey(paths) : null;
 
     useEffect(() => {
         const currentPaths = pathsRef.current;
@@ -420,6 +434,13 @@ export function definePluginSettings<
         }
     }
 
+    // `settings.use([...])` is called from render paths that run for every username in
+    // every message, and each call used to rebuild every `plugins.<name>.<key>` string
+    // from scratch. Keyed on the caller's array so plugins that pass several different
+    // arrays all get a cache, and on pluginName so a late assignment cannot go stale.
+    const mappedPaths = new WeakMap<readonly string[], { plugin: string; paths: string[]; }>();
+    let wildcardPaths: { plugin: string; paths: string[]; } | undefined;
+
     const definedSettings: DefinedSettings<Def, PrivateSettings> = {
         get store() {
             if (!definedSettings.pluginName) throw new Error("Cannot access settings before plugin is initialized");
@@ -430,11 +451,25 @@ export function definePluginSettings<
             const name = definedSettings.pluginName;
             return (PlainSettings.plugins[name] ?? (Settings.plugins[name], PlainSettings.plugins[name])) as any;
         },
-        use: settings => useSettings((
-            settings
-                ? settings.map(name => `plugins.${definedSettings.pluginName}.${name}`)
-                : [`plugins.${definedSettings.pluginName}.*`]
-        ) as UseSettings<Settings>[]).plugins[definedSettings.pluginName] as any,
+        use: settings => {
+            const plugin = definedSettings.pluginName;
+            let entry: { plugin: string; paths: string[]; } | undefined;
+
+            if (settings) {
+                entry = mappedPaths.get(settings);
+                if (!entry || entry.plugin !== plugin) {
+                    entry = { plugin, paths: settings.map(name => `plugins.${plugin}.${name}`) };
+                    mappedPaths.set(settings, entry);
+                }
+            } else {
+                if (!wildcardPaths || wildcardPaths.plugin !== plugin) {
+                    wildcardPaths = { plugin, paths: [`plugins.${plugin}.*`] };
+                }
+                entry = wildcardPaths;
+            }
+
+            return useSettings(entry.paths as UseSettings<Settings>[]).plugins[plugin] as any;
+        },
         def,
         pluginName: "",
 

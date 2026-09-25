@@ -54,7 +54,48 @@ import { cl } from "./utils";
 
 const log = new Logger("MessageLoggerTestcord");
 const HEADER_SETTINGS = ["showLogsButton"] as const;
-const MessageStoreInternal = findByPropsLazy("getOrCreate", "commit", "has", "get");
+
+/**
+ * Resolve the MessageStore internals, tolerating Discord reshuffling them.
+ *
+ * `findByProps` requires every listed prop to live on the *same* module. Discord has
+ * moved these between builds: as of build 621499 `has` is no longer alongside `commit`,
+ * so the old four-prop lookup still returned a lazy proxy, but one that throws on any
+ * property access. Every injection path below swallows its errors, so the plugin silently
+ * stopped re-adding deleted messages to chat - including after "Reload logs", which is
+ * exactly why that button appeared to do nothing. A failed shape is detected by touching
+ * the proxy, then we fall back to a narrower shape.
+ */
+const MESSAGE_STORE_INTERNAL_SHAPES: string[][] = [
+    ["getOrCreate", "commit", "has", "get"],
+    ["getOrCreate", "commit", "get"],
+    ["getOrCreate", "commit"],
+    ["getOrCreate"]
+];
+
+let messageStoreInternal: any;
+let reportedMissingStoreInternals = false;
+
+function getMessageStoreInternal() {
+    if (messageStoreInternal !== undefined) return messageStoreInternal;
+
+    for (const shape of MESSAGE_STORE_INTERNAL_SHAPES) {
+        try {
+            const candidate = findByPropsLazy(...shape);
+            // A lazy lookup that found nothing still hands back a proxy; reading a
+            // property off it is what throws. Touch it to prove the shape matched.
+            void candidate.get;
+            messageStoreInternal = candidate;
+            return messageStoreInternal;
+        } catch { /* this shape is not present in the current build */ }
+    }
+
+    if (!reportedMissingStoreInternals) {
+        reportedMissingStoreInternals = true;
+        log.error("Could not resolve the MessageStore internals; deleted-message injection is disabled.");
+    }
+    return undefined;
+}
 
 // From render.ts
 let renderApi: typeof import("./render");
@@ -314,7 +355,7 @@ function visibleDeletedRecords(channelId: string): LogRecord[] {
 
 function injectDeletedRecords(channelId: string, records: LogRecord[]) {
     try {
-        const Internal: any = (MessageStoreInternal as any);
+        const Internal: any = getMessageStoreInternal();
         const cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
         if (!cache) return;
         let newCache = cache;
@@ -336,7 +377,7 @@ function injectDeletedRecords(channelId: string, records: LogRecord[]) {
 // (tens/hundreds), not by every logged edit (potentially thousands).
 function injectEditedHistories(channelId: string, records: LogRecord[]) {
     try {
-        const Internal: any = (MessageStoreInternal as any);
+        const Internal: any = getMessageStoreInternal();
         const cache = Internal.get?.(channelId);
         if (!cache || typeof cache.update !== "function") return;
         const histById = new Map<string, EditRecord[]>();
@@ -500,7 +541,7 @@ function scheduleChannelUnload(channelId: string) {
             channelCacheTimeout.delete(channelId);
             // Also remove from MessageStore cache to free memory
             try {
-                const Internal: any = (MessageStoreInternal as any);
+                const Internal: any = getMessageStoreInternal();
                 const cache = Internal.get?.(channelId);
                 if (cache) {
                     const all = channelAllDeleted.get(channelId) ?? [];
@@ -587,7 +628,7 @@ function runChannelSelectWork(channelId: string) {
  */
 function reInjectDeletedLive(channelId: string, snapshot: LoggedMessage) {
     try {
-        const Internal: any = (MessageStoreInternal as any);
+        const Internal: any = getMessageStoreInternal();
         const cache = Internal.get?.(channelId);
         if (!cache || cache.has?.(snapshot.id)) return;
         const marked: LoggedMessage = {
@@ -650,7 +691,7 @@ function onFluxMessageDelete(payload: MessageDeletePayload) {
         // Microtask runs before paint: no visible flicker when the patch missed.
         queueMicrotask(() => {
             try {
-                const Internal: any = (MessageStoreInternal as any);
+                const Internal: any = getMessageStoreInternal();
                 if (Internal.get?.(channelId)?.has?.(messageId)) return;
                 reInjectDeletedLive(channelId, snap);
             } catch { }
@@ -675,7 +716,7 @@ function onFluxMessageDeleteBulk(payload: MessageDeleteBulkPayload) {
     if (snaps.size && channelId) {
         queueMicrotask(() => {
             try {
-                const Internal: any = (MessageStoreInternal as any);
+                const Internal: any = getMessageStoreInternal();
                 const cache = Internal.get?.(channelId);
                 for (const [id, snap] of snaps) {
                     try {
@@ -992,7 +1033,7 @@ export default definePlugin({
 
     handleStoreDelete2(data: any, isBulk?: boolean) {
         try {
-            const Internal: any = (MessageStoreInternal as any);
+            const Internal: any = getMessageStoreInternal();
             const channelId = data.channelId ?? data.channel_id;
             const cache = Internal.get?.(channelId) ?? Internal.getOrCreate?.(channelId);
             if (!cache) return false;

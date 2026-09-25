@@ -369,6 +369,8 @@ function getLoadedRichMessages(channelId: string): RichMessage[] {
         .map(m => fromCachedMessage(m, false));
 }
 
+const MAX_PAGE_RETRIES = 3;
+
 async function fetchAllMessages(channelId: string, token: string, onProgress: (n: number) => void, signal?: AbortSignal): Promise<RichMessage[]> {
     const messageMap = new Map<string, RichMessage>();
     let beforeId: string | null = null;
@@ -383,10 +385,38 @@ async function fetchAllMessages(channelId: string, token: string, onProgress: (n
                 ttlMs: 30_000,
                 run: async () => {
                     const url = `https://discord.com/api/v9/channels/${channelId}/messages?limit=100${beforeId ? `&before=${beforeId}` : ""}`;
-                    const res = await fetch(url, { headers: { Authorization: token }, signal });
-                    if (!res.ok) return [];
-                    const body = await res.json() as unknown;
-                    return Array.isArray(body) ? body : [];
+                    // A non-OK response used to return [], which the pagination loop below
+                    // reads as "end of history". A 429 or 403 part-way through therefore
+                    // produced a silently truncated export with nothing reported anywhere.
+                    // Rate limits are retried per Retry-After; anything else fails loudly so
+                    // the caller can tell the user the export is incomplete.
+                    for (let attempt = 0; ; attempt++) {
+                        const res = await fetch(url, { headers: { Authorization: token }, signal });
+                        if (res.ok) {
+                            const body = await res.json() as unknown;
+                            return Array.isArray(body) ? body : [];
+                        }
+
+                        if (res.status !== 429 || attempt >= MAX_PAGE_RETRIES) {
+                            throw new Error(`Discord returned ${res.status} ${res.statusText} while reading messages`);
+                        }
+
+                        // Discord sends Retry-After for per-route limits but puts
+                        // retry_after in the JSON body for a *global* 429, with no
+                        // Retry-After header at all. Take whichever is longer, otherwise
+                        // the backoff can be far shorter than what was asked for.
+                        const headerRetry = Number(res.headers.get("retry-after"));
+                        const globalRetry = Number(res.headers.get("x-ratelimit-global-reset-after"));
+                        const body = await res.json().catch(() => null) as { retry_after?: number; } | null;
+                        const bodyRetry = Number(body?.retry_after);
+                        const wait = Math.max(
+                            Number.isFinite(headerRetry) ? headerRetry : 0,
+                            Number.isFinite(globalRetry) ? globalRetry : 0,
+                            Number.isFinite(bodyRetry) ? bodyRetry : 0
+                        );
+
+                        await sleep((wait > 0 ? wait : 2 ** attempt) * 1000);
+                    }
                 },
                 cacheable: Array.isArray,
             });

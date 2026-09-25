@@ -74,10 +74,15 @@ const format = (date: Date, formatTemplate: string): string => {
 
     const mmt = moment(date);
 
-    const sameDayFormat = settings.store?.formats?.sameDayFormat || timeFormats.sameDayFormat.default;
-    const lastDayFormat = settings.store?.formats?.lastDayFormat || timeFormats.lastDayFormat.default;
-    const lastWeekFormat = settings.store?.formats?.lastWeekFormat || timeFormats.lastWeekFormat.default;
-    const sameElseFormat = settings.store?.formats?.sameElseFormat || timeFormats.sameElseFormat.default;
+    // One settings read per call. These used to be four separate `settings.store.formats.X`
+    // chains, and every `formats.*` key the user never customised is absent from the stored
+    // object, so each of those reads went through SettingsStore.getDefaultValue.
+    const { formats } = settings.store;
+
+    const sameDayFormat = formats?.sameDayFormat || timeFormats.sameDayFormat.default;
+    const lastDayFormat = formats?.lastDayFormat || timeFormats.lastDayFormat.default;
+    const lastWeekFormat = formats?.lastWeekFormat || timeFormats.lastWeekFormat.default;
+    const sameElseFormat = formats?.sameElseFormat || timeFormats.sameElseFormat.default;
 
     const out = mmt.format(formatTemplate)
         .replace("calendar", () => mmt.calendar(moment(), {

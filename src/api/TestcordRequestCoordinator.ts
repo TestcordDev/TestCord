@@ -6,7 +6,7 @@
 
 import { Settings } from "@api/Settings";
 import { sleep } from "@utils/misc";
-import { Constants, MessageStore, RestAPI } from "@webpack/common";
+import { Constants, MessageStore, RestAPI, UserStore } from "@webpack/common";
 
 export interface CoordinatedRequestOptions<T> {
     key: string;
@@ -72,8 +72,8 @@ function getMaxCacheEntries(): number {
 }
 
 function pruneCache(now = Date.now()): void {
-    for (const [key, entry] of cache) {
-        if (entry.expiresAt <= now) cache.delete(key);
+    for (const [mapKey, entry] of cache) {
+        if (entry.expiresAt <= now) cache.delete(mapKey);
     }
 
     if (!isBoundCacheEnabled()) return;
@@ -94,33 +94,48 @@ async function waitForScope(scope: string, minDelayMs: number): Promise<void> {
     if (scopeChains.get(scope) === next) scopeChains.delete(scope);
 }
 
+/**
+ * Discord API keys are not unique per account: `discord:messages:<channel>:before:<id>:limit:100`
+ * is built by several plugins, and the auth token lives inside each caller's `run` closure
+ * rather than in the key. Without partitioning, an account switch (or a second account on
+ * the same client) would serve the previous account's cached pages for the length of the
+ * TTL. The cache and the in-flight table are therefore keyed by account as well.
+ *
+ * The user id is used rather than the token: it identifies the account without putting a
+ * credential into a long-lived map key.
+ */
+function accountScopedKey(key: string): string {
+    return `${UserStore?.getCurrentUser()?.id ?? "no-account"}:${key}`;
+}
+
 export async function request<T>({ key, run, ttlMs, scope, minDelayMs, cacheable }: CoordinatedRequestOptions<T>): Promise<T> {
     if (!isEnabled()) return await run();
 
+    const scopedKey = accountScopedKey(key);
     const now = Date.now();
     pruneCache(now);
 
-    const cached = cache.get(key);
+    const cached = cache.get(scopedKey);
     if (cached && cached.expiresAt > now) return cached.value as T;
 
-    const existing = inFlight.get(key);
+    const existing = inFlight.get(scopedKey);
     if (existing) return existing as Promise<T>;
 
     const promise = (async () => {
         if (scope && minDelayMs) await waitForScope(scope, minDelayMs);
         const value = await run();
         if (ttlMs && (cacheable?.(value) ?? value != null)) {
-            cache.set(key, { expiresAt: Date.now() + ttlMs, value });
+            cache.set(scopedKey, { expiresAt: Date.now() + ttlMs, value });
             pruneCache();
         }
         return value;
     })();
 
-    inFlight.set(key, promise);
+    inFlight.set(scopedKey, promise);
     try {
         return await promise;
     } finally {
-        inFlight.delete(key);
+        inFlight.delete(scopedKey);
     }
 }
 
@@ -173,17 +188,19 @@ export function getCachedMessage(channelId: string, messageId: string): any | nu
 
 export function invalidate(key: string): void {
     if (!isEnabled()) return;
-    cache.delete(key);
-    inFlight.delete(key);
+    const scopedKey = accountScopedKey(key);
+    cache.delete(scopedKey);
+    inFlight.delete(scopedKey);
 }
 
 export function invalidatePrefix(prefix: string): void {
     if (!isEnabled()) return;
-    for (const key of cache.keys()) {
-        if (key.startsWith(prefix)) cache.delete(key);
+    const scopedPrefix = accountScopedKey(prefix);
+    for (const mapKey of cache.keys()) {
+        if (mapKey.startsWith(scopedPrefix)) cache.delete(mapKey);
     }
 
-    for (const key of inFlight.keys()) {
-        if (key.startsWith(prefix)) inFlight.delete(key);
+    for (const mapKey of inFlight.keys()) {
+        if (mapKey.startsWith(scopedPrefix)) inFlight.delete(mapKey);
     }
 }

@@ -54,7 +54,39 @@ const ownershipListeners = new Set<() => void>();
 const interactionListeners = new Set<() => void>();
 let activeInteractions = 0;
 
+// Ownership is read once per plugin by the profiler and once per plugin by
+// PluginHealth.getAll(), so a single UI tick asked for it ~800 times. Each read used to
+// re-derive the whole picture: 11 `ownership()` calls (one fresh object per layer), then a
+// filter, then a sort. Ownership only ever changes when a layer is registered or disposed,
+// and both paths call notifyOwnershipListeners, so cache it there.
+let ownershipCache: RuntimeHookOwnership[] | null = null;
+let ownershipByOwnerCache: Map<string, RuntimeHookOwnership[]> | null = null;
+
+function getOwnership(): readonly RuntimeHookOwnership[] {
+    if (ownershipCache) return ownershipCache;
+
+    const active: RuntimeHookOwnership[] = [];
+    for (const slot of Object.values(slots)) {
+        for (const layer of slot.ownership()) active.push(layer);
+    }
+    active.sort((a, b) => a.hook.localeCompare(b.hook) || a.priority - b.priority || a.owner.localeCompare(b.owner));
+
+    // The per-owner lists are slices of `active`, so they inherit its ordering.
+    const byOwner = new Map<string, RuntimeHookOwnership[]>();
+    for (const layer of active) {
+        const owned = byOwner.get(layer.owner);
+        if (owned) owned.push(layer);
+        else byOwner.set(layer.owner, [layer]);
+    }
+
+    ownershipCache = active;
+    ownershipByOwnerCache = byOwner;
+    return active;
+}
+
 function notifyOwnershipListeners() {
+    ownershipCache = null;
+    ownershipByOwnerCache = null;
     for (const listener of ownershipListeners) listener();
 }
 
@@ -93,13 +125,11 @@ function register(registration: RuntimeHookRegistration): () => void {
 export const RuntimeInterposition = {
     register,
     getActiveHooks(owner?: string): RuntimeHookOwnership[] {
-        const active: RuntimeHookOwnership[] = [];
-        for (const slot of Object.values(slots)) {
-            for (const layer of slot.ownership()) active.push(layer);
-        }
-        return active
-            .filter(layer => owner == null || layer.owner === owner)
-            .sort((a, b) => a.hook.localeCompare(b.hook) || a.priority - b.priority || a.owner.localeCompare(b.owner));
+        getOwnership();
+        // Hand back a copy: callers stash these in snapshots, and a shared array would let
+        // one caller splice the cache out from under the next.
+        if (owner == null) return ownershipCache!.slice();
+        return ownershipByOwnerCache!.get(owner)?.slice() ?? [];
     },
     subscribe(listener: () => void): () => void {
         ownershipListeners.add(listener);

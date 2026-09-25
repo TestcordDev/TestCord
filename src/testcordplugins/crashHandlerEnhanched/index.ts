@@ -431,15 +431,43 @@ function logCrash(errorState: any, recoveryAttempted: boolean, recoverySuccessfu
     }
 }
 
+/**
+ * A forced GC is a long main-thread pause, and this check runs every 30s by default with
+ * `forceGarbageCollection` on and a 1GB threshold, so an over-threshold heap used to stall
+ * the client twice a minute forever and re-notify every tick. The warning is now
+ * edge-triggered, and a forced GC only happens when the previous one actually reclaimed
+ * something, so a heap that has nothing collectable is not paid for repeatedly.
+ */
+let wasOverMemoryThreshold = false;
+let lastForcedGcAt = 0;
+let lastForcedGcFreedMB = 0;
+const MIN_FORCED_GC_INTERVAL_MS = 5 * 60 * 1000;
+const MIN_USEFUL_GC_FREED_MB = 16;
+
 function checkMemoryUsage(): void {
-    if (!settings.store.enablePreventiveMeasures || !settings.store.detectMemoryLeaks) return;
+    if (!settings.store.enablePreventiveMeasures || !settings.store.detectMemoryLeaks) {
+        wasOverMemoryThreshold = false;
+        return;
+    }
 
     const memory = getMemoryUsage();
     if (!memory) return;
 
     const threshold = settings.store.memoryThreshold;
+    if (memory.usedMB <= threshold) {
+        wasOverMemoryThreshold = false;
+        // Clear the collection history with the excursion. Otherwise a single unproductive
+        // collection (for example one where getMemoryUsage() read null and freed 0) would
+        // latch `lastForcedGcFreedMB` below the threshold and suppress every collection for
+        // the rest of the session, since nothing else resets it.
+        lastForcedGcAt = 0;
+        lastForcedGcFreedMB = 0;
+        return;
+    }
 
-    if (memory.usedMB > threshold) {
+    // Once per excursion rather than on every tick.
+    if (!wasOverMemoryThreshold) {
+        wasOverMemoryThreshold = true;
         CrashHandlerLogger.warn(`High memory usage detected: ${memory.usedMB}MB (threshold: ${threshold}MB)`);
 
         if (settings.store.showCrashNotifications) {
@@ -452,15 +480,23 @@ function checkMemoryUsage(): void {
                 });
             } catch { }
         }
-
-        // Force garbage collection if enabled
-        if (settings.store.forceGarbageCollection && typeof (window as any).gc === "function") {
-            try {
-                (window as any).gc();
-                CrashHandlerLogger.info("Forced garbage collection");
-            } catch { }
-        }
     }
+
+    if (!settings.store.forceGarbageCollection || typeof (window as any).gc !== "function") return;
+
+    const now = Date.now();
+    const neverCollected = lastForcedGcAt === 0;
+    const dueForCollection = neverCollected || now - lastForcedGcAt >= MIN_FORCED_GC_INTERVAL_MS;
+    const lastCollectionHelped = neverCollected || lastForcedGcFreedMB >= MIN_USEFUL_GC_FREED_MB;
+    if (!dueForCollection || !lastCollectionHelped) return;
+
+    const before = memory.usedMB;
+    try {
+        (window as any).gc();
+        lastForcedGcFreedMB = Math.max(0, before - (getMemoryUsage()?.usedMB ?? before));
+        lastForcedGcAt = now;
+        CrashHandlerLogger.info(`Forced garbage collection, reclaimed ~${Math.round(lastForcedGcFreedMB)}MB`);
+    } catch { }
 }
 
 function startPerformanceMonitoring(): void {

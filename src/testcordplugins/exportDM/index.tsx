@@ -8,6 +8,7 @@ import "./styles.css";
 
 import { addHeaderBarButton, HeaderBarButton, removeHeaderBarButton } from "@api/HeaderBar";
 import { TestcordRequestCoordinator } from "@api/index";
+import { sleep } from "@utils/misc";
 import { ModalCloseButton, ModalContent, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin from "@utils/types";
 import { findStoreLazy } from "@webpack";
@@ -89,6 +90,7 @@ async function fetchAllMessages(channelId: string, token: string, onProgress: (n
     const messageMap = new Map<string, RichMessage>();
     let beforeId: string | null = null;
     let count = 0;
+    const MAX_PAGE_RETRIES = 3;
 
     while (true) {
         const batch = await TestcordRequestCoordinator.request<unknown[]>({
@@ -96,10 +98,33 @@ async function fetchAllMessages(channelId: string, token: string, onProgress: (n
             ttlMs: 30_000,
             run: async () => {
                 const url = `https://discord.com/api/v9/channels/${channelId}/messages?limit=100${beforeId ? `&before=${beforeId}` : ""}`;
-                const res = await fetch(url, { headers: { Authorization: token } });
-                if (!res.ok) return [];
-                const body = await res.json() as unknown;
-                return Array.isArray(body) ? body : [];
+                // See the note in exporter: returning [] on a non-OK response ended the
+                // pagination loop as if history ran out, silently truncating the export.
+                for (let attempt = 0; ; attempt++) {
+                    const res = await fetch(url, { headers: { Authorization: token } });
+                    if (res.ok) {
+                        const body = await res.json() as unknown;
+                        return Array.isArray(body) ? body : [];
+                    }
+
+                    if (res.status !== 429 || attempt >= MAX_PAGE_RETRIES) {
+                        throw new Error(`Discord returned ${res.status} ${res.statusText} while reading messages`);
+                    }
+
+                    // See exporter: a global 429 carries retry_after in the body, not the
+                    // Retry-After header, so honour whichever wait is longest.
+                    const headerRetry = Number(res.headers.get("retry-after"));
+                    const globalRetry = Number(res.headers.get("x-ratelimit-global-reset-after"));
+                    const body = await res.json().catch(() => null) as { retry_after?: number; } | null;
+                    const bodyRetry = Number(body?.retry_after);
+                    const wait = Math.max(
+                        Number.isFinite(headerRetry) ? headerRetry : 0,
+                        Number.isFinite(globalRetry) ? globalRetry : 0,
+                        Number.isFinite(bodyRetry) ? bodyRetry : 0
+                    );
+
+                    await sleep((wait > 0 ? wait : 2 ** attempt) * 1000);
+                }
             },
             cacheable: Array.isArray,
         });
@@ -140,7 +165,7 @@ async function fetchAllMessages(channelId: string, token: string, onProgress: (n
         onProgress(count);
         if (batch.length < 100) break;
         beforeId = batch[batch.length - 1].id;
-        await new Promise(r => setTimeout(r, 250));
+        await sleep(250);
     }
 
     // Source 1: MessageStore cache (basic MessageLogger — in-memory only)
@@ -388,7 +413,19 @@ function ExportDMModal({ rootProps }: { rootProps: any; }) {
             const ch = selectedChannels[i];
             const channelPrefix = `[${i + 1}/${selected.size}] ${ch.name}: `;
 
-            let msgs = await fetchAllMessages(ch.id, token, n => setProgress(`${channelPrefix}${t("Fetching:")} ${n} ${t("messages")}...`));
+            // fetchAllMessages throws when a page cannot be read. A 403/401 part-way
+            // through used to be indistinguishable from "end of history", which silently
+            // truncated the export. Surface it instead of leaving the modal stuck in
+            // "fetching" with the export button permanently disabled.
+            let msgs: RichMessage[];
+            try {
+                msgs = await fetchAllMessages(ch.id, token, n => setProgress(`${channelPrefix}${t("Fetching:")} ${n} ${t("messages")}...`));
+            } catch (e: any) {
+                setStatus("error");
+                setProgress(`${channelPrefix}${t("Failed:")} ${e?.message ?? e}`);
+                return;
+            }
+
             if (!includeMedia) msgs = msgs.map(m => ({ ...m, attachments: [] }));
             if (!includeEmbeds) msgs = msgs.map(m => ({ ...m, embeds: [] }));
             if (!includeReactions) msgs = msgs.map(m => ({ ...m, reactions: [] }));

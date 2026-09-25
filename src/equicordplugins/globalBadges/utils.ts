@@ -39,7 +39,10 @@ const blockedMods = ["vencord", "equicord"];
 export async function loadBadges() {
     try {
         const url = settings.store.apiUrl.endsWith("/") ? settings.store.apiUrl + "users" : settings.store.apiUrl + "/users";
-        const res = await fetch(url, { cache: "no-cache" });
+        // `no-cache` forces a revalidation round trip on every poll even when the server
+        // sent a usable cache lifetime or a matching ETag. Honouring the normal HTTP cache
+        // keeps the 30-minute poll from re-downloading an unchanged badge list.
+        const res = await fetch(url);
         if (!res.ok) return;
         const globalBadges = await res.json();
         if (!globalBadges?.users) return;

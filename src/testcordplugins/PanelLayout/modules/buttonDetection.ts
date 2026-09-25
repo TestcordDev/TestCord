@@ -42,18 +42,23 @@ export const TOGGLE_LABELS: Record<string, string[]> = {
     "Soundboard": ["Soundboard disabled when deafened", "Open Soundboard"],
 };
 
+// Both of these used to be rebuilt inside `getCanonicalLabel`, which the 1Hz panel poll
+// calls once per button per tick. `Object.entries(TOGGLE_LABELS)` allocated an 8-tuple
+// array (plus 8 sub-arrays) per call, and the prefix list another one.
+const TOGGLE_LABEL_ENTRIES = Object.entries(TOGGLE_LABELS);
+const PREFIXES = [
+    "Enable ", "Disable ",
+    "Turn On ", "Turn Off ",
+    "Start ", "Stop ", "End "
+];
+
 export function getCanonicalLabel(label: string): string {
-    for (const [canonical, aliases] of Object.entries(TOGGLE_LABELS)) {
+    for (const [canonical, aliases] of TOGGLE_LABEL_ENTRIES) {
         if (aliases.includes(label)) return canonical;
     }
 
     let cleaned = label;
-    const prefixes = [
-        "Enable ", "Disable ",
-        "Turn On ", "Turn Off ",
-        "Start ", "Stop ", "End "
-    ];
-    for (const prefix of prefixes) {
+    for (const prefix of PREFIXES) {
         if (cleaned.startsWith(prefix)) {
             cleaned = cleaned.slice(prefix.length);
             break;

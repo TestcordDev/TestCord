@@ -166,15 +166,20 @@ function HeroStat({ value, label, tone }: { value: React.ReactNode; label: strin
     );
 }
 
+// Constructing an Intl.DateTimeFormat is one of the more expensive things you can do in
+// a render body, and both inputs are fixed for the session: BUILD_TIMESTAMP is a
+// build-time constant and navigator.language cannot change.
+const BUILD_DATE = new Intl.DateTimeFormat(navigator.language, {
+    dateStyle: "medium", timeStyle: "short"
+}).format(BUILD_TIMESTAMP);
+
 function StatsTab() {
     // Subscribing forces a re-render whenever any plugin's enabled state
     // changes, so recomputing inline picks up toggles live.
     useSettings(WATCHED_PATHS as Parameters<typeof useSettings>[0]);
     const s = computeStats();
 
-    const buildDate = new Intl.DateTimeFormat(navigator.language, {
-        dateStyle: "medium", timeStyle: "short"
-    }).format(BUILD_TIMESTAMP);
+    const buildDate = BUILD_DATE;
 
     const fork = (k: keyof typeof s.forks) => `${s.forks[k].enabled} / ${s.forks[k].total}`;
 

@@ -20,6 +20,49 @@ import { findByPropsLazy } from "@webpack";
 
 import * as types from "../../philsPluginLibrary/types";
 
-export const panelClasses: types.PanelClasses = findByPropsLazy("button", "buttonContents", "buttonColor");
+/**
+ * Discord reshuffled this module. As of build 621499 `buttonContents` and `buttonColor` no
+ * longer exist at all, so `findByPropsLazy("button", "buttonContents", "buttonColor")` no
+ * longer matches. The nasty part is that a failed lazy lookup does not return `undefined`:
+ * it returns a proxy that *throws* on first property access. Every `panelClasses.x` read
+ * therefore threw and the plugin's settings panel failed to render.
+ *
+ * So: try shapes that are actually present, prove the proxy matched by touching it, and
+ * always hand back a plain object. Consumers only feed these into `classes()` or
+ * `className`, both of which tolerate `undefined`.
+ */
+const PANEL_CLASS_SHAPES: string[][] = [
+    ["button", "buttonContents", "buttonColor"],
+    ["container", "button"]
+];
 
-// waitFor(filters.byProps("button", "buttonContents", "buttonColor"), result => panelClasses = result);
+let resolved: Partial<types.PanelClasses> | null = null;
+
+function resolvePanelClasses(): Partial<types.PanelClasses> {
+    if (resolved) return resolved;
+
+    for (const shape of PANEL_CLASS_SHAPES) {
+        try {
+            const candidate = findByPropsLazy(...shape);
+            // Reading a property is what throws when the lookup matched nothing.
+            void candidate.button;
+            resolved = { ...candidate } as Partial<types.PanelClasses>;
+            return resolved;
+        } catch { /* this shape is absent in the current build */ }
+    }
+
+    resolved = {};
+    return resolved;
+}
+
+/**
+ * Safe, lazily-resolved view of Discord's panel classes. Resolution is deferred to first
+ * use so it happens after webpack is ready, and an unresolved build yields `undefined`
+ * rather than a thrown proxy.
+ */
+export const panelClasses = new Proxy({} as Partial<types.PanelClasses>, {
+    get: (_target, prop: string) => {
+        if (typeof prop !== "string") return undefined;
+        return resolvePanelClasses()[prop as keyof types.PanelClasses];
+    }
+});
