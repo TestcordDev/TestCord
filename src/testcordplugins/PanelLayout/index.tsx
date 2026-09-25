@@ -1599,6 +1599,17 @@ function ButtonsDragTab() {
         setDragOverIndex(null);
     };
 
+    function set<K extends keyof typeof settings.store>(key: K, val: (typeof settings.store)[K]) {
+        settings.store[key] = val;
+        try {
+            const plPlain = getPanelLayoutPlainSettings();
+            plPlain[key] = val;
+            SettingsStore.markAsChanged();
+        } catch {
+        }
+        apply(); forceUpdate();
+    }
+
     return (
         <Flex flexDirection="column" gap={16} style={{ paddingBottom: "12px" }}>
             <Paragraph style={{ color: "var(--text-muted)", fontSize: "13px" }}>
@@ -1692,7 +1703,14 @@ function ButtonsDragTab() {
                                                     boxShadow: "0 2px 4px rgba(0,0,0,0.15)", pointerEvents: "none"
                                                 }}
                                             />
-                                            {!isPanelLayout ? (
+                                            {isPanelLayout ? (
+                                                <MiniToggle
+                                                    value={!settings.store.hideUserPanelButton}
+                                                    onChange={v => {
+                                                        set("hideUserPanelButton", !v);
+                                                    }}
+                                                />
+                                            ) : (
                                                 <MiniToggle
                                                     value={!cfg.hidden}
                                                     onChange={v => {
@@ -1700,8 +1718,6 @@ function ButtonsDragTab() {
                                                         apply(); forceUpdate();
                                                     }}
                                                 />
-                                            ) : (
-                                                <div style={{ width: "26px", height: "14px" }} />
                                             )}
                                         </div>
                                     );
@@ -2171,7 +2187,7 @@ function ButtonsDragTab() {
 
 // ─── Modal Implementation ─────────────────────────────────────────────────────
 
-type Tab = "panel" | "call" | "style" | "colors" | "hide" | "drag" | "modules";
+type Tab = "panel" | "call" | "style" | "colors" | "drag" | "modules";
 
 function PanelLayoutIcon({ style, className }: { style?: React.CSSProperties; className?: string; }) {
     return (
@@ -2227,14 +2243,6 @@ function TabColorsIcon() {
     );
 }
 
-function TabVisibilityIcon() {
-    return (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path fillRule="evenodd" clipRule="evenodd" d="M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7Zm0 3.8A3.2 3.2 0 1 0 12 15.2 3.2 3.2 0 0 0 12 8.8Z" fill="currentColor" />
-        </svg>
-    );
-}
-
 function TabButtonsIcon() {
     return (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -2261,7 +2269,6 @@ const TAB_ICONS: Record<Tab, () => React.ReactElement> = {
     call: TabCallIcon,
     style: TabStyleIcon,
     colors: TabColorsIcon,
-    hide: TabVisibilityIcon,
     drag: TabButtonsIcon,
     modules: TabModulesIcon,
 };
@@ -3211,7 +3218,6 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
         { id: "call", label: "Call Bar" },
         { id: "style", label: "Style" },
         { id: "colors", label: "Colors" },
-        { id: "hide", label: "Visibility" },
         { id: "drag", label: "Buttons" },
         { id: "modules", label: "Modules" },
     ];
@@ -3400,13 +3406,6 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <SectionHeading>Native Buttons</SectionHeading>
                         <Card variant="primary">
                             <FormSwitch title="Force Icon Color" description="Applies the icon color to Discord's native Mute, Deafen, and Settings buttons even when no custom icon color is set in TestcordHelper." value={s.forceNativeButtonColor} onChange={v => set("forceNativeButtonColor", v)} hideBorder />
-                        </Card>
-                    </>}
-
-                    {tab === "hide" && <>
-                        <SectionHeading>Standard Buttons</SectionHeading>
-                        <Card variant="primary">
-                            <FormSwitch title="Hide User Panel Button" value={s.hideUserPanelButton} onChange={v => set("hideUserPanelButton", v)} hideBorder />
                         </Card>
                     </>}
 
