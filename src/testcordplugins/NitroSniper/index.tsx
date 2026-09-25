@@ -5,17 +5,21 @@
  */
 
 import { showNotification } from "@api/Notifications";
+import { isPluginEnabled } from "@api/PluginManager";
 import { definePluginSettings } from "@api/Settings";
 import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
 import { NavigationRouter, UserStore } from "@webpack/common";
 
+import { markExternalClaim, releaseExternalClaim } from "../autoRedeem/claimFence";
+
 const logger = new Logger("NitroSniper");
 const GiftActions = findByPropsLazy("redeemGiftCode");
 
 let startTime = 0;
 let claiming = false;
+let activeClaim: { code: string; generation: number; } | undefined;
 let pluginActive = false;
 let generation = 0;
 const codeQueue: Array<{ code: string; channelId: string; guildId?: string; messageId: string; }> = [];
@@ -34,61 +38,82 @@ const settings = definePluginSettings({
 });
 
 function processQueue() {
-    if (!pluginActive || claiming || !codeQueue.length) return;
+    if (isPluginEnabled("AutoRedeem")) return;
+    if (!pluginActive || claiming || activeClaim || !codeQueue.length) return;
 
     claiming = true;
     const claimGeneration = generation;
     const { code, channelId, guildId, messageId } = codeQueue.shift()!;
+    activeClaim = { code, generation: claimGeneration };
+    markExternalClaim(code);
+    let finished = false;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        if (activeClaim?.generation === claimGeneration) {
+            releaseExternalClaim(code);
+            activeClaim = undefined;
+        }
+        claiming = false;
+        if (pluginActive) processQueue();
+    };
 
     logger.log(`Attempting to redeem code: ${code} (channel: ${channelId}, guild: ${guildId ?? "dm"})`);
 
-    GiftActions.redeemGiftCode({
-        code,
-        onRedeemed: (gift: any) => {
-            if (!pluginActive || claimGeneration !== generation) return;
-            logger.log(`Successfully redeemed code: ${code} (channel: ${channelId}, guild: ${guildId ?? "dm"})`);
+    try {
+        GiftActions.redeemGiftCode({
+            code,
+            onRedeemed: (gift: any) => {
+                try {
+                    if (!pluginActive || claimGeneration !== generation) return;
+                    logger.log(`Successfully redeemed code: ${code} (channel: ${channelId}, guild: ${guildId ?? "dm"})`);
 
-            if (settings.store.notifyOnRedeem) {
-                const user = UserStore.getCurrentUser();
-                const giftType = gift?.subscription_plan?.name || "Nitro";
+                    if (settings.store.notifyOnRedeem) {
+                        const user = UserStore.getCurrentUser();
+                        const giftType = gift?.subscription_plan?.name || "Nitro";
 
-                showNotification({
-                    title: "Nitro Sniped! 🎉",
-                    body: `Successfully redeemed ${giftType} code`,
-                    color: "#5865F2",
-                    icon: user.getAvatarURL(),
-                    onClick: () => {
-                        NavigationRouter.transitionTo(`/channels/${guildId ?? "@me"}/${channelId}/${messageId}`);
+                        showNotification({
+                            title: "Nitro Sniped! 🎉",
+                            body: `Successfully redeemed ${giftType} code`,
+                            color: "#5865F2",
+                            icon: user.getAvatarURL(),
+                            onClick: () => {
+                                NavigationRouter.transitionTo(`/channels/${guildId ?? "@me"}/${channelId}/${messageId}`);
+                            }
+                        });
                     }
-                });
-            }
+                } finally {
+                    finish();
+                }
+            },
 
-            claiming = false;
-            processQueue();
-        },
+            onError: (err: Error) => {
+                try {
+                    if (!pluginActive || claimGeneration !== generation) return;
+                    logger.error(`Failed to redeem code: ${code} (channel: ${channelId}, guild: ${guildId ?? "dm"})`, err);
 
-        onError: (err: Error) => {
-            if (!pluginActive || claimGeneration !== generation) return;
-            logger.error(`Failed to redeem code: ${code} (channel: ${channelId}, guild: ${guildId ?? "dm"})`, err);
+                    if (settings.store.notifyOnFail) {
+                        const user = UserStore.getCurrentUser();
 
-            if (settings.store.notifyOnFail) {
-                const user = UserStore.getCurrentUser();
-
-                showNotification({
-                    title: "Nitro Redeem Failed ❌",
-                    body: `Failed to redeem code: ${code}`,
-                    color: "#ED4245",
-                    icon: user.getAvatarURL(),
-                    onClick: () => {
-                        NavigationRouter.transitionTo(`/channels/${guildId ?? "@me"}/${channelId}/${messageId}`);
+                        showNotification({
+                            title: "Nitro Redeem Failed ❌",
+                            body: `Failed to redeem code: ${code}`,
+                            color: "#ED4245",
+                            icon: user.getAvatarURL(),
+                            onClick: () => {
+                                NavigationRouter.transitionTo(`/channels/${guildId ?? "@me"}/${channelId}/${messageId}`);
+                            }
+                        });
                     }
-                });
+                } finally {
+                    finish();
+                }
             }
-
-            claiming = false;
-            processQueue();
-        }
-    });
+        });
+    } catch (error) {
+        logger.error(`Failed to start redeeming code: ${code}`, error);
+        finish();
+    }
 }
 
 export default definePlugin({
@@ -106,19 +131,20 @@ export default definePlugin({
         pluginActive = true;
         generation++;
         startTime = Date.now();
-        codeQueue.length = 0;
+        if (!isPluginEnabled("AutoRedeem")) codeQueue.length = 0;
         claiming = false;
     },
 
     stop() {
         pluginActive = false;
         generation++;
-        codeQueue.length = 0;
+        if (!isPluginEnabled("AutoRedeem")) codeQueue.length = 0;
         claiming = false;
     },
 
     flux: {
         MESSAGE_CREATE({ message }) {
+            if (isPluginEnabled("AutoRedeem")) return;
             if (!message.content) return;
 
             if (!message.content.includes("discord.gift") && !message.content.includes("discord.com/gift")) return;

@@ -104,6 +104,7 @@ interface RestRequestData {
     url: string;
     query?: Record<string, any>;
     body?: Record<string, any>;
+    headers?: Record<string, string>;
     oldFormErrors?: boolean;
     retries?: number;
 }
