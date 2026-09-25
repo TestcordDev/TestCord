@@ -29,7 +29,7 @@ import { Emitter, MicrophoneSettingsIcon } from "../philsPluginLibrary";
 const Button = findComponentByCodeLazy(".NONE,disabled:", ".PANEL_BUTTON");
 
 function micSettingsButton() {
-    const { hideSettingsIcon } = settings.use(["hideSettingsIcon"]);
+    const { hideSettingsIcon } = settings.store;
     if (hideSettingsIcon) return null;
     return (
         <Button
