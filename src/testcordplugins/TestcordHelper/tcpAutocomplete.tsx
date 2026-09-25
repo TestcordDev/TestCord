@@ -158,7 +158,7 @@ function getPluginRowClass(): any {
                                 src={iconUrl}
                                 width={18}
                                 height={18}
-                                style={{ objectFit: "contain", borderRadius: 4 }}
+                                style={{ objectFit: "contain" }}
                                 alt={provider}
                             />
                         )}
