@@ -972,22 +972,16 @@ const PRESENCE_DISPATCH_TYPES = new Set([
 
 let origFluxDispatch: typeof FluxDispatcher.dispatch | null = null;
 let disposePresenceDispatch: (() => void) | null = null;
-const pendingPresenceDispatch = new Map<string, { events: any[]; timer: ReturnType<typeof setTimeout>; }>();
+const pendingPresenceDispatch = new Map<string, { event: any; timer: ReturnType<typeof setTimeout>; }>();
 
 function flushPresenceDispatch(type: string) {
     const pending = pendingPresenceDispatch.get(type);
     if (!pending) return;
     pendingPresenceDispatch.delete(type);
-    // Every accumulated event is dispatched, in order. This previously kept only the
-    // newest event per type, so a "stop activity" arriving inside the window replaced the
-    // "start activity" and subscribers (PerformanceBoost's game detection among them) never
-    // saw the transition. Batching still gives React one render pass per flush.
-    for (const event of pending.events) {
-        try {
-            origFluxDispatch?.call(FluxDispatcher, event);
-        } catch (err) {
-            logger.warn("flush presence dispatch failed", err);
-        }
+    try {
+        origFluxDispatch?.call(FluxDispatcher, pending.event);
+    } catch (err) {
+        logger.warn("flush presence dispatch failed", err);
     }
 }
 
@@ -998,14 +992,26 @@ function patchedDispatch(event: any): Promise<void> {
 
     const existing = pendingPresenceDispatch.get(event.type);
     if (existing) {
-        // Fixed window from the first event of a burst: appending without resetting the
-        // timer means a continuous stream still flushes every 8s instead of starving.
-        existing.events.push(event);
+        // Keep only the newest event per type. Both of these events are replace-state, not
+        // deltas - the payload is the full current list - and every subscriber reads that
+        // final state rather than counting transitions: PerformanceBoost does
+        // `if (games?.length) applyMode() else revertMode()`, and the richPresence services
+        // read `activity`. So the last event is sufficient and is what makes this O(1) in
+        // both memory and dispatch cost.
+        //
+        // An earlier version queued every event and dispatched the whole batch. That was
+        // pure cost: a busy client produces these continuously, so each 8s window replayed
+        // every event to every subscriber, which showed up as a periodic frame spike.
+        // React batching does not help - each dispatch still runs every flux handler.
+        //
+        // The window is deliberately *not* reset here. Resetting it on every event means a
+        // continuous stream never flushes at all, so the newest state is never delivered.
+        existing.event = event;
         return Promise.resolve();
     }
 
     const timer = setTimeout(() => flushPresenceDispatch(event.type), 8000);
-    pendingPresenceDispatch.set(event.type, { events: [event], timer });
+    pendingPresenceDispatch.set(event.type, { event, timer });
     return Promise.resolve();
 }
 
@@ -1024,9 +1030,7 @@ function applyPresenceThrottle(enable: boolean) {
         for (const type of Array.from(pendingPresenceDispatch.keys())) {
             const pending = pendingPresenceDispatch.get(type)!;
             clearTimeout(pending.timer);
-            for (const event of pending.events) {
-                try { origFluxDispatch.call(FluxDispatcher, event); } catch { /* ignore */ }
-            }
+            try { origFluxDispatch.call(FluxDispatcher, pending.event); } catch { /* ignore */ }
         }
         pendingPresenceDispatch.clear();
         disposePresenceDispatch?.();
