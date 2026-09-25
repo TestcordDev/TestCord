@@ -22,6 +22,7 @@ import type { UserAreaModule } from "../types";
 import { settings, toggleBetterSpotifyControls, toggleHoverControls } from "./settings";
 import { clearLyricsCache, migrateOldLyrics } from "./spotify/lyrics/api";
 import { SpotifyLyrics } from "./spotify/lyrics/components/lyrics";
+import { refreshSpotifyLyrics } from "./spotify/lyrics/providers/store";
 import { Provider } from "./spotify/lyrics/providers/types";
 import { SpotifyPlayer } from "./spotify/PlayerComponent";
 import { StrawberryLyrics } from "./strawberry/lyrics/components/lyrics";
@@ -454,7 +455,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 title="Fallback Lyrics Provider"
                                 description="Try alternative providers when the primary provider has no lyrics."
                                 value={s.fallbackProvider}
-                                onChange={v => { settings.store.fallbackProvider = v; forceUpdate(); }}
+                                onChange={v => { settings.store.fallbackProvider = v; refreshSpotifyLyrics(); forceUpdate(); }}
                             />
                             <FormSwitch
                                 title="Show Toast on Missing Lyrics"
@@ -487,7 +488,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                         { label: "Spicy Lyrics (experimental)", value: Provider.SpicyLyrics },
                                     ]}
                                     isSelected={v => v === s.lyricsProvider}
-                                    select={v => { settings.store.lyricsProvider = v as Provider; forceUpdate(); }}
+                                    select={v => { settings.store.lyricsProvider = v as Provider; refreshSpotifyLyrics(); forceUpdate(); }}
                                     serialize={v => String(v)}
                                 />
                             </div>
@@ -509,7 +510,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 <Input
                                     placeholder={"https://spotify-lyrics-api-pi.vercel.app"}
                                     initialValue={settings.store.spotifyLyricsApiUrl ?? ""}
-                                    onChange={v => { settings.store.spotifyLyricsApiUrl = v; forceUpdate(); }}
+                                    onChange={v => { settings.store.spotifyLyricsApiUrl = v; refreshSpotifyLyrics(); forceUpdate(); }}
                                 />
                             </div>
                             <div style={{ padding: "10px 0", display: `${settings.store.lyricsProvider === Provider.SpicyLyrics ? "unset" : "none"}` }}>
@@ -519,7 +520,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                 <Input
                                     placeholder={"sl_sk_... or sl_pk_..."}
                                     initialValue={settings.store.spicyLyricsApiKey}
-                                    onChange={v => { settings.store.spicyLyricsApiKey = v; forceUpdate(); }}
+                                    onChange={v => { settings.store.spicyLyricsApiKey = v; refreshSpotifyLyrics(); forceUpdate(); }}
                                 />
                             </div>
                             <div style={{ paddingTop: "8px" }}>
@@ -528,6 +529,7 @@ export function MusicControlsSettingsModal({ modalProps, onClose }: { modalProps
                                     size="small"
                                     onClick={() => {
                                         clearLyricsCache();
+                                        refreshSpotifyLyrics();
                                         showToast("Lyrics cache purged", Toasts.Type.SUCCESS);
                                         forceUpdate();
                                     }}

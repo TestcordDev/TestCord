@@ -44,6 +44,9 @@ export const SpotifyLrcStore = proxyLazyWebpack(() => {
 
             fetchingsTracks.push(e.track?.id ?? "");
             lyricsInfo = await getLyrics(e.track);
+            if (!lyricsInfo && e.track) {
+                showNotif("No lyrics found", `Could not find lyrics for ${e.track.name}`);
+            }
             const { lyricsConversion } = settings.store;
             if (lyricsConversion !== Provider.None) {
                 FluxDispatcher.dispatch({
@@ -134,3 +137,14 @@ export const SpotifyLrcStore = proxyLazyWebpack(() => {
 
     return store;
 });
+
+export function refreshSpotifyLyrics() {
+    const { track } = SpotifyStore;
+    if (track) {
+        FluxDispatcher.dispatch({
+            // @ts-ignore
+            type: "SPOTIFY_PLAYER_STATE",
+            track
+        });
+    }
+}

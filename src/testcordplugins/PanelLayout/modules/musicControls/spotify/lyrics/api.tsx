@@ -36,16 +36,26 @@ export async function getLyrics(track: Track | null): Promise<LyricsData | null>
 
     const cacheKey = track.id;
     const cached = await DataStore.get(LyricsCacheKey) as Record<string, LyricsData | null>;
+    const requestedProvider = settings.store.lyricsProvider;
+    const fallbackEnabled = settings.store.fallbackProvider;
 
     if (cached?.[cacheKey]) {
-        return cached[cacheKey];
+        const cachedData = cached[cacheKey]!;
+        if (cachedData.lyricsVersions?.[requestedProvider]) {
+            return {
+                ...cachedData,
+                useLyric: requestedProvider
+            };
+        }
+        if (fallbackEnabled && cachedData.lyricsVersions?.[cachedData.useLyric]) {
+            return cachedData;
+        }
     }
 
     const nullCacheEntry = nullLyricCache.get(cacheKey);
 
     if (nullCacheEntry) {
-        const provider = settings.store.lyricsProvider;
-        if (!settings.store.fallbackProvider && nullCacheEntry[provider]) {
+        if (!fallbackEnabled && nullCacheEntry[requestedProvider]) {
             return null;
         }
 
@@ -54,14 +64,25 @@ export async function getLyrics(track: Track | null): Promise<LyricsData | null>
         }
     }
 
-    const providersToTry = [settings.store.lyricsProvider, ...providers.filter(p => p !== settings.store.lyricsProvider)];
+    const providersToTry = fallbackEnabled
+        ? [requestedProvider, ...providers.filter(p => p !== requestedProvider)]
+        : [requestedProvider];
 
     for (const provider of providersToTry) {
         const lyricsInfo = await lyricFetchers[provider](track);
 
         if (lyricsInfo) {
-            await DataStore.set(LyricsCacheKey, { ...cached, [cacheKey]: lyricsInfo });
-            return lyricsInfo;
+            const existingVersions = cached?.[cacheKey]?.lyricsVersions ?? {};
+            const mergedInfo: LyricsData = {
+                ...lyricsInfo,
+                useLyric: requestedProvider in lyricsInfo.lyricsVersions ? requestedProvider : lyricsInfo.useLyric,
+                lyricsVersions: {
+                    ...existingVersions,
+                    ...lyricsInfo.lyricsVersions
+                }
+            };
+            await DataStore.set(LyricsCacheKey, { ...cached, [cacheKey]: mergedInfo });
+            return mergedInfo;
         }
 
         const updatedNullCacheEntry = nullLyricCache.get(cacheKey) || {};

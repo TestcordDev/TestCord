@@ -59,8 +59,6 @@ export function defineModuleSettings<Def extends SettingsDefinition>(
         },
         set(_, prop: string, value) {
             (PlainSettings.plugins as any)[moduleName] ??= {};
-            (PlainSettings.plugins as any)[moduleName][prop] = value;
-            (Settings.plugins as any)[moduleName] ??= {};
             (Settings.plugins as any)[moduleName][prop] = value;
             SettingsStore.markAsChanged();
             return true;

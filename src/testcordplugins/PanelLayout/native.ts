@@ -421,7 +421,8 @@ export async function fetchSpicyLyrics(
             method: "GET",
             headers: {
                 Authorization: auth,
-                Accept: "application/json"
+                Accept: "application/json",
+                Origin: "https://discord.com"
             }
         });
 
