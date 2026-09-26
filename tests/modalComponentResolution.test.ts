@@ -23,8 +23,20 @@ import test from "node:test";
  *   which is why the breakage could not be detected by probing
  * - the `actionBarInputLayout` anchor renders visible (opacity 1) and honours `size="lg"`
  * - the `checkboxProps...onCloseCallback` anchor renders a title plus both footer buttons
+ *
+ * The specific anchors are upstream's now (Vendicated, 90aea0ddb) rather than the ones
+ * verified above, because this is a core Vencord file that should track upstream so the
+ * anchors keep getting maintained as Discord drifts. So the assertions below are deliberately
+ * anchor-agnostic: they pin the invariants that make the lookup work, not the exact strings.
  */
 const source = readFileSync(new URL("../src/webpack/common/modals.ts", import.meta.url), "utf8");
+
+/** The single `export const <name>:` line, so a comment elsewhere can't satisfy a match. */
+function decl(name: string): string {
+    const line = source.split("\n").find(l => l.startsWith(`export const ${name}:`));
+    assert.ok(line, `${name} export not found`);
+    return line;
+}
 
 test("Modal and ConfirmModal are not looked up by export name", () => {
     // The name also appears in the explanatory comment, so check code positions only.
@@ -33,24 +45,30 @@ test("Modal and ConfirmModal are not looked up by export name", () => {
     assert.doesNotMatch(source, /=\s*findExportedComponentLazy\(/, "export-name lookup silently resolves to nothing");
 });
 
-test("Modal uses the layout wrapper, which is the one that renders `title`", () => {
-    // The base modal (data-mana-component="modal") has no title prop, and the user-settings
-    // layer ("layer-modal") has none either. Only the layout wrapper takes size + title.
-    assert.match(source, /export const Modal: t\.Modal = findComponentByCodeLazy\("actionBarInputLayout"\);/);
+test("Modal is resolved by code, with an anchor specific enough to be unambiguous", () => {
+    const line = decl("Modal");
+    assert.match(line, /ByCodeLazy\(/);
+    assert.doesNotMatch(line, /findExportedComponentLazy\(/);
+    // Vencord disambiguates by requiring several strings in the same module; a single
+    // common token would happily match the wrong component.
+    const anchors = line.match(/"[^"]+"/g) ?? [];
+    assert.ok(anchors.length >= 2, `expected a multi-string anchor, found ${anchors.length}: ${anchors}`);
 });
 
-test("ConfirmModal uses an anchor unique to it", () => {
-    assert.match(
-        source,
-        /export const ConfirmModal: t\.ConfirmModal = findComponentByCodeLazy\(\/checkboxProps\[\\s\\S\]\{0,300\}onCloseCallback\/\);/
-    );
-    // `critical-primary` appears in 20 modules, `checkboxProps` in only 3, and only
-    // ConfirmModal pairs it with onCloseCallback.
-    assert.doesNotMatch(source, /findComponentByCodeLazy\("critical-primary"\)/, "not unique to ConfirmModal");
+test("ConfirmModal is resolved by code, with an anchor unique to it", () => {
+    const line = decl("ConfirmModal");
+    assert.match(line, /ByCodeLazy\(/);
+    assert.doesNotMatch(line, /findExportedComponentLazy\(/);
+    const anchors = line.match(/"[^"]+"/g) ?? [];
+    assert.ok(anchors.length >= 2, `expected a multi-string anchor, found ${anchors.length}: ${anchors}`);
+    // `critical-primary` on its own appears in 20 modules. The button variants only
+    // disambiguate because they are combined with the other strings in the same anchor.
+    assert.doesNotMatch(line, /"critical-primary"/, "not unique to ConfirmModal");
 });
 
 test("the settings layer is not used as the Modal", () => {
-    assert.doesNotMatch(source, /findComponentByCodeLazy\([^)]*layer-modal/, "layer-modal has no title prop");
+    // data-mana-component="layer-modal" is the user-settings layer and has no title prop.
+    assert.doesNotMatch(decl("Modal"), /layer-modal/);
 });
 
 test("the module API lookups are left intact", () => {
