@@ -13,7 +13,7 @@ import { Paragraph } from "@components/Paragraph";
 import { Span } from "@components/Span";
 import { Margins } from "@utils/margins";
 import { relaunch } from "@utils/native";
-import { changes, checkForUpdates, forceUpdate, update, updateError } from "@utils/updater";
+import { changes, checkForUpdates, forceUpdate, hasDiverged, isNewer, update, updateError } from "@utils/updater";
 import { ConfirmModal, openModal, React, Toasts, useState } from "@webpack/common";
 
 import { runWithDispatch } from "./runWithDispatch";
@@ -143,11 +143,14 @@ export function Updatable(props: CommonProps) {
     const [isChecking, setIsChecking] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
     const [showDiscardLocalChanges, setShowDiscardLocalChanges] = useState(false);
+    // mirrors the module-level divergence flag so re-renders pick it up
+    const [diverged, setDiverged] = useState(isNewer);
 
     React.useEffect(() => {
         checkForUpdates()
             .then(outdated => {
                 setUpdates(outdated ? changes : []);
+                setDiverged(isNewer);
             })
             .catch(() => {});
     }, []);
@@ -210,8 +213,11 @@ export function Updatable(props: CommonProps) {
                         variant="primary"
                         disabled={isUpdating || isChecking}
                         onClick={runWithDispatch(setIsUpdating, async () => {
-                            if (await update()) {
+                            const success = await update();
+
+                            if (success) {
                                 setShowDiscardLocalChanges(false);
+                                setDiverged(false);
                                 setUpdates([]);
 
                                 await new Promise<void>(r => {
@@ -231,13 +237,21 @@ export function Updatable(props: CommonProps) {
                                         />
                                     ));
                                 });
+                                return;
+                            }
+
+                            // update() declined to touch the working tree
+                            // because it would have destroyed local work
+                            if (hasDiverged()) {
+                                setDiverged(true);
+                                setShowDiscardLocalChanges(true);
                             }
                         }, showDiscardForError)}
                     >
                         Update Now
                     </Button>
                 )}
-                {isOutdated && showDiscardLocalChanges && (
+                {isOutdated && (showDiscardLocalChanges || diverged) && (
                     <Button
                         size="small"
                         variant="secondary"

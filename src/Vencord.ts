@@ -143,7 +143,15 @@ async function runUpdateCheck() {
         if (!isOutdated) return;
 
         if (Settings.autoUpdate) {
-            await update();
+            // only claim success when the rebuild actually happened. update()
+            // returns false when it refused to touch the working tree
+            // (diverged) or the build failed.
+            const updated = await update();
+            if (!updated) {
+                UpdateLogger.error("Automatic update did not complete; leaving the local copy untouched");
+                return;
+            }
+
             if (Settings.autoUpdateNotification) {
                 if (notifiedForUpdatesThisSession) return;
                 notifiedForUpdatesThisSession = true;
@@ -165,12 +173,12 @@ async function runUpdateCheck() {
 
         openUpdateAvailableModal({
             commits: changes,
-            title: "TestCord has updated!",
+            title: "A TestCord update is available!",
             confirmText: "View Updates",
             onConfirm: () => openSettingsTabModal(UpdaterTab!),
             onUpdate: async () => {
-                await update();
-                relaunch();
+                // don't relaunch on a declined or failed update
+                if (await update()) relaunch();
             }
         });
     } catch (err) {
@@ -218,8 +226,13 @@ async function init() {
     if (!IS_DEV && !IS_WEB && !IS_UPDATER_DISABLED) {
         runUpdateCheck();
 
-        // this tends to get really annoying, so only do this if the user has auto-update without notification enabled
-        if (Settings.autoUpdate && !Settings.autoUpdateNotification) {
+        // The periodic re-check exists to catch commits pushed while the app is
+        // already running. The old gate was `autoUpdate &&
+        // !autoUpdateNotification`, which only polled for users who had opted
+        // out of being told about updates -- the exact users least likely to
+        // notice a silent update. Poll whenever auto-update is enabled; the
+        // once-per-session notification guard keeps it from nagging.
+        if (Settings.autoUpdate) {
             setInterval(runUpdateCheck, 1000 * 60 * 30); // 30 minutes
         }
     }

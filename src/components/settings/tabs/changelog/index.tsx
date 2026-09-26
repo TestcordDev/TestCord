@@ -313,9 +313,10 @@ function ChangelogContent() {
                 const updates = await VencordNative.updater.getUpdates();
 
                 if (updates.ok) {
+                    const found = updates.value.changes;
                     const currentRepoHash =
-                        updates.value.length > 0
-                            ? updates.value[0].hash
+                        found.length > 0
+                            ? found[0].hash
                             : gitHash;
                     setRecentlyChecked(lastRepoCheck === currentRepoHash);
                 }
@@ -340,9 +341,10 @@ function ChangelogContent() {
             // check if the repository was recently refreshed and that nothing has changed
             const updates = await VencordNative.updater.getUpdates();
             const lastRepoCheck = await getLastRepositoryCheckHash();
+            const found = updates.ok ? updates.value.changes : [];
             const currentRepoHash =
-                updates.ok && updates.value.length > 0
-                    ? updates.value[0].hash
+                found.length > 0
+                    ? found[0].hash
                     : gitHash;
 
             // If repository state hasn't changed since last check
@@ -364,52 +366,50 @@ function ChangelogContent() {
                 return;
             }
 
-            if (updates.ok && updates.value) {
-                if (updates.value.length > 0) {
-                    setChangelog(updates.value);
+            if (updates.ok && found.length > 0) {
+                setChangelog(found);
 
-                    const newPlgs = await getNewPlugins();
-                    const updatedPlgs = await getUpdatedPlugins();
-                    const newSettings = await getNewSettings();
-                    setNewPlugins(newPlgs);
-                    setUpdatedPlugins(updatedPlgs);
+                const newPlgs = await getNewPlugins();
+                const updatedPlgs = await getUpdatedPlugins();
+                const newSettings = await getNewSettings();
+                setNewPlugins(newPlgs);
+                setUpdatedPlugins(updatedPlgs);
 
-                    await saveUpdateSession(
-                        updates.value,
-                        newPlgs,
-                        updatedPlgs,
-                        newSettings,
-                        true,
-                    );
-                    await loadChangelogHistory();
-                    setRecentlyChecked(true);
+                await saveUpdateSession(
+                    found,
+                    newPlgs,
+                    updatedPlgs,
+                    newSettings,
+                    true,
+                );
+                await loadChangelogHistory();
+                setRecentlyChecked(true);
 
-                    Toasts.show({
-                        message: `Found ${updates.value.length} commit${updates.value.length === 1 ? "" : "s"} from repository`,
-                        id: Toasts.genId(),
-                        type: Toasts.Type.SUCCESS,
-                        options: {
-                            position: Toasts.Position.BOTTOM,
-                        },
-                    });
-                } else {
-                    const logged = await ensureLocalUpdateLogged();
-                    setRecentlyChecked(true);
-                    Toasts.show({
-                        message: logged
-                            ? "Logged commits from your latest update"
-                            : "Repository is up to date with your local copy",
-                        id: Toasts.genId(),
-                        type: logged ? Toasts.Type.SUCCESS : Toasts.Type.MESSAGE,
-                        options: {
-                            position: Toasts.Position.BOTTOM,
-                        },
-                    });
-                    if (!logged) {
-                        setChangelog([]);
-                    }
+                Toasts.show({
+                    message: `Found ${found.length} commit${found.length === 1 ? "" : "s"} from repository`,
+                    id: Toasts.genId(),
+                    type: Toasts.Type.SUCCESS,
+                    options: {
+                        position: Toasts.Position.BOTTOM,
+                    },
+                });
+            } else if (updates.ok) {
+                const logged = await ensureLocalUpdateLogged();
+                setRecentlyChecked(true);
+                Toasts.show({
+                    message: logged
+                        ? "Logged commits from your latest update"
+                        : "Repository is up to date with your local copy",
+                    id: Toasts.genId(),
+                    type: logged ? Toasts.Type.SUCCESS : Toasts.Type.MESSAGE,
+                    options: {
+                        position: Toasts.Position.BOTTOM,
+                    },
+                });
+                if (!logged) {
+                    setChangelog([]);
                 }
-            } else if (!updates.ok) {
+            } else {
                 throw new Error(
                     updates.error?.message || "Failed to fetch from repository",
                 );

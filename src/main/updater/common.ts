@@ -18,6 +18,36 @@
 
 export const ASAR_FILE = IS_VESKTOP ? "vesktop.asar" : IS_EQUIBOP ? "equibop.asar" : "desktop.asar";
 
+/**
+ * outcome of an update attempt.
+ *
+ * - `updated`: working tree now matches the remote, and the client must be
+ *   rebuilt before the new code takes effect.
+ * - `upToDate`: already on the remote commit, nothing to pull.
+ * - `diverged`: the local copy has commits the remote doesn't (or the working
+ *   tree is dirty in a way that blocks switching branches). updating would
+ *   destroy local work, so the caller must ask the user first.
+ */
+export type UpdateOutcome = "updated" | "upToDate" | "diverged";
+
+/** a single commit, as shown in the updater's changelog list */
+export interface UpdateCommit {
+    hash: string;
+    author: string;
+    message: string;
+}
+
+/**
+ * result of an update check.
+ *
+ * `diverged` means the local copy has commits or uncommitted changes the
+ * remote doesn't, so a plain update would destroy them.
+ */
+export interface UpdateCheckResult {
+    changes: UpdateCommit[];
+    diverged: boolean;
+}
+
 export function serializeErrors(func: (...args: any[]) => any) {
     return async function () {
         try {

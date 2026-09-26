@@ -27,6 +27,8 @@ if (!IS_UPDATER_DISABLED) {
     require(IS_STANDALONE ? "./http" : "./git");
 } else {
     ipcMain.handle(IpcEvents.GET_REPO, serializeErrors(() => `https://github.com/${gitRemote}`));
-    ipcMain.handle(IpcEvents.GET_UPDATES, serializeErrors(() => []));
-    ipcMain.handle(IpcEvents.FORCE_UPDATE, serializeErrors(() => false));
+    ipcMain.handle(IpcEvents.GET_UPDATES, serializeErrors(() => ({ changes: [], diverged: false })));
+    ipcMain.handle(IpcEvents.UPDATE, serializeErrors(() => "upToDate" as const));
+    ipcMain.handle(IpcEvents.FORCE_UPDATE, serializeErrors(() => "upToDate" as const));
+    ipcMain.handle(IpcEvents.BUILD, serializeErrors(() => false));
 }

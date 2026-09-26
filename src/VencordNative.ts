@@ -8,6 +8,7 @@ import type { Settings } from "@api/Settings";
 import type { CspRequestResult } from "@main/csp/manager";
 import type { PluginIpcMappings } from "@main/ipcPlugins";
 import { UserThemeHeader } from "@main/themes";
+import type { UpdateCheckResult, UpdateOutcome } from "@main/updater/common";
 import { IpcEvents } from "@shared/IpcEvents";
 import type { IpcRes } from "@utils/types";
 import { ipcRenderer } from "electron/renderer";
@@ -42,9 +43,9 @@ export default {
     },
 
     updater: {
-        getUpdates: (branch?: string) => invoke<IpcRes<Record<"hash" | "author" | "message", string>[]>>(IpcEvents.GET_UPDATES, branch),
-        update: (branch?: string) => invoke<IpcRes<boolean>>(IpcEvents.UPDATE, branch),
-        forceUpdate: (branch?: string) => invoke<IpcRes<boolean>>(IpcEvents.FORCE_UPDATE, branch),
+        getUpdates: (branch?: string) => invoke<IpcRes<UpdateCheckResult>>(IpcEvents.GET_UPDATES, branch),
+        update: (branch?: string) => invoke<IpcRes<UpdateOutcome>>(IpcEvents.UPDATE, branch),
+        forceUpdate: (branch?: string) => invoke<IpcRes<UpdateOutcome>>(IpcEvents.FORCE_UPDATE, branch),
         rebuild: () => invoke<IpcRes<boolean>>(IpcEvents.BUILD),
         getRepo: () => invoke<IpcRes<string>>(IpcEvents.GET_REPO),
     },
@@ -128,7 +129,7 @@ export default {
         clearHostRule: (host: string) => invoke<Record<string, "allow" | "block">>(IpcEvents.PRIVACY_CLEAR_HOST_RULE, host),
         acknowledgeAlerts: () => invoke<any[]>(IpcEvents.PRIVACY_ACK_ALERTS),
         postScienceEvents: (payload: any, token?: string, cookie?: string, superProps?: string) =>
-            invoke<{ status: number; body?: any; error?: string }>(IpcEvents.PRIVACY_POST_SCIENCE_EVENTS, payload, token, cookie, superProps),
+            invoke<{ status: number; body?: any; error?: string; }>(IpcEvents.PRIVACY_POST_SCIENCE_EVENTS, payload, token, cookie, superProps),
         onSecurityAlert: (cb: (alert: any) => void) => {
             const listener = (_: unknown, alert: any) => cb(alert);
             ipcRenderer.on(IpcEvents.PRIVACY_SECURITY_ALERT, listener);

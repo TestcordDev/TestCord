@@ -72,9 +72,9 @@ window.VencordNative = {
 
     updater: {
         getRepo: async () => ({ ok: true, value: "https://github.com/Equicord/Equicord" }),
-        getUpdates: async () => ({ ok: true, value: [] }),
-        update: async () => ({ ok: true, value: false }),
-        forceUpdate: async () => ({ ok: true, value: false }),
+        getUpdates: async () => ({ ok: true, value: { changes: [], diverged: false } }),
+        update: async () => ({ ok: true, value: "upToDate" as const }),
+        forceUpdate: async () => ({ ok: true, value: "upToDate" as const }),
         rebuild: async () => ({ ok: true, value: true }),
     },
 
