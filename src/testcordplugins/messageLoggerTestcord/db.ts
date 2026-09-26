@@ -49,32 +49,6 @@ function isUncloneable(value: unknown) {
     return type === "function" || type === "symbol";
 }
 
-/**
- * IndexedDB stores values with the structured clone algorithm, which rejects functions
- * and symbols. Discord attaches a helper as an own property on messages, an ordinal
- * suffix formatter, and lodash.cloneDeep copies nested functions by reference instead of
- * dropping them, so it survives into `put`. One of them fails the whole transaction with
- * DataCloneError, silently losing every record batched alongside it.
- *
- * cloneMessage preserves prototypes, so the message is usually a class instance rather
- * than a bare object. That matters: only own *enumerable* properties are cloned, so the
- * helper has to be walked, and an earlier version of this that handed any object with a
- * real prototype straight to `put` left the function in place and the error kept firing.
- * Everything is therefore rebuilt, except the handful of types the structured clone
- * handles natively and that carry no functions.
- */
-function hasUncloneable(value: unknown, seen: WeakSet<object>): boolean {
-    if (isUncloneable(value)) return true;
-    if (value === null || typeof value !== "object") return false;
-    if (seen.has(value)) return false;
-    seen.add(value);
-
-    if (Array.isArray(value)) return value.some(item => hasUncloneable(item, seen));
-    if (value instanceof Map) return [...value.values()].some(item => hasUncloneable(item, seen));
-    if (value instanceof Set) return [...value].some(item => hasUncloneable(item, seen));
-    return Object.values(value).some(item => hasUncloneable(item, seen));
-}
-
 function isNativelyCloneable(value: object) {
     if (value instanceof Date || value instanceof RegExp || value instanceof ArrayBuffer) return true;
     if (ArrayBuffer.isView(value)) return true;
@@ -83,53 +57,65 @@ function isNativelyCloneable(value: object) {
     return false;
 }
 
-function pruneUncloneable(value: any, seen: WeakMap<object, any>): any {
-    if (value === null || typeof value !== "object") return value;
-
-    const existing = seen.get(value);
-    if (existing !== undefined) return existing;
-    if (isNativelyCloneable(value)) return value;
+/**
+ * IndexedDB stores values with the structured clone algorithm, which rejects functions
+ * and symbols. Discord hangs an ordinal-suffix helper off messages as an own property,
+ * and lodash.cloneDeep copies nested functions by reference instead of dropping them, so
+ * it survives into `put`. One of them fails the whole transaction with DataCloneError,
+ * silently losing every record batched alongside it.
+ *
+ * cloneMessage preserves prototypes, so a message is a class instance rather than a bare
+ * object, and only own enumerable properties are cloned. An earlier version of this that
+ * handed any object with a real prototype straight to `put` therefore left the helper in
+ * place and the error kept firing.
+ *
+ * This mutates, so it must only ever be handed something we own. It is called from
+ * snapshotMessage, immediately after its own cloneDeep, and from nowhere else. It used to
+ * be called from applyBatch instead, which was wrong twice over: the record there is only
+ * a shallow spread, so the walk reached the shared nested objects and deleted keys and
+ * spliced arrays on the copies held by recentMessages and channelMessageCache, and it ran
+ * on the write path where a second full walk per message is exactly the kind of cost that
+ * shows up as jank.
+ */
+export function stripUncloneable(value: any, seen: WeakSet<object>) {
+    if (value === null || typeof value !== "object") return;
+    if (seen.has(value)) return;
+    seen.add(value);
+    if (isNativelyCloneable(value)) return;
 
     if (value instanceof Map) {
-        const out = new Map();
-        seen.set(value, out);
-        for (const [k, v] of value) out.set(pruneUncloneable(k, seen), pruneUncloneable(v, seen));
-        return out;
+        for (const [k, v] of value) {
+            if (isUncloneable(k) || isUncloneable(v)) value.delete(k);
+            else {
+                stripUncloneable(k, seen);
+                stripUncloneable(v, seen);
+            }
+        }
+        return;
     }
 
     if (value instanceof Set) {
-        const out = new Set();
-        seen.set(value, out);
         for (const v of value) {
-            if (isUncloneable(v)) continue;
-            out.add(pruneUncloneable(v, seen));
+            if (isUncloneable(v)) value.delete(v);
+            else stripUncloneable(v, seen);
         }
-        return out;
+        return;
     }
 
     if (Array.isArray(value)) {
-        const out: any[] = [];
-        seen.set(value, out);
-        for (const item of value) {
-            if (isUncloneable(item)) continue;
-            out.push(pruneUncloneable(item, seen));
+        for (let i = value.length - 1; i >= 0; i--) {
+            if (isUncloneable(value[i])) value.splice(i, 1);
+            else stripUncloneable(value[i], seen);
         }
-        return out;
+        return;
     }
 
-    // Own enumerable keys only, which is exactly the set structured clone copies. The
-    // prototype is deliberately dropped: keeping it is what left the helper in place.
-    const out: Record<string, unknown> = {};
-    seen.set(value, out);
-    for (const [key, item] of Object.entries(value)) {
-        if (isUncloneable(item)) continue;
-        out[key] = pruneUncloneable(item, seen);
+    for (const key in value) {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+        const item = value[key];
+        if (isUncloneable(item)) delete value[key];
+        else stripUncloneable(item, seen);
     }
-    return out;
-}
-
-function toStorable(record: LogRecord): LogRecord {
-    return hasUncloneable(record, new WeakSet()) ? pruneUncloneable(record, new WeakMap()) : record;
 }
 
 export async function applyBatch(records: LogRecord[], deletedIds: string[]) {
@@ -140,13 +126,13 @@ export async function applyBatch(records: LogRecord[], deletedIds: string[]) {
     const existingRecords = await Promise.all(records.map(record => transaction.store.get(record.message_id)));
     const updatedAt = new Date().toISOString();
     await Promise.all([
-        ...records.map((record, index) => transaction.store.put(toStorable({
+        ...records.map((record, index) => transaction.store.put({
             ...record,
             protected: record.protected ?? existingRecords[index]?.protected,
             hidden: record.hidden ?? existingRecords[index]?.hidden,
             createdAt: existingRecords[index]?.createdAt ?? record.createdAt ?? updatedAt,
             updatedAt
-        }))),
+        })),
         ...deletedIds.map(id => transaction.store.delete(id)),
         transaction.done
     ]);

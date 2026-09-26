@@ -76,6 +76,26 @@ export const stringMatches = (s: string, filter: CodeFilter) => {
     return true;
 };
 
+/**
+ * Function.prototype.toString serialises the whole function body, and a byCode filter has
+ * to run it against every function export of every loaded module, plus every nested
+ * export, to answer a single lookup. Across ~10k modules that is six figures of string
+ * builds per find, which is where the ~14ms per lookup went, and why it was worst on a
+ * fresh build when nothing had been asked yet.
+ *
+ * The result only depends on the function object, so memoise it. One WeakMap lookup
+ * replaces the serialisation, and every later byCode filter over the same module is free.
+ */
+const fnSourceCache = new WeakMap<Function, string>();
+function fnSource(fn: Function) {
+    let source = fnSourceCache.get(fn);
+    if (source === undefined) {
+        source = fnToString.call(fn);
+        fnSourceCache.set(fn, source);
+    }
+    return source;
+}
+
 export function makeClassNameRegex(className: string) {
     return new RegExp(`(?<=^|\\s)${escapeRegExp(className)}(?:_\\S*)?(?=$|\\s)`);
 }
@@ -90,7 +110,7 @@ export const filters = {
         const parsedCode = code.map(canonicalizeMatch);
         const filter = m => {
             if (typeof m !== "function") return false;
-            return stringMatches(fnToString.call(m), parsedCode);
+            return stringMatches(fnSource(m), parsedCode);
         };
 
         filter.$$vencordProps = [...code];

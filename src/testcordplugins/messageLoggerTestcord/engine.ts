@@ -9,7 +9,7 @@ import { Logger } from "@utils/Logger";
 import type { Message, MessageJSON } from "@vencord/discord-types";
 import { ChannelStore, FluxDispatcher, lodash, MessageStore, SelectedChannelStore, UserGuildSettingsStore, UserStore } from "@webpack/common";
 
-import { applyBatch, clearLogs, clearUnprotectedLogs, getChannelLogsAfter, getDatabase, getLogById, runMaintenance } from "./db";
+import { applyBatch, clearLogs, clearUnprotectedLogs, getChannelLogsAfter, getDatabase, getLogById, runMaintenance, stripUncloneable } from "./db";
 import { invalidateMessageClassCache } from "./render";
 import { ensureAttachmentSaved } from "./saveImage";
 import { settings } from "./settings";
@@ -73,6 +73,11 @@ function snapshotMessage(message: SnapshotMessage): LoggedMessage {
     delete copy.__messageloggerDiffKey;
     delete copy.__messageloggerAggregated;
     delete copy.__messageloggerLastAppliedKey;
+    // The cloneDeep above copies nested functions by reference rather than dropping them,
+    // and IndexedDB's structured clone rejects them, which fails the whole transaction and
+    // loses every record batched with it. This runs here because `copy` is ours alone:
+    // see stripUncloneable for why it must not run anywhere shared.
+    stripUncloneable(copy, new WeakSet());
     return copy;
 }
 

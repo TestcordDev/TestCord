@@ -265,9 +265,14 @@ function dropInvalidMessages(list: unknown[]) {
  * Discord's LOAD_MESSAGES_SUCCESS handler flatMaps the payload and runs the same
  * `"flags" in message` check over the mentions it walks out, so a bare user id sitting
  * in `mentions` throws "Cannot use 'in' operator" and takes the whole channel load with
- * it. Bare ids do show up: the ghost-ping check at the MESSAGE_CREATE handler has to
- * tolerate them with `m?.id ?? m`. MessageLoggerEnhanced already filters them at its own
- * merge boundary, so mirror that here rather than let the two disagree.
+ * it. Bare ids do turn up: the ghost-ping check at the MESSAGE_CREATE handler has to
+ * tolerate them with `m?.id ?? m`, which means they arrive from Discord and end up in
+ * whatever we persisted.
+ *
+ * Applied only to the rows we re-inject, not to the fetched batch. Discord iterates its
+ * own payload through the same check on every channel load and does not crash, so what
+ * trips it is a row we put back. Splicing Discord's live messages instead would risk
+ * stripping mention data the renderer still needs.
  */
 function dropNonObjectMentions(list: unknown[]) {
     for (const entry of list) {
@@ -292,7 +297,6 @@ function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage
 
     // Drop junk from the fetched batch itself before anything reads it.
     dropInvalidMessages(messages);
-    dropNonObjectMentions(messages);
 
     if (!messages.extra?.length) {
         // Still cache live messages for delete resolution on plain fetches.
