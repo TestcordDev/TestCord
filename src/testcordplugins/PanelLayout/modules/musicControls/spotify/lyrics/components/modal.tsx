@@ -52,7 +52,7 @@ const wordSungCl = cl("word-sung");
 const wordActiveCl = cl("word-active");
 
 export function LyricsModal({ props }: { props: RenderModalProps; }) {
-    const { track, lyricsInfo, currLrcIndex, activeWordIndex, sungWordIndex, activeWordSync, isPlaying } = useLyrics({ scroll: false });
+    const { track, lyricsInfo, lyricRefs, currLrcIndex, activeWordIndex, sungWordIndex, activeWordSync, isPlaying } = useLyrics({ scroll: true });
     const currentLyrics = lyricsInfo?.lyricsVersions[lyricsInfo.useLyric];
 
     return (
@@ -65,37 +65,38 @@ export function LyricsModal({ props }: { props: RenderModalProps; }) {
                         const activeIdx = activeWordIndex ?? -1;
 
                         return (
-                            <BaseText
-                                key={i}
-                                size={isCurrentLine ? "md" : "sm"}
-                                weight={isCurrentLine ? "semibold" : "normal"}
-                                className={isCurrentLine ? modalCurrentLine : modalLine}
-                            >
-                                <span className={cl("modal-timestamp")} onClick={() => SpotifyStore.seek(line.time * 1000)}>
-                                    {formatTime(line.time)}
-                                </span>
-                                {hasWordTiming
-                                    ? line.words!.map((word, w) => {
-                                        const isActive = w === activeIdx;
-                                        const isSung = w <= sungWordIndex || w < activeIdx;
-                                        const wordClassName = isActive ? wordActiveCl : isSung ? wordSungCl : wordCl;
-                                        const wordStyle: React.CSSProperties | undefined = isActive && activeWordSync
-                                            ? {
-                                                animationDuration: `${activeWordSync.duration}ms`,
-                                                animationDelay: `-${activeWordSync.elapsed}ms`,
-                                                animationPlayState: isPlaying ? "running" : "paused"
-                                            } as React.CSSProperties
-                                            : undefined;
+                            <div ref={lyricRefs[i]} key={i}>
+                                <BaseText
+                                    size={isCurrentLine ? "md" : "sm"}
+                                    weight={isCurrentLine ? "semibold" : "normal"}
+                                    className={isCurrentLine ? modalCurrentLine : modalLine}
+                                >
+                                    <span className={cl("modal-timestamp")} onClick={() => SpotifyStore.seek(line.time * 1000)}>
+                                        {formatTime(line.time)}
+                                    </span>
+                                    {hasWordTiming
+                                        ? line.words!.map((word, w) => {
+                                            const isActive = w === activeIdx;
+                                            const isSung = w <= sungWordIndex || w < activeIdx;
+                                            const wordClassName = isActive ? wordActiveCl : isSung ? wordSungCl : wordCl;
+                                            const wordStyle: React.CSSProperties | undefined = isActive && activeWordSync
+                                                ? {
+                                                    "--vc-spotify-word-duration": `${activeWordSync.duration}ms`,
+                                                    "--vc-spotify-word-delay": `-${activeWordSync.elapsed}ms`,
+                                                    animationPlayState: isPlaying ? "running" : "paused"
+                                                } as React.CSSProperties
+                                                : undefined;
 
-                                        return (
-                                            <React.Fragment key={w}>
-                                                <span className={wordClassName} style={wordStyle}>{word.text}</span>
-                                                {word.IsPartOfWord ? "" : " "}
-                                            </React.Fragment>
-                                        );
-                                    })
-                                    : (line.text || NoteSvg())}
-                            </BaseText>
+                                            return (
+                                                <React.Fragment key={w}>
+                                                    <span className={wordClassName} style={wordStyle}>{word.text}</span>
+                                                    {word.IsPartOfWord ? "" : " "}
+                                                </React.Fragment>
+                                            );
+                                        })
+                                        : (line.text || NoteSvg())}
+                                </BaseText>
+                            </div>
                         );
                     })
                 ) : (

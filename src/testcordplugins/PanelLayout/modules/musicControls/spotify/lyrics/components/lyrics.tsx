@@ -63,8 +63,8 @@ function LyricsDisplay({ scroll = true, style }: { scroll?: boolean; style?: Rea
                                         const wordClassName = isActive ? wordActiveCl : isSung ? wordSungCl : wordCl;
                                         const wordStyle: React.CSSProperties | undefined = isActive && activeWordSync
                                             ? {
-                                                animationDuration: `${activeWordSync.duration}ms`,
-                                                animationDelay: `-${activeWordSync.elapsed}ms`,
+                                                "--vc-spotify-word-duration": `${activeWordSync.duration}ms`,
+                                                "--vc-spotify-word-delay": `-${activeWordSync.elapsed}ms`,
                                                 animationPlayState: isPlaying ? "running" : "paused"
                                             } as React.CSSProperties
                                             : undefined;

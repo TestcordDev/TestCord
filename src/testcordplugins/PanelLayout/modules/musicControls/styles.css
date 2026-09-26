@@ -107,38 +107,59 @@
     initial-value: 0%;
 }
 
+@property --vc-spotify-word-shadow-opacity {
+    syntax: "<percentage>";
+    inherits: false;
+    initial-value: 0%;
+}
+
 @keyframes st-word-pop {
     0% {
         --vc-spotify-word-progress: 0%;
-        transform: translateY(0);
-        scale: 1;
-    }
-    38% {
-        transform: translateY(-0.7px);
-        scale: 1.05;
+        --vc-spotify-word-shadow-opacity: 0%;
     }
     100% {
         --vc-spotify-word-progress: 100%;
-        transform: translateY(0);
-        scale: 1;
+        --vc-spotify-word-shadow-opacity: 100%;
+    }
+}
+
+@keyframes st-word-bounce {
+    0%,
+    100% {
+        transform: translateY(0) scale(1);
+    }
+    50% {
+        transform: translateY(-0.7px) scale(1.05);
     }
 }
 
 .vc-spotify-lyrics-word-active {
     display: inline-block;
     --vc-spotify-word-progress: 0%;
-    background-image: linear-gradient(90deg, var(--text-strong, #fff) var(--vc-spotify-word-progress), var(--text-muted) var(--vc-spotify-word-progress));
+    --vc-spotify-word-shadow-opacity: 0%;
+    background-image: linear-gradient(
+        90deg,
+        var(--text-strong) var(--vc-spotify-word-progress),
+        var(--text-muted) calc(var(--vc-spotify-word-progress) + 20%)
+    );
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
     transition: text-shadow 0.15s ease;
     font-weight: 600;
-    text-shadow: 0 0 12px rgba(255, 255, 255, 1);
+    text-shadow: 0 0 12px rgb(255 255 255 / var(--vc-spotify-word-shadow-opacity));
     transform-origin: center center;
-    will-change: transform, opacity, text-shadow, scale;
-    animation-name: st-word-pop;
-    animation-fill-mode: both;
+    backface-visibility: hidden;
+    will-change: transform, opacity, text-shadow, scale, background-position;
+    animation-name: st-word-pop, st-word-bounce;
+    animation-duration: var(--vc-spotify-word-duration, 250ms), 0.3s;
+    animation-delay: var(--vc-spotify-word-delay, 0ms), 0s;
+    animation-timing-function: linear, ease-in-out;
+    animation-fill-mode: both, backwards;
 }
 
 .eq-tidal-lyrics {
