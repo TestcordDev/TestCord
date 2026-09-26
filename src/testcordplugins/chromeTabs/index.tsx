@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import "./style.css";
-
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
+import { disableStyle, enableStyle } from "@api/Styles";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { TestcordDevs } from "@utils/constants";
 import { classes } from "@utils/misc";
@@ -17,6 +16,7 @@ import { JSX } from "react";
 
 import { ChromeTabsStrip } from "./components/ChromeTabsStrip";
 import { removeChromeTabSwitcher } from "./components/ChromeTabSwitcher";
+import style from "./style.css?managed";
 import { getSyntheticPageIdForPath, handleNavigation, isSelfNavigation, openTarget, settings } from "./util";
 import * as ChromeTabsStore from "./util/store";
 
@@ -171,11 +171,13 @@ export default definePlugin({
 
     settings,
     start() {
+        enableStyle(style);
         window.addEventListener("click", handleGlobalClick, true);
     },
     stop() {
         window.removeEventListener("click", handleGlobalClick, true);
         removeChromeTabSwitcher();
+        disableStyle(style);
     },
 
     contextMenus: {

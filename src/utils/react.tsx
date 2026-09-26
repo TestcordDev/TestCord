@@ -158,16 +158,22 @@ interface FixedTimerOpts {
     initialTime?: number;
 }
 
-export function useFixedTimer({ interval = 1000, initialTime = Date.now() }: FixedTimerOpts) {
-    const [time, setTime] = useState(Date.now() - initialTime);
+export function useFixedTimer({ interval = 1000, initialTime }: FixedTimerOpts) {
+    // A Date.now() default would be re-evaluated on every render, so the effect below
+    // tore down and rebuilt its interval each time and the reported elapsed time never
+    // advanced past the first tick. Captured once instead; an explicit initialTime still
+    // resets the timer when it changes, which is how callTimer restarts on a new call.
+    const [defaultStart] = useState(() => Date.now());
+    const start = initialTime ?? defaultStart;
+    const [time, setTime] = useState(Date.now() - start);
 
     useEffect(() => {
-        const intervalId = setInterval(() => setTime(Date.now() - initialTime), interval);
+        const intervalId = setInterval(() => setTime(Date.now() - start), interval);
 
         return () => {
             clearInterval(intervalId);
         };
-    }, [initialTime]);
+    }, [start]);
 
     return time;
 }

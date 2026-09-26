@@ -8,7 +8,7 @@ import { addContextMenuPatch, NavContextMenuPatchCallback, removeContextMenuPatc
 import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByProps } from "@webpack";
-import { Button, GuildChannelStore, GuildMemberStore, GuildRoleStore, GuildStore, Menu, React, Select, TextArea } from "@webpack/common";
+import { Button, FluxDispatcher, GuildChannelStore, GuildMemberStore, GuildRoleStore, GuildStore, Menu, React, Select, SelectedGuildStore, TextArea, UserStore, VoiceStateStore } from "@webpack/common";
 
 // ─── Global State ──────────────────────────────────────────────────────────────
 // isEnabled is the SINGLE source of truth — read from DataStore at start()
@@ -62,7 +62,7 @@ const badgeListeners = new Set<() => void>();
 function notifyBadgeChange() { badgeVersion++; badgeListeners.forEach(fn => fn()); }
 
 function getCurrentGuildId(): string | null {
-    try { return (findByProps("getGuildId", "getLastSelectedGuildId") as any)?.getGuildId?.() ?? null; } catch { return null; }
+    try { return SelectedGuildStore?.getGuildId?.() ?? null; } catch { return null; }
 }
 
 function notifyMemberListChange() {
@@ -78,9 +78,8 @@ function notifyMemberListChange() {
         // Additional verification: we only dispatch if the user is in
         // a voice channel of the current server. Outside voice, this dispatch is useless
         // and can corrupt the channel permissions state (invisible channels).
-        const FluxDispatcher = findByProps("dispatch", "subscribe") as any;
-        const voiceStates = findByProps("getVoiceStatesForChannel", "getVoiceStateForUser") as any;
-        const myId = (() => { try { return (findByProps("getCurrentUser") as any)?.getCurrentUser?.()?.id ?? null; } catch { return null; } })();
+        const voiceStates = VoiceStateStore;
+        const myId = (() => { try { return UserStore?.getCurrentUser?.()?.id ?? null; } catch { return null; } })();
         if (myId) {
             const myVS = voiceStates?.getVoiceStateForUser?.(myId);
             // Only dispatch if we are in voice in this server
@@ -132,17 +131,17 @@ function getGuild(guildId: string | null) {
 
 function getMember(guildId: string | null, userId: string) {
     if (!guildId) return null;
-    try { return (findByProps("getMember", "getMembers") as any)?.getMember?.(guildId, userId) ?? null; } catch { return null; }
+    try { return (GuildMemberStore as any)?.getMember?.(guildId, userId) ?? null; } catch { return null; }
 }
 
 function isUserInVoice(userId: string, guildId: string | null): boolean {
     if (!guildId) return false;
-    try { const vs = (findByProps("getVoiceStateForUser") as any)?.getVoiceStateForUser?.(userId); return !!(vs && vs.guildId === guildId && vs.channelId); } catch { return false; }
+    try { const vs = VoiceStateStore?.getVoiceStateForUser?.(userId); return !!(vs && vs.guildId === guildId && vs.channelId); } catch { return false; }
 }
 
 function getVoiceChannelId(userId: string, guildId: string | null): string | null {
     if (!guildId) return null;
-    try { return (findByProps("getVoiceStateForUser") as any)?.getVoiceStateForUser?.(userId)?.channelId ?? null; } catch { return null; }
+    try { return VoiceStateStore?.getVoiceStateForUser?.(userId)?.channelId ?? null; } catch { return null; }
 }
 
 function getGuildRoles(guildId: string | null): Array<{ id: string; name: string; color: number; }> {

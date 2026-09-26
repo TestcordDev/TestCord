@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import "./tidalStyles.css";
-
 import { Settings } from "@api/Settings";
 import { BaseText } from "@components/BaseText";
 import { Flex } from "@components/Flex";
@@ -16,7 +14,9 @@ import { copyWithToast, openImageModal } from "@utils/discord";
 import { classes } from "@utils/misc";
 import { ContextMenuApi, FluxDispatcher, Menu, React, useEffect, useState, useStateFromStores } from "@webpack/common";
 
+import { usePlayerStyle } from "../usePlayerStyle";
 import { type PlayerState, type Repeat, TidalStore } from "./TidalStore";
+import tidalStyles from "./tidalStyles.css?managed";
 
 const cl = (className: string) => `eq-tdl-${className}`;
 
@@ -323,6 +323,8 @@ function Info({ track }: { track: NonNullable<PlayerState["track"]>; }) {
 }
 
 export function TidalPlayer() {
+    usePlayerStyle(tidalStyles);
+
     const track = useStateFromStores(
         [TidalStore],
         () => TidalStore.track

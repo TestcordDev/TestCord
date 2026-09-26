@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import "./strawberryStyles.css";
-
 import { Settings } from "@api/Settings";
 import { BaseText } from "@components/BaseText";
 import { Flex } from "@components/Flex";
@@ -16,7 +14,9 @@ import { copyWithToast, openImageModal } from "@utils/discord";
 import { classes } from "@utils/misc";
 import { ContextMenuApi, FluxDispatcher, Menu, React, useEffect, useState, useStateFromStores } from "@webpack/common";
 
+import { usePlayerStyle } from "../usePlayerStyle";
 import { StrawberryStore, type StrawberryTrack } from "./StrawberryStore";
+import strawberryStyles from "./strawberryStyles.css?managed";
 
 const cl = (className: string) => `eq-strawberry-${className}`;
 
@@ -354,6 +354,8 @@ function Info({ track }: { track: StrawberryTrack; }) {
 }
 
 export function StrawberryPlayer() {
+    usePlayerStyle(strawberryStyles);
+
     const track = useStateFromStores(
         [StrawberryStore],
         () => StrawberryStore.track

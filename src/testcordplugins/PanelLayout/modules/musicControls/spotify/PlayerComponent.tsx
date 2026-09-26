@@ -16,8 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import "./spotifyStyles.css";
-
 import { Flex } from "@components/Flex";
 import { CopyIcon, ImageIcon, LinkIcon, OpenExternalIcon } from "@components/Icons";
 import { Paragraph } from "@components/Paragraph";
@@ -31,8 +29,10 @@ import { formatDuration } from "@utils/text";
 import { ContextMenuApi, FluxDispatcher, Menu, React, useEffect, useState, useStateFromStores } from "@webpack/common";
 
 import { settings } from "../settings";
+import { usePlayerStyle } from "../usePlayerStyle";
 import { SeekBar } from "./SeekBar";
 import { SpotifyStore, Track } from "./SpotifyStore";
+import spotifyStyles from "./spotifyStyles.css?managed";
 
 const cl = classNameFactory("vc-spotify-");
 
@@ -368,6 +368,8 @@ function Info({ track }: { track: Track; }) {
 }
 
 export function SpotifyPlayer({ fiveMinuteHide, isPreview }: { fiveMinuteHide: boolean; isPreview: boolean; }) {
+    usePlayerStyle(spotifyStyles);
+
     const track = useStateFromStores(
         [SpotifyStore],
         () => SpotifyStore.track,

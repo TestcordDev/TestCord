@@ -43,7 +43,11 @@ function time(seconds: number) {
 }
 
 export function VoiceMessagesInBackgroundPlayer() {
-    useFixedTimer({ interval: 50 });
+    // This pump is the only way the player learns that playback started, since
+    // getPlaybackSnapshot is a pull with no subscription. 200ms keeps the timeline
+    // smooth and the appearance latency imperceptible; it used to be 50ms, which at
+    // a working 20Hz is 20 re-renders a second for a millisecond-accurate readout.
+    useFixedTimer({ interval: 200 });
     const snapshot = getPlaybackSnapshot();
     const selectedChannelId = useStateFromStores(
         [SelectedChannelStore],

@@ -49,3 +49,6 @@ misc/bundle
 
 # intl scripts
 misc/scripts
+
+# local test harness
+tests/

@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import "./style.css";
-
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
+import { disableStyle, enableStyle } from "@api/Styles";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { LinkIcon } from "@components/Icons";
 import { Devs, EquicordDevs } from "@utils/constants";
@@ -16,6 +15,7 @@ import { ChannelStore, Menu } from "@webpack/common";
 import { JSX } from "react";
 
 import ChannelsTabsContainer from "./components/ChannelTabsContainer";
+import style from "./style.css?managed";
 import * as ChannelTabsUtils from "./util";
 import { BasicChannelTabsProps, createTab, handleChannelSwitch, settings } from "./util";
 import { clearTabState, useScrollManager } from "./util/scroll";
@@ -115,10 +115,12 @@ export default definePlugin({
     useScrollManager,
 
     stop() {
+        disableStyle(style);
         clearTabState();
     },
 
     start() {
+        enableStyle(style);
         // migrate old settings to new granular keybind settings
         const store = settings.store as any;
         if (store.enableHotkeys !== undefined) {

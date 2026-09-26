@@ -37,6 +37,9 @@ export type Repeat = 0 | 1 | 2;
 
 const logger = new Logger("StrawberryControls");
 
+const RECONNECT_BASE_MS = 5_000;
+const RECONNECT_MAX_MS = 5 * 60_000;
+
 const Native = (VencordNative?.pluginHelpers?.PanelLayout || {}) as PluginNative<typeof import("../../../native")>;
 
 type Message =
@@ -51,6 +54,7 @@ class StrawberrySocket {
     public destroyed = false;
     public socket: WebSocket | undefined;
     private reconnectTimeout: ReturnType<typeof setTimeout> | undefined;
+    private reconnectDelay = RECONNECT_BASE_MS;
 
     constructor(onChange: typeof this.onChange) {
         this.onChange = onChange;
@@ -63,13 +67,37 @@ class StrawberrySocket {
             this.initWs();
         } catch (e) {
             logger.error("Failed to connect to Strawberry WebSocket", e);
+            this.scheduleReconnect();
         }
     }
 
     public close() {
         this.destroyed = true;
-        clearTimeout(this.reconnectTimeout);
+        this.clearReconnect();
         this.socket?.close();
+        this.socket = undefined;
+    }
+
+    private clearReconnect() {
+        if (this.reconnectTimeout === undefined) return;
+        clearTimeout(this.reconnectTimeout);
+        this.reconnectTimeout = undefined;
+    }
+
+    /**
+     * A failed connect always ends in a `close` event, so that is the only place a
+     * retry is scheduled from. Scheduling from `error` as well doubled the pending
+     * timers on every attempt (the second assignment orphaned the first), which grew
+     * without bound and eventually exhausted sockets.
+     */
+    private scheduleReconnect() {
+        if (this.destroyed) return;
+        this.clearReconnect();
+        this.reconnectTimeout = setTimeout(() => {
+            this.reconnectTimeout = undefined;
+            this.reconnect();
+        }, this.reconnectDelay);
+        this.reconnectDelay = Math.min(this.reconnectDelay * 2, RECONNECT_MAX_MS);
     }
 
     get routes() {
@@ -99,31 +127,36 @@ class StrawberrySocket {
         const url = settings.store.strawberryWebsocketUrl || "ws://localhost:24124";
         if (!url) return;
 
+        // Drop the previous socket before making a new one. The old handlers stay
+        // attached, and its `close` fires later, so the identity check in the close
+        // handler is what keeps a stale socket from scheduling further retries.
+        const previous = this.socket;
+        this.socket = undefined;
+        previous?.close();
+
+        let socket: WebSocket;
         try {
-            this.socket = new WebSocket(url);
+            socket = new WebSocket(url);
         } catch {
+            this.scheduleReconnect();
             return;
         }
+        this.socket = socket;
 
-        this.socket.addEventListener("open", () => {
+        socket.addEventListener("open", () => {
+            this.reconnectDelay = RECONNECT_BASE_MS;
             this.ready = true;
             this.sendAction("subscribe", { action: "subscribe", all: true });
         });
 
-        this.socket.addEventListener("error", () => {
-            if (!this.ready && !this.destroyed) {
-                this.reconnectTimeout = setTimeout(() => this.reconnect(), 5_000);
-            }
-        });
-
-        this.socket.addEventListener("close", () => {
+        socket.addEventListener("close", () => {
+            if (this.socket !== socket) return;
+            this.socket = undefined;
             this.ready = false;
-            if (!this.destroyed) {
-                this.reconnectTimeout = setTimeout(() => this.reconnect(), 10_000);
-            }
+            this.scheduleReconnect();
         });
 
-        this.socket.addEventListener("message", e => {
+        socket.addEventListener("message", e => {
             try {
                 const message = JSON.parse(e.data) as Message;
                 this.onChange(message);
