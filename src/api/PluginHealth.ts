@@ -416,12 +416,10 @@ export const PluginHealth = {
     recordRuntimeError(plugin: string, source: string, error: unknown) {
         if (!plugin) return;
         const entry = ensureEntry(plugin);
-        const message = error instanceof Error
-            ? `${error.name}: ${error.message}\n${error.stack ?? ""}`
-            : String(error);
+        const { message, stack } = describeRejection(error);
         push(entry.runtimeErrors, {
             source,
-            error: truncate(message),
+            error: truncate([message, stack].filter(Boolean).join("\n")),
             at: Date.now()
         });
         bumpSessionCounter(plugin, "runtimeErrors");
@@ -853,6 +851,48 @@ const IGNORED_GLOBAL_ERROR_PATTERNS = [
     /Sentry successfully disabled/i
 ];
 
+/**
+ * Rejections are not always Errors. Discord's REST layer rejects with plain
+ * `{ code, message }` objects, and `String(value)` on those produces the literal
+ * "[object Object]" — losing the message and the stack, and (because the
+ * ignore-list matches the same string) letting routine AbortError/429/network
+ * noise be reported as plugin crashes. Pull the useful fields out instead.
+ */
+export function describeRejection(reason: unknown): { message: string; stack: string; } {
+    if (reason instanceof Error) {
+        // Keep the name prefix: callers (and issue templates) match on it.
+        const name = reason.name && reason.name !== "Error" ? `${reason.name}: ` : "";
+        return { message: `${name}${reason.message}`, stack: reason.stack ?? "" };
+    }
+
+    if (reason && typeof reason === "object") {
+        const obj = reason as { name?: unknown; message?: unknown; stack?: unknown; code?: unknown; status?: unknown; body?: unknown; };
+
+        const name = typeof obj.name === "string" ? obj.name : "";
+        let message = typeof obj.message === "string" ? obj.message : "";
+
+        if (!message && obj.body != null) {
+            try {
+                message = typeof obj.body === "string" ? obj.body : JSON.stringify(obj.body);
+            } catch { /* circular or unserializable body; fall back to the name */ }
+        }
+
+        const code = typeof obj.code === "number" ? ` (code ${obj.code})` : "";
+        const status = typeof obj.status === "number" ? ` (status ${obj.status})` : "";
+        // A named rejection with no message is still worth keeping: the name is
+        // what the ignore-list patterns (e.g. AbortError) actually test for.
+        const described = [name, message].filter(Boolean).join(": ") + code + status;
+
+        return {
+            message: described || "[object Object]",
+            stack: typeof obj.stack === "string" ? obj.stack : described || "[object Object]"
+        };
+    }
+
+    const text = String(reason ?? "");
+    return { message: text, stack: text };
+}
+
 function isIgnoredGlobalError(message: string, stack: string): boolean {
     const combined = `${message}\n${stack}`;
     return IGNORED_GLOBAL_ERROR_PATTERNS.some(pattern => pattern.test(combined));
@@ -860,8 +900,7 @@ function isIgnoredGlobalError(message: string, stack: string): boolean {
 
 function attributeGlobalError(source: string, error: unknown) {
     try {
-        const message = error instanceof Error ? error.message : String(error ?? "");
-        const stack = error instanceof Error ? (error.stack ?? "") : String(error ?? "");
+        const { message, stack } = describeRejection(error);
 
         if (isIgnoredGlobalError(message, stack)) return;
 

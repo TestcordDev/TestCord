@@ -181,33 +181,77 @@ async function generateDebugInfoMessage() {
     return content.trim();
 }
 
+// Discord's REST layer rejects with a plain object (`{ code, message }`), not an
+// Error. Forwarding that verbatim produces a useless "[object Object]" in crash
+// reports and defeats PluginHealth's ignore-list, so normalize it at the source.
+function toError(value: unknown, context: string): Error {
+    if (value instanceof Error) return value;
+
+    const details: string[] = [];
+    if (value && typeof value === "object") {
+        const obj = value as { message?: unknown; code?: unknown; status?: unknown; body?: unknown; };
+        if (typeof obj.message === "string" && obj.message) details.push(obj.message);
+        if (typeof obj.code === "number") details.push(`code ${obj.code}`);
+        if (typeof obj.status === "number") details.push(`status ${obj.status}`);
+        if (obj.body != null) {
+            try {
+                const body = typeof obj.body === "string" ? obj.body : JSON.stringify(obj.body);
+                if (body) details.push(body);
+            } catch { /* body was not serializable; the fields above still apply */ }
+        }
+    } else if (typeof value === "string" && value) {
+        details.push(value);
+    }
+
+    return new Error(details.length ? `${context}: ${details.join(" ")}` : context);
+}
+
 async function uploadPluginListFile(channelId: string, fileContent: string, filename: string, pluginCount: number) {
+    // CloudUploader needs a real target; without one it either throws inside the
+    // promise executor or silently never settles, leaving the command hanging.
+    if (!channelId) throw new Error("Cannot upload the plugin list: no channel selected.");
+
+    // Everything that can throw synchronously lives outside the promise, so a
+    // failure here becomes a normal rejection the caller can handle.
     const file = new File([fileContent], filename, { type: "text/plain" });
     const upload = new CloudUploader({ file, platform: CloudUploadPlatform.WEB }, channelId);
 
     return new Promise<void>((resolve, reject) => {
-        upload.on("complete", () => {
-            RestAPI.post({
-                url: Constants.Endpoints.MESSAGES(channelId),
-                body: {
-                    flags: 0,
-                    channel_id: channelId,
-                    content: `⚠️ Plugin list attached as file due to high plugin count (${pluginCount} plugins enabled)`,
-                    nonce: SnowflakeUtils.fromTimestamp(Date.now()),
-                    sticker_ids: [],
-                    type: 0,
-                    attachments: [{
-                        id: "0",
-                        filename: upload.filename,
-                        uploaded_filename: upload.uploadedFilename,
-                    }],
-                }
-            }).then(() => resolve()).catch(reject);
-        });
+        // Whichever settles first wins; neither path may settle twice.
+        let settled = false;
+        const finish = (error?: unknown) => {
+            if (settled) return;
+            settled = true;
+            if (error === undefined) resolve();
+            else reject(toError(error, "Failed to send the plugin list attachment"));
+        };
 
-        upload.on("error", () => reject(new Error("Failed to upload file")));
+        try {
+            upload.on("complete", () => {
+                RestAPI.post({
+                    url: Constants.Endpoints.MESSAGES(channelId),
+                    body: {
+                        flags: 0,
+                        channel_id: channelId,
+                        content: `⚠️ Plugin list attached as file due to high plugin count (${pluginCount} plugins enabled)`,
+                        nonce: SnowflakeUtils.fromTimestamp(Date.now()),
+                        sticker_ids: [],
+                        type: 0,
+                        attachments: [{
+                            id: "0",
+                            filename: upload.filename,
+                            uploaded_filename: upload.uploadedFilename,
+                        }],
+                    }
+                }).then(() => finish()).catch(e => finish(e));
+            });
 
-        upload.upload();
+            upload.on("error", () => finish(new Error("Failed to upload file")));
+
+            upload.upload();
+        } catch (e) {
+            finish(e);
+        }
     });
 }
 
@@ -232,6 +276,68 @@ function generatePluginList() {
     }
 
     return content;
+}
+
+/**
+ * Sends the enabled plugin list to `channelId`, as inline messages or as a file
+ * when the count is high. Shared by the /testcord-plugins command and the
+ * matching support-channel button so the two cannot drift apart.
+ */
+async function sendPluginList(channelId: string): Promise<boolean> {
+    const { stock, user } = getEnabledPlugins();
+    const totalCount = stock.length + user.length;
+
+    if (totalCount === 0) return false;
+
+    if (totalCount > 80) {
+        const fileContent = [...stock, ...user].join("\n");
+        await uploadPluginListFile(channelId, fileContent, "enabled-plugins.txt", totalCount);
+        return true;
+    }
+
+    const pluginList = generatePluginList();
+
+    // Split if too long
+    if (pluginList.length <= 2000) {
+        await sendMessage(channelId, { content: pluginList });
+        return true;
+    }
+
+    // Split the plugins list into chunks where each message is under 2000 chars
+    const lines = pluginList.split("\n");
+    const baseHeader = lines[0]; // **Plugins enabled (count):**
+    const codeblock = lines.slice(1).join("\n"); // ```plugins```
+    const pluginsStr = codeblock.slice(3, -3); // remove ```
+    const plugins = pluginsStr.split(", ");
+
+    const parts: string[][] = [];
+    let currentPart: string[] = [];
+    let currentLength = `${baseHeader} [Part 1/X]:**\n\`\`\`\n`.length + "\n```".length; // estimate header length
+
+    for (const plugin of plugins) {
+        const pluginWithComma = plugin + ", ";
+        if (currentLength + pluginWithComma.length > 1950) { // leave buffer for safety
+            parts.push(currentPart);
+            currentPart = [plugin];
+            currentLength = `${baseHeader} [Part ${parts.length + 2}/X]:**\n\`\`\`\n`.length + "\n```".length + plugin.length;
+        } else {
+            currentPart.push(plugin);
+            currentLength += pluginWithComma.length;
+        }
+    }
+    if (currentPart.length > 0) {
+        parts.push(currentPart);
+    }
+
+    const totalParts = parts.length;
+    for (let i = 0; i < totalParts; i++) {
+        const partPlugins = parts[i];
+        const partContent = `${baseHeader} [Part ${i + 1}/${totalParts}]:**\n${makeCodeblock(partPlugins.join(", "))}`;
+        await sendMessage(channelId, { content: partContent });
+        if (i < totalParts - 1) await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    return true;
 }
 
 const checkForUpdatesOnce = onlyOnce(checkForUpdates);
@@ -296,58 +402,17 @@ export default definePlugin({
             name: "testcord-plugins",
             description: "Send Testcord plugin list",
             execute: async () => {
-                const { stock, user } = getEnabledPlugins();
-                const totalCount = stock.length + user.length;
+                const channelId = SelectedChannelStore.getChannelId();
 
-                if (totalCount === 0) {
-                    return { content: "No plugins enabled." };
-                }
-
-                if (totalCount > 80) {
-                    const fileContent = [...stock, ...user].join("\n");
-                    await uploadPluginListFile(SelectedChannelStore.getChannelId(), fileContent, "enabled-plugins.txt", totalCount);
+                try {
+                    const sent = await sendPluginList(channelId);
+                    if (!sent) return { content: "No plugins enabled." };
+                } catch (e) {
+                    // Surface the failure instead of letting it become an
+                    // unhandled rejection with no user-visible cause.
+                    new Logger("SupportHelper").error("Failed to send the plugin list\n", e);
+                    showToast(`Failed to send the plugin list: ${toError(e, "unknown error").message}`, Toasts.Type.FAILURE);
                     return { content: "\u200B" };
-                }
-
-                const pluginList = generatePluginList();
-
-                // Split if too long
-                if (pluginList.length <= 2000) {
-                    await sendMessage(SelectedChannelStore.getChannelId(), { content: pluginList });
-                } else {
-                    // Split the plugins list into chunks where each message is under 2000 chars
-                    const lines = pluginList.split("\n");
-                    const baseHeader = lines[0]; // **Plugins enabled (count):**
-                    const codeblock = lines.slice(1).join("\n"); // ```plugins```
-                    const pluginsStr = codeblock.slice(3, -3); // remove ```
-                    const plugins = pluginsStr.split(", ");
-
-                    const parts: string[][] = [];
-                    let currentPart: string[] = [];
-                    let currentLength = `${baseHeader} [Part 1/X]:**\n\`\`\`\n`.length + "\n```".length; // estimate header length
-
-                    for (const plugin of plugins) {
-                        const pluginWithComma = plugin + ", ";
-                        if (currentLength + pluginWithComma.length > 1950) { // leave buffer for safety
-                            parts.push(currentPart);
-                            currentPart = [plugin];
-                            currentLength = `${baseHeader} [Part ${parts.length + 2}/X]:**\n\`\`\`\n`.length + "\n```".length + plugin.length;
-                        } else {
-                            currentPart.push(plugin);
-                            currentLength += pluginWithComma.length;
-                        }
-                    }
-                    if (currentPart.length > 0) {
-                        parts.push(currentPart);
-                    }
-
-                    const totalParts = parts.length;
-                    for (let i = 0; i < totalParts; i++) {
-                        const partPlugins = parts[i];
-                        const partContent = `${baseHeader} [Part ${i + 1}/${totalParts}]:**\n${makeCodeblock(partPlugins.join(", "))}`;
-                        await sendMessage(SelectedChannelStore.getChannelId(), { content: partContent });
-                        if (i < totalParts - 1) await new Promise(resolve => setTimeout(resolve, 100));
-                    }
                 }
 
                 return { content: "\u200B" }; // Send zero-width space to avoid sending command text
@@ -481,56 +546,11 @@ export default definePlugin({
                                 }
                             }
 
-                            const { stock, user } = getEnabledPlugins();
-                            const totalCount = stock.length + user.length;
-
-                            if (totalCount === 0) return;
-
-                            if (totalCount > 80) {
-                                const fileContent = [...stock, ...user].join("\n");
-                                await uploadPluginListFile(props.channel.id, fileContent, "enabled-plugins.txt", totalCount);
-                                return;
-                            }
-
-                            const pluginList = generatePluginList();
-
-                            // Split if too long
-                            if (pluginList.length <= 2000) {
-                                sendMessage(props.channel.id, { content: pluginList });
-                            } else {
-                                // Split the plugins list into chunks where each message is under 2000 chars
-                                const lines = pluginList.split("\n");
-                                const baseHeader = lines[0]; // **Plugins enabled (count):**
-                                const codeblock = lines.slice(1).join("\n"); // ```plugins```
-                                const pluginsStr = codeblock.slice(3, -3); // remove ```
-                                const plugins = pluginsStr.split(", ");
-
-                                const parts: string[][] = [];
-                                let currentPart: string[] = [];
-                                let currentLength = `${baseHeader} [Part 1/X]:**\n\`\`\`\n`.length + "\n```".length; // estimate header length
-
-                                for (const plugin of plugins) {
-                                    const pluginWithComma = plugin + ", ";
-                                    if (currentLength + pluginWithComma.length > 1950) { // leave buffer for safety
-                                        parts.push(currentPart);
-                                        currentPart = [plugin];
-                                        currentLength = `${baseHeader} [Part ${parts.length + 2}/X]:**\n\`\`\`\n`.length + "\n```".length + plugin.length;
-                                    } else {
-                                        currentPart.push(plugin);
-                                        currentLength += pluginWithComma.length;
-                                    }
-                                }
-                                if (currentPart.length > 0) {
-                                    parts.push(currentPart);
-                                }
-
-                                const totalParts = parts.length;
-                                for (let i = 0; i < totalParts; i++) {
-                                    const partPlugins = parts[i];
-                                    const partContent = `${baseHeader} [Part ${i + 1}/${totalParts}]:**\n${makeCodeblock(partPlugins.join(", "))}`;
-                                    sendMessage(props.channel.id, { content: partContent });
-                                    if (i < totalParts - 1) await new Promise(resolve => setTimeout(resolve, 100));
-                                }
+                            try {
+                                await sendPluginList(props.channel.id);
+                            } catch (e) {
+                                new Logger(this.name).error("Error while sending the plugin list:", e);
+                                showToast(`Failed to send the plugin list: ${toError(e, "unknown error").message}`, Toasts.Type.FAILURE);
                             }
                         }}
                     >

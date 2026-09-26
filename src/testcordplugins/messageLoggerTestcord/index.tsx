@@ -151,7 +151,9 @@ async function processMessageFetch(response: FetchMessagesResponse) {
                         try { await restoreAttachmentBlobs(rec.message.attachments); } catch { }
                     }
                 }
-                response.body.extra = visible.map(record => record.message);
+                // Skip rows whose stored message is not a usable object: those are
+                // what used to reach Discord as a bare id and break the channel.
+                response.body.extra = visible.map(record => record.message).filter(isValidMessage);
             }
             cacheHistoryRecords(channelId, history);
             return;
@@ -189,7 +191,7 @@ async function processMessageFetch(response: FetchMessagesResponse) {
                     try { await restoreAttachmentBlobs(rec.message.attachments); } catch { }
                 }
             }
-            response.body.extra = combined.map(record => record.message);
+            response.body.extra = combined.map(record => record.message).filter(isValidMessage);
         }
         const history = channelAllEdited.get(channelId) ?? await getAllHistoryForChannel(channelId);
         if (!isCurrentSnapshot(channelId, version)) return;
@@ -215,16 +217,51 @@ async function processMessageFetch(response: FetchMessagesResponse) {
     }
 }
 
+// Discord's MessageStore runs `"flags" in message` over every entry of the
+// LOAD_MESSAGES_SUCCESS payload. A non-object in that array (e.g. a bare
+// message id) throws "Cannot use 'in' operator", which kills the whole channel
+// load. MessageLoggerEnhanced guards this at its own merge boundary; mirror it
+// here so a malformed log row can never reach Discord.
+function isValidMessage(m: unknown): m is LoggedMessage {
+    return !!m && typeof m === "object" && typeof (m as LoggedMessage).id === "string";
+}
+
+function dropInvalidMessages(list: unknown[]) {
+    for (let i = list.length - 1; i >= 0; i--) {
+        if (isValidMessage(list[i])) continue;
+        list.splice(i, 1);
+    }
+}
+
+// The patch replaces `messages: x` with `get messages() { return
+// $self.mergeLoadedMessages(x, this) }`, so Discord can read the property more
+// than once per dispatch. The merge mutates the array in place, so remember
+// which arrays were already processed and hand those back untouched.
+const mergedPayloads = new WeakSet<object>();
+
 function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage[]; }, payload: LoadMessagesPayload) {
+    if (mergedPayloads.has(messages)) return messages;
+
+    // Drop junk from the fetched batch itself before anything reads it.
+    dropInvalidMessages(messages);
+
     if (!messages.extra?.length) {
         // Still cache live messages for delete resolution on plain fetches.
         try { rememberLiveMessages(messages); } catch { }
+        mergedPayloads.add(messages);
         return messages;
     }
+
+    // `extra` hangs off the same array object we are about to mutate. Leaving it
+    // in place re-injects the logged rows on every later read of the getter.
+    const extra = messages.extra.filter(isValidMessage);
+    delete messages.extra;
+
     if (messages.length === 0) {
         // Empty channel (e.g. #pending after all accepted) — show all deleted logs for it
-        const sorted = [...messages.extra].sort((a, b) => Date.parse(String(b.timestamp)) - Date.parse(String(a.timestamp)));
+        const sorted = [...extra].sort((a, b) => Date.parse(String(b.timestamp)) - Date.parse(String(a.timestamp)));
         messages.push(...sorted);
+        mergedPayloads.add(messages);
         return messages;
     }
 
@@ -237,7 +274,7 @@ function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage
     const includeNewer = !payload.hasMoreAfter && !payload.isBefore;
     const includeOlder = !payload.hasMoreBefore && !payload.isAfter;
     const knownIds = new Set(messages.map(message => message.id));
-    const extra = messages.extra.filter(message => {
+    const toMerge = extra.filter(message => {
         if (knownIds.has(message.id)) return false;
         const tsMs = toMs(String(message.timestamp));
         if (!includeNewer && tsMs > newestMs) return false;
@@ -245,7 +282,7 @@ function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage
         return true;
     });
 
-    messages.push(...extra);
+    messages.push(...toMerge);
     // Parse each timestamp once: the old comparator re-parsed both sides on
     // every comparison (O(n log n) Date.parse calls per channel fetch).
     const stamped = messages.map(message => ({ message, ms: toMs(String(message.timestamp)) }));
@@ -253,6 +290,7 @@ function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage
     messages.length = 0;
     for (const { message } of stamped) messages.push(message);
     try { rememberLiveMessages(messages); } catch { }
+    mergedPayloads.add(messages);
     return messages;
 }
 

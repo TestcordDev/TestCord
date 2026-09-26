@@ -7,7 +7,49 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PluginHealth } from "../src/api/PluginHealth.ts";
+import { describeRejection, PluginHealth } from "../src/api/PluginHealth.ts";
+
+// Plain-object rejections used to stringify to "[object Object]", which also
+// stopped the global-error ignore-list from matching AbortError/429/network noise.
+test("describeRejection extracts details from plain-object rejections", () => {
+    const described = describeRejection({ code: 40001, message: "Cannot send message to this user" });
+    assert.equal(described.message, "Cannot send message to this user (code 40001)");
+    assert.doesNotMatch(described.message, /\[object Object\]/);
+});
+
+test("describeRejection keeps the name so the ignore-list can match it", () => {
+    const described = describeRejection({ name: "AbortError" });
+    assert.equal(described.message, "AbortError");
+    assert.match(described.message, /AbortError/);
+});
+
+test("describeRejection falls back to the body when no message is present", () => {
+    const described = describeRejection({ status: 429, body: { retry_after: 5 } });
+    assert.match(described.message, /retry_after/);
+    assert.match(described.message, /status 429/);
+});
+
+test("describeRejection passes Errors through with name and stack intact", () => {
+    const err = new TypeError("boom");
+    const described = describeRejection(err);
+    assert.equal(described.message, "TypeError: boom");
+    assert.equal(described.stack, err.stack);
+});
+
+test("recordRuntimeError stores real detail for non-Error rejections", () => {
+    const testPlugin = "TestPlugin_RejectionDetail";
+    PluginHealth.clear(testPlugin);
+
+    PluginHealth.recordRuntimeError(testPlugin, "flux:LOAD_MESSAGES_SUCCESS", { code: 50035, message: "Invalid Form Body" });
+
+    const entry = PluginHealth.get(testPlugin);
+    const errors = entry?.runtimeErrors ?? [];
+    assert.equal(errors.length, 1, "Rejection should be recorded");
+    assert.doesNotMatch(errors[0].error, /^\[object Object\]$/, "Should not be an opaque [object Object]");
+    assert.match(errors[0].error, /Invalid Form Body/);
+
+    PluginHealth.clear(testPlugin);
+});
 
 test("records codeChanged as sourceChanges separately from patchFailures in current session", () => {
     const testPlugin = "TestPlugin_SourceChangeCounter";
