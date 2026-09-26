@@ -32,15 +32,29 @@ test("store internals resolve through a fallback chain of shapes", () => {
 
     const entries = [...shapes[1].matchAll(/\[\s*"([^"]+)"\s*(?:,\s*"([^"]+)"\s*)*\]/g)].length;
     assert.ok(entries >= 2, `expected multiple fallback shapes, found ${entries}`);
-    assert.match(shapes[1], /"getOrCreate",\s*"commit",\s*"has",\s*"get"/, "the original 4-prop shape must be tried first, for older builds");
     assert.match(shapes[1], /"getOrCreate",\s*"commit",\s*"get"/, "the shape that matches current builds must be present");
+
+    // Order matters, and the original order was wrong. Verified live on build 622282: the
+    // four-prop shape still *matches*, but it resolves to a module whose internal is null, so
+    // calling .get(channelId) on it throws "Cannot read properties of null" - 5 times out of
+    // 5. Tried first, it shadowed the working shape below it and broke every delete path.
+    // The three-prop shape resolves to the real store and is usable 3 times out of 3.
+    const firstShape = shapes[1].match(/\[\s*"([^"]+)"\s*(?:,\s*"([^"]+)"\s*)*\]/);
+    assert.ok(firstShape, "could not read the first shape");
+    const firstProps = (firstShape[0].match(/"([^"]+)"/g) ?? []).map(s => s.replace(/"/g, ""));
+    assert.deepEqual(firstProps, ["getOrCreate", "commit", "get"], "the null-internal shape must not be tried first");
 });
 
-test("a failed lazy lookup is detected before it is used", () => {
-    // A mismatched findByPropsLazy does not return undefined; it returns a proxy that
-    // throws on first access. Without touching it, the code would cache a broken handle.
-    assert.match(source, /const candidate = findByPropsLazy\(\.\.\.shape\);/);
-    assert.match(source, /void candidate\.get;/);
+test("a failed lookup is detected before it is used", () => {
+    // The guard here used to be `void candidate.get` after a findByPropsLazy. That could never
+    // work: findByPropsLazy hands back a proxy whether or not anything matched, and reading a
+    // property off a proxy does not throw - it just yields another proxy. So the check always
+    // passed, the loop never advanced past a dead shape, and the cached handle then threw on
+    // every single call. A non-lazy findByProps throws for real, which is the only genuine
+    // proof available here.
+    assert.match(source, /findByProps\(\.\.\.shape\)/);
+    assert.doesNotMatch(source, /const candidate = findByPropsLazy/);
+    assert.doesNotMatch(source, /void candidate\.get;/);
 });
 
 test("resolution failure is reported instead of being swallowed", () => {

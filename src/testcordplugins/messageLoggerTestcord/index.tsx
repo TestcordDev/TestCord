@@ -14,7 +14,7 @@ import { LogsIcon, RestartIcon } from "@components/Icons";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin from "@utils/types";
-import { findByPropsLazy } from "@webpack";
+import { findByProps } from "@webpack";
 import { Alerts, MessageActions, MessageStore, SelectedChannelStore, showToast, Toasts, UserStore } from "@webpack/common";
 
 import { removeLoggerContextMenus, setupLoggerContextMenus } from "./contextMenu";
@@ -68,7 +68,6 @@ const HEADER_SETTINGS = ["showLogsButton"] as const;
  * the proxy, then we fall back to a narrower shape.
  */
 const MESSAGE_STORE_INTERNAL_SHAPES: string[][] = [
-    ["getOrCreate", "commit", "has", "get"],
     ["getOrCreate", "commit", "get"],
     ["getOrCreate", "commit"],
     ["getOrCreate"]
@@ -82,11 +81,13 @@ function getMessageStoreInternal() {
 
     for (const shape of MESSAGE_STORE_INTERNAL_SHAPES) {
         try {
-            const candidate = findByPropsLazy(...shape);
-            // A lazy lookup that found nothing still hands back a proxy; reading a
-            // property off it is what throws. Touch it to prove the shape matched.
-            void candidate.get;
-            messageStoreInternal = candidate;
+            // The non-lazy finder on purpose. findByProps throws when nothing matches, and
+            // that is the only real proof a shape exists. findByPropsLazy hands back a proxy
+            // either way, and reading a property off a proxy never throws - it just yields
+            // another proxy - so touching it to "prove" a match accepts a shape that does
+            // not exist, the loop never advances, and the accepted proxy then throws on
+            // every call.
+            messageStoreInternal = findByProps(...shape);
             return messageStoreInternal;
         } catch { /* this shape is not present in the current build */ }
     }
@@ -95,7 +96,12 @@ function getMessageStoreInternal() {
         reportedMissingStoreInternals = true;
         log.error("Could not resolve the MessageStore internals; deleted-message injection is disabled.");
     }
-    return undefined;
+    // An empty object rather than undefined, and cached so the scan runs once instead of on
+    // every delete. Every caller does `Internal.get?.(...)`, and optional call syntax guards
+    // the property, not the object it is read from - so returning undefined would throw at
+    // all of them. A stub drops each one onto its existing "no cache" path.
+    messageStoreInternal = {};
+    return messageStoreInternal;
 }
 
 // From render.ts
