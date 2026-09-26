@@ -169,6 +169,7 @@ export default definePlugin({
     tags: ["Voice", "Utility"],
     authors: [{ name: "Testcord", id: 0n }],
     dependencies: ["UserAreaAPI"],
+    aliases: ["CustomScreenSharePreview"],
 
     userAreaButton: {
         icon: PreviewIcon,
