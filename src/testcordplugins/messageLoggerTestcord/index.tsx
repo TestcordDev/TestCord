@@ -682,6 +682,35 @@ function runChannelSelectWork(channelId: string) {
 }
 
 /**
+ * A deleted attachment's CDN url is dead, so Discord's own image component paints a broken
+ * thumbnail. The bytes are on disk, and getAttachmentBlobUrl repoints url/proxy_url at the
+ * local copy in place - but these handlers have to write the store synchronously to suppress
+ * Discord's removal, so the record is already painted by the time that read lands. Mutating
+ * the attachment object is therefore not enough on its own: write the record a second time
+ * once it resolves, which re-renders it against the local url.
+ *
+ * Purely additive - if the read fails, or the attachment was never saved, nothing is written
+ * and the message stays exactly as it was. Cached per attachment, so a repeat delete is free.
+ */
+function repointDeletedAttachments(channelId: string, messageId: string, atts: LoggedMessage["attachments"]) {
+    if (!Array.isArray(atts) || atts.length === 0) return;
+    const before = atts.map(a => a?.url);
+    void restoreAttachmentBlobs(atts)
+        .then(() => {
+            if (atts.every((a, i) => a?.url === before[i])) return;
+            try {
+                const Internal: any = getMessageStoreInternal();
+                const cache = Internal.get?.(channelId);
+                if (!cache?.has?.(messageId)) return;
+                // Same attachment objects, new array: new record identity so React repaints.
+                const next = cache.update(messageId, (m: any) => m.set?.("attachments", [...m.attachments]));
+                if (next && next !== cache) Internal.commit?.(next);
+            } catch { }
+        })
+        .catch(() => { });
+}
+
+/**
  * Fallback live-keep: if the MessageStore patch missed a delete (stale match,
  * cache lookup failure), put the marked-deleted copy back instantly so the
  * message stays visible instead of only reappearing after a restart.
@@ -697,6 +726,7 @@ function reInjectDeletedLive(channelId: string, snapshot: LoggedMessage) {
             deletedTimestamp: (snapshot as any).deletedTimestamp ?? new Date().toISOString(),
             attachments: snapshot.attachments?.map(a => ({ ...a, deleted: true })) ?? []
         };
+        repointDeletedAttachments(channelId, snapshot.id, marked.attachments);
         try { renderApi?.invalidateMessageClassCache(snapshot.id); } catch { }
         try { mergedMessageCache.delete(snapshot.id); mergedEditTimestamps.delete(snapshot.id); } catch { }
         const msgClass = (renderApi as any)?.messageJsonToMessageClass?.({ message: marked });
@@ -1074,6 +1104,7 @@ export default definePlugin({
                             const atts = m.attachments;
                             if (Array.isArray(atts) || atts?.map) {
                                 next = next.set("attachments", atts.map((a: any) => ((a.deleted = true), a)));
+                                repointDeletedAttachments(data.channelId, id, next.attachments);
                             }
                         } catch { }
                         return next;
@@ -1128,7 +1159,10 @@ export default definePlugin({
                         let next = m.set("deleted", true);
                         try {
                             const atts = m.attachments;
-                            if (atts && typeof atts.map === "function") next = next.set("attachments", atts.map((a: any) => ((a.deleted = true), a)));
+                            if (atts && typeof atts.map === "function") {
+                                next = next.set("attachments", atts.map((a: any) => ((a.deleted = true), a)));
+                                repointDeletedAttachments(channelId, id, next.attachments);
+                            }
                         } catch { }
                         return next;
                     });
