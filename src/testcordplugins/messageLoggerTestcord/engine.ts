@@ -9,7 +9,7 @@ import { Logger } from "@utils/Logger";
 import type { Message, MessageJSON } from "@vencord/discord-types";
 import { ChannelStore, FluxDispatcher, lodash, MessageStore, SelectedChannelStore, UserGuildSettingsStore, UserStore } from "@webpack/common";
 
-import { applyBatch, clearLogs, clearUnprotectedLogs, getDatabase, getLogById, runMaintenance } from "./db";
+import { applyBatch, clearLogs, clearUnprotectedLogs, getChannelLogsAfter, getDatabase, getLogById, runMaintenance } from "./db";
 import { invalidateMessageClassCache } from "./render";
 import { ensureAttachmentSaved } from "./saveImage";
 import { settings } from "./settings";
@@ -921,6 +921,61 @@ async function saveDeletedMessage(payload: MessageDeletePayload) {
         queueRecord(message, LogStatus.DELETED);
         invalidateLoggedCaches(message.id);
     }
+}
+
+/**
+ * Mark logged messages that are gone from a freshly fetched window as deleted.
+ *
+ * `MESSAGE_DELETE` is the only thing that ever marks a log record deleted, and Discord
+ * only dispatches it for channels this client is subscribed to. A deletion in a channel the
+ * user is not looking at - a different server, say - therefore never reaches the flux
+ * handler, and the DB keeps the message as if it were still live, permanently. The log
+ * viewer then loads it straight from the DB and shows it undeleted, which is exactly the
+ * "it was loaded instantly so it had to be loaded" symptom.
+ *
+ * Opening the channel is the first moment we have an authoritative answer, so reconcile
+ * then. Only records whose timestamp falls inside the fetched window are considered: a
+ * message missing from one page of a paginated fetch is not evidence of anything.
+ */
+export async function reconcileDeletedInWindow(
+    channelId: string,
+    presentIds: ReadonlySet<string>,
+    oldestMs: number,
+    newestMs: number
+): Promise<string[]> {
+    if (!active || !settings.store.saveDeletes) return [];
+
+    let records: LogRecord[];
+    try {
+        records = await getChannelLogsAfter(channelId, new Date(0).toISOString());
+    } catch {
+        return [];
+    }
+
+    const marked: string[] = [];
+    for (const record of records) {
+        if (record.status === LogStatus.DELETED) continue;
+        if (presentIds.has(record.message_id)) continue;
+        if (isTempHiddenMessage(record.message_id)) continue;
+
+        const message = record.message as LoggedMessage & { deleted?: boolean; deletedTimestamp?: string };
+        if (!message || typeof message.id !== "string") continue;
+
+        const ts = Date.parse(String(message.timestamp ?? ""));
+        // Outside the fetched window, so absence proves nothing. Also skips unparseable
+        // timestamps, which would otherwise be treated as epoch and marked deleted.
+        if (!Number.isFinite(ts) || ts < oldestMs || ts > newestMs) continue;
+
+        message.deleted = true;
+        message.deletedTimestamp = new Date().toISOString();
+        try { message.attachments = (message.attachments ?? []).map(a => ({ ...a, deleted: true })); } catch { }
+
+        remember(message);
+        queueRecord(message, LogStatus.DELETED);
+        invalidateLoggedCaches(message.id);
+        marked.push(record.message_id);
+    }
+    return marked;
 }
 
 export function handleMessageDelete(payload: MessageDeletePayload) {

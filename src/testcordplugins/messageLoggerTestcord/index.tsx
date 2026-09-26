@@ -38,6 +38,7 @@ import {
     mergedEditTimestamps as mergedEditTimestampsRef,
     mergedMessageCache as mergedMessageCacheRef,
     preserveRemovedMedia,
+    reconcileDeletedInWindow,
     rememberLiveMessages,
     runMaintenanceNow,
     shouldIgnore,
@@ -197,6 +198,27 @@ async function processMessageFetch(response: FetchMessagesResponse) {
         if (!isCurrentSnapshot(channelId, version)) return;
         channelAllEdited.set(channelId, history);
         cacheHistoryRecords(channelId, history);
+
+        // A MESSAGE_DELETE only reaches us for channels this client is subscribed to, so a
+        // deletion elsewhere (another server) is never recorded. Now that we hold an
+        // authoritative window of this channel's history, use it to catch up.
+        try {
+            const presentIds = new Set<string>();
+            for (const message of response.body) {
+                if (message && typeof message.id === "string") presentIds.add(message.id);
+            }
+            const marked = await reconcileDeletedInWindow(
+                channelId,
+                presentIds,
+                Date.parse(String(oldestMessage.timestamp)),
+                Date.parse(newestTs)
+            );
+            if (marked.length) {
+                log.info(`Reconciled ${marked.length} deleted message(s) missing from ${channelId}`);
+            }
+        } catch (error) {
+            log.error("Failed to reconcile deleted messages", error);
+        }
         const historyMap = new Map<string, LogRecord>();
         for (const record of history) {
             if (!isEditHistoryTempCleared(record.message_id)) historyMap.set(record.message_id, record);
