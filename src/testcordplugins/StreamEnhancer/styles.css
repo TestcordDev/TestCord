@@ -325,6 +325,25 @@
     max-height: none !important;
 }
 
+/* "contain" only needs to reset object-fit, so switching back from cover/stretch
+   restores Discord's default framing instead of leaving the override in place. */
+.vc-stream-enhancer-wrapper-contain video,
+.vc-stream-enhancer-video-contain video {
+    object-fit: contain !important;
+}
+
+video[data-vc-stream-fit="contain"] {
+    object-fit: contain !important;
+}
+
+video[data-vc-stream-fit="cover"] {
+    object-fit: cover !important;
+}
+
+video[data-vc-stream-fit="stretch"] {
+    object-fit: fill !important;
+}
+
 .vc-stream-enhancer-wrapper-cover video,
 .vc-stream-enhancer-video-cover video {
     object-fit: cover !important;
@@ -343,9 +362,11 @@
     max-height: none !important;
 }
 
+html:has(:fullscreen) .vc-stream-enhancer-wrapper-contain,
 html:has(:fullscreen) .vc-stream-enhancer-wrapper-cover,
 html:has(:fullscreen) .vc-stream-enhancer-wrapper-stretch,
 html:has(:fullscreen) .vc-stream-enhancer-wrapper-scaled,
+html:has(:fullscreen) .vc-stream-enhancer-video-contain,
 html:has(:fullscreen) .vc-stream-enhancer-video-cover,
 html:has(:fullscreen) .vc-stream-enhancer-video-stretch {
     max-width: 100% !important;
@@ -354,7 +375,7 @@ html:has(:fullscreen) .vc-stream-enhancer-video-stretch {
     transform: none !important;
 }
 
-html:has(:fullscreen) :is(.vc-stream-enhancer-wrapper-cover, .vc-stream-enhancer-wrapper-stretch, .vc-stream-enhancer-wrapper-scaled, .vc-stream-enhancer-video-cover, .vc-stream-enhancer-video-stretch) :is(video, .media-engine-video) {
+html:has(:fullscreen) :is(.vc-stream-enhancer-wrapper-contain, .vc-stream-enhancer-wrapper-cover, .vc-stream-enhancer-wrapper-stretch, .vc-stream-enhancer-wrapper-scaled, .vc-stream-enhancer-video-contain, .vc-stream-enhancer-video-cover, .vc-stream-enhancer-video-stretch) :is(video, .media-engine-video) {
     max-width: 100% !important;
     max-height: 100% !important;
     transform: none !important;

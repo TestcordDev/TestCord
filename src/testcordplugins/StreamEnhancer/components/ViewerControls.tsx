@@ -301,21 +301,42 @@ export function ViewerControls({ participant, className }: { participant: Stream
     const canPopout = streamState.isStreamParticipant(participant);
     const mediaLabel = streamState.getParticipantMediaLabel(participant);
     const fitMode = useStateFromStores([streamState.renderedStreamScaleStore], () => streamState.getRenderedStreamFitMode(participant.id), [participant.id]);
-    const resizeDisabled = fitMode === "contain";
-    const resizeTooltip = resizeDisabled ? "Contain Enabled controls disabled" : null;
+    const scalePercent = useStateFromStores([streamState.renderedStreamScaleStore], () => streamState.getRenderedStreamScalePercent(participant.id), [participant.id]);
+    const fitButtonRef = useRef<HTMLDivElement>(null);
+    // The +/- buttons used to be hard-disabled in "contain" mode, which is the default,
+    // so they appeared completely dead. They now work in every fit mode.
+    // Each direction gets its own limit check: a single shared flag meant that reaching
+    // either bound (e.g. 200%) disabled *both* buttons and left the user stuck.
+    const minScalePercent = streamState.minRenderedStreamScalePercent;
+    const maxScalePercent = streamState.maxRenderedStreamScalePercent;
+    const decreaseDisabled = scalePercent <= minScalePercent;
+    const increaseDisabled = scalePercent >= maxScalePercent;
+    const decreaseTooltip = decreaseDisabled ? `Minimum size reached (${minScalePercent}%)` : null;
+    const increaseTooltip = increaseDisabled ? `Maximum size reached (${maxScalePercent}%)` : null;
 
     useEffect(() => () => {
         if (streamState.shouldHideChannelList()) streamState.setHideChannelList(false);
     }, [participant.id]);
 
+    // Anchor the direct-DOM fit/scale handling to this button and re-apply the current
+    // values whenever they change, so contain/cover/stretch and +/- always take effect.
+    useEffect(() => {
+        streamState.setStreamFitAnchor(participant.id, fitButtonRef.current);
+        streamState.applyStreamFitToDom(participant.id);
+        streamState.applyStreamScaleToDom(participant.id);
+
+        return () => streamState.setStreamFitAnchor(participant.id, null);
+    }, [participant.id, fitMode, scalePercent]);
+
     return (
         <div className={cl("viewer-actions")}>
-            {renderViewerActionButton("-", resizeTooltip ?? `Make ${mediaLabel} smaller`, () => streamState.resizeRenderedStream(participant, -streamState.renderedStreamScaleStep), resizeDisabled)}
-            {renderViewerActionButton("+", resizeTooltip ?? `Make ${mediaLabel} larger`, () => streamState.resizeRenderedStream(participant, streamState.renderedStreamScaleStep), resizeDisabled)}
+            {renderViewerActionButton("-", decreaseTooltip ?? `Make ${mediaLabel} smaller`, () => streamState.resizeRenderedStream(participant, -streamState.renderedStreamScaleStep), decreaseDisabled)}
+            {renderViewerActionButton("+", increaseTooltip ?? `Make ${mediaLabel} larger`, () => streamState.resizeRenderedStream(participant, streamState.renderedStreamScaleStep), increaseDisabled)}
             <Tooltip text={`${mediaLabel === "stream" ? "Stream" : "Camera"} fit`}>
                 {tooltipProps => (
                     <div
                         {...tooltipProps}
+                        ref={fitButtonRef}
                         aria-label={`${mediaLabel === "stream" ? "Stream" : "Camera"} fit`}
                         className={classes(cl("viewer-action-button"), cl("viewer-action-button-icon"), className)}
                         role="button"

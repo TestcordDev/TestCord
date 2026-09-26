@@ -65,6 +65,7 @@ const streamEnhancer = definePlugin({
     getRenderedMediaWrapperClassName: streamState.getRenderedMediaWrapperClassName,
     getRenderedMediaWrapperStyle: streamState.getRenderedMediaWrapperStyle,
     getRenderedStreamVideoClassName: streamState.getRenderedStreamVideoClassName,
+    mergeRenderedStreamVideoClassName: streamState.mergeRenderedStreamVideoClassName,
     getRenderedFrameStyle: streamState.getRenderedFrameStyle,
     getRenderedStreamVideoStyle: streamState.getRenderedStreamVideoStyle,
     getVideoFrameStyle: streamState.getVideoFrameStyle,
@@ -84,6 +85,12 @@ const streamEnhancer = definePlugin({
     getVideoGridTileStyle: streamState.getVideoGridTileStyle,
     setRenderedStreamBrightness: streamState.setRenderedStreamBrightness,
     setRenderedStreamScale: streamState.setRenderedStreamScale,
+    getRenderedStreamScalePercent: streamState.getRenderedStreamScalePercent,
+    minRenderedStreamScalePercent: streamState.minRenderedStreamScalePercent,
+    maxRenderedStreamScalePercent: streamState.maxRenderedStreamScalePercent,
+    applyStreamFitToDom: streamState.applyStreamFitToDom,
+    applyStreamScaleToDom: streamState.applyStreamScaleToDom,
+    setStreamFitAnchor: streamState.setStreamFitAnchor,
     setHideChannelList: streamState.setHideChannelList,
     shouldHideChannelList: streamState.shouldHideChannelList,
     useRenderedStreamVideoState: streamState.useRenderedStreamVideoState,
@@ -97,3 +104,6 @@ const streamEnhancer = definePlugin({
 });
 
 export default streamEnhancer;
+
+// Exposed for debugging from the Discord console: __vcStreamEnhancerFitDebug()
+(globalThis as Record<string, unknown>).__vcStreamEnhancerFitDebug = streamState.debugStreamFitChain;

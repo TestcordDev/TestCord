@@ -432,8 +432,11 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
     {
         find: "handleFullScreenChange",
         replacement: {
-            match: /,(\i\?\(0,\i\.jsx\)\(\i\.A,\{.{0,180}?onClick:\(\)=>\{.{0,120}?this\.handleFullScreen\(\)\}\}\):null)/,
-            replace: ",null!=this.props.selectedParticipant&&$self.isMediaParticipant(this.props.selectedParticipant)?$self.renderViewerControls(this.props.selectedParticipant):null,$1"
+            // Discord now emits a tracking call inside the fullscreen button's onClick
+            // (`(0,ek.X)(...,FULL_SCREEN,...)` before `this.handleFullScreen()`), and the
+            // button is preceded by the popout button's `}}):null` rather than a bare comma.
+            match: /(\}\}\):null),((\i)\?\(0,\i\.jsx\)\((\i\.A),\{themeable:\i,node:this\.getRootNode\(\),guestWindow:\i,className:\i\.\i,onClick:\(\)=>\{.{0,200}?this\.handleFullScreen\(\)\}\}\):null)/,
+            replace: "$1,null!=this.props.selectedParticipant&&$self.isMediaParticipant(this.props.selectedParticipant)?$self.renderViewerControls(this.props.selectedParticipant):null"
         }
     },
     {
