@@ -49,6 +49,7 @@ import {
     S,
     saveRenderer,
     SelfPresenceStore,
+    setUserAccountAreaEnabled,
     SoundboardIconFallback,
     stopModuleManager,
     subscribeModules,
@@ -133,6 +134,7 @@ export const settings = definePluginSettings({
     hideVoiceStatus: { type: OptionType.BOOLEAN, default: false, description: "Hide the 'Voice Connected' status text and channel name", onChange: () => apply() },
     hidePingIcon: { type: OptionType.BOOLEAN, default: false, description: "Hide the ping/connection quality icon", onChange: () => apply() },
     hideUserPanelButton: { type: OptionType.BOOLEAN, default: false, description: "Hide the user panel button from the user area", onChange: () => apply() },
+    hideUserAccountArea: { type: OptionType.BOOLEAN, default: false, description: "Hide the user account & buttons area", onChange: () => { apply(); void setUserAccountAreaEnabled(settings.store, settings.store.hideUserAccountArea); } },
     hideLine: { type: OptionType.BOOLEAN, default: true, description: "Hide the line between user and buttons", onChange: () => apply() },
     fixProfileNameplate: { type: OptionType.BOOLEAN, default: false, description: "Fixes the rounding of the profile nameplate", onChange: () => apply() },
 });
@@ -3227,31 +3229,21 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
     ];
 
     function resetDefaults() {
-        set("userPanelLayout", "default");
-        set("callControlsLayout", "default");
-        set("iconSize", 20);
-        set("buttonContainerSize", 36);
-        set("buttonGap", 6);
-        set("panelOpacity", 100);
-        set("buttonStyle", "default");
-        set("hoverEffect", "default");
-        set("panelBackgroundColor", "var(--background-base-lower)");
-        set("panelBackgroundOpacity", 0);
-        set("glowColor", "#ffffff");
-        set("forceNativeButtonColor", false);
-        set("hideChevrons", false);
-        set("lockButtonPosition", false);
-        set("callCompact", false);
-        set("hideDisconnect", false);
-        set("hideVoiceStatus", false);
-        set("hidePingIcon", false);
-        set("hideUserPanelButton", false);
-        set("hideLine", true);
-        set("fixProfileNameplate", false);
-        set("callButtonStylingActivity", false);
-        set("callButtonStylingCamera", false);
-        set("callButtonStylingScreenShare", false);
-        set("callButtonStylingSoundboard", false);
+        for (const [name, item] of Object.entries(settings.def)) {
+            let defaultValue;
+
+            if (Array.isArray((item as any).options)) {
+                const defaultOption = (item as any).options.find((o: any) => o.default);
+                if (!defaultOption) continue;
+                defaultValue = defaultOption.value;
+            } else if ("default" in item) {
+                defaultValue = (item as any).default;
+            } else {
+                continue;
+            }
+
+            set(name as keyof typeof settings.store, defaultValue);
+        }
 
         for (const item of getBtnItems()) {
             const { id } = item;

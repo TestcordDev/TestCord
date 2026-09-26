@@ -17,6 +17,7 @@ import { Switch } from "@components/Switch";
 import { iconsModule } from "@equicordplugins/_core/concatenatedModules";
 import { filters, find } from "@webpack";
 import {
+    Alerts,
     ChannelStore,
     openModalLazy,
     React,
@@ -109,6 +110,31 @@ import {
     useModules,
 } from "../registry";
 import type { UserAreaReorderItem } from "../types";
+
+export function setUserAccountAreaEnabled(pluginSettings, enabled) {
+    let isConfirm = false;
+
+    if (enabled === true) {
+        Alerts.show({
+            title: "Are you sure?",
+            body: "This will hide the user account area and can only be undone from the plugin settings.",
+            confirmText: "Continue",
+            confirmVariant: "critical-primary",
+            cancelText: "Cancel",
+            onConfirm: async () => {
+                void setUserAreaItemEnabled("account-panel", false);
+                isConfirm = true;
+            },
+            onCloseCallback: async () => {
+                if (isConfirm === false) {
+                    pluginSettings.hideUserAccountArea = false;
+                }
+            },
+        });
+    } else if (enabled === false) {
+        void setUserAreaItemEnabled("account-panel", true);
+    }
+}
 
 export function UserAreaReorderTab({
     pluginSettings,
@@ -227,7 +253,12 @@ export function UserAreaReorderTab({
             return it;
         });
         setItems(updated);
-        void setUserAreaItemEnabled(id, enabled);
+        if (id === "account-panel") {
+            pluginSettings.hideUserAccountArea = !enabled;
+        } else {
+            void setUserAreaItemEnabled(id, enabled);
+        }
+
         if (id === "activity-banner") {
             void setUserAreaItemEnabled("native-activity-banner", enabled);
         }
