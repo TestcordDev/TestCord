@@ -51,13 +51,17 @@ function isUncloneable(value: unknown) {
 
 /**
  * IndexedDB stores values with the structured clone algorithm, which rejects functions
- * and symbols. Discord attaches helper functions as own properties on messages, and
- * lodash.cloneDeep copies nested functions by reference rather than dropping them, so
- * they survive the copy in cloneMessage and reach `put`. One of them fails the whole
- * transaction with DataCloneError, silently losing every record batched with it.
+ * and symbols. Discord attaches a helper as an own property on messages, an ordinal
+ * suffix formatter, and lodash.cloneDeep copies nested functions by reference instead of
+ * dropping them, so it survives into `put`. One of them fails the whole transaction with
+ * DataCloneError, silently losing every record batched alongside it.
  *
- * Walks the value and reports whether anything needs dropping. Cheap on the common
- * path, where a message carries no functions and the record is stored as-is.
+ * cloneMessage preserves prototypes, so the message is usually a class instance rather
+ * than a bare object. That matters: only own *enumerable* properties are cloned, so the
+ * helper has to be walked, and an earlier version of this that handed any object with a
+ * real prototype straight to `put` left the function in place and the error kept firing.
+ * Everything is therefore rebuilt, except the handful of types the structured clone
+ * handles natively and that carry no functions.
  */
 function hasUncloneable(value: unknown, seen: WeakSet<object>): boolean {
     if (isUncloneable(value)) return true;
@@ -66,7 +70,17 @@ function hasUncloneable(value: unknown, seen: WeakSet<object>): boolean {
     seen.add(value);
 
     if (Array.isArray(value)) return value.some(item => hasUncloneable(item, seen));
+    if (value instanceof Map) return [...value.values()].some(item => hasUncloneable(item, seen));
+    if (value instanceof Set) return [...value].some(item => hasUncloneable(item, seen));
     return Object.values(value).some(item => hasUncloneable(item, seen));
+}
+
+function isNativelyCloneable(value: object) {
+    if (value instanceof Date || value instanceof RegExp || value instanceof ArrayBuffer) return true;
+    if (ArrayBuffer.isView(value)) return true;
+    if (typeof Blob !== "undefined" && value instanceof Blob) return true;
+    if (typeof File !== "undefined" && value instanceof File) return true;
+    return false;
 }
 
 function pruneUncloneable(value: any, seen: WeakMap<object, any>): any {
@@ -74,11 +88,24 @@ function pruneUncloneable(value: any, seen: WeakMap<object, any>): any {
 
     const existing = seen.get(value);
     if (existing !== undefined) return existing;
+    if (isNativelyCloneable(value)) return value;
 
-    // Anything with a real prototype (Date, Blob, File, ...) is left alone: the
-    // structured clone algorithm knows how to copy those.
-    const proto = Object.getPrototypeOf(value);
-    if (!Array.isArray(value) && proto !== Object.prototype && proto !== null) return value;
+    if (value instanceof Map) {
+        const out = new Map();
+        seen.set(value, out);
+        for (const [k, v] of value) out.set(pruneUncloneable(k, seen), pruneUncloneable(v, seen));
+        return out;
+    }
+
+    if (value instanceof Set) {
+        const out = new Set();
+        seen.set(value, out);
+        for (const v of value) {
+            if (isUncloneable(v)) continue;
+            out.add(pruneUncloneable(v, seen));
+        }
+        return out;
+    }
 
     if (Array.isArray(value)) {
         const out: any[] = [];
@@ -90,6 +117,8 @@ function pruneUncloneable(value: any, seen: WeakMap<object, any>): any {
         return out;
     }
 
+    // Own enumerable keys only, which is exactly the set structured clone copies. The
+    // prototype is deliberately dropped: keeping it is what left the helper in place.
     const out: Record<string, unknown> = {};
     seen.set(value, out);
     for (const [key, item] of Object.entries(value)) {

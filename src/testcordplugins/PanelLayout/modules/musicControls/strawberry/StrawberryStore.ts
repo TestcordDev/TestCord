@@ -182,9 +182,28 @@ export const StrawberryStore = proxyLazyWebpack(() => {
 
         private pollInterval: ReturnType<typeof setInterval> | null = null;
         public socket: StrawberrySocket | null = null;
+        private connectStarted = false;
 
         constructor(dispatcher: any) {
             super(dispatcher);
+            this.connect();
+        }
+
+        /**
+         * Nothing here should reach for the network unless Strawberry is actually on
+         * screen. Both surface settings default to false, but the connection mode defaults
+         * to "auto", so this used to open a socket and start a 1.5s poller for a player
+         * that was never going to render, against a server that is usually not running.
+         *
+         * Idempotent, and callable after construction, because this store is a lazy
+         * singleton: turning the surface on after something already read it still has to
+         * bring the connection up.
+         */
+        public connect() {
+            if (this.connectStarted) return;
+            const wanted = settings.store.showStrawberryControls || settings.store.showStrawberryLyrics;
+            if (!wanted) return;
+            this.connectStarted = true;
 
             // Initialize WebSocket bridge if enabled or in auto mode
             const mode = settings.store.strawberryConnectionMode || "auto";

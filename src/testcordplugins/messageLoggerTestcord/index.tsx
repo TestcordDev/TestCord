@@ -261,6 +261,26 @@ function dropInvalidMessages(list: unknown[]) {
     }
 }
 
+/**
+ * Discord's LOAD_MESSAGES_SUCCESS handler flatMaps the payload and runs the same
+ * `"flags" in message` check over the mentions it walks out, so a bare user id sitting
+ * in `mentions` throws "Cannot use 'in' operator" and takes the whole channel load with
+ * it. Bare ids do show up: the ghost-ping check at the MESSAGE_CREATE handler has to
+ * tolerate them with `m?.id ?? m`. MessageLoggerEnhanced already filters them at its own
+ * merge boundary, so mirror that here rather than let the two disagree.
+ */
+function dropNonObjectMentions(list: unknown[]) {
+    for (const entry of list) {
+        const mentions = (entry as LoggedMessage | null)?.mentions;
+        if (!Array.isArray(mentions)) continue;
+        for (let i = mentions.length - 1; i >= 0; i--) {
+            const mention = mentions[i];
+            if (mention && typeof mention === "object") continue;
+            mentions.splice(i, 1);
+        }
+    }
+}
+
 // The patch replaces `messages: x` with `get messages() { return
 // $self.mergeLoadedMessages(x, this) }`, so Discord can read the property more
 // than once per dispatch. The merge mutates the array in place, so remember
@@ -272,6 +292,7 @@ function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage
 
     // Drop junk from the fetched batch itself before anything reads it.
     dropInvalidMessages(messages);
+    dropNonObjectMentions(messages);
 
     if (!messages.extra?.length) {
         // Still cache live messages for delete resolution on plain fetches.
@@ -283,6 +304,7 @@ function mergeLoadedMessages(messages: LoggedMessage[] & { extra?: LoggedMessage
     // `extra` hangs off the same array object we are about to mutate. Leaving it
     // in place re-injects the logged rows on every later read of the getter.
     const extra = messages.extra.filter(isValidMessage);
+    dropNonObjectMentions(extra);
     delete messages.extra;
 
     if (messages.length === 0) {

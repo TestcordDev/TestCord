@@ -356,6 +356,11 @@ function Info({ track }: { track: StrawberryTrack; }) {
 export function StrawberryPlayer() {
     usePlayerStyle(strawberryStyles);
 
+    // The store is a lazy singleton that skips connecting while the surface is off. This
+    // component only mounts once the surface is on, so this is where a store that was
+    // read earlier, while the setting was off, gets its connection back.
+    useEffect(() => { StrawberryStore.connect(); }, []);
+
     const track = useStateFromStores(
         [StrawberryStore],
         () => StrawberryStore.track
