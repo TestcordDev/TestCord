@@ -343,6 +343,23 @@
     max-height: none !important;
 }
 
+html:has(:fullscreen) .vc-stream-enhancer-wrapper-cover,
+html:has(:fullscreen) .vc-stream-enhancer-wrapper-stretch,
+html:has(:fullscreen) .vc-stream-enhancer-wrapper-scaled,
+html:has(:fullscreen) .vc-stream-enhancer-video-cover,
+html:has(:fullscreen) .vc-stream-enhancer-video-stretch {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    overflow: visible !important;
+    transform: none !important;
+}
+
+html:has(:fullscreen) :is(.vc-stream-enhancer-wrapper-cover, .vc-stream-enhancer-wrapper-stretch, .vc-stream-enhancer-wrapper-scaled, .vc-stream-enhancer-video-cover, .vc-stream-enhancer-video-stretch) :is(video, .media-engine-video) {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    transform: none !important;
+}
+
 .vc-stream-enhancer-menu-color-picker {
     margin-left: -18px;
 }
