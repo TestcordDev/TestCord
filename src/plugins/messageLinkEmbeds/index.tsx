@@ -48,6 +48,13 @@ const messageCache = new Map<string, {
     retryAfter?: number;
 }>();
 
+/**
+ * Keys whose current cooldown has already been reported, so a failing link logs once per
+ * window rather than once per attempt. Cleared alongside `messageCache` so it cannot grow
+ * past the number of cached messages.
+ */
+const cooldownLogged = new Set<string>();
+
 const getCacheKey = (channelId: string, messageId: string) => `${channelId}:${messageId}`;
 const logger = new Logger("MessageLinkEmbeds");
 
@@ -125,7 +132,7 @@ const settings = definePluginSettings({
     clearMessageCache: {
         type: OptionType.COMPONENT,
         component: () => (
-            <Button onClick={() => messageCache.clear()}>
+            <Button onClick={() => { messageCache.clear(); cooldownLogged.clear(); }}>
                 Clear the linked message cache
             </Button>
         )
@@ -150,6 +157,7 @@ async function fetchMessage(channelId: string, messageId: string) {
         if (cached.retryAfter !== undefined && Date.now() < cached.retryAfter) return undefined;
         // Expired cooldown: drop it so a dead link does not hold a slot for the session.
         messageCache.delete(cacheKey);
+        cooldownLogged.delete(cacheKey);
     }
 
     // In-flight marker so concurrent renders of the same link do not stack requests.
@@ -164,7 +172,16 @@ async function fetchMessage(channelId: string, messageId: string) {
         // (a request storm, since the fetch queue is unbounded). A "message is gone"
         // verdict is conclusive, so that one stays cached unconditionally.
         messageCache.set(cacheKey, { fetched: false, retryAfter: Date.now() + FETCH_RETRY_DELAY_MS });
-        logger.error(`Failed to fetch linked message ${messageId}:`, e);
+        // Never log this per attempt. This runs as a message decoration, so every visible
+        // message with a link that cannot be fetched lands here, and an error-level log per
+        // failure means a console entry, a DevTools update and a renderer_js.log write for
+        // each one - measurably enough to make the whole client feel heavy when link
+        // previews are unreachable. Once per cooldown window per key is enough to notice;
+        // the failure is a transport outcome, not an actionable error.
+        if (!cooldownLogged.has(cacheKey)) {
+            cooldownLogged.add(cacheKey);
+            logger.debug(`Link preview unavailable for ${messageId}; backing off for ${FETCH_RETRY_DELAY_MS / 1000}s`);
+        }
         return;
     }
 
@@ -179,6 +196,7 @@ async function fetchMessage(channelId: string, messageId: string) {
         message,
         fetched: true
     });
+    cooldownLogged.delete(cacheKey);
 
     return message;
 }
