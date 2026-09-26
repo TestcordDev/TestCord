@@ -51,7 +51,8 @@ export const LEGACY_PLUGINS: string[] = [
     "GuildCopier",
     "TokenImporter",
     "UserAreaTweaks",
-    "OSSpoofer"
+    "OSSpoofer",
+    "BetterScreenshare"
 ];
 
 /**
@@ -75,6 +76,8 @@ export const LEGACY_REPLACEMENTS: Record<string, string> = {
     "tokenimporter": "DXTokenImporter",
     "UserAreaTweaks": "PanelLayout",
     "userareatweaks": "PanelLayout",
+    "BetterScreenshare": "StreamEnhancer",
+    "betterscreenshare": "StreamEnhancer",
     "MusicControls": "PanelLayout",
     "musiccontrols": "PanelLayout",
     "ActivityBanner": "PanelLayout",
