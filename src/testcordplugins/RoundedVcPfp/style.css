@@ -1,0 +1,37 @@
+div[data-selenium-video-tile],
+div[class*="videoWrapper"],
+div[class*="media-engine-video"],
+video {
+    border-radius: var(--vc-pfp-radius, 12px) !important;
+}
+
+div[data-selenium-video-tile],
+div[class*="videoWrapper"] {
+    overflow: hidden !important;
+}
+
+div[data-selenium-video-tile] div[role="img"] {
+    width: 100% !important;
+    height: 100% !important;
+    background: center / contain no-repeat;
+    background-image: var(--full-res-avatar);
+    -webkit-mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Crect%20width='100'%20height='100'%20rx='5'%20fill='%23fff'/%3E%3C/svg%3E");
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    -webkit-mask-size: contain;
+    mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Crect%20width='100'%20height='100'%20rx='5'%20fill='%23fff'/%3E%3C/svg%3E");
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+
+    > * {
+        display: none;
+    }
+}
+
+/* The doubled [role="img"] raises specificity above FullVCPFP's
+   `border-radius: unset !important`, so the rounding wins even when
+   both plugins are enabled. */
+div[data-selenium-video-tile] div[role="img"][role="img"] {
+    border-radius: var(--vc-pfp-radius, 12px) !important;
+}
