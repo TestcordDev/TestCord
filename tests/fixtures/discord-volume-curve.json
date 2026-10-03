@@ -1,0 +1,4 @@
+{
+  "cacheFile": "f_00014c",
+  "code": "function i(e){let t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:100;if(0===e)return 0;let n=e/t;return(n<1?Math.pow(n,2.8):Math.pow(10,(n-1)*6/20))*t}function r(e){let t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:100;if(0===e)return 0;let n=e/t;return(n<1?Math.pow(n,.35714285714285715):20*Math.log10(n)/6+1)*t}"
+}

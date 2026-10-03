@@ -1468,8 +1468,8 @@ export const TestcordDevs = /* #__PURE__*/ Object.freeze({
         github: "DavidHiFi"
     },
     Kurtzon: {
-        name: "Kurtzon",
-        id: 1253545207488839784n,
+        name: "Kurtzon Audio",
+        id: 1552878708732469258n,
         github: "kurtzonaudio"
     },
     sirphantom89: {
