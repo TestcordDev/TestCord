@@ -396,3 +396,9 @@ html:has(:fullscreen) :is(.vc-stream-enhancer-wrapper-contain, .vc-stream-enhanc
     opacity: 1 !important;
     pointer-events: auto !important;
 }
+
+.vc-stream-enhancer-slider-marker {
+    white-space: nowrap;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}

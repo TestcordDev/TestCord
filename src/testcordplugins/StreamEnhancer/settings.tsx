@@ -15,10 +15,12 @@ import { classNameFactory } from "@utils/css";
 import { OptionType } from "@utils/types";
 import type { SelectOption } from "@vencord/discord-types";
 import { findByPropsLazy, findStoreLazy } from "@webpack";
-import { FluxDispatcher, Select, Slider, TextInput, Toasts, useEffect, UserStore,useState } from "@webpack/common";
+import { FluxDispatcher, Select, Slider, TextInput, Toasts, useEffect, UserStore, useState } from "@webpack/common";
 import type { ReactNode } from "react";
 
+import { advertiseBadge, badgeFps, badgeFpsPresets, badgeResolution, badgeResolutionPresets, maxBadgeFps, maxBadgeHeight, normalizeBadgeConfig } from "./badge";
 import { installMicrophoneInterceptor, syncLiveMicrophoneEffects } from "./microphone";
+import { badgeSize, choiceAt, nearestChoice, showChoiceLabel, sliderChoices } from "./slider";
 
 export type StreamCodec = "auto" | "av1" | "vp9" | "h264";
 type StreamQualityPreset = "efficient" | "balanced" | "maxDetail" | "extreme" | "adaptiveMax";
@@ -163,7 +165,6 @@ interface NumberEditorProps {
     max: number;
     markers: number[];
     onChange: (value: number) => void;
-    fixed?: boolean;
     markerFormatter?: (value: number) => string;
 }
 
@@ -233,6 +234,7 @@ export const defaultStreamEnhancerConfig = {
     streamWidth: 1280,
     streamHeight: 720,
     streamScalePercent: 100,
+    ...normalizeBadgeConfig({}),
     previewTweaksEnabled: true,
     previewScalePercent: 110,
     previewSaturationPercent: 110,
@@ -519,6 +521,7 @@ export function normalizeConfig(input: Partial<StreamEnhancerConfig> | undefined
         streamWidth: clamp(Math.round(source.streamWidth ?? defaultStreamEnhancerConfig.streamWidth), minStreamWidth, maxStreamWidth),
         streamHeight: clamp(Math.round(source.streamHeight ?? defaultStreamEnhancerConfig.streamHeight), minStreamHeight, maxStreamHeight),
         streamScalePercent: clamp(Math.round(source.streamScalePercent ?? defaultStreamEnhancerConfig.streamScalePercent), 50, 400),
+        ...normalizeBadgeConfig(source),
         previewTweaksEnabled: source.previewTweaksEnabled ?? defaultStreamEnhancerConfig.previewTweaksEnabled,
         previewScalePercent: clamp(Math.round(source.previewScalePercent ?? defaultStreamEnhancerConfig.previewScalePercent), 80, 160),
         previewSaturationPercent: clamp(Math.round(source.previewSaturationPercent ?? defaultStreamEnhancerConfig.previewSaturationPercent), 50, 200),
@@ -1264,24 +1267,25 @@ function NumberEditor({
     max,
     markers,
     onChange,
-    fixed = true,
     markerFormatter
 }: NumberEditorProps) {
+    const choices = sliderChoices(markers, min, max);
+    const format = (position: number) => markerFormatter?.(choiceAt(position, choices)) ?? String(choiceAt(position, choices));
     return (
         <div className={cl("control")}>
             <div className={cl("label")}>
                 {label}: <span className={cl("label-value")}>{value}</span>
             </div>
             <Slider
-                key={fixed ? `${label}-${value}-${min}-${max}` : undefined}
-                minValue={min}
-                maxValue={max}
-                markers={markers}
-                initialValue={value}
-                stickToMarkers={fixed}
-                onValueChange={next => onChange(clamp(Math.round(next), min, max))}
-                onMarkerRender={next => markerFormatter?.(next) ?? String(Math.round(next))}
-                onValueRender={next => String(Math.round(next))}
+                minValue={0}
+                maxValue={choices.length - 1}
+                markers={choices.map((_, index) => index)}
+                initialValue={nearestChoice(value, choices)}
+                keyboardStep={1}
+                stickToMarkers={true}
+                onValueChange={next => onChange(choiceAt(next, choices))}
+                onMarkerRender={next => <span className="vc-stream-enhancer-slider-marker">{showChoiceLabel(next, choices.length) ? format(next) : ""}</span>}
+                onValueRender={format}
             />
         </div>
     );
@@ -1372,7 +1376,7 @@ export function StreamEnhancerControlPanel() {
                 <FormSwitch value={normalized.dynamicBitrateFloorEnabled} onChange={value => set("dynamicBitrateFloorEnabled", value)} title="Keep bitrate from dropping too low" />
                 <FormSwitch value={normalized.streamHdrExperimentEnabled} onChange={value => set("streamHdrExperimentEnabled", value)} title="Enable HDR Go Live experiment" description="Forces Discord's 2026-02 Go Live HDR experiment into its HDR-enabled treatment." />
                 <FormSwitch value={normalized.streamHdrCaptureMode} onChange={value => set("streamHdrCaptureMode", value)} title="Use HDR capture mode" description="Passes Discord's HDR capture mode through to the native capture pipeline." />
-                <NumberEditor label="Max stream FPS" value={normalized.streamMaxFps} min={minStreamFps} max={maxStreamFps} markers={streamFpsMarkers} onChange={next => set("streamMaxFps", next)} fixed={false} />
+                <NumberEditor label="Max stream FPS" value={normalized.streamMaxFps} min={minStreamFps} max={maxStreamFps} markers={streamFpsMarkers} onChange={next => set("streamMaxFps", next)} />
                 <div className={cl("label")}>Stream resolution</div>
                 <Select
                     options={resolutionOptions}
@@ -1471,6 +1475,13 @@ export function StreamEnhancerControlPanel() {
                 </div>
             </SettingsSection>
 
+            <SettingsSection title="Spoofed stream badge">
+                <FormSwitch value={normalized.spoofBadgeEnabled} onChange={value => set("spoofBadgeEnabled", value)} title="Show spoofed resolution and FPS" />
+                <div>Changes your screen-share badge for you and viewers. Actual capture quality, bitrate, and camera settings stay the same. Start a new screen share after changing these values to update viewers.</div>
+                <NumberEditor label="Badge resolution" value={normalized.spoofBadgeHeight} min={144} max={maxBadgeHeight} markers={badgeResolutionPresets} markerFormatter={next => `${next}p`} onChange={next => { streamEnhancerSettings.store.config = normalizeConfig({ ...normalized, ...badgeSize(next) }); }} />
+                <NumberEditor label="Badge FPS" value={normalized.spoofBadgeFps} min={1} max={maxBadgeFps} markers={badgeFpsPresets} onChange={next => set("spoofBadgeFps", next)} />
+            </SettingsSection>
+
             <SettingsSection title="Preview Controls">
                 <FormSwitch value={normalized.previewTweaksEnabled} onChange={value => set("previewTweaksEnabled", value)} title="Enable stream preview tweaks" />
                 <NumberEditor label="Preview scale (%)" value={normalized.previewScalePercent} min={80} max={160} markers={[80, 90, 100, 110, 120, 140, 160]} onChange={next => set("previewScalePercent", next)} />
@@ -1512,6 +1523,11 @@ export function StreamEnhancerControlPanel() {
 }
 
 export const streamEnhancerSettings = definePluginSettings({
+    showPanelButton: {
+        type: OptionType.BOOLEAN,
+        description: "Show a StreamEnhancer settings button in the user panel.",
+        default: true
+    },
     config: {
         type: OptionType.CUSTOM,
         description: "Persistent StreamEnhancer tuning values.",
@@ -1961,6 +1977,15 @@ export const makeSelfResolutionFromSetting = (value: unknown) => {
 };
 
 export const streamEnhancerRuntime = {
+    advertise(rtc: { context?: string; }, streams: unknown) {
+        return advertiseBadge(rtc, streams, getConfig());
+    },
+    badgeFps(fps: number) {
+        return badgeFps(fps, getConfig());
+    },
+    badgeResolution(resolution: { width: number; height: number; type: number; }) {
+        return badgeResolution(resolution, getConfig());
+    },
     shouldOverrideStreamResolution,
     getConfiguredMicBitrate,
     getMaxMicInputVolume,

@@ -5,7 +5,6 @@
  */
 
 import type { Channel } from "@vencord/discord-types";
-import type { ReactElement } from "react";
 
 export interface StreamDescriptor {
     streamType?: "guild" | "call";
@@ -24,7 +23,6 @@ export interface StreamParticipant {
 }
 
 export type ZoomableVideoProps = Record<string, unknown>;
-export type ZoomableVideoComponent = (props: ZoomableVideoProps) => ReactElement | null;
 
 export type StreamFitMode = "contain" | "cover" | "stretch";
 

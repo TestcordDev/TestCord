@@ -39,6 +39,7 @@ import {
     syncCurrentGoLiveSource,
     syncCurrentLiveMicConnections
 } from "../settings";
+import { choiceAt, nearestChoice, showChoiceLabel, sliderChoices } from "../slider";
 
 const cl = classNameFactory("vc-stream-enhancer-");
 
@@ -298,6 +299,8 @@ function SliderField({
     onChange: (value: number) => void;
     formatter?: (value: number) => string;
 }) {
+    const choices = sliderChoices(markers, min, max);
+    const format = (position: number) => formatter?.(choiceAt(position, choices)) ?? String(choiceAt(position, choices));
     return (
         <div className={cl("go-live-field")}>
             <div className={cl("go-live-slider-label")}>
@@ -305,14 +308,15 @@ function SliderField({
                 <span className={cl("go-live-slider-value")}>{formatter?.(value) ?? String(value)}</span>
             </div>
             <Slider
-                minValue={min}
-                maxValue={max}
-                markers={[...markers]}
-                initialValue={value}
-                stickToMarkers={false}
-                onValueChange={next => onChange(Math.max(min, Math.min(max, Math.round(next))))}
-                onMarkerRender={next => formatter?.(Math.round(next)) ?? String(Math.round(next))}
-                onValueRender={next => formatter?.(Math.round(next)) ?? String(Math.round(next))}
+                minValue={0}
+                maxValue={choices.length - 1}
+                markers={choices.map((_, index) => index)}
+                initialValue={nearestChoice(value, choices)}
+                keyboardStep={1}
+                stickToMarkers={true}
+                onValueChange={next => onChange(choiceAt(next, choices))}
+                onMarkerRender={next => <span className="vc-stream-enhancer-slider-marker">{showChoiceLabel(next, choices.length) ? format(next) : ""}</span>}
+                onValueRender={format}
             />
         </div>
     );

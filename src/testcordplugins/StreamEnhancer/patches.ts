@@ -416,10 +416,17 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
         }
     },
     {
-        find: "maxResolution:{height:t.resolution,width:0,type:0===t.resolution",
+        find: "this._sentVideo&&",
         replacement: {
-            match: /maxFrameRate:(\i)\.fps,maxResolution:\{height:\1\.resolution,width:0,type:0===\1\.resolution\?\i\.ei\.SOURCE:\i\.ei\.FIXED\}/,
-            replace: "maxFrameRate:$self.getConfiguredStreamFps($1.fps),maxResolution:$self.makeSelfResolutionFromSetting($1.resolution)"
+            match: /this\._sentVideo&&(\i)\.video\((\i),(\i),(\i),(\i)\)/,
+            replace: "this._sentVideo&&$1.video($2,$3,$4,$self.advertise(this,$5))"
+        }
+    },
+    {
+        find: '"useMaxQuality"',
+        replacement: {
+            match: /(\i===\i\.user\.id\?\{maxFrameRate:)(\i)\.fps,maxResolution:(\(0,\i\.\i\)\("useMaxQuality",\i,\{[^{}]+\},\i\.fps\))/,
+            replace: "$1$self.badgeFps($self.getConfiguredStreamFps($2.fps)),maxResolution:$self.badgeResolution($3)"
         }
     },
     {
