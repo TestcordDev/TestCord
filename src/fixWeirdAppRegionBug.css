@@ -3,7 +3,16 @@ body {
     -webkit-app-region: no-drag;
     app-region: no-drag;
 }
+/* keep titlebar draggable */
+[class*="typeWindows_"],
+[class*="titleBar_"] {
+    -webkit-app-region: drag;
+}
 
+[class*="typeWindows_"] [class*="winButton"],
+[class*="typeWindows_"] .tc-chrometabs-tab {
+    -webkit-app-region: no-drag;
+}
 /* Modern Discord Visual Refresh Close Button styles */
 .vc-modal-close-btn,
 button[class*="closeButton"],
