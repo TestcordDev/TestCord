@@ -21,8 +21,12 @@ export default definePlugin({
         {
             find: "\"data-selenium-video-tile\":",
             replacement: {
-                match: /function \i?\s*\((\i)(?:,\i)?\)\{(?=let[^;]+?style:)/,
-                replace: "$&Object.assign($1.style=$1.style||{},$self.getVoiceBackgroundStyles($1));",
+                // Local deviation from upstream's head anchor: USRBG also
+                // patches this component from the head and applies first,
+                // which breaks head-anchored anchors. Details in
+                // notes/2026-10-08-voice-tile-avatars.md.
+                match: /(?<=let\{children:(\i),className:(\i),style:(\i),noBorder:(\i)=!1,participantUserId:(\i),ref:(\i)\}=(\i);)/,
+                replace: "Object.assign($3=$3||{},$self.getVoiceBackgroundStyles($7));",
             }
         },
     ],
