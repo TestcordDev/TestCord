@@ -4,6 +4,7 @@
     justify-content: center;
     align-items: center;
     max-width: 100%;
+    flex-shrink: 0;
     border: 1px solid transparent;
     border-radius: var(--radius-sm, 8px);
     font-family: var(--font-primary);
