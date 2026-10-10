@@ -15,11 +15,12 @@ div[data-selenium-video-tile] div[role="img"] {
     height: 100% !important;
     background: center / contain no-repeat;
     background-image: var(--full-res-avatar);
-    -webkit-mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Crect%20width='100'%20height='100'%20rx='5'%20fill='%23fff'/%3E%3C/svg%3E");
+    transform: scale(var(--vc-pfp-zoom, 1)) !important;
+    -webkit-mask-image: var(--vc-pfp-avatar-mask, url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Crect%20width='100'%20height='100'%20rx='5'%20fill='%23fff'/%3E%3C/svg%3E"));
     -webkit-mask-repeat: no-repeat;
     -webkit-mask-position: center;
     -webkit-mask-size: contain;
-    mask-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Crect%20width='100'%20height='100'%20rx='5'%20fill='%23fff'/%3E%3C/svg%3E");
+    mask-image: var(--vc-pfp-avatar-mask, url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Crect%20width='100'%20height='100'%20rx='5'%20fill='%23fff'/%3E%3C/svg%3E"));
     mask-repeat: no-repeat;
     mask-position: center;
     mask-size: contain;
@@ -33,5 +34,65 @@ div[data-selenium-video-tile] div[role="img"] {
    `border-radius: unset !important`, so the rounding wins even when
    both plugins are enabled. */
 div[data-selenium-video-tile] div[role="img"][role="img"] {
-    border-radius: var(--vc-pfp-radius, 12px) !important;
+    border-radius: var(--vc-pfp-avatar-radius, 5%) !important;
+}
+
+/* The hide-background switch also kills the per-user colored backdrop that
+   lights up behind focused tiles; the marker var is set inline on the tile
+   root by the patch, and generic matches inside one tile would otherwise be
+   a mangled class name. */
+div[data-selenium-video-tile][style*="--vc-pfp-hide-bg"] [class*="background"] {
+    background: none !important; /* user's hide-background switch */
+}
+
+/* The glow paints through the filter var the plugin emits, independently of
+    the background switch: it wraps the picture over the box or banner too.
+    The content backdrop wrapper exists only on picture tiles, which is what
+    scopes the rule to them. Selectors stay :has()-free on purpose: the
+    composed managed sheet can silently drop :has() rules from its parsed
+    cascade at boot (measured 2026-10-08 evening), while plain attribute and
+    descendant selectors survive every compose. */
+div[data-selenium-video-tile] div[class*="background"] {
+    filter: var(--vc-pfp-glow-filter, none) !important; /* the glow var is set per tile by the plugin */
+    transition: filter 250ms ease; /* the speaking ring fades instead of popping */
+}
+
+div[data-selenium-video-tile] video {
+    transition: box-shadow 250ms ease;
+}
+
+/* Speaking indicator moved onto the picture: the green glow rides the same
+   filter string as the user glow (the patch composes both layers while the
+   user speaks), and the drop-shadow trails the masked picture outline, which
+   a box-shadow on the masked element itself could never do - the mask square
+   is centered inside the element box, so any shadow on that element would
+   clip wrong. */
+div[data-selenium-video-tile][style*="--vc-pfp-ring-pic"] [class*="border__"] {
+    display: none !important; /* speaking indicator switched to the picture */
+}
+
+/* Camera and stream tiles have no picture box for the bloom to wrap; their
+   ring follows the video edge instead, which fills the tile and already
+   carries the rounded corners. */
+div[data-selenium-video-tile][style*="--vc-pfp-ring-pic"][style*="--vc-pfp-speaking: 1"] video {
+    box-shadow: inset 0 0 0 3px var(--green-360, #23a55a) !important; /* Discord's own speaking green */
+}
+
+/* Screen shares are not voice: the marker var is set per tile by the patch,
+   and the extra attribute outranks the rule above. */
+div[data-selenium-video-tile][style*="--vc-pfp-ring-pic"][style*="--vc-pfp-speaking: 1"][style*="--vc-pfp-stream"] video {
+    box-shadow: none !important;
+}
+
+/* The halo must keep fading outside the tile box or it gets a hard straight
+   cut where the old box ended (this level and the content level below both
+   clip). Camera and stream tiles carry the marker too; their corners stay
+   rounded through the video's own border-radius, so releasing overflow is
+   safe for them. */
+div[data-selenium-video-tile][style*="--vc-pfp-hide-bg"] {
+    overflow: visible !important; /* halo past the tile box */
+}
+
+div[data-selenium-video-tile][style*="--vc-pfp-hide-bg"] [class*="content"] {
+    overflow: visible !important; /* one more clip level above the wrapper */
 }
