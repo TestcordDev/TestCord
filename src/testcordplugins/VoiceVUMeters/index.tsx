@@ -14,8 +14,10 @@ import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { TestcordDevs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
-import definePlugin, { OptionType } from "@utils/types";
+import definePlugin, { makeRange, OptionType } from "@utils/types";
 import { MediaEngineStore, React, SelectedChannelStore, UserStore, VoiceStateStore } from "@webpack/common";
+
+import meterStyle from "./style.css?managed";
 
 const logger = new Logger("VoiceVUMeters");
 
@@ -26,6 +28,16 @@ const STATS_MS = 100;
 const HOLD_MS = 1500;
 const RELEASE_MS = 120;
 const PEAK_FALL_DB_PER_SECOND = 12;
+// Self-tap/outbound mismatch guard: the self tap reads the OS device before
+// Discord processing, so bleed Discord removes downstream (echo cancellation,
+// noise suppression) still pins it. Raw must stay this loud (normalized) while
+// outbound stays this quiet (linear) for SELF_MISMATCH_HOLD_MS before the tap
+// is dropped in favor of outbound levels.
+const SELF_MISMATCH_HOLD_MS = 5000;
+const SELF_MISMATCH_RAW_FLOOR = 0.5;
+const SELF_MISMATCH_OUTBOUND_CEILING = 0.02;
+const SELF_MISMATCH_RETRY_MS = 30000;
+const STREAM_RELEASE_MS = 3000;
 const BAR_HEIGHT = 18;
 const BAR_WIDTH = 4;
 const GRADIENT = "linear-gradient(to top, #21c55d 0%, #21c55d 50%, #eab308 75%, #ef4444 100%)";
@@ -43,6 +55,10 @@ interface VoiceConnection {
     // Discord Desktop: native PCM bridge, with scalar stats as a fallback.
     localSpeakingFlags?: Record<string, number>;
     localPans?: Record<string, { left: number; right: number; }>;
+    // Go live streams ride their own connection: it names the streamer and
+    // carries the soundshare on its outbound when the stream has audio.
+    soundshareActive?: boolean;
+    streamUserId?: string;
     getStats?: () => Promise<any>;
     getUserIdBySsrc?: (ssrc: number) => string | null | undefined;
 }
@@ -84,6 +100,8 @@ interface Meter {
     sampleAt: [number, number];
     ownsInput?: boolean;
     inputContext?: AudioContext;
+    mismatchSince?: number;
+    lastStreamAt?: number;
 }
 
 const meters = new Map<string, Meter>();
@@ -102,6 +120,9 @@ let inputKey = "";
 let inputRetryAt = 0;
 let participantBridge: ParticipantBridge | undefined;
 let bridgeChecked = false;
+let selfOutboundLinear = 0;
+let inputMismatchDrops = 0;
+let inputSuspendKey: string | null = null;
 
 const settings = definePluginSettings({
     floorDb: {
@@ -123,6 +144,62 @@ const settings = definePluginSettings({
         onChange() {
             lastScanAt = 0;
         }
+    },
+    tileSurfaces: {
+        type: OptionType.SELECT,
+        description: "Which call tiles show VU meters. Screen share tiles meter the stream's own audio and show nothing while it has none.",
+        options: [
+            {
+                label: "Voice profiles only",
+                value: "voice"
+            },
+            {
+                label: "Screen shares only",
+                value: "streams"
+            },
+            {
+                label: "Both",
+                value: "both",
+                default: true
+            }
+        ]
+    },
+    tilePlacement: {
+        type: OptionType.SELECT,
+        description: "Where the meter sits on call tiles. Profile picture pins it to the bottom right corner of the user's avatar, so it stays on the picture when tile backgrounds are hidden.",
+        options: [
+            {
+                label: "Background",
+                value: "background",
+                default: true
+            },
+            {
+                label: "Profile picture",
+                value: "avatar"
+            }
+        ]
+    },
+    tileMeterSide: {
+        type: OptionType.SELECT,
+        description: "Which side of the tile anchors the meter, for both the background position and the profile picture. The meter always sits centered vertically so it clears the strip and the labels.",
+        options: [
+            {
+                label: "Right",
+                value: "right",
+                default: true
+            },
+            {
+                label: "Left",
+                value: "left"
+            }
+        ]
+    },
+    tileMeterHeight: {
+        type: OptionType.SLIDER,
+        description: "Tile meter height as a percent of the tile height. 50 is the default height.",
+        markers: makeRange(25, 100, 5),
+        default: 50,
+        stickToMarkers: true
     }
 }).withPrivateSettings<{ peakHoldEnabled?: boolean; }>();
 
@@ -217,8 +294,13 @@ function dropAll() {
 async function syncSelfInput(conn: VoiceConnection) {
     const userId = UserStore.getCurrentUser()?.id;
     const deviceKey = MediaEngineStore.getInputDeviceId();
-    if (!userId || !settings.store.showSelf) return;
+    if (!userId) return;
+    if (!settings.store.showSelf) {
+        inputSuspendKey = null;
+        return;
+    }
     if (inputKey === deviceKey && meters.get(userId)?.ownsInput) return;
+    if (inputSuspendKey != null && inputSuspendKey === deviceKey) return;
     if (inputPending || Date.now() < inputRetryAt) return;
 
     dropMeter(userId);
@@ -256,6 +338,8 @@ async function syncSelfInput(conn: VoiceConnection) {
             meter.ownsInput = true;
             meter.inputContext = audioContext;
             adopted = true;
+            inputMismatchDrops = 0;
+            inputSuspendKey = null;
         }
         inputKey = deviceKey;
     } catch (error) {
@@ -305,7 +389,7 @@ function syncDesktopMeters() {
     }
 
     for (const userId of [...meters.keys()]) {
-        if (!members.has(userId)) dropMeter(userId);
+        if (!members.has(userId) && !userId.startsWith("stream:")) dropMeter(userId);
     }
 }
 
@@ -331,6 +415,44 @@ function setAmplitude(userId: string | null | undefined, level: unknown) {
     if (meter && !meter.tap) meter.amplitude = toLinear(level);
 }
 
+const STREAM_KEY = (ownerId: string) => `stream:${ownerId}`;
+
+// Stream meters only exist while the stream actually carries audio, so a
+// soundless stream shows no meter instead of a flat or microphone-driven one.
+function setStreamAmplitude(ownerId: string, level: unknown) {
+    const key = STREAM_KEY(ownerId);
+    let meter = meters.get(key);
+    if (!meter || meter.tap) {
+        dropMeter(key);
+        meter = newMeter(true);
+        meters.set(key, meter);
+    }
+    meter.lastStreamAt = Date.now();
+    meter.amplitude = toLinear(level);
+}
+
+// Go live audio rides its own RTC connection, which names the streamer. The
+// streamer sends the soundshare on that connection's outbound; a viewer
+// receives the stream's audio as its inbound.
+function readStreamLevels(conn: VoiceConnection, stats: any) {
+    const owner = conn.streamUserId;
+    if (!owner) return;
+
+    if (conn.soundshareActive) {
+        const outbound = audioEntry(stats?.rtp?.outbound);
+        if (outbound) setStreamAmplitude(owner, outbound.audioLevel);
+        return;
+    }
+
+    const inbound = stats?.rtp?.inbound;
+    const entries = Array.isArray(inbound) ? inbound : inbound && typeof inbound === "object" ? Object.values(inbound) : [];
+    for (const entry of entries) {
+        const audio = audioEntry(entry);
+        if (!audio?.ssrc) continue;
+        setStreamAmplitude(owner, audio.audioLevel);
+    }
+}
+
 function readLevels(conn: VoiceConnection, stats: any) {
     const inbound = stats?.rtp?.inbound;
 
@@ -353,19 +475,33 @@ function readLevels(conn: VoiceConnection, stats: any) {
 
     const me = UserStore.getCurrentUser()?.id;
     const outbound = audioEntry(stats?.rtp?.outbound);
-    if (me && outbound) setAmplitude(me, MediaEngineStore.isSelfMute() ? 0 : outbound.audioLevel);
+    if (me && outbound) {
+        const level = MediaEngineStore.isSelfMute() ? 0 : toLinear(outbound.audioLevel);
+        selfOutboundLinear = level;
+        setAmplitude(me, level);
+    }
 }
 
-async function pollStats(conn: VoiceConnection) {
-    if (statsInFlight || typeof conn.getStats !== "function") return;
+async function pollStats() {
+    if (statsInFlight) return;
+    const engine = MediaEngineStore.getMediaEngine();
+    const connections = engine?.connections ? [...engine.connections as Iterable<VoiceConnection>] : [];
+    if (!connections.length) return;
 
     statsInFlight = true;
     try {
-        const stats = await conn.getStats();
-        if (stats && conn === connection) readLevels(conn, stats);
-    } catch (e) {
-        if (!statsFailed) logger.error("failed to read voice stats", e);
-        statsFailed = true;
+        for (const conn of connections) {
+            if (typeof conn.getStats !== "function") continue;
+            try {
+                const stats = await conn.getStats();
+                if (!stats) continue;
+                if (conn === connection) readLevels(conn, stats);
+                readStreamLevels(conn, stats);
+            } catch (e) {
+                if (!statsFailed) logger.error("failed to read voice stats", e);
+                statsFailed = true;
+            }
+        }
     } finally {
         statsInFlight = false;
     }
@@ -469,6 +605,31 @@ function notifySubscribers() {
     for (const subscriber of subscribers) subscriber();
 }
 
+// The self tap reads the OS device before Discord processing, so bleed that
+// Discord removes downstream still pins it while outbound stays silent. After
+// a sustained mismatch the tap is dropped (showing outbound instead) with a
+// delayed retry; after two drops the input stays on outbound until the Discord
+// input device changes.
+function checkSelfMismatch(meter: Meter, muted: boolean, raw: number, now: number) {
+    if (!meter.ownsInput || muted || now - lastStatsAt > 1000) {
+        meter.mismatchSince = undefined;
+        return;
+    }
+    if (raw < SELF_MISMATCH_RAW_FLOOR || selfOutboundLinear > SELF_MISMATCH_OUTBOUND_CEILING) {
+        meter.mismatchSince = undefined;
+        inputMismatchDrops = 0;
+        return;
+    }
+    if (meter.mismatchSince == null) meter.mismatchSince = now;
+    if (now - meter.mismatchSince < SELF_MISMATCH_HOLD_MS) return;
+    const me = UserStore.getCurrentUser()?.id;
+    logger.warn("self input tap disagrees with voice outbound; falling back to outbound levels");
+    if (me) dropMeter(me);
+    inputMismatchDrops++;
+    inputRetryAt = Date.now() + SELF_MISMATCH_RETRY_MS;
+    if (inputMismatchDrops >= 2) inputSuspendKey = MediaEngineStore.getInputDeviceId();
+}
+
 function tick() {
     try {
         const conn = getConnection();
@@ -495,10 +656,14 @@ function tick() {
 
         if (!web && subscribers.size && !document.hidden && now - lastStatsAt >= STATS_MS) {
             lastStatsAt = now;
-            void pollStats(connection);
+            void pollStats();
         }
 
         if (!web) readNativeLevels();
+
+        for (const userId of [...meters.keys()]) {
+            if (userId.startsWith("stream:") && now - (meters.get(userId)?.lastStreamAt ?? 0) > STREAM_RELEASE_MS) dropMeter(userId);
+        }
 
         const { floorDb } = settings.store;
         for (const [userId, meter] of meters) {
@@ -509,6 +674,7 @@ function tick() {
 
                 smooth(meter, 0, left, now);
                 smooth(meter, 1, right, now);
+                checkSelfMismatch(meter, muted === true, Math.max(left.rms, right.rms), now);
             } else if (meter.nativeAvailable) {
                 const value = meter.native;
                 smooth(meter, 0, { rms: normalize(value?.rmsLeft ?? 0, floorDb), peak: normalize(value?.peakLeft ?? 0, floorDb) }, now);
@@ -582,7 +748,9 @@ const VoiceMeter = ErrorBoundary.wrap(({ userId, height = BAR_HEIGHT, width = BA
     const { showPeak } = settings.store;
     const gap = Math.max(2, Math.round(width / 2));
     const measured = (meter.tap != null || meter.nativeAvailable === true) && !meter.mono;
-    const title = meter.ownsInput
+    const title = userId.startsWith("stream:")
+        ? "Screen share audio. Left | Right"
+        : meter.ownsInput
         ? "Your selected input before Discord encoding. Left | Right"
         : meter.nativeAvailable
             ? "Participant decoded audio channels before your local pan. Left | Right"
@@ -601,12 +769,120 @@ const VoiceMeter = ErrorBoundary.wrap(({ userId, height = BAR_HEIGHT, width = BA
     );
 }, { noop: true });
 
+// A tile renders stream audio only when a content component above it received
+// the stream id (CallTile passes streamId for stream participants and null for
+// camera participants), which holds for watched and preview states alike.
+interface ReactFiberNode {
+    memoizedProps?: { streamId?: unknown; participant?: { streamId?: unknown; }; };
+    return?: ReactFiberNode | null;
+}
+
+function fiberHasStreamId(tile: HTMLElement): boolean {
+    const key = Object.keys(tile).find(k => k.startsWith("__reactFiber$"));
+    if (!key) return false;
+    let fiber = Reflect.get(tile, key) as ReactFiberNode | undefined;
+    for (let hops = 0; fiber && hops < 40; hops++, fiber = fiber.return ?? undefined) {
+        const props = fiber.memoizedProps;
+        if (!props || typeof props !== "object") continue;
+        if (props.streamId != null) return true;
+        if (props.participant?.streamId != null) return true;
+    }
+    return false;
+}
+
 function TileMeter({ userId }: { userId?: string; }) {
+    settings.use(["tilePlacement", "tileMeterSide", "tileMeterHeight", "tileSurfaces"]);
+    const onPicture = settings.store.tilePlacement === "avatar";
+    const fromLeft = settings.store.tileMeterSide === "left";
+    const surfaces = settings.store.tileSurfaces;
+    const boxRef = React.useRef<HTMLDivElement | null>(null);
+    const [pictureInset, setPictureInset] = React.useState<{ right: number; bottom: number; } | null>(null);
+    const [isStreamSlot, setIsStreamSlot] = React.useState(false);
+    const [isStreamTile, setIsStreamTile] = React.useState(false);
+
+    React.useLayoutEffect(() => {
+        const tile = boxRef.current?.closest<HTMLElement>("div[data-selenium-video-tile]");
+        if (!tile) return;
+
+        // Stream PREVIEW slots (the plugin's video wrapper with an idle video
+        // element) hide their meter until the stream is opened: unopened
+        // streams are inaudible, so a meter there lies. Camera tiles and opened
+        // streams have a live video element and keep theirs; avatar tiles carry
+        // no wrapper class at all. Stream tiles are marked by their content
+        // component receiving the stream id: the live indicator class also
+        // shows on avatar-only tiles and disappears on watched streams.
+        const syncStreamState = () => {
+            const hasStreamWrapper = !!tile.querySelector("[class*='vc-stream-enhancer-wrapper']");
+            const video = tile.querySelector("video");
+            const playing = video != null && video.srcObject != null && video.videoWidth > 0;
+            setIsStreamTile(fiberHasStreamId(tile));
+            setIsStreamSlot(hasStreamWrapper && !playing);
+        };
+        syncStreamState();
+        const observer = new MutationObserver(syncStreamState);
+        observer.observe(tile, { childList: true, subtree: true, attributes: true });
+        return () => observer.disconnect();
+    }, []);
+
+    React.useLayoutEffect(() => {
+        if (!onPicture) return;
+
+        const box = boxRef.current;
+        const tile = box?.closest<HTMLElement>("div[data-selenium-video-tile]");
+        if (!box || !tile) return;
+
+        // Discord paints the tile picture as one role=img element that fills the tile
+        // box, and FullVCPFP scales that box. Mask and background both cover a centered
+        // square, so the visible picture is that square, and the meter must pin to it
+        // instead of the box. ResizeObserver misses style-only changes; a zoom or
+        // rounding change re-measures at the next remount.
+        const measure = () => {
+            const picture = tile.querySelector<HTMLElement>("div[role=img]");
+            if (!picture) return;
+
+            const tileBox = tile.getBoundingClientRect();
+            const pictureBox = picture.getBoundingClientRect();
+            if (!tileBox.width || !pictureBox.width) return;
+
+            const zoom = picture.clientHeight ? pictureBox.height / picture.clientHeight : 1;
+            const square = Math.min(picture.clientWidth, picture.clientHeight) * zoom;
+            if (!square) return;
+            const squareRight = pictureBox.left + (pictureBox.width + square) / 2;
+            const squareBottom = pictureBox.top + (pictureBox.height + square) / 2;
+
+            const right = Math.max(0, tileBox.right - squareRight);
+            const bottom = Math.max(0, tileBox.bottom - squareBottom);
+            if (!Number.isFinite(right) || !Number.isFinite(bottom)) return;
+            setPictureInset(prev => (prev && Math.abs(prev.right - right) < 0.5 && Math.abs(prev.bottom - bottom) < 0.5 ? prev : { right, bottom }));
+        };
+
+        measure();
+        const observer = new ResizeObserver(measure);
+        observer.observe(tile);
+        return () => observer.disconnect();
+    }, [onPicture]);
+
     if (!userId) return null;
+    if (isStreamSlot) return null;
+    if (isStreamTile && surfaces === "voice") return null;
+    if (!isStreamTile && surfaces === "streams") return null;
+
+    const height = `calc(${Math.round(settings.store.tileMeterHeight)}% - 10px)`;
+    // 18px is the native seat (bars centered in the background strip); the
+    // mirrored left seat uses the same inset from the tile's left edge, and the
+    // picture seat hugs the measured square's corner. Every meter is centered
+    // vertically (top 50% + translateY), which clears the strip and the labels.
+    const inset = pictureInset ? pictureInset.right + 14 : 14;
+    const style: React.CSSProperties = { position: "absolute", height, zIndex: 3, pointerEvents: "none", top: "50%", transform: "translateY(-50%)" };
+    if (fromLeft) {
+        style.left = onPicture ? inset : 18;
+    } else {
+        style.right = onPicture ? (pictureInset ? pictureInset.right + 14 : 14) : 18;
+    }
 
     return (
-        <div style={{ position: "absolute", right: 18, bottom: 50, height: "calc(50% - 10px)", zIndex: 3, pointerEvents: "none" }}>
-            <VoiceMeter userId={userId} height="100%" width={8} />
+        <div ref={boxRef} style={style}>
+            <VoiceMeter userId={isStreamTile ? `stream:${userId}` : userId} height="100%" width={8} />
         </div>
     );
 }
@@ -617,6 +893,7 @@ export default definePlugin({
     authors: [TestcordDevs.Kurtzon, TestcordDevs.DavidHiFi],
     tags: ["Voice", "Utility"],
     settings,
+    managedStyle: meterStyle,
 
     patches: [
         {
@@ -630,7 +907,12 @@ export default definePlugin({
         {
             find: "data-selenium-video-tile",
             replacement: {
-                match: /(?<=participantUserId:(\i)\}=\i;return.{0,200}?children:)(\i)(?=\}\)\}\))/,
+                // 1.0.9261 moved `ref` after participantUserId in the tile
+                // destructuring and now closes the JSX call with `})}}`. USRBG and
+                // the tile-avatar plugins inject Object.assign statements right
+                // after the destructuring when they patch first, so also skip past
+                // any of those before `return` (notes/2026-10-08-voice-tile-avatars.md).
+                match: /(?<=participantUserId:(\i).{0,40}?\}=\i;(?:[^;\n]{0,220}?Object\.assign\([^;\n]+?\);){0,3}return.{0,200}?children:)(\i)(?=\}\)\}\})/,
                 replace: "[$2,$self.renderTileMeter($1)]"
             }
         }
@@ -663,5 +945,8 @@ export default definePlugin({
         statsInFlight = false;
         participantBridge = undefined;
         bridgeChecked = false;
+        selfOutboundLinear = 0;
+        inputMismatchDrops = 0;
+        inputSuspendKey = null;
     }
 });

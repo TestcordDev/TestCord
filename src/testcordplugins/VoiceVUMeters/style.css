@@ -1,0 +1,3 @@
+/* Tile meters are centered vertically (set inline by the component), which
+   keeps them clear of the hover controls strip and the nameplate row, so no
+   hover repositioning is needed. */

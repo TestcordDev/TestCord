@@ -20,7 +20,9 @@ To rebuild the helper, use an x64 MSVC C++20 toolchain and CMake. Configure with
 
 ## Settings and validation
 
-Floor sets the bottom of the meter scale. Show Peak holds each channel's peak for 1.5 seconds, then falls at 12 dB per second. Show Self controls the selected input meter. Two bars and the divider remain visible for mono participants.
+Floor sets the bottom of the meter scale. Show Peak holds each channel's peak for 1.5 seconds, then falls at 12 dB per second. Show Self controls the selected input meter. Two bars and the divider remain visible for mono participants. Show VU meters on chooses between voice profile tiles, screen share tiles, or both.
+
+Screen share tiles meter the stream's own audio, never the streamer's microphone. Go live audio rides its own RTC connection that names the streamer, so the meter follows that connection: the streamer's soundshare on its outbound, a viewer's stream audio on its inbound. A stream without audio shows no meter, and unopened stream previews stay meter-free as before. Web clients have no per-stream audio data, so their screen share tiles stay meter-free.
 
 On 2026-10-01, two synthetic participants sent independently encoded, encrypted Opus packets through the actual installed native voice decoder in an isolated process. The left participant reached a left peak of 0.517 with a zero right peak. The right participant reached a right peak of 0.501 with a zero left peak. Connection-owned participant callbacks supplied 492 frames. This verifies the native decoder path, beyond injecting synthetic arrays into the meter.
 

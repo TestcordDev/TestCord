@@ -31,17 +31,30 @@ function load(name, exports) {
         SelectedChannelStore: { getVoiceChannelId: () => 'channel' },
         VoiceStateStore: { getVoiceStatesForChannel: () => ({ self: {}, alice: {}, bob: {} }) },
         DataStore: { set: () => Promise.resolve() }, plugins: {}, TestcordDevs: { DavidHiFi: {}, Kurtzon: {} },
-        showToast: () => {}, Toasts: { Type: { MESSAGE: 0 } }
+        showToast: () => {}, Toasts: { Type: { MESSAGE: 0 } },
+        meterStyle: ''
     };
     vm.createContext(sandbox);
     const source = fs.readFileSync(root + name + '/index.tsx', 'utf8')
         .replace(/^import .*;\r?\n/gm, '').replace('export default definePlugin(', 'const plugin = definePlugin(');
     const suffix = `\nglobalThis.test = { ${exports}, settings, setConnection: value => { connection = value; }, plugin };`;
     const helper = name === "StereoGuard" ? fs.readFileSync(root + name + "/protection.ts", "utf8").replace("export class VolumeHold", "class VolumeHold") : "";
-    vm.runInContext(esbuild.transformSync(helper + "\n" + source + suffix, { loader: 'tsx', jsxFactory: 'VencordCreateElement', target: 'esnext' }).code, sandbox);
+    const input = helper + "\n" + source + suffix;
+    const options = { loader: 'tsx', jsxFactory: 'VencordCreateElement', target: 'esnext' };
+    let code;
+    try {
+        code = esbuild.transformSync(input, options).code;
+    } catch (error) {
+        // Confined environments cannot spawn esbuild's piped service process;
+        // fall back to in-process TypeScript transpilation.
+        if (error.code !== 'EPERM') throw error;
+        const ts = require('typescript');
+        code = ts.transpileModule(input, { fileName: 'plugin.tsx', compilerOptions: { jsx: ts.JsxEmit.React, jsxFactory: 'VencordCreateElement', target: ts.ScriptTarget.ESNext } }).outputText;
+    }
+    vm.runInContext(code, sandbox);
     return { api: sandbox.test, sandbox, writes };
 }
-const vu = load('VoiceVUMeters', 'readChannel, readLevels, newMeter, meters, VoiceMeter, createWebMeter, syncSelfInput, dropAll, getPan, smooth, MeterBar, tick, readNativeLevels, setLastScan: value => { lastScanAt = value; }');
+const vu = load('VoiceVUMeters', 'readChannel, readLevels, newMeter, meters, VoiceMeter, createWebMeter, syncSelfInput, dropAll, getPan, smooth, MeterBar, tick, readNativeLevels, readStreamLevels, setStreamAmplitude, syncDesktopMeters, setLastScan: value => { lastScanAt = value; }');
 function tone(amp = .3) { return Float32Array.from({ length: 2048 }, (_, i) => amp * Math.sin(i * .1)); }
 const sound = tone();
 const silence = new Float32Array(2048);
@@ -209,5 +222,31 @@ check('Native simultaneous channels swap without participant identity swapping',
     nativeLevels = [nativeLevel('alice',0,.5),nativeLevel('bob',.4,0)];nativeTick();
     assert.equal(vu.api.meters.get('alice').display[0],0);assert(vu.api.meters.get('alice').display[1]>.8);
     assert(vu.api.meters.get('bob').display[0]>.8);assert.equal(vu.api.meters.get('bob').display[1],0);
+});
+check('Stream soundshare outbound feeds the streamer stream meter, not the voice meter', () => {
+    vu.api.meters.clear();
+    const voiceConn = { context: 'default' };
+    vu.api.setConnection(voiceConn);
+    vu.sandbox.MediaEngineStore.getMediaEngine = () => ({ connections: [voiceConn, { context: 'stream', streamUserId: 'self', soundshareActive: true }] });
+    vu.api.readStreamLevels({ context: 'stream', streamUserId: 'self', soundshareActive: true }, { rtp: { outbound: [{ type: 'audio', ssrc: 199, audioLevel: .5 }] } });
+    assert(vu.api.meters.get('stream:self').amplitude > .4);
+});
+check('Viewer stream connection inbound feeds the streamer stream meter', () => {
+    vu.api.readStreamLevels({ context: 'stream', streamUserId: 'alice' }, { rtp: { inbound: { 0: { type: 'audio', ssrc: 322, audioLevel: .3 } } } });
+    assert(vu.api.meters.get('stream:alice').amplitude > .2);
+});
+check('Stream without an audio track never creates a meter', () => {
+    vu.api.readStreamLevels({ context: 'stream', streamUserId: 'carl' }, { rtp: { inbound: { 0: { type: 'video', ssrc: 5 } } } });
+    assert.equal(vu.api.meters.has('stream:carl'), false);
+});
+check('Stream meter keys survive the desktop member sweep', () => {
+    vu.api.syncDesktopMeters();
+    assert(vu.api.meters.has('stream:alice'));
+});
+check('Stale stream meters release instead of pinning', () => {
+    const m = vu.api.meters.get('stream:alice');
+    m.lastStreamAt = Date.now() - 4000;
+    nativeTick();
+    assert.equal(vu.api.meters.has('stream:alice'), false);
 });
 console.log(`${checks} total checks passed`);
