@@ -402,3 +402,48 @@ html:has(:fullscreen) :is(.vc-stream-enhancer-wrapper-contain, .vc-stream-enhanc
     font-size: 11px;
     font-variant-numeric: tabular-nums;
 }
+
+.vc-stream-enhancer-panel-preview {
+    position: absolute;
+    inset: 0;
+    background-color: var(--primary-700, #060607);
+    pointer-events: none;
+}
+
+.vc-stream-enhancer-panel-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.vc-stream-enhancer-panel-preview-stretch img {
+    object-fit: fill;
+}
+
+.vc-stream-enhancer-panel-preview-flipx img {
+    transform: scaleX(-1);
+}
+
+.vc-stream-enhancer-panel-preview-flipy img {
+    transform: scaleY(-1);
+}
+
+.vc-stream-enhancer-panel-preview-flipx.vc-stream-enhancer-panel-preview-flipy img {
+    transform: scale(-1, -1);
+}
+
+/* Stream slots paint an opaque base under the media area so custom user
+   backgrounds (USRBG) don't bleed around the preview image or the idle video;
+   avatar tiles carry no wrapper class and keep their backgrounds. */
+.vc-stream-enhancer-wrapper-contain,
+.vc-stream-enhancer-wrapper-cover,
+.vc-stream-enhancer-wrapper-stretch {
+    background-color: #060607 !important; /* the video wrapper's transparency rules and the theme's broken --primary-700 remap both compute transparent here */
+}
+
+/* Discord's stock stream preview thumbnails render with object-fit contain, which
+   letterboxes the image inside the tile and leaves empty bars; stretch them to fill
+   the whole tile so the custom preview covers the entire rounded area. */
+img[src*="/streams/"] {
+    object-fit: fill !important;
+}

@@ -28,7 +28,7 @@ import {
     wrapMicrophoneStream
 } from "./microphone";
 import { streamEnhancerPatches } from "./patches";
-import { streamEnhancerRuntime, streamEnhancerSettings } from "./settings";
+import { refreshCustomPreview, stopCustomPreviewLoader, streamEnhancerRuntime, streamEnhancerSettings } from "./settings";
 import * as streamState from "./state";
 import managedStyle from "./styles.css?managed";
 import type { StreamParticipant } from "./types";
@@ -62,11 +62,13 @@ const streamEnhancer = definePlugin({
     start() {
         installMicrophoneInterceptor();
         installOutgoingVideoFilterInterceptor();
+        refreshCustomPreview();
         streamState.startAutoWatch();
     },
     stop() {
         uninstallOutgoingVideoFilterInterceptor();
         uninstallMicrophoneInterceptor();
+        stopCustomPreviewLoader();
         streamState.stopStreamEnhancerState();
     },
     isMediaParticipant: streamState.isMediaParticipant,

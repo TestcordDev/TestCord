@@ -37,7 +37,8 @@ import {
     streamPresetButtons,
     streamResolutionOptions,
     syncCurrentGoLiveSource,
-    syncCurrentLiveMicConnections
+    syncCurrentLiveMicConnections,
+    syncCustomPreviewForKey
 } from "../settings";
 import { choiceAt, nearestChoice, showChoiceLabel, sliderChoices } from "../slider";
 
@@ -351,6 +352,7 @@ function GoLiveQuickPanel({ selectedAudioSourceId }: { selectedAudioSourceId?: s
             ...next
         });
         applyConfig(updated);
+        for (const key of Object.keys(next)) syncCustomPreviewForKey(key);
 
         if ("streamCodec" in next) {
             syncCurrentGoLiveSource(updated);
@@ -717,6 +719,7 @@ function GoLiveQuickPanel({ selectedAudioSourceId }: { selectedAudioSourceId?: s
                     <Divider />
                     <div className={cl("go-live-toggle-grid")}>
                         <FormSwitch value={normalized.previewTweaksEnabled} onChange={value => setConfig({ previewTweaksEnabled: value })} title="Enable preview tweaks" />
+                        <FormSwitch value={normalized.previewStretchFill} onChange={value => setConfig({ previewStretchFill: value })} title="Stretch preview to fill" />
                         <FormSwitch value={normalized.previewUploadFilterEnabled} onChange={value => setConfig({ previewUploadFilterEnabled: value })} title="Enhance preview upload" />
                     </div>
                     <Divider />

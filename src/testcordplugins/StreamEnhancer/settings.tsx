@@ -8,17 +8,19 @@ import { isPluginEnabled } from "@api/PluginManager";
 import { definePluginSettings } from "@api/Settings";
 import { Button } from "@components/Button";
 import { Divider } from "@components/Divider";
+import ErrorBoundary from "@components/ErrorBoundary";
 import { ErrorCard } from "@components/ErrorCard";
 import { FormSwitch } from "@components/FormSwitch";
 import { Heading } from "@components/Heading";
 import { classNameFactory } from "@utils/css";
+import { Logger } from "@utils/Logger";
 import { OptionType } from "@utils/types";
 import type { SelectOption } from "@vencord/discord-types";
 import { findByPropsLazy, findStoreLazy } from "@webpack";
-import { FluxDispatcher, Select, Slider, TextInput, Toasts, useEffect, UserStore, useState } from "@webpack/common";
+import { FluxDispatcher, Select, Slider, TextInput, Toasts, useEffect, useLayoutEffect, useRef, UserStore, useState } from "@webpack/common";
 import type { ReactNode } from "react";
 
-import { advertiseBadge, badgeFps, badgeFpsPresets, badgeResolution, badgeResolutionPresets, maxBadgeFps, maxBadgeHeight, normalizeBadgeConfig } from "./badge";
+import { advertiseBadge, badgeFps, badgeFpsPresets, badgeResolution, badgeResolutionPresets, maxBadgeFps, maxBadgeHeight, normalizeBadgeConfig, sanitizeBadgeVisibility } from "./badge";
 import { installMicrophoneInterceptor, syncLiveMicrophoneEffects } from "./microphone";
 import { badgeSize, choiceAt, nearestChoice, showChoiceLabel, sliderChoices } from "./slider";
 
@@ -81,6 +83,16 @@ interface ApplicationStreamingStoreLike {
         ownerId?: string | bigint;
         streamId?: string | bigint;
     }>;
+    getActiveStreamForApplicationStream?: (stream: unknown) => {
+        guildId?: string | bigint | null;
+        channelId?: string | bigint;
+        ownerId?: string | bigint;
+        state?: string;
+    } | null;
+}
+
+interface ApplicationStreamPreviewStoreLike {
+    getPreviewURL?: (guildId: unknown, channelId: unknown, ownerId: unknown) => string | null;
 }
 
 interface ChannelRTCStoreLike {
@@ -247,6 +259,9 @@ export const defaultStreamEnhancerConfig = {
     previewUploadFilterEnabled: false,
     previewUploadFilterContrastPercent: 112,
     customPreviewUrl: "",
+    previewStretchFill: true,
+    previewFlipX: false,
+    previewFlipY: false,
     streamTelemetryEnabled: true,
     streamTelemetryIntervalSec: 5,
     viewerResizeSliderEnabled: false,
@@ -255,6 +270,7 @@ export const defaultStreamEnhancerConfig = {
 
 export type StreamEnhancerConfig = typeof defaultStreamEnhancerConfig;
 const applicationStreamingStore = findStoreLazy("ApplicationStreamingStore") as ApplicationStreamingStoreLike | undefined;
+const applicationStreamPreviewStore = findStoreLazy("ApplicationStreamPreviewStore") as ApplicationStreamPreviewStoreLike | undefined;
 const channelRtcStore = findStoreLazy("ChannelRTCStore") as ChannelRTCStoreLike | undefined;
 const mediaEngineStore = findStoreLazy("MediaEngineStore") as MediaEngineStoreLike | undefined;
 const goLiveSourceStore = findByPropsLazy("getGoLiveSource") as GoLiveSourceStoreLike;
@@ -262,6 +278,8 @@ const goLiveActionCreators = findByPropsLazy("setGoLiveSource") as GoLiveActionC
 const liveMicActionCreators = findByPropsLazy("setAutomaticGainControl", "setEchoCancellation", "setInputVolume") as LiveMicActionCreatorsLike;
 const conflictingPlugins = ["BetterMicrophone", "BetterScreenshare", "LimitlessScreenshare", "CustomStreamQuality"] as const;
 const cl = classNameFactory("vc-stream-enhancer-settings-");
+const coverCl = classNameFactory("vc-stream-enhancer-");
+const logger = new Logger("StreamEnhancer");
 
 const minStreamFps = 0;
 const maxStreamFps = 420;
@@ -310,6 +328,11 @@ export const micChannelRoutingOptions: SelectOption[] = [
     { label: "Dual mono from channel 1", value: "dualMonoLeft" },
     { label: "Dual mono from channel 2", value: "dualMonoRight" },
     { label: "Mono mix from both channels", value: "monoMix" }
+] as const;
+export const badgeVisibilityOptions: SelectOption[] = [
+    { label: "Show badge", value: "shown" },
+    { label: "Hide for me", value: "local" },
+    { label: "Hide for everyone", value: "all" }
 ] as const;
 const codecButtons = ["auto", "av1", "vp9", "h264"] as const satisfies readonly StreamCodec[];
 export const streamResolutionOptions = [
@@ -534,6 +557,9 @@ export function normalizeConfig(input: Partial<StreamEnhancerConfig> | undefined
         previewUploadFilterEnabled: source.previewUploadFilterEnabled ?? defaultStreamEnhancerConfig.previewUploadFilterEnabled,
         previewUploadFilterContrastPercent: clamp(Math.round(source.previewUploadFilterContrastPercent ?? defaultStreamEnhancerConfig.previewUploadFilterContrastPercent), 50, 200),
         customPreviewUrl: sanitizePreviewUrl(source.customPreviewUrl ?? defaultStreamEnhancerConfig.customPreviewUrl),
+        previewStretchFill: source.previewStretchFill ?? defaultStreamEnhancerConfig.previewStretchFill,
+        previewFlipX: source.previewFlipX ?? defaultStreamEnhancerConfig.previewFlipX,
+        previewFlipY: source.previewFlipY ?? defaultStreamEnhancerConfig.previewFlipY,
         streamTelemetryEnabled: source.streamTelemetryEnabled ?? defaultStreamEnhancerConfig.streamTelemetryEnabled,
         streamTelemetryIntervalSec: clamp(Math.round(source.streamTelemetryIntervalSec ?? defaultStreamEnhancerConfig.streamTelemetryIntervalSec), 1, 30),
         viewerResizeSliderEnabled: source.viewerResizeSliderEnabled ?? false,
@@ -1317,6 +1343,7 @@ export function StreamEnhancerControlPanel() {
     const set = <K extends keyof StreamEnhancerConfig>(key: K, next: StreamEnhancerConfig[K]) => {
         const updated = normalizeConfig({ ...normalized, [key]: next });
         streamEnhancerSettings.store.config = updated;
+        syncCustomPreviewForKey(key);
 
         if (key === "streamCodec") {
             syncCurrentGoLiveSource(updated);
@@ -1476,6 +1503,13 @@ export function StreamEnhancerControlPanel() {
             </SettingsSection>
 
             <SettingsSection title="Spoofed stream badge">
+                <div className={cl("label")}>Badge visibility</div>
+                <Select
+                    options={badgeVisibilityOptions}
+                    select={option => set("badgeVisibility", sanitizeBadgeVisibility(option))}
+                    isSelected={option => option === normalized.badgeVisibility}
+                    serialize={option => option}
+                />
                 <FormSwitch value={normalized.spoofBadgeEnabled} onChange={value => set("spoofBadgeEnabled", value)} title="Show spoofed resolution and FPS" />
                 <div>Changes your screen-share badge for you and viewers. Actual capture quality, bitrate, and camera settings stay the same. Start a new screen share after changing these values to update viewers.</div>
                 <NumberEditor label="Badge resolution" value={normalized.spoofBadgeHeight} min={144} max={maxBadgeHeight} markers={badgeResolutionPresets} markerFormatter={next => `${next}p`} onChange={next => { streamEnhancerSettings.store.config = normalizeConfig({ ...normalized, ...badgeSize(next) }); }} />
@@ -1484,6 +1518,9 @@ export function StreamEnhancerControlPanel() {
 
             <SettingsSection title="Preview Controls">
                 <FormSwitch value={normalized.previewTweaksEnabled} onChange={value => set("previewTweaksEnabled", value)} title="Enable stream preview tweaks" />
+                <FormSwitch value={normalized.previewStretchFill} onChange={value => set("previewStretchFill", value)} title="Stretch custom preview to fill" />
+                <FormSwitch value={normalized.previewFlipX} onChange={value => set("previewFlipX", value)} title="Flip custom preview horizontally" />
+                <FormSwitch value={normalized.previewFlipY} onChange={value => set("previewFlipY", value)} title="Flip custom preview vertically" />
                 <NumberEditor label="Preview scale (%)" value={normalized.previewScalePercent} min={80} max={160} markers={[80, 90, 100, 110, 120, 140, 160]} onChange={next => set("previewScalePercent", next)} />
                 <NumberEditor label="Preview saturation (%)" value={normalized.previewSaturationPercent} min={50} max={200} markers={[50, 75, 100, 125, 150, 175, 200]} onChange={next => set("previewSaturationPercent", next)} />
                 <NumberEditor label="Preview contrast (%)" value={normalized.previewContrastPercent} min={50} max={200} markers={[50, 75, 100, 125, 150, 175, 200]} onChange={next => set("previewContrastPercent", next)} />
@@ -1904,10 +1941,220 @@ export const applyPreviewUploadFilter = (ctx: CanvasRenderingContext2D | null) =
 
 const getDataUrlBytes = (value: string) => Math.ceil((value.length - value.indexOf(",") - 1) * 3 / 4);
 
+export const shouldSpoofStreamPanelPreview = () => {
+    const config = getConfig();
+    return config.previewTweaksEnabled && !!config.customPreviewUrl;
+};
+
+const SpoofedStreamPanelPreview = ErrorBoundary.wrap(
+    ({ url, stretch }: { url: string; stretch: boolean }) => {
+        // The cover mounts inside Discord's measured aspect-ratio box, which letterboxes
+        // the image and leaves bars around it. Stretch mode widens that box in place;
+        // React diffs only style-prop keys it knows, so this override survives re-renders
+        // and the cleanup restores Discord's own inline values on unmount.
+        const ref = useRef<HTMLDivElement>(null);
+        useLayoutEffect(() => {
+            const parent = ref.current?.parentElement;
+            if (!parent || !stretch) return;
+            parent.style.setProperty("aspect-ratio", "auto", "important");
+            parent.style.setProperty("width", "100%", "important");
+            parent.style.setProperty("height", "100%", "important");
+            return () => {
+                parent.style.removeProperty("aspect-ratio");
+                parent.style.removeProperty("width");
+                parent.style.removeProperty("height");
+            };
+        }, [stretch]);
+        return (
+            <div ref={ref} className={coverCl("panel-preview", { "panel-preview-stretch": stretch })}>
+                <img src={url} alt="" draggable={false} />
+            </div>
+        );
+    },
+    { noop: true }
+);
+
+const unwrapStreamArg = (value: unknown): unknown => {
+    if (!isObjectRecord(value)) return value;
+    if ("stream" in value && isObjectRecord(value.stream)) return value.stream;
+    if ("participant" in value && isObjectRecord(value.participant)) {
+        const participant = value.participant as Record<string, unknown>;
+        if ("stream" in participant && isObjectRecord(participant.stream)) return participant.stream;
+    }
+    return value;
+};
+
+// The call view holds exactly one stream selected at a time (Watch Stream,
+// the auto-watch focus, or a selected participant). While a stream is selected
+// its tile must play the live video; a spoof cover over it froze the share to
+// a still (user report 2026-10-09: "Watch Stream repainted the page with the
+// static preview and the share never opened"). getSelectedParticipant keys the
+// selection { type: "STREAM", id: <streamKey> }, so compare the key the same
+// way the client builds it. Helpers authored by t3-screenshare-click-fix in
+// the payload copy; ported here verbatim as the shared source of truth.
+const buildStreamKeyFor = (stream: Record<string, unknown>): string => (
+    typeof stream.streamKey === "string" && stream.streamKey
+        ? stream.streamKey
+        : (stream.guildId != null
+            ? `guild:${stream.guildId}:${stream.channelId}:${stream.ownerId}`
+            : `call:${stream.channelId}:${stream.ownerId}`)
+);
+
+export const isStreamSelectedInCallView = (value: unknown): boolean => {
+    try {
+        const streamObj = isObjectRecord(value) ? (unwrapStreamArg(value) as Record<string, unknown>) : null;
+        if (!streamObj || streamObj.channelId == null) return false;
+
+        const streamKey = buildStreamKeyFor(streamObj);
+        const rtcStore = channelRtcStore as ChannelRTCStoreLike & {
+            getSelectedParticipant?: (channelId: string | bigint) => { type?: unknown; id?: unknown } | null;
+        } | undefined;
+        const selected = rtcStore?.getSelectedParticipant?.(streamObj.channelId as string | bigint) ?? null;
+        if (!selected) return false;
+
+        const sel = selected as { type?: unknown; id?: unknown };
+        const typeName = typeof sel.type === "string" ? sel.type : sel.type != null ? String(sel.type) : "";
+        if (typeName !== "STREAM") return false;
+        if (sel.id == null) return false;
+
+        return String(sel.id) === streamKey || String(sel.id).endsWith(streamKey);
+    } catch {
+        return false;
+    }
+};
+
+// Gate for the patch sites that choose between the live video branch and the
+// static preview branch: gate only when that stream is NOT the one the client
+// is watching right now, so unwatched tiles keep the custom preview while the
+// watched stream plays for real.
+export const shouldGateStreamPanelVideo = (value: unknown) => {
+    const config = getConfig();
+    if (!config.previewTweaksEnabled || !config.customPreviewUrl) return false;
+    return !isStreamSelectedInCallView(value);
+};
+
+// Guards run in this plain function, not inside the boundary component: it must
+// return null when no preview URL is stored yet, so the patched site's `??`
+// falls back to Discord's stock node whose hook performs the preview fetch.
+// Keeping the element non-null starved that hook and left tiles empty.
+export const renderSpoofedStreamPanelPreview = (stream: unknown) => {
+    const config = getConfig();
+    if (!config.previewTweaksEnabled || !config.customPreviewUrl) return null;
+
+    const streamObj = unwrapStreamArg(stream);
+    const active = applicationStreamingStore?.getActiveStreamForApplicationStream?.(streamObj) ?? null;
+    if (!active || active.state === "ENDED" || active.state === "FAILED") return null;
+
+    // The client is watching this stream in the call view: stand down so the
+    // live video branch paints (see isStreamSelectedInCallView above).
+    if (isStreamSelectedInCallView(streamObj)) return null;
+
+    const url = applicationStreamPreviewStore?.getPreviewURL?.(active.guildId, active.channelId, active.ownerId) ?? null;
+    if (!url) return null;
+
+    return <SpoofedStreamPanelPreview url={url} stretch={config.previewStretchFill} />;
+};
+
+const customPreviewCache: { url: string; key: string; canvas: HTMLCanvasElement | null; loading: boolean; } = { url: "", key: "", canvas: null, loading: false };
+let customPreviewUploadTrigger: unknown = null;
+let customPreviewRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
+export const setPreviewUploadTrigger = (value: unknown) => {
+    customPreviewUploadTrigger = typeof value === "function" ? value : null;
+};
+
+// The preview upload cycle only re-runs on Discord's refresh timer; firing the
+// captured cycle callback pushes a fresh spoofed frame out within seconds of the
+// image arriving or the URL changing instead of the next tick.
+const triggerPreviewUpload = () => {
+    if (!shouldSpoofStreamPanelPreview()) return;
+    try {
+        (customPreviewUploadTrigger as (() => unknown) | null)?.();
+    } catch { }
+};
+
+const previewFlipKey = (config: StreamEnhancerConfig) => `${config.previewFlipX ? "x" : ""}${config.previewFlipY ? "y" : ""}`;
+
+const previewCacheKey = (config: StreamEnhancerConfig) =>
+    `${previewFlipKey(config)}:${getPreviewUploadWidth()}x${getPreviewUploadHeight()}`;
+
+const loadCustomPreviewImage = (url: string, key: string, config: StreamEnhancerConfig) => {
+    customPreviewCache.loading = true;
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => {
+        if (customPreviewCache.url !== url || customPreviewCache.key !== key) return;
+        const canvas = document.createElement("canvas");
+        canvas.width = getPreviewUploadWidth();
+        canvas.height = getPreviewUploadHeight();
+        const ctx = canvas.getContext("2d");
+        if (ctx && previewFlipKey(config)) {
+            ctx.translate(config.previewFlipX ? canvas.width : 0, config.previewFlipY ? canvas.height : 0);
+            ctx.scale(config.previewFlipX ? -1 : 1, config.previewFlipY ? -1 : 1);
+        }
+        // Discord renders the uploaded preview through its own aspect-fit boxes on
+        // every surface, including clients without this plugin, so the image is
+        // stretched onto the configured upload canvas: a mismatched source aspect
+        // would letterbox on stock viewers instead of filling.
+        ctx?.drawImage(image, 0, 0, canvas.width, canvas.height);
+        customPreviewCache.canvas = canvas;
+        customPreviewCache.key = key;
+        customPreviewCache.loading = false;
+        triggerPreviewUpload();
+    };
+    image.onerror = () => {
+        if (customPreviewCache.url !== url || customPreviewCache.key !== key) return;
+        logger.warn("Custom stream preview URL failed to load:", url);
+        customPreviewCache.canvas = null;
+        customPreviewCache.loading = false;
+        if (customPreviewRetryTimer) clearTimeout(customPreviewRetryTimer);
+        customPreviewRetryTimer = setTimeout(() => {
+            customPreviewRetryTimer = null;
+            if (customPreviewCache.url === url && !customPreviewCache.canvas) loadCustomPreviewImage(url, key, config);
+        }, 15_000);
+    };
+    image.src = url;
+};
+
+export const refreshCustomPreview = () => {
+    const config = getConfig();
+    if (!config.previewTweaksEnabled || !config.customPreviewUrl) return;
+    const key = previewCacheKey(config);
+    if (customPreviewCache.url === config.customPreviewUrl && customPreviewCache.key === key && (customPreviewCache.canvas || customPreviewCache.loading)) return;
+    customPreviewCache.url = config.customPreviewUrl;
+    customPreviewCache.key = key;
+    customPreviewCache.canvas = null;
+    loadCustomPreviewImage(config.customPreviewUrl, key, config);
+};
+
+export const stopCustomPreviewLoader = () => {
+    if (customPreviewRetryTimer) {
+        clearTimeout(customPreviewRetryTimer);
+        customPreviewRetryTimer = null;
+    }
+    customPreviewCache.loading = false;
+};
+
+const previewReloadKeys = new Set(["customPreviewUrl", "previewTweaksEnabled", "previewStretchFill", "previewFlipX", "previewFlipY", "previewUploadWidth", "previewUploadHeight"]);
+
+export const syncCustomPreviewForKey = (key: string) => {
+    if (previewReloadKeys.has(key)) refreshCustomPreview();
+};
+
+const ensureCustomPreviewCanvas = () => {
+    const config = getConfig();
+    if (!config.previewTweaksEnabled || !config.customPreviewUrl) return null;
+
+    refreshCustomPreview();
+
+    return customPreviewCache.canvas;
+};
+
 export const getPreviewUploadDataUrl = (canvas: HTMLCanvasElement) => {
     let quality = getPreviewJpegQuality();
-    let { width, height } = canvas;
-    let current = canvas;
+    const source = ensureCustomPreviewCanvas() ?? canvas;
+    let { width, height } = source;
+    let current = source;
 
     while (width >= 160 && height >= 90) {
         for (let nextQuality = quality; nextQuality >= 0.35; nextQuality -= 0.1) {
@@ -1923,7 +2170,7 @@ export const getPreviewUploadDataUrl = (canvas: HTMLCanvasElement) => {
             break;
         }
 
-        current = makeScaledCanvas(canvas, width, height);
+        current = makeScaledCanvas(source, width, height);
         quality = Math.min(quality, 0.7);
     }
 
@@ -1980,10 +2227,13 @@ export const streamEnhancerRuntime = {
     advertise(rtc: { context?: string; }, streams: unknown) {
         return advertiseBadge(rtc, streams, getConfig());
     },
+    isBadgeVisible() {
+        return getConfig().badgeVisibility === "shown";
+    },
     badgeFps(fps: number) {
         return badgeFps(fps, getConfig());
     },
-    badgeResolution(resolution: { width: number; height: number; type: number; }) {
+    badgeResolution(resolution: { width: number; height: number; type: unknown; }) {
         return badgeResolution(resolution, getConfig());
     },
     shouldOverrideStreamResolution,
@@ -2029,6 +2279,13 @@ export const streamEnhancerRuntime = {
     getPreviewRefreshIntervalMs,
     getPreviewRetryIntervalMs,
     getPreviewUploadDataUrl,
+    setPreviewUploadTrigger,
+    refreshCustomPreview,
+    stopCustomPreviewLoader,
+    shouldSpoofStreamPanelPreview,
+    renderSpoofedStreamPanelPreview,
+    isStreamSelectedInCallView,
+    shouldGateStreamPanelVideo,
     applyPreviewUploadFilter,
     coerceParticipantResolution,
     getDisplayResolutionForLabel,

@@ -152,7 +152,30 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
         find: "Failed to post stream preview",
         replacement: {
             match: /(\i)===(\i)&&\((\i)\?(\i)\.start\(6e4,(\i)\):\4\.start\(3e5,\5\)\)/,
-            replace: "$1===$2&&($3?$4.start($self.getPreviewRetryIntervalMs(),$5):$4.start($self.getPreviewRefreshIntervalMs(),$5))"
+            replace: "$1===$2&&($3?$4.start($self.getPreviewRetryIntervalMs(),$5):$4.start($self.getPreviewRefreshIntervalMs(),$5)),$self.setPreviewUploadTrigger($5)"
+        }
+    },
+    {
+        find: "streamerName:t.user.username",
+        replacement: [
+            {
+                match: /\(0,\i\.jsx\)\("div",\{className:\i\.Rh,children:\(0,\i\.jsx\)\(\i\.A,\{noText:!0,className:\i\.HL,stream:(\i)\.stream\}\)\}\)/,
+                replace: "$self.renderSpoofedStreamPanelPreview($1.stream)??$&"
+            }
+        ]
+    },
+    {
+        find: "Stream Tile State - activeStream",
+        replacement: {
+            match: /\(0,\i\.jsx\)\(\i\.A,\{noImage:!0,noText:!0,className:\i\(\)\(\i\.HL,\{\[\i\.gH\]:null==\i\}\),stream:\i\.stream\}\)/,
+            replace: "$self.renderSpoofedStreamPanelPreview(arguments[0])??$&"
+        }
+    },
+    {
+        find: "pgUTZC)}):(0,",
+        replacement: {
+            match: /\(0,\i\.jsx\)\("img",\{src:\i,alt:""[^}]+/g,
+            replace: "$self.renderSpoofedStreamPanelPreview(arguments[0])??$&"
         }
     },
     {
@@ -425,8 +448,9 @@ export const streamEnhancerPatches: Array<Omit<Patch, "plugin">> = [
     {
         find: '"useMaxQuality"',
         replacement: {
-            match: /(\i===\i\.user\.id\?\{maxFrameRate:)(\i)\.fps,maxResolution:(\(0,\i\.\i\)\("useMaxQuality",\i,\{[^{}]+\},\i\.fps\))/,
-            replace: "$1$self.badgeFps($self.getConfiguredStreamFps($2.fps)),maxResolution:$self.badgeResolution($3)"
+            match: /(\i===\i\.user\.id\?)(\{maxFrameRate:)(\i)\.fps,maxResolution:(\(0,\i\.\i\)\("useMaxQuality",\i,\{[^{}]+\},\i\.fps\))(\})/,
+            // Closing brace is captured so the branch can evaluate to null when the badge is hidden.
+            replace: "$1($self.isBadgeVisible()?$2$self.badgeFps($self.getConfiguredStreamFps($3.fps)),maxResolution:$self.badgeResolution($4)$5:null)"
         }
     },
     {
