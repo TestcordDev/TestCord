@@ -81,8 +81,16 @@ export default definePlugin({
             find: "renderEmptyFavorite",
             replacement: [
                 {
-                    match: /src:\(\i=.{0,300}"animated","true"\),\i\.toString\(\)\):\i\),/,
-                    replace: "src:$self.parseLink(this.props.src,[this.props.coords.width,this.props.coords.height]),",
+                    // Discord now builds the image URL through a helper (`F`) and
+                    // pools the <img> element; the old inline "animated" anchor is
+                    // gone. Inject the quality conversion at the two img-src
+                    // assignment points this module still has.
+                    match: /\._image\.src=(\i\(\i\.src\))/,
+                    replace: "._image.src=$self.parseLink($1)",
+                },
+                {
+                    match: /src:(\i\(\i\)),width:(\i),height:(\i),/,
+                    replace: "src:$self.parseLink($1,[$2,$3]),width:$2,height:$3,",
                 },
                 {
                     match: /(this\.handleCanPlay,\i)\.src=(\i)/,
