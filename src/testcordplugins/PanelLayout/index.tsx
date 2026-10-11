@@ -6,7 +6,7 @@
 
 import * as DataStore from "@api/DataStore";
 import { definePluginSettings, migratePluginSettings, SettingsStore } from "@api/Settings";
-import { UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
+import { addUserAreaButton, removeUserAreaButton, UserAreaButton, UserAreaRenderProps } from "@api/UserArea";
 import { BaseText } from "@components/BaseText";
 import { Button } from "@components/Button";
 import { Card } from "@components/Card";
@@ -78,6 +78,12 @@ migratePluginSettings("deracul-panel-layout", "PanelLayout");
 // ─── Settings ─────────────────────────────────────────────────────────────────
 
 export const settings = definePluginSettings({
+    pluginsCollapsed: {
+        type: OptionType.BOOLEAN,
+        default: false,
+        description: "Collapse/hide the plugin buttons panel row",
+        onChange: () => apply()
+    },
     userPanelLayout: {
         type: OptionType.SELECT,
         description: "Layout for user panel buttons",
@@ -491,6 +497,7 @@ function buildCSS(): string {
     const st = settings.store;
     const { callButtonStylingCamera, callButtonStylingScreenShare, callButtonStylingActivity, callButtonStylingSoundboard } = st;
     const gap = st.buttonGap ?? 4;
+    const isCollapsed = Boolean(st.pluginsCollapsed);
     const lines: string[] = [];
 
     const defaultBtn = `, ${S.callControls} ${S.callButton}[data-deracul-label="`;
@@ -746,10 +753,10 @@ function buildCSS(): string {
                     order: 30000 !important; flex: 1 1 auto !important; min-width: 0 !important; margin-right: auto !important;
                 }
                 ${S.panelButtons} { display: contents !important; }
-                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]):not([data-deracul-label="Mute"]):not([data-deracul-label="Deafen"]) {
+                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]):not([data-deracul-label="Mute"]):not([data-deracul-label="Deafen"]):not(.vc-panel-collapse-button) {
                     order: 10000; justify-content: center !important; align-items: center !important; flex: ${flexSize} !important;
                 }
-                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]):not([data-deracul-label="Mute"]):not([data-deracul-label="Deafen"]) > button {
+                ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]):not([data-deracul-label="Mute"]):not([data-deracul-label="Deafen"]):not(.vc-panel-collapse-button) > button {
                     width: 100% !important; display: flex !important; justify-content: center !important; align-items: center !important;
                 }
                 ${S.panelButtons} > ${S.audioParent},
@@ -758,7 +765,22 @@ function buildCSS(): string {
                 ${S.panelButtons} > [data-deracul-label="Deafen"] {
                     order: 40000; margin: 0 !important;
                 }
+                ${S.panelButtons} > .vc-panel-collapse-button {
+                    order: 15000 !important; flex: 0 0 auto !important; margin-left: auto !important;
+                }
             `);
+
+            if (isCollapsed) {
+                lines.push(`
+                    ${S.panelContainer}::before { display: none !important; }
+                    ${S.panelButtons} > *:not(${S.audioParent}):not([data-deracul-label="User Settings"]):not([data-deracul-label="Mute"]):not([data-deracul-label="Deafen"]):not(.vc-panel-collapse-button) {
+                        display: none !important;
+                    }
+                    ${S.panelButtons} > .vc-panel-collapse-button {
+                        order: 50000 !important; margin-left: 0 !important;
+                    }
+                `);
+            }
 
             if (settings.store.hideLine) {
                 lines.push(`
@@ -3350,6 +3372,7 @@ function PanelLayoutModal({ modalProps }: { modalProps: RenderModalProps; }) {
                         <SectionHeading>Layout Structure</SectionHeading>
                         <Card variant="primary">
                             <Dropdown label="User Panel Alignment" options={PANEL_LAYOUTS} value={s.userPanelLayout} onChange={v => set("userPanelLayout", v)} />
+                            <FormSwitch title="Plugins Collapsed" description="Collapse/hide the plugin buttons panel row." value={s.pluginsCollapsed} onChange={v => set("pluginsCollapsed", v)} hideBorder />
                         </Card>
 
                         <SectionHeading>Component Dimensions</SectionHeading>
@@ -3462,6 +3485,36 @@ function PanelLayoutButton({ iconForeground, hideTooltips, nameplate }: UserArea
     );
 }
 
+function CollapseIcon({ className }: { className?: string; }) {
+    const { pluginsCollapsed } = settings.use(["pluginsCollapsed"]);
+    return (
+        <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points={pluginsCollapsed ? "18 15 12 9 6 15" : "6 9 12 15 18 9"} />
+        </svg>
+    );
+}
+
+function CollapseToggleButton({ iconForeground, hideTooltips, nameplate }: UserAreaRenderProps) {
+    const { userPanelLayout, pluginsCollapsed } = settings.use(["userPanelLayout", "pluginsCollapsed"]);
+    if (!userPanelLayout.startsWith("split_")) return null;
+
+    const label = pluginsCollapsed ? "Show Plugin Panel" : "Hide Plugin Panel";
+
+    return (
+        <UserAreaButton
+            tooltipText={hideTooltips ? void 0 : label}
+            aria-label={label}
+            className="vc-panel-collapse-button icon-color-fix"
+            icon={<CollapseIcon className={iconForeground} />}
+            role="button"
+            plated={nameplate != null}
+            onClick={() => {
+                settings.store.pluginsCollapsed = !pluginsCollapsed;
+            }}
+        />
+    );
+}
+
 // ─── Plugin ───────────────────────────────────────────────────────────────────
 
 export default definePlugin({
@@ -3528,6 +3581,7 @@ export default definePlugin({
 
     async start() {
         await Promise.all([loadConfigs(), initModuleManager()]);
+        addUserAreaButton("panel-collapse-toggle", CollapseToggleButton, 50);
         apply();
         startObserver();
         unsubscribeModules = subscribeModules(() => apply());
@@ -3536,6 +3590,7 @@ export default definePlugin({
         document.addEventListener("click", onGlobalClick, true);
     },
     stop() {
+        removeUserAreaButton("panel-collapse-toggle");
         unsubscribeModules?.();
         unsubscribeModules = null;
         stopModuleManager();
