@@ -18,7 +18,7 @@
 
 import { Logger } from "@utils/Logger";
 import type * as t from "@vencord/discord-types";
-import { _resolveReady, filters, findByCodeLazy, findByPropsLazy, findLazy, mapMangledModule, mapMangledModuleLazy, proxyLazyWebpack, waitFor } from "@webpack";
+import { _resolveReady, filters, findByCodeLazy, findByProps, findByPropsLazy, findLazy, mapMangledModule, mapMangledModuleLazy, proxyLazyWebpack, waitFor } from "@webpack";
 import type * as TSPattern from "ts-pattern";
 
 const logger = new Logger("WebpackCommon");
@@ -115,48 +115,130 @@ export interface ToastOptions {
     duration?: number;
 }
 
-// Discord collapsed the old toast type strings into three variants. Unknown types fall
-// back to the neutral one instead of rendering an empty toast.
-const TOAST_VARIANTS: Record<string, t.ToastVariant> = {
-    success: "success",
-    failure: "critical",
-    error: "critical",
-    danger: "critical",
-    warning: "critical",
-    warn: "critical"
-};
-
 interface ToastsExports {
-    showToast: (data: t.ToastData) => void;
-    popToast(surface?: string): void;
+    showToast: (data: any) => void;
+    popToast(context?: string): void;
+    createToast?: (...args: any[]) => any;
 }
 
 let cachedToasts: ToastsExports | undefined;
-let lastToastLookup = 0;
-let lastToastId: string | undefined;
+let cachedCreateToast: ((...args: any[]) => any) | undefined;
+let probedCreateToast = false;
+let cachedCreateToastPositional = false;
+let lastToastLookupFailed = 0;
+// tracks the last id passed to show(), so progress toasts that re-show their id
+// replace the visible toast instead of queueing behind it (the new store has no
+// per-id update and queues every repeat)
+let lastShownToastId: string | undefined;
 
-// the pair is only exported together by Discord's own toast module
-function isToastsModule(mod: Partial<ToastsExports> | undefined): mod is ToastsExports {
-    return typeof mod?.showToast === "function" && typeof mod?.popToast === "function";
+function hasShowToast(mod: any): mod is ToastsExports {
+    return typeof mod?.showToast === "function";
 }
 
-// The toast actions are mangled exports of the module owning the toast store, so map
-// them out of that module instead of trusting either property name.
-// A miss is never cached, since the module may simply not be loaded yet.
+// the pair is only exported together by Discord's own toast module
+function isToastsModule(mod: any): mod is ToastsExports {
+    return hasShowToast(mod) && typeof mod.popToast === "function";
+}
+
+// Discord's legacy normaliser. It shipped inside the toast module on some builds and
+// in a module of its own on others; current builds export no createToast at all, so
+// this is only a fallback for older branches. The code anchor resolves to a lazy
+// proxy that looks callable even when the find fails, so it gets probed instead of
+// trusted.
+function resolveCreateToast(mod: ToastsExports): ((...args: any[]) => any) | undefined {
+    if (typeof mod.createToast === "function") return mod.createToast;
+    if (probedCreateToast) return cachedCreateToast;
+
+    probedCreateToast = true;
+    try {
+        const byCode = findByCodeLazy('variant:"default",icon:', ".duration");
+        // builds taking (message, type, options) answer the object probe with a
+        // non-string text, older ones answer the positional probe with junk, so
+        // try both before rejecting the normaliser
+        let probe: { text?: unknown } | undefined;
+        try { probe = byCode("", "message"); } catch { /* wrong shape */ }
+        if (typeof probe?.text === "string") {
+            cachedCreateToast = byCode;
+            cachedCreateToastPositional = true;
+        } else {
+            try { probe = byCode({ message: "", type: "message" }); } catch { /* wrong shape */ }
+            if (typeof probe?.text === "string") cachedCreateToast = byCode;
+        }
+    } catch {
+        // no normaliser in this build, the legacy payload is all there is
+    }
+    return cachedCreateToast;
+}
+
+// Current builds have no createToast at all, so the legacy payload would reach the
+// store unchanged and the new renderer (variant/text/icon layout) would draw an
+// empty pill. Map the legacy surface onto the store entry ourselves, mirroring
+// what Discord's own callers pass: {text, variant: "success"|"critical",
+// duration, position: "top"|"bottom"}.
+function toModernEntry(data: ToastData): Record<string, unknown> {
+    const entry: Record<string, unknown> = {
+        text: data.message,
+        position: data.options?.position === ToastPosition.BOTTOM ? "bottom" : "top"
+    };
+    if (typeof data.options?.duration === "number") entry.duration = data.options.duration;
+    if (data.type === "success") entry.variant = "success";
+    else if (data.type === "failure") entry.variant = "critical";
+    // MESSAGE and the other custom types keep the default (icon-less) pill;
+    // "failure" maps to "critical" so it gets Discord's red styling and icon
+    const component = data.options?.component;
+    if (component != null) entry.__dangerouslyRenderContent = () => component;
+    return entry;
+}
+
+// builds that ship createToast want a normalised entry and ignore message/type/id
+function normalizeToast(data: ToastData, mod: ToastsExports): any {
+    // already a normalised entry (no legacy message) — pass through
+    if (data.message == null && typeof (data as { text?: unknown }).text === "string") return data;
+
+    const create = resolveCreateToast(mod);
+    if (create) {
+        // the probe records which shape answers with a string text. create.length
+        // is not read: property reads on the lazy proxy throw in some builds.
+        const shapes = cachedCreateToastPositional ? ["positional", "object"] : ["object", "positional"];
+        for (const shape of shapes) {
+            try {
+                const normalized = shape === "positional"
+                    ? create(data.message, data.type, data.options)
+                    : create(data);
+                if (normalized != null && typeof normalized === "object" && typeof normalized.text === "string") {
+                    // progress toasts re-show the same id to update in place
+                    if (data.id) normalized.id = data.id;
+                    return normalized;
+                }
+            } catch {
+                // wrong shape, try the other one
+            }
+        }
+    }
+
+    // no normaliser in this build: map the legacy payload to the store entry
+    // instead of passing it through
+    return toModernEntry(data);
+}
+
+// a miss is never cached, since the module may simply not be loaded yet
 function resolveToasts(): ToastsExports | undefined {
     if (cachedToasts) return cachedToasts;
 
     // resolving walks the whole module cache, so don't retry on every call
     const now = Date.now();
-    if (now - lastToastLookup < 250) return undefined;
-    lastToastLookup = now;
+    if (now - lastToastLookupFailed < 250) return undefined;
+    lastToastLookupFailed = now;
 
     try {
-        const mod = mapMangledModule(".currentToastMap.has(", {
+        const byProps = findByProps("showToast", "popToast");
+        if (hasShowToast(byProps)) return (cachedToasts = byProps);
+
+        const byCode = mapMangledModule(".currentToastMap.has(", {
             showToast: filters.byCode(".currentToastMap.has("),
             popToast: filters.byCode(".delete(")
-        }) as Partial<ToastsExports>;
-        if (isToastsModule(mod)) return (cachedToasts = mod);
+        });
+        if (hasShowToast(byCode)) return (cachedToasts = byCode);
     } catch {
         // dev builds throw out of findModuleId when an anchor is missing
     }
@@ -165,16 +247,17 @@ function resolveToasts(): ToastsExports | undefined {
     return undefined;
 }
 
-// the legacy surface only carries message/type/options, so it is converted to the
-// `{text, variant, ...}` entry the native toast store renders
-export function createToast(message: string, type: string, options?: ToastOptions): t.ToastData {
-    const { position, component, duration } = options ?? {};
+// resolves the moment the module loads, so startup toasts aren't dropped
+waitFor(isToastsModule, mod => {
+    cachedToasts = mod;
+});
+
+export function createToast(message: string, type: string, options?: ToastOptions): ToastData {
     return {
-        text: message,
-        variant: TOAST_VARIANTS[type] ?? "default",
-        position: position === ToastPosition.BOTTOM ? "bottom" : "top",
-        duration,
-        __dangerouslyRenderContent: component == null ? undefined : () => component
+        message,
+        id: Toasts.genId(),
+        type,
+        options
     };
 }
 
@@ -189,23 +272,17 @@ export const Toasts = {
     Position: ToastPosition,
     genId: () => (Math.random() || Math.random()).toString(36).slice(2),
 
-    show(data: ToastData | t.ToastData) {
+    show(data: ToastData) {
         const toasts = resolveToasts();
         if (!toasts) return;
-
-        if ("message" in data) {
-            // the store holds one toast per surface, so a repeated id means update in
-            // place: replace the current entry instead of queueing every progress step
-            if (data.id && data.id === lastToastId) toasts.popToast();
-            lastToastId = data.id;
-            toasts.showToast(createToast(data.message, data.type ?? ToastType.MESSAGE, data.options));
-        } else {
-            lastToastId = undefined;
-            toasts.showToast(data);
-        }
+        // a repeat of the same id replaces the visible toast (progress toasts);
+        // the new store queues every show, so pop the previous one first
+        if (data.id && data.id === lastShownToastId) toasts.popToast?.();
+        lastShownToastId = data.id;
+        toasts.showToast(normalizeToast(data, toasts));
     },
     pop() {
-        resolveToasts()?.popToast();
+        resolveToasts()?.popToast?.();
     },
     create: createToast
 };
@@ -215,12 +292,15 @@ export const Toasts = {
  */
 export function showToast(data: t.ToastData): void;
 export function showToast(message: string, type?: ToastTypeValue, options?: ToastOptions): void;
-export function showToast(messageOrData: string | t.ToastData, type: ToastTypeValue = ToastType.MESSAGE, options?: ToastOptions) {
-    if (typeof messageOrData === "string") {
-        Toasts.show({ message: messageOrData, type, options });
-    } else {
-        Toasts.show(messageOrData);
-    }
+export function showToast(messageOrData: string | t.ToastData, type: ToastTypeValue = "message", options?: ToastOptions) {
+    // Normalisation lives in Toasts.show: Discord's createToast when the build
+    // ships one, our own legacy-to-store mapping otherwise. See resolveToasts /
+    // normalizeToast above. No try/catch needed here.
+    // Callers also pass a ready store entry ({text, variant, position}); that has to
+    // reach Toasts.show as-is, wrapping it as a message renders the object as a
+    // React child and soft-crashes the renderer (React error #31).
+    if (typeof messageOrData === "string") Toasts.show(Toasts.create(messageOrData, type, options));
+    else Toasts.show(messageOrData as unknown as ToastData);
 }
 
 export const UserUtils = {
